@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import cast
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -31,7 +31,6 @@ REQUIRED_DOCUMENTS = frozenset(
         SOURCE_BINDINGS_DOCUMENT,
     }
 )
-ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +122,7 @@ def _require_documents(bundle: RawCampaignBundle, correlation_id: str) -> None:
     )
 
 
-def _load_model(
+def _load_model[ModelT: BaseModel](
     bundle: RawCampaignBundle,
     path: str,
     model_type: type[ModelT],
@@ -214,8 +213,9 @@ def _load_yaml(raw: bytes, path: str, correlation_id: str) -> object:
             required_action="Encode the document as UTF-8 and validate it again.",
             correlation_id=correlation_id,
         ) from exc
+    loader = _UniqueKeyLoader(text)
     try:
-        payload = yaml.load(text, Loader=_UniqueKeyLoader)
+        payload = cast(object, loader.get_single_data())
     except yaml.YAMLError as exc:
         raise owner_error(
             error_type="collection/campaign-yaml-invalid",
@@ -226,6 +226,8 @@ def _load_yaml(raw: bytes, path: str, correlation_id: str) -> object:
             required_action="Correct the YAML syntax or duplicate key and validate it again.",
             correlation_id=correlation_id,
         ) from exc
+    finally:
+        loader.dispose()
     if payload is None:
         raise owner_error(
             error_type="collection/campaign-document-empty",

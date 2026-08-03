@@ -16,60 +16,38 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Detect dependency lock
-        id: lock-state
-        shell: bash
-        run: |
-          if [[ -f uv.lock ]]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "uv.lock is being created by the bootstrap-lock workflow."
-          fi
-
       - name: Install uv
-        if: steps.lock-state.outputs.exists == 'true'
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.10.0"
           enable-cache: true
 
-      - name: Install Python
-        if: steps.lock-state.outputs.exists == 'true'
-        run: uv python install 3.13
+      - name: Install exact Python
+        run: uv python install 3.13.13
 
       - name: Restore exact workspace
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv sync --frozen --all-packages --dev
 
       - name: Verify lock consistency
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv lock --check
 
       - name: Verify formatting
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv run ruff format --check .
 
       - name: Lint
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv run ruff check .
 
       - name: Type-check
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv run mypy
 
       - name: Run tests
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv run pytest
 
       - name: Verify dependency boundaries
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv run python tools/architecture_checks/check_dependencies.py
 
       - name: Validate first campaign snapshot
-        if: steps.lock-state.outputs.exists == 'true'
         run: uv run collector config validate berlin_recording_services
 
       - name: Build collector CLI image
-        if: steps.lock-state.outputs.exists == 'true'
         run: docker build --file deploy/docker/collector-cli.Dockerfile .

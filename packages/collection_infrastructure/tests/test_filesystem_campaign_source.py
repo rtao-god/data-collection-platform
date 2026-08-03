@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -52,8 +51,6 @@ def test_unexpected_file_is_rejected(tmp_path: Path) -> None:
 
 
 def test_symlink_is_rejected(tmp_path: Path) -> None:
-    if not hasattr(os, "symlink"):
-        pytest.skip("symlinks are unavailable on this platform")
     campaign = tmp_path / "campaigns" / "example"
     campaign.mkdir(parents=True)
     outside = tmp_path / "outside.yaml"

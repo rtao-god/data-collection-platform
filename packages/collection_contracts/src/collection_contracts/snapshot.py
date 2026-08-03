@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class ComponentDigest(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     path: str = Field(min_length=1, max_length=240)
     digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
 class SnapshotBlocker(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     code: str = Field(pattern=r"^[A-Z][A-Z0-9_]+$")
     owner: str = Field(min_length=1, max_length=100)
@@ -27,7 +27,9 @@ class SnapshotBlocker(BaseModel):
 
 
 class CampaignSnapshot(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid", frozen=True, populate_by_name=True
+    )
 
     contract: Literal["collector-campaign-snapshot"]
     contract_revision: Literal["campaign-snapshot-v1"] = Field(

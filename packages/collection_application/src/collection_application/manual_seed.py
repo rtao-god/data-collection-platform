@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 from collections.abc import Mapping, Sequence
-from typing import Any, NoReturn
+from typing import Any, Never
 
 from pydantic import ValidationError
 
@@ -31,7 +31,15 @@ def load_manual_seed_rows(
         if binding.capability != "manual_import":
             continue
         if binding.seed_provider.kind != "file":
-            raise AssertionError("validated manual binding must use a file seed provider")
+            raise owner_error(
+                error_type="collection/manual-seed-binding-invalid",
+                owner="ManualSeedImport",
+                code="MANUAL_SEED_BINDING_INVALID",
+                message="Manual source binding has no file seed provider.",
+                context={"bindingKey": binding.key},
+                required_action="Correct the typed source binding before reading campaign seeds.",
+                correlation_id=correlation_id,
+            )
         path = binding.seed_provider.path
         raw = bundle.files.get(path)
         if raw is None:
@@ -80,21 +88,8 @@ def parse_seed_csv(raw: bytes, path: str, correlation_id: str) -> tuple[ManualSe
         )
 
     rows: list[ManualSeedRow] = []
-    for row_number, row in enumerate(reader, start=2):
-        if None in row:
-            _raise_invalid_seed_row(
-                path,
-                row_number,
-                [{"type": "extra_columns", "values": row[None]}],
-                correlation_id,
-            )
-        if any(row.get(header) is None for header in MANUAL_SEED_HEADERS):
-            _raise_invalid_seed_row(
-                path,
-                row_number,
-                [{"type": "missing_column_value"}],
-                correlation_id,
-            )
+    for row_number, raw_row in enumerate(reader, start=2):
+        row = _validate_csv_row(raw_row, path, row_number, correlation_id)
         try:
             rows.append(
                 ManualSeedRow.model_validate(
@@ -120,12 +115,41 @@ def parse_seed_csv(raw: bytes, path: str, correlation_id: str) -> tuple[ManualSe
     return tuple(rows)
 
 
+def _validate_csv_row(
+    row: Mapping[str | None, str | list[str] | None],
+    path: str,
+    row_number: int,
+    correlation_id: str,
+) -> dict[str, str]:
+    extra_values = row.get(None)
+    if extra_values is not None:
+        _raise_invalid_seed_row(
+            path,
+            row_number,
+            [{"type": "extra_columns", "values": extra_values}],
+            correlation_id,
+        )
+
+    values: dict[str, str] = {}
+    for header in MANUAL_SEED_HEADERS:
+        value = row.get(header)
+        if not isinstance(value, str):
+            _raise_invalid_seed_row(
+                path,
+                row_number,
+                [{"type": "missing_column_value", "column": header}],
+                correlation_id,
+            )
+        values[header] = value
+    return values
+
+
 def _raise_invalid_seed_row(
     path: str,
     row_number: int,
     errors: Sequence[Mapping[str, Any]],
     correlation_id: str,
-) -> NoReturn:
+) -> Never:
     raise owner_error(
         error_type="collection/manual-seed-row-invalid",
         owner="ManualSeedImport",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from types import MappingProxyType
+from typing import Never
 
 from collection_application import RawCampaignBundle
 from collection_contracts import owner_error
@@ -104,7 +105,9 @@ class FilesystemCampaignBundleSource:
                     code="CAMPAIGN_FILE_TOO_LARGE",
                     message="Campaign file exceeds its repository safety limit.",
                     context={"campaignKey": campaign_key, "path": relative, "sizeBytes": size},
-                    required_action="Reduce the file or define a reviewed owner-specific import path.",
+                    required_action=(
+                        "Reduce the file or define a reviewed owner-specific import path."
+                    ),
                     correlation_id=correlation_id,
                 )
             files[relative] = entry.read_bytes()
@@ -115,9 +118,12 @@ class FilesystemCampaignBundleSource:
     def _validate_allowed_path(campaign_key: str, relative: str, correlation_id: str) -> int:
         if relative in _ROOT_FILES:
             return _MAX_YAML_BYTES
-        if relative.startswith("source_policies/") and relative.count("/") == 1:
-            if relative.endswith(".yaml"):
-                return _MAX_YAML_BYTES
+        if (
+            relative.startswith("source_policies/")
+            and relative.count("/") == 1
+            and relative.endswith(".yaml")
+        ):
+            return _MAX_YAML_BYTES
         if relative == "discovery/manual_seeds.csv":
             return _MAX_SEED_BYTES
         raise owner_error(
@@ -126,7 +132,9 @@ class FilesystemCampaignBundleSource:
             code="CAMPAIGN_FILE_UNEXPECTED",
             message="Campaign bundle contains a file outside the current allowlist.",
             context={"campaignKey": campaign_key, "path": relative},
-            required_action="Remove the file or add a typed owner and allowlist rule in the same change.",
+            required_action=(
+                "Remove the file or add a typed owner and allowlist rule in the same change."
+            ),
             correlation_id=correlation_id,
         )
 
@@ -136,13 +144,15 @@ class FilesystemCampaignBundleSource:
         path: str,
         reason: str,
         correlation_id: str,
-    ) -> None:
+    ) -> Never:
         raise owner_error(
             error_type="collection/campaign-path-boundary-violation",
             owner="CampaignConfiguration",
             code="CAMPAIGN_PATH_BOUNDARY_VIOLATION",
             message="Campaign filesystem boundary validation failed.",
             context={"campaignKey": campaign_key, "path": path, "reason": reason},
-            required_action="Keep regular campaign files inside the allowlisted campaign directory.",
+            required_action=(
+                "Keep regular campaign files inside the allowlisted campaign directory."
+            ),
             correlation_id=correlation_id,
         )

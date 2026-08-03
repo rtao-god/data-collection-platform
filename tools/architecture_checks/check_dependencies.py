@@ -121,7 +121,10 @@ def _file_import_violations(root: Path, file_path: Path, owner: str) -> list[Vio
                     Violation(
                         relative,
                         node.lineno,
-                        f"{owner} has no declared architecture allowance for external import {imported}",
+                        (
+                            f"{owner} has no declared architecture allowance for "
+                            f"external import {imported}"
+                        ),
                     )
                 )
     return violations

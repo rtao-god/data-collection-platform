@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,7 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class ErrorEnvelope(BaseModel):
     """Transport-safe owner-context failure contract."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid", frozen=True, populate_by_name=True
+    )
 
     type: str = Field(pattern=r"^collection/[a-z0-9-]+$")
     owner: str = Field(min_length=1, max_length=100)

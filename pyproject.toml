@@ -44,6 +44,8 @@ select = ["B", "C4", "E", "F", "I", "PTH", "RUF", "S", "SIM", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S105", "S106"]
+"tools/git_hooks/configure.py" = ["S404", "S603"]
+"tools/git_hooks/pre_commit.py" = ["S404", "S603"]
 
 [tool.mypy]
 python_version = "3.13"
