@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+set -eu
+exec python tools/git_hooks/pre_commit.py

@@ -1,0 +1,15 @@
+schema_revision: source-bindings-v1
+items:
+  - key: manual_seed_import
+    source_key: manual_seed
+    connector_key: manual_seed
+    source_policy_key: manual_seed_policy
+    capability: manual_import
+    seed_provider:
+      kind: file
+      path: discovery/manual_seeds.csv
+      format: csv
+    crawl_budget:
+      state: not_applicable
+    schedule_enabled: false
+    extraction_profile: manual-seed-v1

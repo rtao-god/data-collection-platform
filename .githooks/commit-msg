@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+set -eu
+exec python tools/git_hooks/commit_message.py "$1"

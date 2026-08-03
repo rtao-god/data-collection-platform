@@ -1,0 +1,49 @@
+name: Bootstrap dependency lock
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  generate-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect existing lock
+        id: lock-state
+        shell: bash
+        run: |
+          if [[ -f uv.lock ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install uv
+        if: steps.lock-state.outputs.exists == 'false'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: false
+
+      - name: Generate exact lock
+        if: steps.lock-state.outputs.exists == 'false'
+        run: uv lock --python 3.13
+
+      - name: Commit generated lock
+        if: steps.lock-state.outputs.exists == 'false'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "Build (Dependencies): generate initial uv lock"
+          git push origin HEAD:main

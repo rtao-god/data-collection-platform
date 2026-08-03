@@ -1,0 +1,63 @@
+[project]
+name = "data-collection-platform-workspace"
+version = "0.1.0"
+description = "Workspace owner for the Data Collection Platform"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+  "apps/collector_cli",
+  "packages/collection_application",
+  "packages/collection_contracts",
+  "packages/collection_domain",
+  "packages/collection_infrastructure",
+]
+
+[dependency-groups]
+dev = [
+  "mypy==2.3.0",
+  "pytest==9.0.2",
+  "ruff==0.16.1",
+  "types-pyyaml==6.0.12.20260518",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["apps", "packages", "tools"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["apps", "packages", "tools"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = ["B", "C4", "E", "F", "I", "PTH", "RUF", "S", "SIM", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+show_error_codes = true
+packages = [
+  "collector_cli",
+  "collection_application",
+  "collection_contracts",
+  "collection_domain",
+  "collection_infrastructure",
+]
+
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true

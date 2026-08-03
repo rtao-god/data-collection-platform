@@ -1,0 +1,3 @@
+from collection_infrastructure.filesystem_campaign_source import FilesystemCampaignBundleSource
+
+__all__ = ["FilesystemCampaignBundleSource"]

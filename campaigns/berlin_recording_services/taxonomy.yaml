@@ -1,0 +1,32 @@
+schema_revision: taxonomy-v1
+items:
+  - key: recording_studio
+    display_name: Recording studio
+    applicable_entity_kinds: [organization, place]
+  - key: vocal_recording
+    display_name: Vocal recording
+    applicable_entity_kinds: [organization, place, provider]
+  - key: band_recording
+    display_name: Band recording
+    applicable_entity_kinds: [organization, place]
+  - key: drum_recording
+    display_name: Drum recording
+    applicable_entity_kinds: [organization, place]
+  - key: podcast_studio
+    display_name: Podcast studio
+    applicable_entity_kinds: [organization, place]
+  - key: voice_over_adr
+    display_name: Voice-over and ADR
+    applicable_entity_kinds: [organization, place, provider]
+  - key: producer
+    display_name: Producer
+    applicable_entity_kinds: [organization, provider]
+  - key: mixing_engineer
+    display_name: Mixing engineer
+    applicable_entity_kinds: [organization, provider]
+  - key: mastering_service
+    display_name: Mastering service
+    applicable_entity_kinds: [organization, provider]
+  - key: rehearsal_recording_space
+    display_name: Rehearsal and recording space
+    applicable_entity_kinds: [organization, place]

@@ -1,0 +1,320 @@
+schema_revision: attributes-v1
+items:
+  - key: district
+    display_name: District
+    value_type: text
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: district-text-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: service_mode
+    display_name: Service mode
+    value_type: enum
+    cardinality: many
+    unit:
+      state: not_applicable
+    options:
+      state: defined
+      values:
+        - physical
+        - remote
+        - service_area
+    normalization_rule: service-mode-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: hourly_price
+    display_name: Hourly price
+    value_type: money
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: money-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: currency
+    display_name: Currency
+    value_type: text
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: iso-4217-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: minimum_booking
+    display_name: Minimum booking
+    value_type: measurement
+    cardinality: one
+    unit:
+      state: defined
+      value: minute
+    options:
+      state: not_applicable
+    normalization_rule: duration-minutes-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: vocal_booth
+    display_name: Vocal booth
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: live_room
+    display_name: Live room
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: approximate_room_area
+    display_name: Approximate room area
+    value_type: measurement
+    cardinality: one
+    unit:
+      state: defined
+      value: square_metre
+    options:
+      state: not_applicable
+    normalization_rule: area-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: drum_recording
+    display_name: Drum recording
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: grand_piano
+    display_name: Grand piano
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: analog_equipment
+    display_name: Analog equipment
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: engineer_included
+    display_name: Engineer included
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: production
+    display_name: Production
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: mixing
+    display_name: Mixing
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: mastering
+    display_name: Mastering
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: podcast
+    display_name: Podcast
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: voice_over_adr
+    display_name: Voice-over and ADR
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: supported_languages
+    display_name: Supported languages
+    value_type: set
+    cardinality: many
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: bcp-47-language-set-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: parking
+    display_name: Parking
+    value_type: boolean
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: boolean-observation-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: public_transport_note
+    display_name: Public transport note
+    value_type: localized_text
+    cardinality: many
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: localized-text-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: website
+    display_name: Website
+    value_type: url
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: url-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: email
+    display_name: Email
+    value_type: email
+    cardinality: many
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: email-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: phone
+    display_name: Phone
+    value_type: phone
+    cardinality: many
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: phone-e164-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: whatsapp
+    display_name: WhatsApp
+    value_type: url
+    cardinality: many
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: url-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: instagram
+    display_name: Instagram
+    value_type: url
+    cardinality: many
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: url-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: google_maps_reference
+    display_name: Google Maps reference
+    value_type: external_reference
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: external-reference-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: yandex_maps_reference
+    display_name: Yandex Maps reference
+    value_type: external_reference
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: not_applicable
+    normalization_rule: external-reference-v1
+    missing_allowed: true
+    evidence_required: true
+  - key: source_verification_level
+    display_name: Source verification level
+    value_type: enum
+    cardinality: one
+    unit:
+      state: not_applicable
+    options:
+      state: defined
+      values:
+        - unverified
+        - source_observed
+        - operator_verified
+    normalization_rule: verification-level-v1
+    missing_allowed: true
+    evidence_required: true

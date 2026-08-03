@@ -1,0 +1,11 @@
+schema_revision: entity-kinds-v1
+items:
+  - key: organization
+    display_name: Organization
+    description: A brand, company, or independent business identity.
+  - key: place
+    display_name: Place
+    description: A physical location that can be visited.
+  - key: provider
+    display_name: Provider
+    description: A specialist or service that does not require its own physical location.

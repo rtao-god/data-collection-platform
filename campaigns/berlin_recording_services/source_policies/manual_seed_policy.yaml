@@ -1,0 +1,61 @@
+schema_revision: source-policy-v1
+policy_key: manual_seed_policy
+policy_revision: manual-seed-policy-v1
+source_key: manual_seed
+source_type: manual_import
+legal_status: approved
+terms_review:
+  state: not_applicable
+  reason: Operator-authored local seed files have no external source terms.
+access:
+  kind: manual
+  accepted_formats:
+    - csv
+    - json
+    - jsonl
+  accepted_encodings:
+    - utf-8
+  max_file_bytes: 10485760
+  partial_mode_allowed: false
+storage_class: collector-structured-evidence-v1
+retention_days: 730
+allowed_fields:
+  - district
+  - service_mode
+  - hourly_price
+  - currency
+  - minimum_booking
+  - vocal_booth
+  - live_room
+  - approximate_room_area
+  - drum_recording
+  - grand_piano
+  - analog_equipment
+  - engineer_included
+  - production
+  - mixing
+  - mastering
+  - podcast
+  - voice_over_adr
+  - supported_languages
+  - parking
+  - public_transport_note
+  - website
+  - email
+  - phone
+  - whatsapp
+  - instagram
+  - google_maps_reference
+  - yandex_maps_reference
+  - source_verification_level
+prohibited_fields:
+  - review_text
+  - review_author
+  - source_photo
+attribution_required: false
+browser: forbidden
+screenshots: forbidden
+retry_budget: 0
+stop_on_status_codes: []
+reviewer: rtao-god
+approver: rtao-god
