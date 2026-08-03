@@ -5,17 +5,16 @@ The first database revision represents only meanings already present in the cano
 
 ## `config_bundles`
 
-Insert-only root metadata:
+Immutable root metadata:
 
 - `bundle_digest` — primary semantic identity in `sha256:<hex>` form;
 - `campaign_key`;
 - exact snapshot contract and revision;
 - `readiness`;
-- component and blocker counts;
 - explicit `recorded_at_utc`.
 
-A readiness constraint requires zero blockers for `ready` and at least one blocker for `blocked`.
-No timestamp or contract field receives a server-side semantic default.
+No timestamp or contract field receives a server-side semantic default. Component and blocker
+counts are derived from child rows rather than stored as a second truth.
 
 ## `config_bundle_components`
 
@@ -28,10 +27,20 @@ same SHA-256 wire format as the root.
 Ordered blocker rows keyed by `(bundle_digest, position)`. Code, owner, message, and required action
 remain explicit; a blocker is never flattened to a boolean or empty result.
 
-## Immutability
+## Atomic seal contract
 
-All three tables have `BEFORE UPDATE OR DELETE` triggers. Corrections require a new bundle digest and
-new rows. Foreign keys use no cascade delete.
+A bundle is materialized in one transaction:
+
+1. acquire the digest-scoped advisory lock implicitly through the child insert trigger;
+2. insert ordered component rows and optional blocker rows;
+3. insert the root row last;
+4. the root trigger validates contiguous positions, at least one component, and readiness/blocker
+   consistency;
+5. deferred foreign keys are checked at commit.
+
+The same advisory lock closes the concurrency window between child insertion and root sealing. Once
+the root exists, further child inserts fail. All three tables reject update and delete. Corrections
+therefore require a new bundle digest and a complete new transaction.
 
 ## Deliberately absent
 

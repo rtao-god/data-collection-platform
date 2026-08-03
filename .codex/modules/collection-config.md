@@ -9,8 +9,8 @@ immutable canonical snapshot and its digest; mutable Git files must not be rerea
 
 `FilesystemCampaignBundleSource` -> `CampaignSnapshotService` -> `CampaignSnapshot`.
 
-The PostgreSQL migration owns insert-only metadata tables for the snapshot identity, ordered
-component digests, and explicit blockers. No runtime writer exists yet because the object-store
+The PostgreSQL migration owns atomically sealed metadata tables for the snapshot identity,
+ordered component digests, and explicit blockers. No runtime writer exists yet because the object-store
 upload and verification owner must be implemented before DB metadata can point at a stored bundle.
 
 ## Invariants
@@ -23,5 +23,6 @@ upload and verification owner must be implemented before DB metadata can point a
 - manual seed headers and rows are explicit;
 - canonical hashes are stable and content-sensitive;
 - blocked readiness remains blocked;
-- migrated config records cannot be updated or deleted;
+- a complete bundle is sealed by one child-first/root-last transaction;
+- sealed config records cannot accept inserts, updates, or deletes;
 - database metadata does not imitate an object-store artifact.

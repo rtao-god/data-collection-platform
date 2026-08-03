@@ -19,6 +19,87 @@ def _database_url() -> str:
     return value
 
 
+def _insert_component(connection: sa.Connection, bundle_digest: str, position: int = 0) -> None:
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO config.config_bundle_components (
+                bundle_digest,
+                position,
+                path,
+                component_digest
+            ) VALUES (
+                :bundle_digest,
+                :position,
+                :path,
+                :component_digest
+            )
+            """
+        ),
+        {
+            "bundle_digest": bundle_digest,
+            "position": position,
+            "path": f"component-{position}.yaml",
+            "component_digest": "sha256:" + (f"{position + 1:x}" * 64)[:64],
+        },
+    )
+
+
+def _insert_blocker(connection: sa.Connection, bundle_digest: str, position: int = 0) -> None:
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO config.config_bundle_blockers (
+                bundle_digest,
+                position,
+                code,
+                owner,
+                message,
+                required_action
+            ) VALUES (
+                :bundle_digest,
+                :position,
+                'TEST_BLOCKER',
+                'IntegrationTest',
+                'The test bundle is intentionally blocked.',
+                'Insert it with blocked readiness.'
+            )
+            """
+        ),
+        {"bundle_digest": bundle_digest, "position": position},
+    )
+
+
+def _insert_bundle(
+    connection: sa.Connection,
+    bundle_digest: str,
+    *,
+    readiness: str,
+) -> None:
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO config.config_bundles (
+                bundle_digest,
+                campaign_key,
+                contract,
+                contract_revision,
+                readiness,
+                recorded_at_utc
+            ) VALUES (
+                :bundle_digest,
+                'integration_campaign',
+                'collector-campaign-snapshot',
+                'campaign-snapshot-v1',
+                :readiness,
+                '2026-08-04T00:00:00Z'
+            )
+            """
+        ),
+        {"bundle_digest": bundle_digest, "readiness": readiness},
+    )
+
+
 def test_fresh_migration_creates_exact_config_owner_contract() -> None:
     engine = sa.create_engine(_database_url(), poolclass=NullPool)
     inspector = sa.inspect(engine)
@@ -49,14 +130,16 @@ def test_fresh_migration_creates_exact_config_owner_contract() -> None:
     assert postgis_version
     assert {tuple(row) for row in trigger_rows} == {
         ("config_bundles", "trg_config_bundles_immutable"),
+        ("config_bundles", "trg_config_bundles_validate_insert"),
+        ("config_bundle_components", "trg_config_bundle_components_guard_insert"),
         ("config_bundle_components", "trg_config_bundle_components_immutable"),
+        ("config_bundle_blockers", "trg_config_bundle_blockers_guard_insert"),
         ("config_bundle_blockers", "trg_config_bundle_blockers_immutable"),
     }
 
     root_checks = {
-        constraint["name"] for constraint in inspector.get_check_constraints(
-            "config_bundles", schema="config"
-        )
+        constraint["name"]
+        for constraint in inspector.get_check_constraints("config_bundles", schema="config")
     }
     assert {
         "ck_config_bundles_bundle_digest_format",
@@ -64,60 +147,28 @@ def test_fresh_migration_creates_exact_config_owner_contract() -> None:
         "ck_config_bundles_contract_identity",
         "ck_config_bundles_contract_revision",
         "ck_config_bundles_readiness",
-        "ck_config_bundles_component_count",
-        "ck_config_bundles_blocker_count",
-        "ck_config_bundles_readiness_blockers",
     }.issubset(root_checks)
 
+    component_foreign_keys = inspector.get_foreign_keys(
+        "config_bundle_components", schema="config"
+    )
+    assert component_foreign_keys[0]["options"] == {
+        "initially": "DEFERRED",
+        "deferrable": True,
+    }
 
-def test_config_records_are_insert_only_and_fail_closed() -> None:
+
+def test_config_bundle_is_atomically_sealed_and_immutable() -> None:
     engine = sa.create_engine(_database_url(), poolclass=NullPool)
     bundle_digest = "sha256:" + ("a" * 64)
-    component_digest = "sha256:" + ("b" * 64)
 
     with engine.begin() as connection:
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO config.config_bundles (
-                    bundle_digest,
-                    campaign_key,
-                    contract,
-                    contract_revision,
-                    readiness,
-                    component_count,
-                    blocker_count,
-                    recorded_at_utc
-                ) VALUES (
-                    :bundle_digest,
-                    'integration_campaign',
-                    'collector-campaign-snapshot',
-                    'campaign-snapshot-v1',
-                    'ready',
-                    1,
-                    0,
-                    '2026-08-04T00:00:00Z'
-                )
-                """
-            ),
-            {"bundle_digest": bundle_digest},
-        )
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO config.config_bundle_components (
-                    bundle_digest,
-                    position,
-                    path,
-                    component_digest
-                ) VALUES (:bundle_digest, 0, 'campaign.yaml', :component_digest)
-                """
-            ),
-            {
-                "bundle_digest": bundle_digest,
-                "component_digest": component_digest,
-            },
-        )
+        _insert_component(connection, bundle_digest)
+        _insert_bundle(connection, bundle_digest, readiness="ready")
+
+    with pytest.raises(DBAPIError):
+        with engine.begin() as connection:
+            _insert_component(connection, bundle_digest, position=1)
 
     with pytest.raises(DBAPIError):
         with engine.begin() as connection:
@@ -144,31 +195,23 @@ def test_config_records_are_insert_only_and_fail_closed() -> None:
                 {"bundle_digest": bundle_digest},
             )
 
+
+def test_config_bundle_rejects_incomplete_or_inconsistent_insert() -> None:
+    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+
     with pytest.raises(IntegrityError):
         with engine.begin() as connection:
-            connection.execute(
-                sa.text(
-                    """
-                    INSERT INTO config.config_bundles (
-                        bundle_digest,
-                        campaign_key,
-                        contract,
-                        contract_revision,
-                        readiness,
-                        component_count,
-                        blocker_count,
-                        recorded_at_utc
-                    ) VALUES (
-                        :bundle_digest,
-                        'invalid_ready_campaign',
-                        'collector-campaign-snapshot',
-                        'campaign-snapshot-v1',
-                        'ready',
-                        1,
-                        1,
-                        '2026-08-04T00:00:00Z'
-                    )
-                    """
-                ),
-                {"bundle_digest": "sha256:" + ("c" * 64)},
-            )
+            _insert_bundle(connection, "sha256:" + ("b" * 64), readiness="ready")
+
+    with pytest.raises(IntegrityError):
+        with engine.begin() as connection:
+            digest = "sha256:" + ("c" * 64)
+            _insert_component(connection, digest)
+            _insert_blocker(connection, digest)
+            _insert_bundle(connection, digest, readiness="ready")
+
+    with pytest.raises(IntegrityError):
+        with engine.begin() as connection:
+            digest = "sha256:" + ("d" * 64)
+            _insert_component(connection, digest, position=1)
+            _insert_bundle(connection, digest, readiness="ready")

@@ -21,8 +21,11 @@ that project the existing `CampaignSnapshot` contract:
 - migrations run only through the explicit migration process;
 - `COLLECTOR_DATABASE_URL` must use `postgresql+psycopg` and name the target database;
 - no migration runs during API, worker, readiness, or image startup;
-- config rows are insert-only and protected by database triggers;
-- digests, contract identities, readiness, counts, paths, and blocker codes have SQL constraints;
+- bundle children are inserted before the root inside one transaction;
+- digest-scoped advisory locking serializes competing materializations;
+- deferred foreign keys require a root before commit;
+- root insertion validates contiguous components/blockers and readiness consistency;
+- once the root exists, new child inserts, updates, and deletes fail;
 - foreign keys do not cascade-delete evidence;
 - PostGIS remains an infrastructure prerequisite during downgrade;
 - no worker receives database credentials.
@@ -32,4 +35,4 @@ that project the existing `CampaignSnapshot` contract:
 - metadata compilation tests;
 - migration composition negative tests;
 - fresh PostgreSQL 18/PostGIS migration in CI;
-- integration checks for extension, tables, constraints, and immutable triggers.
+- integration checks for extension, tables, deferred constraints, atomic seal, and immutability.

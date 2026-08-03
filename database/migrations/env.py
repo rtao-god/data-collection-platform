@@ -15,7 +15,8 @@ target_metadata = collector_metadata
 
 
 def _database_url() -> str:
-    value = config.get_main_option("sqlalchemy.url").strip()
+    raw_value = config.get_main_option("sqlalchemy.url")
+    value = raw_value.strip() if raw_value is not None else ""
     if not value:
         raise RuntimeError(
             "DatabaseMigration requires an explicit sqlalchemy.url supplied by the migration "

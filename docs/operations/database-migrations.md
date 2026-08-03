@@ -30,8 +30,9 @@ A fresh PostgreSQL 18/PostGIS instance is migrated in CI. The integration contra
 - PostGIS is available;
 - the exact `config` tables exist;
 - required check constraints exist;
-- each table has an immutable mutation trigger;
-- invalid readiness/blocker combinations fail;
+- deferred child foreign keys and digest-scoped sealing exist;
+- root insertion rejects incomplete, unordered, or inconsistent bundles;
+- appending to a sealed bundle fails;
 - update and delete attempts fail.
 
 ## Downgrade

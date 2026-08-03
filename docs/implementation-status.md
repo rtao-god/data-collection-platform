@@ -13,8 +13,8 @@ integration test, or synthetic fixture is not reported as implemented behavior.
 | Generated contracts | Checked-in JSON Schemas plus digest manifest and drift check |
 | Typed failures | Owner-context error envelope |
 | Work vocabulary | Exact work-unit states and legal transition graph |
-| Database metadata | SQLAlchemy Core projection of campaign snapshot metadata |
-| Migration history | Alembic revision creating PostGIS prerequisite and insert-only `config` tables |
+| Database metadata | SQLAlchemy Core projection with atomic digest-level sealing |
+| Migration history | Alembic revision creating PostGIS prerequisite and immutable `config` tables |
 | Migration process | Separate `collection-migrate` composition root and image |
 | Architecture proof | AST dependency checker including the migration boundary |
 | CI proof | Lock, contracts, lint, type-check, unit tests, fresh migration, PostGIS integration, images |

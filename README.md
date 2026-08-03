@@ -20,7 +20,7 @@ The repository currently implements the foundation and the first database-backed
 - typed owner-context error envelopes;
 - work-unit state-transition vocabulary;
 - PostgreSQL/PostGIS migration ownership;
-- insert-only config bundle metadata, component identities, and blockers;
+- atomically sealed config bundle metadata, component identities, and blockers;
 - separate migration CLI and container image;
 - import-boundary checks, tests, Git hooks, and CI.
 

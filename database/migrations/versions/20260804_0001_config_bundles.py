@@ -1,4 +1,4 @@
-"""Create immutable campaign config bundle metadata.
+"""Create atomically sealed campaign config bundle metadata.
 
 Revision ID: 20260804_0001
 Revises:
@@ -17,7 +17,25 @@ down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_IMMUTABLE_TRIGGER_STATEMENTS = (
+_TRIGGER_STATEMENTS = (
+    """
+    CREATE TRIGGER trg_config_bundle_components_guard_insert
+    BEFORE INSERT ON config.config_bundle_components
+    FOR EACH ROW
+    EXECUTE FUNCTION config.guard_unsealed_config_child_insert()
+    """,
+    """
+    CREATE TRIGGER trg_config_bundle_blockers_guard_insert
+    BEFORE INSERT ON config.config_bundle_blockers
+    FOR EACH ROW
+    EXECUTE FUNCTION config.guard_unsealed_config_child_insert()
+    """,
+    """
+    CREATE TRIGGER trg_config_bundles_validate_insert
+    BEFORE INSERT ON config.config_bundles
+    FOR EACH ROW
+    EXECUTE FUNCTION config.validate_config_bundle_insert()
+    """,
     """
     CREATE TRIGGER trg_config_bundles_immutable
     BEFORE UPDATE OR DELETE ON config.config_bundles
@@ -50,8 +68,6 @@ def upgrade() -> None:
         sa.Column("contract", sa.String(length=64), nullable=False),
         sa.Column("contract_revision", sa.String(length=64), nullable=False),
         sa.Column("readiness", sa.String(length=16), nullable=False),
-        sa.Column("component_count", sa.Integer(), nullable=False),
-        sa.Column("blocker_count", sa.Integer(), nullable=False),
         sa.Column("recorded_at_utc", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
             "bundle_digest ~ '^sha256:[0-9a-f]{64}$'",
@@ -72,19 +88,6 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "readiness IN ('ready', 'blocked')",
             name="ck_config_bundles_readiness",
-        ),
-        sa.CheckConstraint(
-            "component_count > 0",
-            name="ck_config_bundles_component_count",
-        ),
-        sa.CheckConstraint(
-            "blocker_count >= 0",
-            name="ck_config_bundles_blocker_count",
-        ),
-        sa.CheckConstraint(
-            "(readiness = 'ready' AND blocker_count = 0) "
-            "OR (readiness = 'blocked' AND blocker_count > 0)",
-            name="ck_config_bundles_readiness_blockers",
         ),
         sa.PrimaryKeyConstraint("bundle_digest", name="pk_config_bundles"),
         schema="config",
@@ -124,6 +127,8 @@ def upgrade() -> None:
             ("bundle_digest",),
             ("config.config_bundles.bundle_digest",),
             name="fk_config_bundle_components_bundle_digest_config_bundles",
+            deferrable=True,
+            initially="DEFERRED",
         ),
         sa.PrimaryKeyConstraint(
             "bundle_digest",
@@ -171,6 +176,8 @@ def upgrade() -> None:
             ("bundle_digest",),
             ("config.config_bundles.bundle_digest",),
             name="fk_config_bundle_blockers_bundle_digest_config_bundles",
+            deferrable=True,
+            initially="DEFERRED",
         ),
         sa.PrimaryKeyConstraint(
             "bundle_digest",
@@ -199,7 +206,83 @@ def upgrade() -> None:
         $$
         """
     )
-    for statement in _IMMUTABLE_TRIGGER_STATEMENTS:
+    op.execute(
+        """
+        CREATE FUNCTION config.guard_unsealed_config_child_insert()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            PERFORM pg_advisory_xact_lock(hashtextextended(NEW.bundle_digest, 0));
+            IF EXISTS (
+                SELECT 1
+                FROM config.config_bundles AS bundle
+                WHERE bundle.bundle_digest = NEW.bundle_digest
+            ) THEN
+                RAISE EXCEPTION USING
+                    ERRCODE = '55000',
+                    MESSAGE = 'sealed campaign configuration cannot accept new child rows',
+                    DETAIL = format('%I.%I is already sealed', TG_TABLE_SCHEMA, TG_TABLE_NAME);
+            END IF;
+            RETURN NEW;
+        END;
+        $$
+        """
+    )
+    op.execute(
+        """
+        CREATE FUNCTION config.validate_config_bundle_insert()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        DECLARE
+            component_total bigint;
+            component_min integer;
+            component_max integer;
+            blocker_total bigint;
+            blocker_min integer;
+            blocker_max integer;
+        BEGIN
+            PERFORM pg_advisory_xact_lock(hashtextextended(NEW.bundle_digest, 0));
+
+            SELECT count(*), min(position), max(position)
+            INTO component_total, component_min, component_max
+            FROM config.config_bundle_components
+            WHERE bundle_digest = NEW.bundle_digest;
+
+            IF component_total = 0
+               OR component_min <> 0
+               OR component_max <> component_total - 1 THEN
+                RAISE EXCEPTION USING
+                    ERRCODE = '23514',
+                    MESSAGE = 'campaign configuration components are incomplete or unordered';
+            END IF;
+
+            SELECT count(*), min(position), max(position)
+            INTO blocker_total, blocker_min, blocker_max
+            FROM config.config_bundle_blockers
+            WHERE bundle_digest = NEW.bundle_digest;
+
+            IF blocker_total > 0
+               AND (blocker_min <> 0 OR blocker_max <> blocker_total - 1) THEN
+                RAISE EXCEPTION USING
+                    ERRCODE = '23514',
+                    MESSAGE = 'campaign configuration blockers are unordered';
+            END IF;
+
+            IF (NEW.readiness = 'ready' AND blocker_total <> 0)
+               OR (NEW.readiness = 'blocked' AND blocker_total = 0) THEN
+                RAISE EXCEPTION USING
+                    ERRCODE = '23514',
+                    MESSAGE = 'campaign readiness and blockers are inconsistent';
+            END IF;
+
+            RETURN NEW;
+        END;
+        $$
+        """
+    )
+    for statement in _TRIGGER_STATEMENTS:
         op.execute(statement)
 
 
@@ -212,6 +295,8 @@ def downgrade() -> None:
         schema="config",
     )
     op.drop_table("config_bundles", schema="config")
+    op.execute("DROP FUNCTION config.validate_config_bundle_insert()")
+    op.execute("DROP FUNCTION config.guard_unsealed_config_child_insert()")
     op.execute("DROP FUNCTION config.reject_immutable_config_mutation()")
     op.execute("DROP SCHEMA config")
     # PostGIS is a database prerequisite and may be shared by later revisions; it is not removed.

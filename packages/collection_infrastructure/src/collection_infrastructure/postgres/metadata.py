@@ -14,8 +14,6 @@ config_bundles = sa.Table(
     sa.Column("contract", sa.String(64), nullable=False),
     sa.Column("contract_revision", sa.String(64), nullable=False),
     sa.Column("readiness", sa.String(16), nullable=False),
-    sa.Column("component_count", sa.Integer(), nullable=False),
-    sa.Column("blocker_count", sa.Integer(), nullable=False),
     sa.Column("recorded_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint("bundle_digest", name="pk_config_bundles"),
     sa.CheckConstraint(
@@ -37,19 +35,6 @@ config_bundles = sa.Table(
     sa.CheckConstraint(
         "readiness IN ('ready', 'blocked')",
         name="ck_config_bundles_readiness",
-    ),
-    sa.CheckConstraint(
-        "component_count > 0",
-        name="ck_config_bundles_component_count",
-    ),
-    sa.CheckConstraint(
-        "blocker_count >= 0",
-        name="ck_config_bundles_blocker_count",
-    ),
-    sa.CheckConstraint(
-        "(readiness = 'ready' AND blocker_count = 0) "
-        "OR (readiness = 'blocked' AND blocker_count > 0)",
-        name="ck_config_bundles_readiness_blockers",
     ),
     schema=CONFIG_SCHEMA,
     comment="Immutable metadata for a canonical campaign snapshot.",
@@ -77,6 +62,8 @@ config_bundle_components = sa.Table(
         ("bundle_digest",),
         ("config.config_bundles.bundle_digest",),
         name="fk_config_bundle_components_bundle_digest_config_bundles",
+        deferrable=True,
+        initially="DEFERRED",
     ),
     sa.UniqueConstraint(
         "bundle_digest",
@@ -121,6 +108,8 @@ config_bundle_blockers = sa.Table(
         ("bundle_digest",),
         ("config.config_bundles.bundle_digest",),
         name="fk_config_bundle_blockers_bundle_digest_config_bundles",
+        deferrable=True,
+        initially="DEFERRED",
     ),
     sa.CheckConstraint(
         "position >= 0",
