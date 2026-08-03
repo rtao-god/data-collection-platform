@@ -31,6 +31,9 @@ jobs:
       - name: Verify lock consistency
         run: uv lock --check
 
+      - name: Verify generated contract drift
+        run: uv run python tools/contract_generation/generate.py --check
+
       - name: Verify formatting
         run: uv run ruff format --check .
 
@@ -40,14 +43,60 @@ jobs:
       - name: Type-check
         run: uv run mypy
 
-      - name: Run tests
-        run: uv run pytest
+      - name: Run non-integration tests
+        run: uv run pytest -m "not integration"
 
       - name: Verify dependency boundaries
         run: uv run python tools/architecture_checks/check_dependencies.py
+
+      - name: Compile owned Python
+        run: uv run python -m compileall -q apps database packages tools
 
       - name: Validate first campaign snapshot
         run: uv run collector config validate berlin_recording_services
 
       - name: Build collector CLI image
         run: docker build --file deploy/docker/collector-cli.Dockerfile .
+
+      - name: Build migration image
+        run: docker build --file deploy/docker/migration.Dockerfile .
+
+  migration:
+    runs-on: ubuntu-latest
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install exact Python
+        run: uv python install 3.13.13
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Apply fresh database migration
+        run: uv run collection-migrate upgrade head
+
+      - name: Verify PostgreSQL and PostGIS contract
+        run: uv run pytest -m integration database/tests

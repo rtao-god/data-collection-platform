@@ -29,6 +29,7 @@ Frontend rules are not routed by this file until review-console implementation b
 - Python 3.13 and one `uv` workspace own backend and pipeline dependencies.
 - Campaign configuration is declarative data, never executable code.
 - Workers must not receive Collection DB credentials; Worker Gateway is the future runtime boundary.
+- Database migrations run only through the dedicated migration composition root.
 - The current implementation must fail explicitly on incomplete or invalid owner state.
 - A collector-owned sealed export is the repository boundary; no temporary Aggregator DTO is allowed.
 
@@ -37,6 +38,8 @@ Frontend rules are not routed by this file until review-console implementation b
 - Campaign authoring: `campaigns/`
 - Python deployables: `apps/`
 - Python owner packages: `packages/`
-- Architecture and contracts: `docs/`
-- Repository checks: `tools/`
+- Database schema and migration history: `database/`
+- Generated machine-readable contracts: `contracts/`
+- Architecture and operator documentation: `docs/`
+- Repository checks and generators: `tools/`
 - Temporary local artifacts: `.tmp/` only; never commit them.

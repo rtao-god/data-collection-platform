@@ -4,8 +4,11 @@ version = "0.1.0"
 description = "Infrastructure adapters for the Data Collection Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+  "alembic==1.18.5",
   "collection-application",
   "collection-contracts",
+  "psycopg[binary]==3.3.4",
+  "sqlalchemy==2.0.51",
 ]
 
 [build-system]

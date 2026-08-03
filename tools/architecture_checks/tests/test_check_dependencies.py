@@ -51,6 +51,31 @@ def test_application_rejects_infrastructure_dependency(tmp_path: Path) -> None:
     assert "must not import internal owner collection_infrastructure" in violations[0].message
 
 
+def test_migration_may_compose_infrastructure_without_owning_sql(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "apps/migration/src/collection_migration/app.py",
+        "from collection_infrastructure.postgres import upgrade_database\n",
+    )
+
+    assert checker.find_violations(tmp_path) == ()
+
+
+def test_migration_rejects_direct_sqlalchemy_dependency(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "apps/migration/src/collection_migration/app.py",
+        "import sqlalchemy\n",
+    )
+
+    violations = checker.find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert "external import sqlalchemy" in violations[0].message
+
+
 def test_allowed_dependency_graph_passes(tmp_path: Path) -> None:
     checker = _load_checker()
     _write_source(

@@ -16,6 +16,14 @@ Validation sequence:
 The resulting digest is semantic: comments, YAML key order, and line endings do not change it;
 modeled values, seed row order, and referenced identities do.
 
+Generated JSON Schemas are projections of the Python contract owners. They are checked in under
+`contracts/json_schema/`, accompanied by a digest manifest, and CI rejects drift.
+
+The database migration projects the snapshot root, ordered component identities, and explicit
+blockers into insert-only `config` tables. It does not store bundle bytes or create an object-store
+reference. Runtime persistence remains blocked until content-addressed upload and integrity
+verification exist.
+
 The current Berlin campaign is structurally valid but explicitly `blocked` for production runs
-until the approved Berlin polygon artifact is added. Snapshot generation does not reinterpret this
-blocker as readiness.
+until the approved Berlin polygon artifact is added. Snapshot generation and database constraints do
+not reinterpret this blocker as readiness.

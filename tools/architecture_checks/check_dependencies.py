@@ -8,11 +8,12 @@ from pathlib import Path
 
 _INTERNAL_OWNERS = frozenset(
     {
-        "collector_cli",
         "collection_application",
         "collection_contracts",
         "collection_domain",
         "collection_infrastructure",
+        "collection_migration",
+        "collector_cli",
     }
 )
 _ALLOWED_INTERNAL_IMPORTS: dict[str, frozenset[str]] = {
@@ -21,6 +22,12 @@ _ALLOWED_INTERNAL_IMPORTS: dict[str, frozenset[str]] = {
             "collection_application",
             "collection_contracts",
             "collection_domain",
+            "collection_infrastructure",
+        }
+    ),
+    "collection_migration": frozenset(
+        {
+            "collection_contracts",
             "collection_infrastructure",
         }
     ),
@@ -33,7 +40,8 @@ _ALLOWED_INTERNAL_IMPORTS: dict[str, frozenset[str]] = {
 }
 _ALLOWED_EXTERNAL_IMPORTS: dict[str, frozenset[str]] = {
     "collector_cli": frozenset(),
-    "collection_infrastructure": frozenset(),
+    "collection_migration": frozenset(),
+    "collection_infrastructure": frozenset({"alembic", "sqlalchemy"}),
     "collection_application": frozenset({"pydantic", "yaml"}),
     "collection_domain": frozenset(),
     "collection_contracts": frozenset({"pydantic"}),
