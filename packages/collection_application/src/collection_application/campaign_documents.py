@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
@@ -227,7 +228,8 @@ def _load_yaml(raw: bytes, path: str, correlation_id: str) -> object:
             correlation_id=correlation_id,
         ) from exc
     finally:
-        loader.dispose()
+        # types-PyYAML leaves the no-argument cleanup hook untyped.
+        cast(Callable[[], None], loader.dispose)()
     if payload is None:
         raise owner_error(
             error_type="collection/campaign-document-empty",

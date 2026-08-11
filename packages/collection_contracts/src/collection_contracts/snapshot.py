@@ -28,7 +28,10 @@ class SnapshotBlocker(BaseModel):
 
 class CampaignSnapshot(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid", frozen=True, populate_by_name=True
+        extra="forbid",
+        frozen=True,
+        validate_by_alias=True,
+        validate_by_name=True,
     )
 
     contract: Literal["collector-campaign-snapshot"]
