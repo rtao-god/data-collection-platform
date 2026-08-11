@@ -1,0 +1,100 @@
+name: Normalize Worker Gateway V2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/normalize-worker-gateway-v2.yml
+      - tools/worker_gateway_normalize_once.py
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply reviewed owner corrections
+        run: python tools/worker_gateway_normalize_once.py
+
+      - name: Update and restore exact workspace
+        run: |
+          uv lock
+          uv sync --frozen --all-packages --dev
+
+      - name: Generate owned contracts
+        run: uv run python tools/contract_generation/generate.py
+
+      - name: Apply canonical formatting and lint fixes
+        run: |
+          uv run ruff format \
+            apps/worker_gateway \
+            database/tests/test_worker_gateway_runtime.py \
+            tools/architecture_checks/check_dependencies.py \
+            tools/architecture_checks/tests/test_check_dependencies.py \
+            tools/contract_generation/generate.py \
+            tools/contract_generation/tests/test_generate.py
+          uv run ruff check --fix \
+            apps/worker_gateway \
+            database/tests/test_worker_gateway_runtime.py \
+            tools/architecture_checks/check_dependencies.py \
+            tools/architecture_checks/tests/test_check_dependencies.py \
+            tools/contract_generation/generate.py \
+            tools/contract_generation/tests/test_generate.py
+          uv run ruff format \
+            apps/worker_gateway \
+            database/tests/test_worker_gateway_runtime.py \
+            tools/architecture_checks/check_dependencies.py \
+            tools/architecture_checks/tests/test_check_dependencies.py \
+            tools/contract_generation/generate.py \
+            tools/contract_generation/tests/test_generate.py
+
+      - name: Prove normalized owner boundary
+        run: |
+          uv run mypy
+          uv run pytest -m "not integration" \
+            apps/worker_gateway \
+            tools/architecture_checks/tests \
+            tools/contract_generation/tests
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+
+      - name: Commit normalized owner outputs
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add \
+            apps/worker_gateway \
+            contracts/openapi \
+            database/tests/test_worker_gateway_runtime.py \
+            docs/architecture/dependency-rules.md \
+            tools/architecture_checks/check_dependencies.py \
+            tools/architecture_checks/tests/test_check_dependencies.py \
+            tools/contract_generation/generate.py \
+            tools/contract_generation/tests/test_generate.py \
+            uv.lock
+          git commit -m "Build (Gateway): seal the Worker Gateway owner boundary" \
+            -m "Owner layer: authenticated Worker Gateway deployable and generated transport contract." \
+            -m "Root cause: source, architecture registry, dependency lock, OpenAPI, formatting, and static proof were not yet one reproducible package set." \
+            -m "Replacement: register the owner, project bearer security into OpenAPI, add exact runtime fixtures, regenerate the frozen lock and contract, and apply canonical source formatting." \
+            -m "Proof target: strict mypy, focused gateway/architecture/contract tests, owner dependency checks, generated drift, permanent image build, and PostgreSQL end-to-end verification."
+          git push origin HEAD:main
