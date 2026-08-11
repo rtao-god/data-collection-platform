@@ -35,6 +35,16 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         ),
         allowed_external_imports=frozenset(),
     ),
+    "worker_gateway": OwnerPolicy(
+        project_path="apps/worker_gateway",
+        distribution_name="worker-gateway",
+        allowed_internal_imports=(
+            "collection_application",
+            "collection_contracts",
+            "collection_infrastructure",
+        ),
+        allowed_external_imports=frozenset({"fastapi", "pydantic", "sqlalchemy", "uvicorn"}),
+    ),
     "collection_migration": OwnerPolicy(
         project_path="apps/migration",
         distribution_name="collection-migration",

@@ -7,13 +7,14 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated, TypeVar, cast
+from typing import Annotated, cast
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from collection_application import (
     LeaseExpirySweep,
@@ -34,25 +35,25 @@ from worker_gateway.auth import (
 )
 from worker_gateway.contracts import (
     HealthResponse,
+    LeaseAcquiredResponse,
     LeaseAcquireRequest,
     LeaseAcquireResponse,
-    LeaseAcquiredResponse,
     LeaseHeartbeatRequest,
     NoEligibleWorkResponse,
     WorkCompletionRequest,
     WorkCompletionResponse,
-    WorkFailureRequest,
-    WorkLeaseResponse,
-    WorkMutationResponse,
     WorkerProtocolMetadataResponse,
     WorkerRegistrationRequest,
     WorkerRegistrationResponse,
+    WorkFailureRequest,
+    WorkLeaseResponse,
+    WorkMutationResponse,
     WorkReleaseRequest,
 )
 
 _LOGGER = logging.getLogger("worker_gateway")
 _CORRELATION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,99}$")
-_CommandT = TypeVar("_CommandT")
+_WORKER_BEARER = HTTPBearer(auto_error=False, scheme_name="WorkerBearer")
 
 
 @dataclass(frozen=True, slots=True)
@@ -468,9 +469,7 @@ def _worker_router() -> APIRouter:
                 correlation_id=_correlation_id(request),
             )
         )
-        return WorkMutationResponse.from_result(
-            _dependencies(request).work_engine.release(command)
-        )
+        return WorkMutationResponse.from_result(_dependencies(request).work_engine.release(command))
 
     @router.get(
         "/capabilities",
@@ -531,8 +530,14 @@ def _install_health_routes(application: FastAPI) -> None:
 
 def _authenticate_worker(
     request: Request,
-    authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(_WORKER_BEARER),
+    ],
 ) -> WorkerPrincipal:
+    authorization = (
+        f"{credentials.scheme} {credentials.credentials}" if credentials is not None else None
+    )
     return _dependencies(request).authenticator.authenticate(authorization)
 
 
@@ -554,7 +559,7 @@ def _correlation_id(request: Request) -> str:
     return value
 
 
-def _command(factory: Callable[[], _CommandT]) -> _CommandT:
+def _command[CommandT](factory: Callable[[], CommandT]) -> CommandT:
     try:
         return factory()
     except ValueError as exc:

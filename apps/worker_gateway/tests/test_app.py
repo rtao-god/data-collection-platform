@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -155,9 +156,9 @@ def _lease(*, source_permit: bool = False) -> WorkLease:
 def _client(
     port: FakePort,
     *,
-    readiness_probe: object | None = None,
+    readiness_probe: Callable[[], None] | None = None,
 ) -> TestClient:
-    probe = readiness_probe if callable(readiness_probe) else lambda: None
+    probe = readiness_probe or (lambda: None)
     authenticator = WorkerAuthenticator.from_plaintext_credentials(
         {
             _TOKEN: WorkerPrincipal(
@@ -276,7 +277,7 @@ def test_lease_acquisition_distinguishes_no_work_from_an_acquired_lease() -> Non
 
 def test_heartbeat_and_completion_map_exact_worker_commands() -> None:
     port = FakePort()
-    port.lease = _lease()
+    port.lease = _lease(source_permit=True)
     with _client(port) as client:
         heartbeat = client.post(
             f"/worker/leases/{_LEASE_ID}/heartbeat",

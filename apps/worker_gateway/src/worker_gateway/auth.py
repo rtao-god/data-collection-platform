@@ -9,8 +9,8 @@ from pathlib import Path
 
 from collection_application import WorkCapability
 
-_SECRET_CONTRACT = "worker-gateway-local-credentials"
-_SECRET_CONTRACT_REVISION = "worker-gateway-local-credentials-v1"
+_CREDENTIAL_DOCUMENT_CONTRACT = "worker-gateway-local-credentials"
+_CREDENTIAL_DOCUMENT_REVISION = "worker-gateway-local-credentials-v1"
 _MAX_SECRET_BYTES = 1_048_576
 _WORKER_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,127}$")
 
@@ -69,7 +69,9 @@ class WorkerAuthenticator:
         try:
             size = path.stat().st_size
         except OSError as exc:
-            raise ValueError(f"worker credential secret is unavailable: {type(exc).__name__}") from exc
+            raise ValueError(
+                f"worker credential secret is unavailable: {type(exc).__name__}"
+            ) from exc
         if not 1 <= size <= _MAX_SECRET_BYTES:
             raise ValueError("worker credential secret size is outside the supported range")
         try:
@@ -82,9 +84,9 @@ class WorkerAuthenticator:
             "credentials",
         }:
             raise ValueError("worker credential secret has an invalid document shape")
-        if document["contract"] != _SECRET_CONTRACT:
+        if document["contract"] != _CREDENTIAL_DOCUMENT_CONTRACT:
             raise ValueError("worker credential secret contract identity is unsupported")
-        if document["contractRevision"] != _SECRET_CONTRACT_REVISION:
+        if document["contractRevision"] != _CREDENTIAL_DOCUMENT_REVISION:
             raise ValueError("worker credential secret contract revision is unsupported")
         raw_credentials = document["credentials"]
         if not isinstance(raw_credentials, list) or not raw_credentials:
@@ -104,8 +106,10 @@ class WorkerAuthenticator:
             raw_capabilities = raw_credential["capabilities"]
             if not isinstance(token, str) or not isinstance(worker_id, str):
                 raise ValueError("worker credential token and worker ID must be strings")
-            if not isinstance(raw_capabilities, list) or not raw_capabilities or not all(
-                isinstance(value, str) for value in raw_capabilities
+            if (
+                not isinstance(raw_capabilities, list)
+                or not raw_capabilities
+                or not all(isinstance(value, str) for value in raw_capabilities)
             ):
                 raise ValueError("worker credential capabilities must be a non-empty string list")
             try:
@@ -117,7 +121,9 @@ class WorkerAuthenticator:
             _validate_principal(principal)
             previous = principal_by_worker.get(worker_id)
             if previous is not None and previous != principal:
-                raise ValueError("rotated tokens for one worker must retain the same capability scope")
+                raise ValueError(
+                    "rotated tokens for one worker must retain the same capability scope"
+                )
             principal_by_worker[worker_id] = principal
             digest = _token_digest(token)
             if digest in credentials:
@@ -199,8 +205,10 @@ def _validate_principal(principal: WorkerPrincipal) -> None:
 
 
 def _validate_token(token: str) -> None:
-    if not 32 <= len(token) <= 512 or token.strip() != token or any(
-        character.isspace() for character in token
+    if (
+        not 32 <= len(token) <= 512
+        or token.strip() != token
+        or any(character.isspace() for character in token)
     ):
         raise ValueError("worker credential token has an invalid format")
 

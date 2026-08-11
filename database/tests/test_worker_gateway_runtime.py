@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -41,6 +42,15 @@ def _database_url() -> str:
     if not value:
         pytest.fail("COLLECTOR_DATABASE_URL is required for Worker Gateway integration tests.")
     return value
+
+
+@pytest.fixture
+def engine() -> Iterator[Engine]:
+    value = sa.create_engine(_database_url(), poolclass=NullPool)
+    try:
+        yield value
+    finally:
+        value.dispose()
 
 
 def _digest(*parts: str) -> str:
@@ -221,16 +231,20 @@ def test_authenticated_gateway_completes_durable_work(engine: Engine) -> None:
     assert completed.json()["outputDigest"] == output_digest
 
     with engine.connect() as connection:
-        work = connection.execute(
-            sa.text(
-                """
+        work = (
+            connection.execute(
+                sa.text(
+                    """
                 SELECT state, output_contract, output_digest, active_lease_id
                 FROM work.work_units
                 WHERE work_id = :work_id
                 """
-            ),
-            {"work_id": work_id},
-        ).mappings().one()
+                ),
+                {"work_id": work_id},
+            )
+            .mappings()
+            .one()
+        )
         active_lease_count = connection.execute(
             sa.text(
                 """
@@ -242,7 +256,7 @@ def test_authenticated_gateway_completes_durable_work(engine: Engine) -> None:
             {"worker_id": worker_id},
         ).scalar_one()
 
-    assert work == {
+    assert dict(work) == {
         "state": "succeeded",
         "output_contract": output_contract,
         "output_digest": output_digest,

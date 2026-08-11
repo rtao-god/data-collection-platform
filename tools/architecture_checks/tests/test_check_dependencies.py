@@ -281,3 +281,17 @@ def test_canonical_dependency_documentation_passes(tmp_path: Path) -> None:
     _write_workspace(tmp_path, checker, ())
 
     assert checker.find_violations(tmp_path) == ()
+
+
+def test_worker_gateway_rejects_direct_domain_dependency(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "apps/worker_gateway/src/worker_gateway/app.py",
+        "from collection_domain import WorkLease\n",
+    )
+
+    violations = checker.find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert "must not import production owner collection_domain" in violations[0].message

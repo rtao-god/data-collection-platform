@@ -42,7 +42,7 @@ def test_invalid_secret_fails_before_runtime_start(
 
 
 def test_non_local_bind_is_rejected_before_composition(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("WORKER_GATEWAY_HOST", "0.0.0.0")
+    monkeypatch.setenv("WORKER_GATEWAY_HOST", "0.0.0.0")  # noqa: S104
     monkeypatch.delenv("COLLECTOR_DATABASE_URL", raising=False)
     monkeypatch.delenv("WORKER_GATEWAY_TOKEN_FILE", raising=False)
 

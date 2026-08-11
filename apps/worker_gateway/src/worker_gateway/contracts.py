@@ -10,16 +10,16 @@ from collection_application import (
     WorkCapability,
     WorkCompletionResult,
     WorkCompletionStatus,
+    WorkerRegistrationResult,
+    WorkerRegistrationStatus,
     WorkFailureKind,
     WorkLease,
     WorkMutationResult,
     WorkStage,
     WorkUnitState,
-    WorkerRegistrationResult,
-    WorkerRegistrationStatus,
 )
 
-_TOKEN_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$"
+_WIRE_IDENTITY_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$"
 _DIGEST_PATTERN = r"^sha256:[0-9a-f]{64}$"
 _CODE_PATTERN = r"^[A-Z][A-Z0-9_]{0,99}$"
 
@@ -37,7 +37,7 @@ class WorkerRegistrationRequest(WorkerWireModel):
     build_identity: str = Field(
         alias="buildIdentity",
         serialization_alias="buildIdentity",
-        pattern=_TOKEN_PATTERN,
+        pattern=_WIRE_IDENTITY_PATTERN,
     )
     capabilities: frozenset[WorkCapability] = Field(min_length=1)
     supported_output_contracts: frozenset[str] = Field(
@@ -54,7 +54,7 @@ class WorkerRegistrationRequest(WorkerWireModel):
     resource_profile: str = Field(
         alias="resourceProfile",
         serialization_alias="resourceProfile",
-        pattern=_TOKEN_PATTERN,
+        pattern=_WIRE_IDENTITY_PATTERN,
     )
 
 
@@ -116,7 +116,7 @@ class WorkCompletionRequest(WorkerWireModel):
     output_contract: str = Field(
         alias="outputContract",
         serialization_alias="outputContract",
-        pattern=_TOKEN_PATTERN,
+        pattern=_WIRE_IDENTITY_PATTERN,
     )
     output_digest: str = Field(
         alias="outputDigest",
@@ -126,7 +126,7 @@ class WorkCompletionRequest(WorkerWireModel):
     worker_build_identity: str = Field(
         alias="workerBuildIdentity",
         serialization_alias="workerBuildIdentity",
-        pattern=_TOKEN_PATTERN,
+        pattern=_WIRE_IDENTITY_PATTERN,
     )
 
 
@@ -154,7 +154,7 @@ class WorkFailureRequest(WorkerWireModel):
     worker_build_identity: str = Field(
         alias="workerBuildIdentity",
         serialization_alias="workerBuildIdentity",
-        pattern=_TOKEN_PATTERN,
+        pattern=_WIRE_IDENTITY_PATTERN,
     )
 
 
@@ -174,7 +174,7 @@ class WorkReleaseRequest(WorkerWireModel):
     worker_build_identity: str = Field(
         alias="workerBuildIdentity",
         serialization_alias="workerBuildIdentity",
-        pattern=_TOKEN_PATTERN,
+        pattern=_WIRE_IDENTITY_PATTERN,
     )
 
 

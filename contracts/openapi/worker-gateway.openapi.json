@@ -1,0 +1,1109 @@
+{
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "const": "worker-gateway",
+            "default": "worker-gateway",
+            "title": "Component",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "live",
+              "ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "LeaseAcquireRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "$ref": "#/components/schemas/WorkCapability"
+          },
+          "heartbeatIntervalSeconds": {
+            "maximum": 86399.0,
+            "minimum": 1.0,
+            "title": "Heartbeatintervalseconds",
+            "type": "integer"
+          },
+          "leaseDurationSeconds": {
+            "maximum": 86400.0,
+            "minimum": 5.0,
+            "title": "Leasedurationseconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "capability",
+          "leaseDurationSeconds",
+          "heartbeatIntervalSeconds"
+        ],
+        "title": "LeaseAcquireRequest",
+        "type": "object"
+      },
+      "LeaseAcquiredResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "lease": {
+            "$ref": "#/components/schemas/WorkLeaseResponse"
+          },
+          "state": {
+            "const": "acquired",
+            "default": "acquired",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lease"
+        ],
+        "title": "LeaseAcquiredResponse",
+        "type": "object"
+      },
+      "LeaseHeartbeatRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "heartbeatIntervalSeconds": {
+            "maximum": 86399.0,
+            "minimum": 1.0,
+            "title": "Heartbeatintervalseconds",
+            "type": "integer"
+          },
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "leaseDurationSeconds": {
+            "maximum": 86400.0,
+            "minimum": 5.0,
+            "title": "Leasedurationseconds",
+            "type": "integer"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "leaseToken",
+          "inputDigest",
+          "leaseDurationSeconds",
+          "heartbeatIntervalSeconds"
+        ],
+        "title": "LeaseHeartbeatRequest",
+        "type": "object"
+      },
+      "NoEligibleWorkResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "$ref": "#/components/schemas/WorkCapability"
+          },
+          "state": {
+            "const": "no_eligible_work",
+            "default": "no_eligible_work",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "capability"
+        ],
+        "title": "NoEligibleWorkResponse",
+        "type": "object"
+      },
+      "SourcePermitResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "permitNotBeforeUtc": {
+            "format": "date-time",
+            "title": "Permitnotbeforeutc",
+            "type": "string"
+          },
+          "policyDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Policydigest",
+            "type": "string"
+          },
+          "sourceKey": {
+            "title": "Sourcekey",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceKey",
+          "policyDigest",
+          "permitNotBeforeUtc"
+        ],
+        "title": "SourcePermitResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WorkCapability": {
+        "enum": [
+          "manual_import",
+          "osm_query",
+          "http_fetch",
+          "browser_fetch",
+          "extraction",
+          "normalization",
+          "geography",
+          "entity_resolution",
+          "quality",
+          "export"
+        ],
+        "title": "WorkCapability",
+        "type": "string"
+      },
+      "WorkCompletionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "leaseId": {
+            "format": "uuid",
+            "title": "Leaseid",
+            "type": "string"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "outputContract": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+            "title": "Outputcontract",
+            "type": "string"
+          },
+          "outputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Outputdigest",
+            "type": "string"
+          },
+          "workerBuildIdentity": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+            "title": "Workerbuildidentity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "leaseId",
+          "leaseToken",
+          "inputDigest",
+          "outputContract",
+          "outputDigest",
+          "workerBuildIdentity"
+        ],
+        "title": "WorkCompletionRequest",
+        "type": "object"
+      },
+      "WorkCompletionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "outputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Outputdigest",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkCompletionStatus"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "status",
+          "outputDigest",
+          "revision"
+        ],
+        "title": "WorkCompletionResponse",
+        "type": "object"
+      },
+      "WorkCompletionStatus": {
+        "enum": [
+          "applied",
+          "already_applied"
+        ],
+        "title": "WorkCompletionStatus",
+        "type": "string"
+      },
+      "WorkFailureKind": {
+        "enum": [
+          "transient",
+          "permanent",
+          "policy_blocked",
+          "contract_invalid"
+        ],
+        "title": "WorkFailureKind",
+        "type": "string"
+      },
+      "WorkFailureRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[A-Z][A-Z0-9_]{0,99}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "failureKind": {
+            "$ref": "#/components/schemas/WorkFailureKind"
+          },
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "leaseId": {
+            "format": "uuid",
+            "title": "Leaseid",
+            "type": "string"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "owner": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Owner",
+            "type": "string"
+          },
+          "requiredAction": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Requiredaction",
+            "type": "string"
+          },
+          "workerBuildIdentity": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+            "title": "Workerbuildidentity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "leaseId",
+          "leaseToken",
+          "inputDigest",
+          "failureKind",
+          "code",
+          "owner",
+          "message",
+          "requiredAction",
+          "workerBuildIdentity"
+        ],
+        "title": "WorkFailureRequest",
+        "type": "object"
+      },
+      "WorkLeaseResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "$ref": "#/components/schemas/WorkCapability"
+          },
+          "correlationId": {
+            "title": "Correlationid",
+            "type": "string"
+          },
+          "expectedOutputContract": {
+            "title": "Expectedoutputcontract",
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "format": "date-time",
+            "title": "Expiresatutc",
+            "type": "string"
+          },
+          "heartbeatDeadlineUtc": {
+            "format": "date-time",
+            "title": "Heartbeatdeadlineutc",
+            "type": "string"
+          },
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "issuedAtUtc": {
+            "format": "date-time",
+            "title": "Issuedatutc",
+            "type": "string"
+          },
+          "leaseId": {
+            "format": "uuid",
+            "title": "Leaseid",
+            "type": "string"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "sourcePermit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourcePermitResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/WorkStage"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          },
+          "workerId": {
+            "title": "Workerid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "leaseId",
+          "workId",
+          "leaseToken",
+          "workerId",
+          "stage",
+          "capability",
+          "inputDigest",
+          "expectedOutputContract",
+          "issuedAtUtc",
+          "expiresAtUtc",
+          "heartbeatDeadlineUtc",
+          "sourcePermit",
+          "correlationId"
+        ],
+        "title": "WorkLeaseResponse",
+        "type": "object"
+      },
+      "WorkMutationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "availableAtUtc": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availableatutc"
+          },
+          "revision": {
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/WorkUnitState"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "state",
+          "revision",
+          "availableAtUtc"
+        ],
+        "title": "WorkMutationResponse",
+        "type": "object"
+      },
+      "WorkReleaseRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "leaseId": {
+            "format": "uuid",
+            "title": "Leaseid",
+            "type": "string"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "reasonCode": {
+            "pattern": "^[A-Z][A-Z0-9_]{0,99}$",
+            "title": "Reasoncode",
+            "type": "string"
+          },
+          "workerBuildIdentity": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+            "title": "Workerbuildidentity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "leaseId",
+          "leaseToken",
+          "inputDigest",
+          "reasonCode",
+          "workerBuildIdentity"
+        ],
+        "title": "WorkReleaseRequest",
+        "type": "object"
+      },
+      "WorkStage": {
+        "enum": [
+          "discovery",
+          "acquisition",
+          "extraction",
+          "normalization",
+          "geography",
+          "entity_resolution",
+          "quality",
+          "export"
+        ],
+        "title": "WorkStage",
+        "type": "string"
+      },
+      "WorkUnitState": {
+        "enum": [
+          "pending",
+          "leased",
+          "retry_wait",
+          "succeeded",
+          "dead_letter",
+          "blocked_by_policy",
+          "cancelled",
+          "superseded"
+        ],
+        "title": "WorkUnitState",
+        "type": "string"
+      },
+      "WorkerProtocolMetadataResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "authorizedCapabilities": {
+            "items": {
+              "$ref": "#/components/schemas/WorkCapability"
+            },
+            "title": "Authorizedcapabilities",
+            "type": "array"
+          },
+          "contract": {
+            "const": "collector-worker-protocol",
+            "default": "collector-worker-protocol",
+            "title": "Contract",
+            "type": "string"
+          },
+          "contractRevision": {
+            "const": "worker-protocol-v1",
+            "default": "worker-protocol-v1",
+            "title": "Contractrevision",
+            "type": "string"
+          },
+          "supportedStages": {
+            "items": {
+              "$ref": "#/components/schemas/WorkStage"
+            },
+            "title": "Supportedstages",
+            "type": "array"
+          },
+          "workerId": {
+            "title": "Workerid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workerId",
+          "authorizedCapabilities",
+          "supportedStages"
+        ],
+        "title": "WorkerProtocolMetadataResponse",
+        "type": "object"
+      },
+      "WorkerRegistrationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "buildIdentity": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+            "title": "Buildidentity",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/WorkCapability"
+            },
+            "minItems": 1,
+            "title": "Capabilities",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "maxConcurrency": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Maxconcurrency",
+            "type": "integer"
+          },
+          "resourceProfile": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+            "title": "Resourceprofile",
+            "type": "string"
+          },
+          "supportedOutputContracts": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Supportedoutputcontracts",
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "buildIdentity",
+          "capabilities",
+          "supportedOutputContracts",
+          "maxConcurrency",
+          "resourceProfile"
+        ],
+        "title": "WorkerRegistrationRequest",
+        "type": "object"
+      },
+      "WorkerRegistrationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/WorkerRegistrationStatus"
+          },
+          "workerId": {
+            "title": "Workerid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workerId",
+          "status"
+        ],
+        "title": "WorkerRegistrationResponse",
+        "type": "object"
+      },
+      "WorkerRegistrationStatus": {
+        "enum": [
+          "registered",
+          "already_registered"
+        ],
+        "title": "WorkerRegistrationStatus",
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "WorkerBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Data Collection Platform Worker Gateway",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "getWorkerGatewayLiveness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness"
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getWorkerGatewayReadiness",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness"
+      }
+    },
+    "/worker/capabilities": {
+      "get": {
+        "operationId": "getWorkerProtocolMetadata",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerProtocolMetadataResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Protocol Metadata",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/leases/acquire": {
+      "post": {
+        "operationId": "acquireWorkerLease",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaseAcquireRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "acquired": "#/components/schemas/LeaseAcquiredResponse",
+                      "no_eligible_work": "#/components/schemas/NoEligibleWorkResponse"
+                    },
+                    "propertyName": "state"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LeaseAcquiredResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoEligibleWorkResponse"
+                    }
+                  ],
+                  "title": "Response Acquireworkerlease"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Acquire Lease",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/leases/{lease_id}/heartbeat": {
+      "post": {
+        "operationId": "heartbeatWorkerLease",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lease_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lease Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaseHeartbeatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkLeaseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Heartbeat Lease",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/registrations": {
+      "post": {
+        "operationId": "registerWorker",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerRegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRegistrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Register Worker",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/work/{work_id}/complete": {
+      "post": {
+        "operationId": "completeWorkerWork",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Work Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkCompletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkCompletionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Complete Work",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/work/{work_id}/fail": {
+      "post": {
+        "operationId": "failWorkerWork",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Work Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkFailureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkMutationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Fail Work",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/work/{work_id}/release": {
+      "post": {
+        "operationId": "releaseWorkerWork",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "work_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Work Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkMutationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Release Work",
+        "tags": [
+          "worker"
+        ]
+      }
+    }
+  }
+}

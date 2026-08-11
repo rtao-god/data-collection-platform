@@ -87,9 +87,7 @@ def test_worker_gateway_openapi_is_deterministic_and_owner_scoped() -> None:
     assert document["components"]["securitySchemes"] == {
         "WorkerBearer": {"scheme": "bearer", "type": "http"}
     }
-    assert document["paths"]["/worker/leases/acquire"]["post"]["security"] == [
-        {"WorkerBearer": []}
-    ]
+    assert document["paths"]["/worker/leases/acquire"]["post"]["security"] == [{"WorkerBearer": []}]
     assert "security" not in document["paths"]["/health/live"]["get"]
 
 

@@ -9,6 +9,7 @@ by the normal architecture check.
 | Production owner | Project | Allowed internal owners | Allowed external imports |
 |---|---|---|---|
 | `collector_cli` | `apps/collector_cli` | `collection_application`, `collection_contracts`, `collection_infrastructure` | none |
+| `worker_gateway` | `apps/worker_gateway` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
 | `collection_migration` | `apps/migration` | `collection_contracts`, `collection_infrastructure` | none |
 | `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `psycopg`, `sqlalchemy` |
 | `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain` | `pydantic`, `yaml` |

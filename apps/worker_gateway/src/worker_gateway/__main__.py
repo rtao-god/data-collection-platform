@@ -35,8 +35,8 @@ def build_runtime() -> tuple[FastAPI, Engine]:
         minimum=1,
         maximum=1_000,
     )
-    engine = sa.create_engine(database_url, pool_pre_ping=True)
     authenticator = WorkerAuthenticator.from_secret_file(credential_file)
+    engine = sa.create_engine(database_url, pool_pre_ping=True)
     work_engine = WorkEngineService(PostgresWorkEngine(engine))
 
     def readiness_probe() -> None:
