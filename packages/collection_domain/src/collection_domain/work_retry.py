@@ -14,9 +14,13 @@ class WorkFailureKind(StrEnum):
 
 
 class WorkAttemptOutcome(StrEnum):
+    LEASED = "leased"
+    SUCCEEDED = "succeeded"
     RETRY_SCHEDULED = "retry_scheduled"
     DEAD_LETTERED = "dead_lettered"
     BLOCKED_BY_POLICY = "blocked_by_policy"
+    RELEASED = "released"
+    EXPIRED = "expired"
 
 
 @dataclass(frozen=True, slots=True)
