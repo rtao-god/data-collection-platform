@@ -204,6 +204,23 @@ worker_capabilities = sa.Table(
     schema=WORK_SCHEMA,
 )
 
+worker_output_contracts = sa.Table(
+    "worker_output_contracts",
+    collector_metadata,
+    sa.Column(
+        "worker_id",
+        sa.Text,
+        sa.ForeignKey("work.worker_registrations.worker_id"),
+        primary_key=True,
+    ),
+    sa.Column("output_contract", sa.Text, primary_key=True),
+    sa.CheckConstraint(
+        "output_contract ~ '^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$'",
+        name="ck_worker_output_contracts_identity",
+    ),
+    schema=WORK_SCHEMA,
+)
+
 worker_heartbeats = sa.Table(
     "worker_heartbeats",
     collector_metadata,
@@ -243,6 +260,7 @@ work_units = sa.Table(
     sa.Column("priority", sa.Integer, nullable=False),
     sa.Column("state", sa.Text, nullable=False),
     sa.Column("attempt_count", sa.Integer, nullable=False),
+    sa.Column("failure_count", sa.Integer, nullable=False),
     sa.Column("max_attempts", sa.Integer, nullable=False),
     sa.Column("retry_initial_delay_seconds", sa.Integer, nullable=False),
     sa.Column("retry_multiplier", sa.Integer, nullable=False),
@@ -290,6 +308,10 @@ work_units = sa.Table(
         name="ck_work_units_input_digest_format",
     ),
     sa.CheckConstraint(
+        "expected_output_contract ~ '^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$'",
+        name="ck_work_units_expected_output_contract_format",
+    ),
+    sa.CheckConstraint(
         "source_policy_digest IS NULL OR source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
         name="ck_work_units_source_policy_digest_format",
     ),
@@ -302,7 +324,8 @@ work_units = sa.Table(
         name="ck_work_units_priority",
     ),
     sa.CheckConstraint(
-        "attempt_count BETWEEN 0 AND max_attempts AND max_attempts BETWEEN 1 AND 100",
+        "attempt_count >= 0 AND failure_count BETWEEN 0 AND max_attempts AND "
+        "failure_count <= attempt_count AND max_attempts BETWEEN 1 AND 100",
         name="ck_work_units_attempt_budget",
     ),
     sa.CheckConstraint(
@@ -521,6 +544,7 @@ SOURCE_TABLES = (source_capacity_states,)
 WORK_TABLES = (
     worker_registrations,
     worker_capabilities,
+    worker_output_contracts,
     worker_heartbeats,
     work_units,
     work_attempts,
