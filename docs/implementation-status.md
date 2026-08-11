@@ -16,8 +16,8 @@ integration test, or synthetic fixture is not reported as implemented behavior.
 | Database metadata | SQLAlchemy Core projection with atomic digest-level sealing |
 | Migration history | Alembic revision creating PostGIS prerequisite and immutable `config` tables |
 | Migration process | Separate `collection-migrate` composition root and image |
-| Architecture proof | AST dependency checker including the migration boundary |
-| CI proof | Lock, contracts, lint, type-check, unit tests, fresh migration, PostGIS integration, images |
+| Architecture proof | Fail-closed owner registry, project-path/workspace/dependency checks, AST import graph, and documentation drift proof |
+| CI proof | Lock, contracts, lint, type-check, unit tests, architecture checks, fresh migration, PostGIS integration, images |
 
 ## Explicitly incomplete
 
