@@ -56,15 +56,13 @@ python_version = "3.13"
 strict = true
 warn_unused_configs = true
 show_error_codes = true
-packages = [
-  "collector_cli",
-  "collection_application",
-  "collection_contracts",
-  "collection_domain",
-  "collection_infrastructure",
-  "collection_migration",
-]
 files = [
+  "apps/collector_cli/src/collector_cli",
+  "apps/migration/src/collection_migration",
+  "packages/collection_application/src/collection_application",
+  "packages/collection_contracts/src/collection_contracts",
+  "packages/collection_domain/src/collection_domain",
+  "packages/collection_infrastructure/src/collection_infrastructure",
   "database/migrations/env.py",
   "database/migrations/versions",
   "tools/contract_generation/generate.py",
