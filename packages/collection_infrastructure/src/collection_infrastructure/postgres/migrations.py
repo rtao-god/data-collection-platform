@@ -6,9 +6,10 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from alembic.util.exc import CommandError
-from collection_contracts import owner_error
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import SQLAlchemyError
+
+from collection_contracts import owner_error
 
 _REVISION_PATTERN = re.compile(r"^[A-Za-z0-9_.@+-]+$")
 _EXPECTED_DRIVER = "postgresql+psycopg"

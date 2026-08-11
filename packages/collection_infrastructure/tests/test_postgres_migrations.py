@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 from alembic.util.exc import CommandError
-from collection_contracts import OwnerContextError
-
 from collection_infrastructure.postgres import migrations
+
+from collection_contracts import OwnerContextError
 
 _CORRELATION_ID = "test-correlation"
 _VALID_URL = "postgresql+psycopg://collector:secret@localhost/collector_core"

@@ -164,52 +164,46 @@ def test_config_bundle_is_atomically_sealed_and_immutable() -> None:
         _insert_component(connection, bundle_digest)
         _insert_bundle(connection, bundle_digest, readiness="ready")
 
-    with pytest.raises(DBAPIError):
-        with engine.begin() as connection:
-            _insert_component(connection, bundle_digest, position=1)
+    with pytest.raises(DBAPIError), engine.begin() as connection:
+        _insert_component(connection, bundle_digest, position=1)
 
-    with pytest.raises(DBAPIError):
-        with engine.begin() as connection:
-            connection.execute(
-                sa.text(
-                    """
-                    UPDATE config.config_bundles
-                    SET campaign_key = 'mutated_campaign'
-                    WHERE bundle_digest = :bundle_digest
-                    """
-                ),
-                {"bundle_digest": bundle_digest},
-            )
+    with pytest.raises(DBAPIError), engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                UPDATE config.config_bundles
+                SET campaign_key = 'mutated_campaign'
+                WHERE bundle_digest = :bundle_digest
+                """
+            ),
+            {"bundle_digest": bundle_digest},
+        )
 
-    with pytest.raises(DBAPIError):
-        with engine.begin() as connection:
-            connection.execute(
-                sa.text(
-                    """
-                    DELETE FROM config.config_bundle_components
-                    WHERE bundle_digest = :bundle_digest
-                    """
-                ),
-                {"bundle_digest": bundle_digest},
-            )
+    with pytest.raises(DBAPIError), engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                DELETE FROM config.config_bundle_components
+                WHERE bundle_digest = :bundle_digest
+                """
+            ),
+            {"bundle_digest": bundle_digest},
+        )
 
 
 def test_config_bundle_rejects_incomplete_or_inconsistent_insert() -> None:
     engine = sa.create_engine(_database_url(), poolclass=NullPool)
 
-    with pytest.raises(IntegrityError):
-        with engine.begin() as connection:
-            _insert_bundle(connection, "sha256:" + ("b" * 64), readiness="ready")
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        _insert_bundle(connection, "sha256:" + ("b" * 64), readiness="ready")
 
-    with pytest.raises(IntegrityError):
-        with engine.begin() as connection:
-            digest = "sha256:" + ("c" * 64)
-            _insert_component(connection, digest)
-            _insert_blocker(connection, digest)
-            _insert_bundle(connection, digest, readiness="ready")
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        digest = "sha256:" + ("c" * 64)
+        _insert_component(connection, digest)
+        _insert_blocker(connection, digest)
+        _insert_bundle(connection, digest, readiness="ready")
 
-    with pytest.raises(IntegrityError):
-        with engine.begin() as connection:
-            digest = "sha256:" + ("d" * 64)
-            _insert_component(connection, digest, position=1)
-            _insert_bundle(connection, digest, readiness="ready")
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        digest = "sha256:" + ("d" * 64)
+        _insert_component(connection, digest, position=1)
+        _insert_bundle(connection, digest, readiness="ready")

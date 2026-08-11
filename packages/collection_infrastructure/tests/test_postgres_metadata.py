@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from sqlalchemy.dialects import postgresql
-from sqlalchemy.schema import CreateTable
-
 from collection_infrastructure.postgres import (
     CONFIG_SCHEMA,
     CONFIG_TABLES,
@@ -10,6 +7,8 @@ from collection_infrastructure.postgres import (
     config_bundle_components,
     config_bundles,
 )
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateTable
 
 
 def test_config_metadata_has_only_owned_atomically_sealed_tables() -> None:
