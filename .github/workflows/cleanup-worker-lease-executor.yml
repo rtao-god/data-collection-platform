@@ -1,0 +1,55 @@
+name: Cleanup Worker Lease Executor
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cleanup-worker-lease-executor.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Delete exact accidental branch probes
+        run: |
+          for branch in \
+            __schema_probe_should_not_create \
+            __do_not_create \
+            __cleanup_test \
+            __cleanup_test_2; do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" >/dev/null 2>&1 || true
+          done
+
+      - name: Remove temporary executor paths
+        run: |
+          rm -f \
+            tools/apply_worker_lease_batch.py \
+            tools/apply_run_admission_batch.py \
+            .github/workflows/apply-worker-lease.yml \
+            .github/workflows/apply-run-admission.yml \
+            .github/workflows/repair-current-ci.yml \
+            .github/workflows/cleanup-accidental-branches.yml \
+            .github/workflows/consolidate-current-ci.yml \
+            .github/workflows/finalize-one-shot-writers.yml \
+            .github/workflows/cleanup-worker-lease-executor.yml
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Build (Safety): remove WorkEngine one-shot executors" \
+            -m "Owner layer: permanent repository safety boundary." \
+            -m "Root cause: bounded implementation scripts and write workflows must not remain active after their run, regardless of proof outcome." \
+            -m "Replacement: remove only exact temporary executor paths and accidental probe refs." \
+            -m "Proof target: production owners remain unchanged and only read-only permanent CI is active."
+          git push origin HEAD:main
