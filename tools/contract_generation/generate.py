@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 _MANIFEST_NAME = "manifest.json"
 _SCHEMA_SUFFIX = ".schema.json"
+_WORKER_GATEWAY_OPENAPI_NAME = "worker-gateway.openapi.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,20 @@ def build_outputs(targets: tuple[ContractTarget, ...]) -> tuple[ContractOutput, 
     return tuple(outputs)
 
 
+def build_worker_gateway_openapi_output() -> ContractOutput:
+    from worker_gateway import create_app
+
+    document = create_app().openapi()
+    if document.get("openapi") != "3.1.0":
+        raise ValueError("Worker Gateway must generate OpenAPI 3.1.0")
+    content = _canonical_json(document)
+    return ContractOutput(
+        _WORKER_GATEWAY_OPENAPI_NAME,
+        content,
+        _sha256(content),
+    )
+
+
 def synchronize_outputs(
     output_directory: Path,
     outputs: tuple[ContractOutput, ...],
@@ -131,12 +146,17 @@ def synchronize_outputs(
 
 def generate(repository_root: Path, *, check: bool) -> tuple[str, ...]:
     root = repository_root.resolve(strict=True)
-    output_directory = root / "contracts" / "json_schema"
-    return synchronize_outputs(
-        output_directory,
+    schema_drift = synchronize_outputs(
+        root / "contracts" / "json_schema",
         build_outputs(contract_targets()),
         check=check,
     )
+    openapi_drift = synchronize_outputs(
+        root / "contracts" / "openapi",
+        (build_worker_gateway_openapi_output(),),
+        check=check,
+    )
+    return schema_drift + openapi_drift
 
 
 def _canonical_json(value: object) -> bytes:
