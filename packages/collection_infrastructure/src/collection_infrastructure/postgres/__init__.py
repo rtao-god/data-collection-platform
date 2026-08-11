@@ -1,3 +1,10 @@
+from collection_infrastructure.postgres.artifact_metadata import (
+    ARTIFACT_TABLES,
+    artifact_objects,
+    artifact_uploads,
+    raw_artifacts,
+    work_output_artifacts,
+)
 from collection_infrastructure.postgres.metadata import (
     CONFIG_SCHEMA,
     CONFIG_TABLES,
@@ -32,6 +39,7 @@ from collection_infrastructure.postgres.work_source_constraints import (
 )
 
 __all__ = [
+    "ARTIFACT_TABLES",
     "CONFIG_SCHEMA",
     "CONFIG_TABLES",
     "RUNS_SCHEMA",
@@ -43,16 +51,20 @@ __all__ = [
     "WORK_SCHEMA",
     "WORK_TABLES",
     "PostgresWorkEngine",
+    "artifact_objects",
+    "artifact_uploads",
     "collection_runs",
     "collector_metadata",
     "config_bundle_blockers",
     "config_bundle_components",
     "config_bundles",
     "dead_letters",
+    "raw_artifacts",
     "source_capacity_states",
     "stage_runs",
     "upgrade_database",
     "work_attempts",
+    "work_output_artifacts",
     "work_units",
     "worker_capabilities",
     "worker_heartbeats",
