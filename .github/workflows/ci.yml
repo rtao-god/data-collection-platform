@@ -23,7 +23,7 @@ jobs:
           enable-cache: true
 
       - name: Install exact Python
-        run: uv python install 3.13.13
+        run: uv python install 3.13.14
 
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
@@ -90,7 +90,7 @@ jobs:
           enable-cache: true
 
       - name: Install exact Python
-        run: uv python install 3.13.13
+        run: uv python install 3.13.14
 
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
