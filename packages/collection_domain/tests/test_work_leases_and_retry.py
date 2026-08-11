@@ -9,8 +9,10 @@ from collection_domain import (
     RetryPolicy,
     StaleWorkLease,
     WorkAttemptOutcome,
+    WorkCapability,
     WorkFailureKind,
     WorkLease,
+    WorkStage,
     WorkUnitState,
 )
 
@@ -27,8 +29,8 @@ def _lease() -> WorkLease:
         work_id=_WORK_ID,
         lease_token=_LEASE_TOKEN,
         worker_id="worker-1",
-        stage="acquisition",
-        capability="http_fetch",
+        stage=WorkStage.ACQUISITION,
+        capability=WorkCapability.HTTP_FETCH,
         input_digest=_DIGEST,
         expected_output_contract="fetch-observation",
         issued_at_utc=_NOW,
@@ -98,11 +100,30 @@ def test_lease_rejects_non_utc_time() -> None:
             work_id=_WORK_ID,
             lease_token=_LEASE_TOKEN,
             worker_id="worker-1",
-            stage="acquisition",
-            capability="http_fetch",
+            stage=WorkStage.ACQUISITION,
+            capability=WorkCapability.HTTP_FETCH,
             input_digest=_DIGEST,
             expected_output_contract="fetch-observation",
             issued_at_utc=datetime(2026, 8, 11, 12, 0),
+            expires_at_utc=_NOW + timedelta(minutes=5),
+            heartbeat_deadline_utc=_NOW + timedelta(minutes=1),
+            permit_not_before_utc=_NOW,
+            correlation_id="correlation-1",
+        )
+
+
+def test_lease_rejects_capability_from_another_stage() -> None:
+    with pytest.raises(ValueError, match="not valid for the lease stage"):
+        WorkLease(
+            lease_id=_LEASE_ID,
+            work_id=_WORK_ID,
+            lease_token=_LEASE_TOKEN,
+            worker_id="worker-1",
+            stage=WorkStage.EXTRACTION,
+            capability=WorkCapability.HTTP_FETCH,
+            input_digest=_DIGEST,
+            expected_output_contract="fetch-observation",
+            issued_at_utc=_NOW,
             expires_at_utc=_NOW + timedelta(minutes=5),
             heartbeat_deadline_utc=_NOW + timedelta(minutes=1),
             permit_not_before_utc=_NOW,
