@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from collection_domain.source_capacity import SourcePermit
 from collection_domain.work_units import WorkCapability, WorkStage, capability_belongs_to_stage
 
 _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -30,7 +31,7 @@ class WorkLease:
     issued_at_utc: datetime
     expires_at_utc: datetime
     heartbeat_deadline_utc: datetime
-    permit_not_before_utc: datetime | None
+    source_permit: SourcePermit | None
     correlation_id: str
 
     def __post_init__(self) -> None:
@@ -44,8 +45,6 @@ class WorkLease:
         _require_aware_utc("issued_at_utc", self.issued_at_utc)
         _require_aware_utc("expires_at_utc", self.expires_at_utc)
         _require_aware_utc("heartbeat_deadline_utc", self.heartbeat_deadline_utc)
-        if self.permit_not_before_utc is not None:
-            _require_aware_utc("permit_not_before_utc", self.permit_not_before_utc)
         if self.expires_at_utc <= self.issued_at_utc:
             raise ValueError("work lease expiry must be after issuance")
         if not self.issued_at_utc < self.heartbeat_deadline_utc <= self.expires_at_utc:
