@@ -6,7 +6,12 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from collection_domain.source_capacity import SourcePermit
-from collection_domain.work_units import WorkCapability, WorkStage, capability_belongs_to_stage
+from collection_domain.work_units import (
+    WorkCapability,
+    WorkStage,
+    capability_belongs_to_stage,
+    capability_requires_source_permit,
+)
 
 _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,127}$")
@@ -38,6 +43,9 @@ class WorkLease:
         _require_token("worker_id", self.worker_id)
         if not capability_belongs_to_stage(self.stage, self.capability):
             raise ValueError("work capability is not valid for the lease stage")
+        requires_permit = capability_requires_source_permit(self.capability)
+        if requires_permit != (self.source_permit is not None):
+            raise ValueError("work lease source permit does not match its capability")
         _require_token("expected_output_contract", self.expected_output_contract)
         _require_token("correlation_id", self.correlation_id)
         if _SHA256_PATTERN.fullmatch(self.input_digest) is None:
