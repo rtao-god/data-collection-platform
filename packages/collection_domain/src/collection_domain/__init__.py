@@ -27,6 +27,7 @@ from collection_domain.work_units import (
     WorkUnitState,
     allowed_transitions,
     capability_belongs_to_stage,
+    capability_requires_source_permit,
 )
 
 __all__ = [
@@ -53,4 +54,5 @@ __all__ = [
     "WorkUnitState",
     "allowed_transitions",
     "capability_belongs_to_stage",
+    "capability_requires_source_permit",
 ]
