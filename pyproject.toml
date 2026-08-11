@@ -12,6 +12,7 @@ package = false
 members = [
   "apps/collector_cli",
   "apps/migration",
+  "apps/worker_gateway",
   "packages/collection_application",
   "packages/collection_contracts",
   "packages/collection_domain",
@@ -20,6 +21,7 @@ members = [
 
 [dependency-groups]
 dev = [
+  "httpx",
   "mypy==2.3.0",
   "pytest==9.0.2",
   "ruff==0.16.1",
@@ -60,6 +62,7 @@ plugins = ["pydantic.mypy"]
 files = [
   "apps/collector_cli/src/collector_cli",
   "apps/migration/src/collection_migration",
+  "apps/worker_gateway/src/worker_gateway",
   "packages/collection_application/src/collection_application",
   "packages/collection_contracts/src/collection_contracts",
   "packages/collection_domain/src/collection_domain",
