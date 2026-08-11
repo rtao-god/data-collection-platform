@@ -1,0 +1,109 @@
+name: Apply exact lock candidate once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-lock-once.yml
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: apply-exact-lock-candidate-once
+  cancel-in-progress: false
+
+jobs:
+  prepare-commit:
+    if: github.repository == 'rtao-god/data-collection-platform'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create verified lockfile commit object
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOCK_ARTIFACT_ID: "9099512915"
+          LOCK_SHA256: "c73f42f1209c798d4375e28915840003191a4cc7750eb640c1709e28fe4a1b9f"
+        run: |
+          set -euo pipefail
+
+          api() {
+            curl --fail-with-body --silent --show-error --location \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$@"
+          }
+
+          repository_api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          current_main=$(api "${repository_api}/git/ref/heads/main" | jq -er '.object.sha')
+          if [[ "${current_main}" != "${GITHUB_SHA}" ]]; then
+            echo "main advanced from ${GITHUB_SHA} to ${current_main}; refusing to create a stale commit" >&2
+            exit 1
+          fi
+
+          api \
+            --output /tmp/uv-lock-candidate.zip \
+            "${repository_api}/actions/artifacts/${LOCK_ARTIFACT_ID}/zip"
+
+          mapfile -t entries < <(unzip -Z1 /tmp/uv-lock-candidate.zip)
+          if [[ ${#entries[@]} -ne 1 || "${entries[0]}" != "uv.lock" ]]; then
+            printf 'unexpected artifact entries: %s\n' "${entries[*]}" >&2
+            exit 1
+          fi
+          unzip -p /tmp/uv-lock-candidate.zip uv.lock > /tmp/uv.lock
+          echo "${LOCK_SHA256}  /tmp/uv.lock" | sha256sum --check --strict
+
+          blob_payload=$(jq -n --rawfile content /tmp/uv.lock \
+            '{content: $content, encoding: "utf-8"}')
+          blob_sha=$(api \
+            --request POST \
+            --data "${blob_payload}" \
+            "${repository_api}/git/blobs" | jq -er '.sha')
+          expected_blob_sha=$(git hash-object --stdin < /tmp/uv.lock)
+          if [[ "${blob_sha}" != "${expected_blob_sha}" ]]; then
+            echo "created blob ${blob_sha} does not match local Git identity ${expected_blob_sha}" >&2
+            exit 1
+          fi
+
+          base_tree=$(api "${repository_api}/git/commits/${GITHUB_SHA}" | jq -er '.tree.sha')
+          tree_payload=$(jq -n \
+            --arg base_tree "${base_tree}" \
+            --arg blob_sha "${blob_sha}" \
+            '{
+              base_tree: $base_tree,
+              tree: [
+                {path: "uv.lock", mode: "100644", type: "blob", sha: $blob_sha},
+                {path: ".github/workflows/apply-lock-once.yml", mode: "100644", type: "blob", sha: null}
+              ]
+            }')
+          tree_sha=$(api \
+            --request POST \
+            --data "${tree_payload}" \
+            "${repository_api}/git/trees" | jq -er '.sha')
+
+          commit_message=$(cat <<'EOF'
+          Build (Dependencies): refresh exact workspace lock
+
+          Owner layer: uv workspace dependency graph.
+          Root cause: the checked-in lock omitted the migration workspace member and infrastructure dependencies declared by current package metadata.
+          Replacement: exact uv 0.10.0 output generated under Python 3.13.14 is checked in unchanged.
+          Proof: artifact SHA-256 c73f42f1209c798d4375e28915840003191a4cc7750eb640c1709e28fe4a1b9f; CI regeneration must produce no diff.
+          EOF
+          )
+          commit_payload=$(jq -n \
+            --arg message "${commit_message}" \
+            --arg tree_sha "${tree_sha}" \
+            --arg parent_sha "${GITHUB_SHA}" \
+            '{message: $message, tree: $tree_sha, parents: [$parent_sha]}')
+          commit_sha=$(api \
+            --request POST \
+            --data "${commit_payload}" \
+            "${repository_api}/git/commits" | jq -er '.sha')
+
+          echo "CANDIDATE_COMMIT_SHA=${commit_sha}"
+          echo "Candidate commit: ${commit_sha}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "The workflow did not update any Git reference." >> "${GITHUB_STEP_SUMMARY}"
