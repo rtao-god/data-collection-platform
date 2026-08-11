@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, ClassVar, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -82,8 +84,8 @@ class LeaseAcquireRequest(WorkerWireModel):
 
 
 class LeaseHeartbeatRequest(WorkerWireModel):
-    work_id: str = Field(alias="workId", serialization_alias="workId")
-    lease_token: str = Field(alias="leaseToken", serialization_alias="leaseToken")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
     input_digest: str = Field(
         alias="inputDigest",
         serialization_alias="inputDigest",
@@ -104,8 +106,8 @@ class LeaseHeartbeatRequest(WorkerWireModel):
 
 
 class WorkCompletionRequest(WorkerWireModel):
-    lease_id: str = Field(alias="leaseId", serialization_alias="leaseId")
-    lease_token: str = Field(alias="leaseToken", serialization_alias="leaseToken")
+    lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
     input_digest: str = Field(
         alias="inputDigest",
         serialization_alias="inputDigest",
@@ -129,8 +131,8 @@ class WorkCompletionRequest(WorkerWireModel):
 
 
 class WorkFailureRequest(WorkerWireModel):
-    lease_id: str = Field(alias="leaseId", serialization_alias="leaseId")
-    lease_token: str = Field(alias="leaseToken", serialization_alias="leaseToken")
+    lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
     input_digest: str = Field(
         alias="inputDigest",
         serialization_alias="inputDigest",
@@ -157,8 +159,8 @@ class WorkFailureRequest(WorkerWireModel):
 
 
 class WorkReleaseRequest(WorkerWireModel):
-    lease_id: str = Field(alias="leaseId", serialization_alias="leaseId")
-    lease_token: str = Field(alias="leaseToken", serialization_alias="leaseToken")
+    lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
     input_digest: str = Field(
         alias="inputDigest",
         serialization_alias="inputDigest",
@@ -183,16 +185,16 @@ class SourcePermitResponse(WorkerWireModel):
         serialization_alias="policyDigest",
         pattern=_DIGEST_PATTERN,
     )
-    permit_not_before_utc: str = Field(
+    permit_not_before_utc: datetime = Field(
         alias="permitNotBeforeUtc",
         serialization_alias="permitNotBeforeUtc",
     )
 
 
 class WorkLeaseResponse(WorkerWireModel):
-    lease_id: str = Field(alias="leaseId", serialization_alias="leaseId")
-    work_id: str = Field(alias="workId", serialization_alias="workId")
-    lease_token: str = Field(alias="leaseToken", serialization_alias="leaseToken")
+    lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
     worker_id: str = Field(alias="workerId", serialization_alias="workerId")
     stage: WorkStage
     capability: WorkCapability
@@ -205,9 +207,9 @@ class WorkLeaseResponse(WorkerWireModel):
         alias="expectedOutputContract",
         serialization_alias="expectedOutputContract",
     )
-    issued_at_utc: str = Field(alias="issuedAtUtc", serialization_alias="issuedAtUtc")
-    expires_at_utc: str = Field(alias="expiresAtUtc", serialization_alias="expiresAtUtc")
-    heartbeat_deadline_utc: str = Field(
+    issued_at_utc: datetime = Field(alias="issuedAtUtc", serialization_alias="issuedAtUtc")
+    expires_at_utc: datetime = Field(alias="expiresAtUtc", serialization_alias="expiresAtUtc")
+    heartbeat_deadline_utc: datetime = Field(
         alias="heartbeatDeadlineUtc",
         serialization_alias="heartbeatDeadlineUtc",
     )
@@ -223,23 +225,23 @@ class WorkLeaseResponse(WorkerWireModel):
             SourcePermitResponse(
                 source_key=lease.source_permit.source_key,
                 policy_digest=lease.source_permit.policy_digest,
-                permit_not_before_utc=lease.source_permit.permit_not_before_utc.isoformat(),
+                permit_not_before_utc=lease.source_permit.permit_not_before_utc,
             )
             if lease.source_permit is not None
             else None
         )
         return cls(
-            lease_id=str(lease.lease_id),
-            work_id=str(lease.work_id),
-            lease_token=str(lease.lease_token),
+            lease_id=lease.lease_id,
+            work_id=lease.work_id,
+            lease_token=lease.lease_token,
             worker_id=lease.worker_id,
             stage=lease.stage,
             capability=lease.capability,
             input_digest=lease.input_digest,
             expected_output_contract=lease.expected_output_contract,
-            issued_at_utc=lease.issued_at_utc.isoformat(),
-            expires_at_utc=lease.expires_at_utc.isoformat(),
-            heartbeat_deadline_utc=lease.heartbeat_deadline_utc.isoformat(),
+            issued_at_utc=lease.issued_at_utc,
+            expires_at_utc=lease.expires_at_utc,
+            heartbeat_deadline_utc=lease.heartbeat_deadline_utc,
             source_permit=source_permit,
             correlation_id=lease.correlation_id,
         )
@@ -262,7 +264,7 @@ LeaseAcquireResponse = Annotated[
 
 
 class WorkCompletionResponse(WorkerWireModel):
-    work_id: str = Field(alias="workId", serialization_alias="workId")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
     status: WorkCompletionStatus
     output_digest: str = Field(
         alias="outputDigest",
@@ -274,7 +276,7 @@ class WorkCompletionResponse(WorkerWireModel):
     @classmethod
     def from_result(cls, result: WorkCompletionResult) -> WorkCompletionResponse:
         return cls(
-            work_id=str(result.work_id),
+            work_id=result.work_id,
             status=result.status,
             output_digest=result.output_digest,
             revision=result.revision,
@@ -282,10 +284,10 @@ class WorkCompletionResponse(WorkerWireModel):
 
 
 class WorkMutationResponse(WorkerWireModel):
-    work_id: str = Field(alias="workId", serialization_alias="workId")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
     state: WorkUnitState
     revision: int = Field(ge=0)
-    available_at_utc: str | None = Field(
+    available_at_utc: datetime | None = Field(
         alias="availableAtUtc",
         serialization_alias="availableAtUtc",
     )
@@ -293,14 +295,10 @@ class WorkMutationResponse(WorkerWireModel):
     @classmethod
     def from_result(cls, result: WorkMutationResult) -> WorkMutationResponse:
         return cls(
-            work_id=str(result.work_id),
+            work_id=result.work_id,
             state=result.state,
             revision=result.revision,
-            available_at_utc=(
-                result.available_at_utc.isoformat()
-                if result.available_at_utc is not None
-                else None
-            ),
+            available_at_utc=result.available_at_utc,
         )
 
 
