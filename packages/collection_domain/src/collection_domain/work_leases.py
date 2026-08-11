@@ -5,6 +5,8 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
+from collection_domain.work_units import WorkCapability, WorkStage, capability_belongs_to_stage
+
 _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,127}$")
 
@@ -21,8 +23,8 @@ class WorkLease:
     work_id: UUID
     lease_token: UUID
     worker_id: str
-    stage: str
-    capability: str
+    stage: WorkStage
+    capability: WorkCapability
     input_digest: str
     expected_output_contract: str
     issued_at_utc: datetime
@@ -33,8 +35,8 @@ class WorkLease:
 
     def __post_init__(self) -> None:
         _require_token("worker_id", self.worker_id)
-        _require_token("stage", self.stage)
-        _require_token("capability", self.capability)
+        if not capability_belongs_to_stage(self.stage, self.capability):
+            raise ValueError("work capability is not valid for the lease stage")
         _require_token("expected_output_contract", self.expected_output_contract)
         _require_token("correlation_id", self.correlation_id)
         if _SHA256_PATTERN.fullmatch(self.input_digest) is None:
