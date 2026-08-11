@@ -23,6 +23,7 @@ from collection_infrastructure.postgres.work_metadata import (
     work_units,
     worker_capabilities,
     worker_heartbeats,
+    worker_output_contracts,
     worker_registrations,
 )
 from collection_infrastructure.postgres.work_source_constraints import (
@@ -53,5 +54,6 @@ __all__ = [
     "work_units",
     "worker_capabilities",
     "worker_heartbeats",
+    "worker_output_contracts",
     "worker_registrations",
 ]
