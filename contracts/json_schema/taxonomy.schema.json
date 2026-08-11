@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "TaxonomyCategory": {
+      "additionalProperties": false,
+      "properties": {
+        "applicable_entity_kinds": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Applicable Entity Kinds",
+          "type": "array"
+        },
+        "display_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "display_name",
+        "applicable_entity_kinds"
+      ],
+      "title": "TaxonomyCategory",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TaxonomyCategory"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "schema_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_revision",
+    "items"
+  ],
+  "title": "TaxonomyDocument",
+  "type": "object"
+}

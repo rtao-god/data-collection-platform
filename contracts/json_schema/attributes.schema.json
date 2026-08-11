@@ -1,0 +1,215 @@
+{
+  "$defs": {
+    "AttributeDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "cardinality": {
+          "enum": [
+            "one",
+            "many"
+          ],
+          "title": "Cardinality",
+          "type": "string"
+        },
+        "display_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "evidence_required": {
+          "title": "Evidence Required",
+          "type": "boolean"
+        },
+        "key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "missing_allowed": {
+          "title": "Missing Allowed",
+          "type": "boolean"
+        },
+        "normalization_rule": {
+          "maxLength": 100,
+          "minLength": 3,
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Normalization Rule",
+          "type": "string"
+        },
+        "options": {
+          "discriminator": {
+            "mapping": {
+              "defined": "#/$defs/DefinedOptions",
+              "not_applicable": "#/$defs/OptionsNotApplicable"
+            },
+            "propertyName": "state"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/OptionsNotApplicable"
+            },
+            {
+              "$ref": "#/$defs/DefinedOptions"
+            }
+          ],
+          "title": "Options"
+        },
+        "unit": {
+          "discriminator": {
+            "mapping": {
+              "defined": "#/$defs/DefinedUnit",
+              "not_applicable": "#/$defs/UnitNotApplicable"
+            },
+            "propertyName": "state"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UnitNotApplicable"
+            },
+            {
+              "$ref": "#/$defs/DefinedUnit"
+            }
+          ],
+          "title": "Unit"
+        },
+        "value_type": {
+          "enum": [
+            "boolean",
+            "decimal",
+            "email",
+            "enum",
+            "external_reference",
+            "integer",
+            "localized_text",
+            "measurement",
+            "money",
+            "phone",
+            "set",
+            "structured_address",
+            "text",
+            "url"
+          ],
+          "title": "Value Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "display_name",
+        "value_type",
+        "cardinality",
+        "unit",
+        "options",
+        "normalization_rule",
+        "missing_allowed",
+        "evidence_required"
+      ],
+      "title": "AttributeDefinition",
+      "type": "object"
+    },
+    "DefinedOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "defined",
+          "title": "State",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "state",
+        "values"
+      ],
+      "title": "DefinedOptions",
+      "type": "object"
+    },
+    "DefinedUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "defined",
+          "title": "State",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "value"
+      ],
+      "title": "DefinedUnit",
+      "type": "object"
+    },
+    "OptionsNotApplicable": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "not_applicable",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "OptionsNotApplicable",
+      "type": "object"
+    },
+    "UnitNotApplicable": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "not_applicable",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "UnitNotApplicable",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/AttributeDefinition"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "schema_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_revision",
+    "items"
+  ],
+  "title": "AttributesDocument",
+  "type": "object"
+}

@@ -1,0 +1,52 @@
+{
+  "contract": "collector-generated-json-schema-manifest",
+  "contractRevision": "json-schema-manifest-v1",
+  "generator": "tools/contract_generation/generate.py",
+  "items": [
+    {
+      "file": "attributes.schema.json",
+      "model": "collection_contracts.campaign_config.AttributesDocument",
+      "sha256": "sha256:f7912bc0d0f00bc9239a35845efc47e8a875f6b338add9c5c42bcd1adffbac41"
+    },
+    {
+      "file": "campaign-document.schema.json",
+      "model": "collection_contracts.campaign_config.CampaignDocument",
+      "sha256": "sha256:e4f5ce1c4636c0f94c4572eb019a0001efe5373ab757d3e522835f4971fc91cc"
+    },
+    {
+      "file": "campaign-snapshot.schema.json",
+      "model": "collection_contracts.snapshot.CampaignSnapshot",
+      "sha256": "sha256:5e95e750047999d2273f8586dbe01734cce529d68f45140656c17463fdf85310"
+    },
+    {
+      "file": "entity-kinds.schema.json",
+      "model": "collection_contracts.campaign_config.EntityKindsDocument",
+      "sha256": "sha256:6f43fd7b2f026414ca1452292f90b914c6e00a861c704ed716fa0ac8773ae77a"
+    },
+    {
+      "file": "error-envelope.schema.json",
+      "model": "collection_contracts.errors.ErrorEnvelope",
+      "sha256": "sha256:aaf83bd998b1e04e47794df8dada2e5d2c507a58dd34cd0386deb97fe6b61834"
+    },
+    {
+      "file": "manual-seed-row.schema.json",
+      "model": "collection_contracts.campaign_config.ManualSeedRow",
+      "sha256": "sha256:831fde8ab9db5f568d5d84976924cf87e635362b04ea8e5452eaffe662ef91a1"
+    },
+    {
+      "file": "source-bindings.schema.json",
+      "model": "collection_contracts.campaign_config.SourceBindingsDocument",
+      "sha256": "sha256:3f95b9d955b0f1baee5ffd55f064ac33b8dfcf8ad9dfc5c87c6124fadfe2d733"
+    },
+    {
+      "file": "source-policy.schema.json",
+      "model": "collection_contracts.campaign_config.SourcePolicy",
+      "sha256": "sha256:6332b447bc7a0171292f241270b3e560ca4b0eb9a009979c7cb66f2d599f903f"
+    },
+    {
+      "file": "taxonomy.schema.json",
+      "model": "collection_contracts.campaign_config.TaxonomyDocument",
+      "sha256": "sha256:25a8a09a89962c39bba8cb5d38b323c4ad297b2c704eb43fef45b7efccb9fe20"
+    }
+  ]
+}

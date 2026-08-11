@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Transport-safe owner-context failure contract.",
+  "properties": {
+    "code": {
+      "pattern": "^[A-Z][A-Z0-9_]+$",
+      "title": "Code",
+      "type": "string"
+    },
+    "context": {
+      "additionalProperties": true,
+      "title": "Context",
+      "type": "object"
+    },
+    "correlationId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Correlationid",
+      "type": "string"
+    },
+    "message": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    },
+    "owner": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Owner",
+      "type": "string"
+    },
+    "requiredAction": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Requiredaction",
+      "type": "string"
+    },
+    "type": {
+      "pattern": "^collection/[a-z0-9-]+$",
+      "title": "Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "type",
+    "owner",
+    "code",
+    "message",
+    "context",
+    "requiredAction",
+    "correlationId"
+  ],
+  "title": "ErrorEnvelope",
+  "type": "object"
+}

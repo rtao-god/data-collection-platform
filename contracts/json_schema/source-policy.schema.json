@@ -1,0 +1,396 @@
+{
+  "$defs": {
+    "ManualAccess": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_encodings": {
+          "items": {
+            "const": "utf-8",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Accepted Encodings",
+          "type": "array"
+        },
+        "accepted_formats": {
+          "items": {
+            "enum": [
+              "csv",
+              "json",
+              "jsonl"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Accepted Formats",
+          "type": "array"
+        },
+        "kind": {
+          "const": "manual",
+          "title": "Kind",
+          "type": "string"
+        },
+        "max_file_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max File Bytes",
+          "type": "integer"
+        },
+        "partial_mode_allowed": {
+          "title": "Partial Mode Allowed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "accepted_formats",
+        "accepted_encodings",
+        "max_file_bytes",
+        "partial_mode_allowed"
+      ],
+      "title": "ManualAccess",
+      "type": "object"
+    },
+    "NetworkAccess": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_host_patterns": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed Host Patterns",
+          "type": "array"
+        },
+        "allowed_methods": {
+          "items": {
+            "enum": [
+              "GET",
+              "HEAD",
+              "POST"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Allowed Methods",
+          "type": "array"
+        },
+        "connect_timeout_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Connect Timeout Seconds",
+          "type": "number"
+        },
+        "content_type_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Content Type Allowlist",
+          "type": "array"
+        },
+        "kind": {
+          "const": "network",
+          "title": "Kind",
+          "type": "string"
+        },
+        "max_concurrency": {
+          "exclusiveMinimum": 0,
+          "title": "Max Concurrency",
+          "type": "integer"
+        },
+        "max_decoded_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Decoded Bytes",
+          "type": "integer"
+        },
+        "max_encoded_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Encoded Bytes",
+          "type": "integer"
+        },
+        "max_requests_per_second": {
+          "exclusiveMinimum": 0,
+          "title": "Max Requests Per Second",
+          "type": "number"
+        },
+        "read_timeout_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Read Timeout Seconds",
+          "type": "number"
+        },
+        "redirect_limit": {
+          "minimum": 0,
+          "title": "Redirect Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "allowed_methods",
+        "allowed_host_patterns",
+        "max_requests_per_second",
+        "max_concurrency",
+        "connect_timeout_seconds",
+        "read_timeout_seconds",
+        "max_encoded_bytes",
+        "max_decoded_bytes",
+        "content_type_allowlist",
+        "redirect_limit"
+      ],
+      "title": "NetworkAccess",
+      "type": "object"
+    },
+    "ReviewedTerms": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "format": "date",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "format": "date",
+          "title": "Reviewed At",
+          "type": "string"
+        },
+        "reviewer": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "state": {
+          "const": "reviewed",
+          "title": "State",
+          "type": "string"
+        },
+        "terms_url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Terms Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "terms_url",
+        "reviewed_at",
+        "expires_at",
+        "reviewer"
+      ],
+      "title": "ReviewedTerms",
+      "type": "object"
+    },
+    "TermsNotApplicable": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "state": {
+          "const": "not_applicable",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ],
+      "title": "TermsNotApplicable",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "access": {
+      "discriminator": {
+        "mapping": {
+          "manual": "#/$defs/ManualAccess",
+          "network": "#/$defs/NetworkAccess"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ManualAccess"
+        },
+        {
+          "$ref": "#/$defs/NetworkAccess"
+        }
+      ],
+      "title": "Access"
+    },
+    "allowed_fields": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 2,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Fields",
+      "type": "array"
+    },
+    "approver": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Approver",
+      "type": "string"
+    },
+    "attribution_required": {
+      "title": "Attribution Required",
+      "type": "boolean"
+    },
+    "browser": {
+      "enum": [
+        "allowed",
+        "forbidden"
+      ],
+      "title": "Browser",
+      "type": "string"
+    },
+    "legal_status": {
+      "enum": [
+        "approved",
+        "blocked",
+        "expired",
+        "reference_only",
+        "research_only"
+      ],
+      "title": "Legal Status",
+      "type": "string"
+    },
+    "policy_key": {
+      "maxLength": 80,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Policy Key",
+      "type": "string"
+    },
+    "policy_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Policy Revision",
+      "type": "string"
+    },
+    "prohibited_fields": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 2,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "type": "string"
+      },
+      "title": "Prohibited Fields",
+      "type": "array"
+    },
+    "retention_days": {
+      "minimum": 0,
+      "title": "Retention Days",
+      "type": "integer"
+    },
+    "retry_budget": {
+      "minimum": 0,
+      "title": "Retry Budget",
+      "type": "integer"
+    },
+    "reviewer": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Reviewer",
+      "type": "string"
+    },
+    "schema_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Revision",
+      "type": "string"
+    },
+    "screenshots": {
+      "enum": [
+        "allowed",
+        "forbidden"
+      ],
+      "title": "Screenshots",
+      "type": "string"
+    },
+    "source_key": {
+      "maxLength": 80,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Source Key",
+      "type": "string"
+    },
+    "source_type": {
+      "enum": [
+        "manual_import",
+        "official_directory",
+        "official_website",
+        "openstreetmap",
+        "reference"
+      ],
+      "title": "Source Type",
+      "type": "string"
+    },
+    "stop_on_status_codes": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Stop On Status Codes",
+      "type": "array"
+    },
+    "storage_class": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Storage Class",
+      "type": "string"
+    },
+    "terms_review": {
+      "discriminator": {
+        "mapping": {
+          "not_applicable": "#/$defs/TermsNotApplicable",
+          "reviewed": "#/$defs/ReviewedTerms"
+        },
+        "propertyName": "state"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ReviewedTerms"
+        },
+        {
+          "$ref": "#/$defs/TermsNotApplicable"
+        }
+      ],
+      "title": "Terms Review"
+    }
+  },
+  "required": [
+    "schema_revision",
+    "policy_key",
+    "policy_revision",
+    "source_key",
+    "source_type",
+    "legal_status",
+    "terms_review",
+    "access",
+    "storage_class",
+    "retention_days",
+    "allowed_fields",
+    "prohibited_fields",
+    "attribution_required",
+    "browser",
+    "screenshots",
+    "retry_budget",
+    "stop_on_status_codes",
+    "reviewer",
+    "approver"
+  ],
+  "title": "SourcePolicy",
+  "type": "object"
+}

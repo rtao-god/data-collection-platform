@@ -1,0 +1,205 @@
+{
+  "$defs": {
+    "BlockedCampaign": {
+      "additionalProperties": false,
+      "properties": {
+        "blockers": {
+          "items": {
+            "$ref": "#/$defs/CampaignBlocker"
+          },
+          "minItems": 1,
+          "title": "Blockers",
+          "type": "array"
+        },
+        "state": {
+          "const": "blocked",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "blockers"
+      ],
+      "title": "BlockedCampaign",
+      "type": "object"
+    },
+    "CampaignBlocker": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z][A-Z0-9_]+$",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "owner": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "required_action": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Required Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "owner",
+        "message",
+        "required_action"
+      ],
+      "title": "CampaignBlocker",
+      "type": "object"
+    },
+    "ReadyCampaign": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "ready",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "ReadyCampaign",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "campaign_key": {
+      "maxLength": 80,
+      "minLength": 2,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Campaign Key",
+      "type": "string"
+    },
+    "display_name": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "enabled_source_bindings": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 2,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Enabled Source Bindings",
+      "type": "array"
+    },
+    "entity_kinds": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 2,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Entity Kinds",
+      "type": "array"
+    },
+    "export_profile": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Export Profile",
+      "type": "string"
+    },
+    "geography_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Geography Revision",
+      "type": "string"
+    },
+    "locales": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Locales",
+      "type": "array"
+    },
+    "quality_profile": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Quality Profile",
+      "type": "string"
+    },
+    "readiness": {
+      "discriminator": {
+        "mapping": {
+          "blocked": "#/$defs/BlockedCampaign",
+          "ready": "#/$defs/ReadyCampaign"
+        },
+        "propertyName": "state"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ReadyCampaign"
+        },
+        {
+          "$ref": "#/$defs/BlockedCampaign"
+        }
+      ],
+      "title": "Readiness"
+    },
+    "schema_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Revision",
+      "type": "string"
+    },
+    "target_categories": {
+      "items": {
+        "maxLength": 80,
+        "minLength": 2,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Target Categories",
+      "type": "array"
+    },
+    "timezone": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_revision",
+    "campaign_key",
+    "display_name",
+    "locales",
+    "timezone",
+    "entity_kinds",
+    "target_categories",
+    "geography_revision",
+    "enabled_source_bindings",
+    "quality_profile",
+    "export_profile",
+    "readiness"
+  ],
+  "title": "CampaignDocument",
+  "type": "object"
+}

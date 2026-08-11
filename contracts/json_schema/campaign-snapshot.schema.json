@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "ComponentDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "digest"
+      ],
+      "title": "ComponentDigest",
+      "type": "object"
+    },
+    "SnapshotBlocker": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z][A-Z0-9_]+$",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "owner": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "requiredAction": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Requiredaction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "owner",
+        "message",
+        "requiredAction"
+      ],
+      "title": "SnapshotBlocker",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "blockers": {
+      "items": {
+        "$ref": "#/$defs/SnapshotBlocker"
+      },
+      "title": "Blockers",
+      "type": "array"
+    },
+    "bundleDigest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Bundledigest",
+      "type": "string"
+    },
+    "campaignKey": {
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Campaignkey",
+      "type": "string"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/ComponentDigest"
+      },
+      "minItems": 1,
+      "title": "Components",
+      "type": "array"
+    },
+    "contract": {
+      "const": "collector-campaign-snapshot",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "campaign-snapshot-v1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "readiness": {
+      "enum": [
+        "ready",
+        "blocked"
+      ],
+      "title": "Readiness",
+      "type": "string"
+    }
+  },
+  "required": [
+    "contract",
+    "contractRevision",
+    "campaignKey",
+    "bundleDigest",
+    "components",
+    "readiness",
+    "blockers"
+  ],
+  "title": "CampaignSnapshot",
+  "type": "object"
+}

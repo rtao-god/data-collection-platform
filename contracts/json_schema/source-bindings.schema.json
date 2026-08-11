@@ -1,0 +1,222 @@
+{
+  "$defs": {
+    "CrawlBudgetNotApplicable": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "not_applicable",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "CrawlBudgetNotApplicable",
+      "type": "object"
+    },
+    "DefinedCrawlBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_total_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Total Bytes",
+          "type": "integer"
+        },
+        "max_work_units": {
+          "exclusiveMinimum": 0,
+          "title": "Max Work Units",
+          "type": "integer"
+        },
+        "state": {
+          "const": "defined",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "max_work_units",
+        "max_total_bytes"
+      ],
+      "title": "DefinedCrawlBudget",
+      "type": "object"
+    },
+    "FileSeedProvider": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "enum": [
+            "csv",
+            "json",
+            "jsonl"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "kind": {
+          "const": "file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 240,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_./-]*$",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "format"
+      ],
+      "title": "FileSeedProvider",
+      "type": "object"
+    },
+    "SeedNotApplicable": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "not_applicable",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "SeedNotApplicable",
+      "type": "object"
+    },
+    "SourceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "enum": [
+            "browser_fetch",
+            "http_fetch",
+            "manual_import",
+            "openstreetmap_query"
+          ],
+          "title": "Capability",
+          "type": "string"
+        },
+        "connector_key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Connector Key",
+          "type": "string"
+        },
+        "crawl_budget": {
+          "discriminator": {
+            "mapping": {
+              "defined": "#/$defs/DefinedCrawlBudget",
+              "not_applicable": "#/$defs/CrawlBudgetNotApplicable"
+            },
+            "propertyName": "state"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CrawlBudgetNotApplicable"
+            },
+            {
+              "$ref": "#/$defs/DefinedCrawlBudget"
+            }
+          ],
+          "title": "Crawl Budget"
+        },
+        "extraction_profile": {
+          "maxLength": 100,
+          "minLength": 3,
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Extraction Profile",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "schedule_enabled": {
+          "title": "Schedule Enabled",
+          "type": "boolean"
+        },
+        "seed_provider": {
+          "discriminator": {
+            "mapping": {
+              "file": "#/$defs/FileSeedProvider",
+              "not_applicable": "#/$defs/SeedNotApplicable"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FileSeedProvider"
+            },
+            {
+              "$ref": "#/$defs/SeedNotApplicable"
+            }
+          ],
+          "title": "Seed Provider"
+        },
+        "source_key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Source Key",
+          "type": "string"
+        },
+        "source_policy_key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Source Policy Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "source_key",
+        "connector_key",
+        "source_policy_key",
+        "capability",
+        "seed_provider",
+        "crawl_budget",
+        "schedule_enabled",
+        "extraction_profile"
+      ],
+      "title": "SourceBinding",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/SourceBinding"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "schema_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_revision",
+    "items"
+  ],
+  "title": "SourceBindingsDocument",
+  "type": "object"
+}
