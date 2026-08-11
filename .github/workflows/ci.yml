@@ -31,22 +31,8 @@ jobs:
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
 
-      - name: Regenerate lockfile candidate
-        run: uv lock
-
       - name: Verify lock consistency
-        id: lock_drift
-        run: git diff --exit-code -- uv.lock
-
-      - name: Upload lockfile candidate
-        if: ${{ failure() && steps.lock_drift.outcome == 'failure' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: uv-lock-candidate-${{ github.sha }}
-          path: uv.lock
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 0
+        run: uv lock --check
 
       - name: Verify generated contract drift
         run: uv run python tools/contract_generation/generate.py --check
