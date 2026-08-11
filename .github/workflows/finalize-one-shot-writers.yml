@@ -1,0 +1,49 @@
+name: Finalize One-Shot Writers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-one-shot-writers.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Delete exact accidental branch probes
+        run: |
+          for branch in \
+            __schema_probe_should_not_create \
+            __do_not_create \
+            __cleanup_test \
+            __cleanup_test_2; do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" >/dev/null 2>&1 || true
+          done
+
+      - name: Remove every temporary writer
+        run: |
+          rm -f \
+            tools/apply_run_admission_batch.py \
+            .github/workflows/repair-current-ci.yml \
+            .github/workflows/cleanup-accidental-branches.yml \
+            .github/workflows/consolidate-current-ci.yml \
+            .github/workflows/apply-run-admission.yml \
+            .github/workflows/finalize-one-shot-writers.yml
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add -A
+          git commit -m "Build (Safety): remove temporary repository writers" \
+            -m "Owner layer: permanent CI and Git safety boundary." \
+            -m "Root cause: one-shot repair and implementation executors must never remain active after their bounded use." \
+            -m "Replacement: remove every exact temporary path and accidental probe ref without touching production owners." \
+            -m "Proof target: only the permanent read-only verification workflow remains."
+          git push origin HEAD:main
