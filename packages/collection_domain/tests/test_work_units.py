@@ -19,6 +19,14 @@ def test_pending_work_can_be_leased_and_revision_advances() -> None:
     assert pending == WorkUnitLifecycle(state=WorkUnitState.PENDING, revision=3)
 
 
+def test_leased_work_can_be_explicitly_released_to_pending() -> None:
+    leased = WorkUnitLifecycle(state=WorkUnitState.LEASED, revision=2)
+
+    pending = leased.transition(WorkUnitState.PENDING)
+
+    assert pending == WorkUnitLifecycle(state=WorkUnitState.PENDING, revision=3)
+
+
 @pytest.mark.parametrize(
     "terminal_state",
     [
