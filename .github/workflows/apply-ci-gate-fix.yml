@@ -1,0 +1,124 @@
+name: Apply Exact CI Gate Fix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-ci-gate-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'Build (Tooling): apply exact CI gate fix'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Align formatter output and schema inventory
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("database/tests/test_work_engine_schema.py")
+          text = path.read_text(encoding="utf-8")
+
+          source_old = '''    assert set(inspector.get_table_names(schema="sources")) == {
+              "source_capacity_states",
+          }
+          '''
+          source_new = '''    assert set(inspector.get_table_names(schema="sources")) == {
+              "artifact_objects",
+              "artifact_uploads",
+              "raw_artifacts",
+              "source_capacity_states",
+          }
+          '''
+          work_old = '''        "work_units",
+              "worker_capabilities",
+          '''
+          work_new = '''        "work_units",
+              "work_output_artifacts",
+              "worker_capabilities",
+          '''
+
+          for old, new, owner in (
+              (source_old, source_new, "sources table inventory"),
+              (work_old, work_new, "work table inventory"),
+          ):
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"Expected one {owner} replacement, found {count}")
+              text = text.replace(old, new)
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          uv run ruff format \
+            database/tests/test_work_engine_schema.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_transfer.py \
+            packages/collection_infrastructure/tests/test_s3_artifact_object_store.py
+
+      - name: Verify bounded mutation
+        run: |
+          uv run ruff format --check .
+          uv run python -m py_compile \
+            database/tests/test_work_engine_schema.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_transfer.py \
+            packages/collection_infrastructure/tests/test_s3_artifact_object_store.py
+          git diff --check
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              "database/tests/test_work_engine_schema.py",
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_metadata.py",
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_transfer.py",
+              "packages/collection_infrastructure/tests/test_s3_artifact_object_store.py",
+          }
+          actual = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          if actual != expected:
+              raise RuntimeError(
+                  f"Unexpected repository mutation: expected={sorted(expected)}, actual={sorted(actual)}"
+              )
+          PY
+
+      - name: Commit exact gate correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            database/tests/test_work_engine_schema.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_transfer.py \
+            packages/collection_infrastructure/tests/test_s3_artifact_object_store.py
+          git commit -m "Build (CI): align artifact persistence gates" \
+            -m "Owner layer: artifact persistence verification." \
+            -m "Root cause: artifact transfer schema landed without canonical formatter output and without updating the exact fresh-migration table inventory." \
+            -m "Replacement: format the owned artifact code and align schema proof with the migrated artifact tables." \
+            -m "Proof target: permanent CI passes formatting, static checks, and fresh PostgreSQL schema verification."
+          git push origin HEAD:main
