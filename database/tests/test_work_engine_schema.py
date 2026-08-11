@@ -208,7 +208,12 @@ def _insert_source(connection: sa.Connection, label: str) -> tuple[str, str]:
     return source_key, policy_digest
 
 
-def _insert_worker(connection: sa.Connection, label: str, capability: str) -> str:
+def _insert_worker(
+    connection: sa.Connection,
+    label: str,
+    capability: str,
+    output_contract: str = "integration-output",
+) -> str:
     worker_id = _worker_id(label)
     connection.execute(
         sa.text(
@@ -248,6 +253,15 @@ def _insert_worker(connection: sa.Connection, label: str, capability: str) -> st
             """
         ),
         {"worker_id": worker_id, "capability": capability},
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO work.worker_output_contracts (worker_id, output_contract)
+            VALUES (:worker_id, :output_contract)
+            """
+        ),
+        {"worker_id": worker_id, "output_contract": output_contract},
     )
     connection.execute(
         sa.text(
@@ -296,6 +310,7 @@ def _pending_work_values(
         "priority": 0,
         "state": "pending",
         "attempt_count": 0,
+        "failure_count": 0,
         "max_attempts": 3,
         "retry_initial_delay_seconds": 10,
         "retry_multiplier": 2,
@@ -325,6 +340,7 @@ def _insert_pending_work(connection: sa.Connection, values: dict[str, object]) -
                 priority,
                 state,
                 attempt_count,
+                failure_count,
                 max_attempts,
                 retry_initial_delay_seconds,
                 retry_multiplier,
@@ -358,6 +374,7 @@ def _insert_pending_work(connection: sa.Connection, values: dict[str, object]) -
                 :priority,
                 :state,
                 :attempt_count,
+                :failure_count,
                 :max_attempts,
                 :retry_initial_delay_seconds,
                 :retry_multiplier,
@@ -402,7 +419,13 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
         "work_units",
         "worker_capabilities",
         "worker_heartbeats",
+        "worker_output_contracts",
         "worker_registrations",
+    }
+    assert {column["name"] for column in inspector.get_columns("work_units", schema="work")} >= {
+        "attempt_count",
+        "failure_count",
+        "max_attempts",
     }
     assert {index["name"] for index in inspector.get_indexes("work_units", schema="work")} == {
         "ix_work_units_claim",
@@ -411,6 +434,53 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
         "uq_work_units_active_lease_token",
         "uq_work_units_run_semantic_key",
     }
+
+
+def test_worker_output_contract_identity_is_fail_closed() -> None:
+    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+
+    with engine.begin() as connection:
+        worker_id = _insert_worker(connection, "worker-contract", "extraction")
+
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO work.worker_output_contracts (worker_id, output_contract)
+                VALUES (:worker_id, 'invalid contract')
+                """
+            ),
+            {"worker_id": worker_id},
+        )
+
+
+def test_failure_budget_is_independent_from_safe_attempts() -> None:
+    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+
+    with engine.begin() as connection:
+        run_id, stage_run_id = _insert_run_stage(
+            connection,
+            "safe-attempt-budget",
+            stage="extraction",
+        )
+        values = _pending_work_values(
+            "safe-attempt-budget",
+            run_id=run_id,
+            stage_run_id=stage_run_id,
+            stage="extraction",
+            capability="extraction",
+            source_key=None,
+        )
+        values["attempt_count"] = 5
+        values["failure_count"] = 1
+        _insert_pending_work(connection, values)
+
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        invalid = dict(values)
+        invalid["work_id"] = _id("safe-attempt-budget:invalid")
+        invalid["semantic_key"] = _digest("safe-attempt-budget:invalid")
+        invalid["failure_count"] = 6
+        _insert_pending_work(connection, invalid)
 
 
 def test_source_capability_contract_rejects_missing_or_extraneous_source() -> None:
@@ -549,6 +619,7 @@ def test_leased_work_and_attempt_result_shapes_fail_closed() -> None:
                     priority,
                     state,
                     attempt_count,
+                    failure_count,
                     max_attempts,
                     retry_initial_delay_seconds,
                     retry_multiplier,
@@ -582,6 +653,7 @@ def test_leased_work_and_attempt_result_shapes_fail_closed() -> None:
                     :priority,
                     :state,
                     :attempt_count,
+                    :failure_count,
                     :max_attempts,
                     :retry_initial_delay_seconds,
                     :retry_multiplier,
