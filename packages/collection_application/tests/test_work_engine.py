@@ -90,6 +90,42 @@ def test_work_unit_requires_stage_capability_compatibility() -> None:
         )
 
 
+def test_source_bound_work_requires_source_key() -> None:
+    with pytest.raises(ValueError, match="source key does not match"):
+        WorkUnitSpec(
+            work_id=_ID1,
+            run_id=_ID2,
+            stage_run_id=_ID3,
+            stage=WorkStage.ACQUISITION,
+            capability=WorkCapability.HTTP_FETCH,
+            source_key=None,
+            semantic_key=_DIGEST,
+            input_digest=_DIGEST,
+            expected_output_contract="fetch-observation",
+            priority=0,
+            retry_policy=RetryPolicy(3, 10, 2, 60),
+            correlation_id="correlation-1",
+        )
+
+
+def test_processing_work_rejects_source_key() -> None:
+    with pytest.raises(ValueError, match="source key does not match"):
+        WorkUnitSpec(
+            work_id=_ID1,
+            run_id=_ID2,
+            stage_run_id=_ID3,
+            stage=WorkStage.EXTRACTION,
+            capability=WorkCapability.EXTRACTION,
+            source_key="official_website",
+            semantic_key=_DIGEST,
+            input_digest=_DIGEST,
+            expected_output_contract="extracted-record",
+            priority=0,
+            retry_policy=RetryPolicy(3, 10, 2, 60),
+            correlation_id="correlation-1",
+        )
+
+
 def test_worker_registration_requires_capability() -> None:
     with pytest.raises(ValueError, match="at least one capability"):
         WorkerRegistration(
