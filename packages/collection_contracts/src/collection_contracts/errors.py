@@ -10,7 +10,10 @@ class ErrorEnvelope(BaseModel):
     """Transport-safe owner-context failure contract."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
-        extra="forbid", frozen=True, populate_by_name=True
+        extra="forbid",
+        frozen=True,
+        validate_by_alias=True,
+        validate_by_name=True,
     )
 
     type: str = Field(pattern=r"^collection/[a-z0-9-]+$")
@@ -57,7 +60,7 @@ def owner_error(
             code=code,
             message=message,
             context=dict(context),
-            requiredAction=required_action,
-            correlationId=correlation_id,
+            required_action=required_action,
+            correlation_id=correlation_id,
         )
     )
