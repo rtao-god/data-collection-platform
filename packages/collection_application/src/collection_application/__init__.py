@@ -2,6 +2,8 @@ from collection_application.campaign_snapshot_service import CampaignSnapshotSer
 from collection_application.ports import CampaignBundleSource, RawCampaignBundle
 from collection_application.work_engine import (
     CollectionRunSpec,
+    LeaseExpirySweep,
+    LeaseExpirySweepResult,
     LeaseHeartbeat,
     LeaseRequest,
     SourceCapacitySpec,
@@ -38,6 +40,8 @@ __all__ = [
     "CampaignSnapshotService",
     "CollectionRunSpec",
     "CollectionRunState",
+    "LeaseExpirySweep",
+    "LeaseExpirySweepResult",
     "LeaseHeartbeat",
     "LeaseRequest",
     "RawCampaignBundle",
@@ -53,6 +57,9 @@ __all__ = [
     "WorkEngineConflict",
     "WorkEnginePort",
     "WorkEngineService",
+    "WorkerRegistration",
+    "WorkerRegistrationResult",
+    "WorkerRegistrationStatus",
     "WorkFailure",
     "WorkFailureKind",
     "WorkMutationResult",
@@ -60,9 +67,6 @@ __all__ = [
     "WorkStage",
     "WorkUnitSpec",
     "WorkUnitState",
-    "WorkerRegistration",
-    "WorkerRegistrationResult",
-    "WorkerRegistrationStatus",
     "capability_belongs_to_stage",
     "capability_requires_source_permit",
 ]
