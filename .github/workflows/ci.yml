@@ -64,6 +64,9 @@ jobs:
       - name: Build migration image
         run: docker build --file deploy/docker/migration.Dockerfile .
 
+      - name: Build Worker Gateway image
+        run: docker build --file deploy/docker/worker-gateway.Dockerfile .
+
   migration:
     runs-on: ubuntu-latest
     services:
