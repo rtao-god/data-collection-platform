@@ -29,6 +29,7 @@ from collection_domain import (
     WorkFailureKind,
     WorkStage,
     WorkUnitState,
+    capability_belongs_to_stage,
 )
 
 __all__ = [
@@ -61,4 +62,5 @@ __all__ = [
     "WorkerRegistration",
     "WorkerRegistrationResult",
     "WorkerRegistrationStatus",
+    "capability_belongs_to_stage",
 ]
