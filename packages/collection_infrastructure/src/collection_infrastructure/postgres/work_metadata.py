@@ -33,9 +33,7 @@ def _stage_capability_check() -> str:
             for capability in WorkCapability
             if capability_belongs_to_stage(stage, capability)
         )
-        clauses.append(
-            f"(stage = '{stage.value}' AND {_in_values('capability', capabilities)})"
-        )
+        clauses.append(f"(stage = '{stage.value}' AND {_in_values('capability', capabilities)})")
     return " OR ".join(clauses)
 
 
@@ -292,8 +290,7 @@ work_units = sa.Table(
         name="ck_work_units_input_digest_format",
     ),
     sa.CheckConstraint(
-        "source_policy_digest IS NULL OR "
-        "source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
+        "source_policy_digest IS NULL OR source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
         name="ck_work_units_source_policy_digest_format",
     ),
     sa.CheckConstraint(
@@ -433,8 +430,7 @@ work_attempts = sa.Table(
         name="ck_work_attempts_input_digest_format",
     ),
     sa.CheckConstraint(
-        "source_policy_digest IS NULL OR "
-        "source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
+        "source_policy_digest IS NULL OR source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
         name="ck_work_attempts_source_policy_digest_format",
     ),
     sa.CheckConstraint(
@@ -454,8 +450,7 @@ work_attempts = sa.Table(
         name="ck_work_attempts_result_code_format",
     ),
     sa.CheckConstraint(
-        "issued_at_utc < heartbeat_deadline_utc AND "
-        "heartbeat_deadline_utc <= expires_at_utc",
+        "issued_at_utc < heartbeat_deadline_utc AND heartbeat_deadline_utc <= expires_at_utc",
         name="ck_work_attempts_lease_time_order",
     ),
     sa.CheckConstraint(

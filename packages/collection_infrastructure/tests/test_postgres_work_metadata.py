@@ -32,9 +32,7 @@ def test_work_metadata_has_exact_owner_schemas_and_tables() -> None:
         "runs.collection_runs",
         "runs.stage_runs",
     )
-    assert tuple(table.fullname for table in SOURCE_TABLES) == (
-        "sources.source_capacity_states",
-    )
+    assert tuple(table.fullname for table in SOURCE_TABLES) == ("sources.source_capacity_states",)
     assert tuple(table.fullname for table in WORK_TABLES) == (
         "work.worker_registrations",
         "work.worker_capabilities",
@@ -70,8 +68,7 @@ def test_work_unit_ddl_contains_fail_closed_lease_and_idempotency_contracts() ->
     dialect = postgresql.dialect()
     sql = str(CreateTable(work_units).compile(dialect=dialect))
     indexes = {
-        index.name: str(CreateIndex(index).compile(dialect=dialect))
-        for index in work_units.indexes
+        index.name: str(CreateIndex(index).compile(dialect=dialect)) for index in work_units.indexes
     }
 
     assert "CONSTRAINT fk_work_units_stage_owner" in sql
