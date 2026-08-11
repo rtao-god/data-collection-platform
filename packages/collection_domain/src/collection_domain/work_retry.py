@@ -47,16 +47,16 @@ class RetryPolicy:
         if self.max_delay_seconds < self.initial_delay_seconds:
             raise ValueError("retry policy max delay cannot be below initial delay")
 
-    def decide(self, failure_kind: WorkFailureKind, attempt_number: int) -> WorkFailureDecision:
-        if attempt_number < 1 or attempt_number > self.max_attempts:
-            raise ValueError("attempt number is outside the retry policy")
+    def decide(self, failure_kind: WorkFailureKind, failure_number: int) -> WorkFailureDecision:
+        if failure_number < 1 or failure_number > self.max_attempts:
+            raise ValueError("failure number is outside the retry policy")
         if failure_kind is WorkFailureKind.POLICY_BLOCKED:
             return WorkFailureDecision(
                 target_state=WorkUnitState.BLOCKED_BY_POLICY,
                 attempt_outcome=WorkAttemptOutcome.BLOCKED_BY_POLICY,
                 retry_delay_seconds=None,
             )
-        if failure_kind is not WorkFailureKind.TRANSIENT or attempt_number == self.max_attempts:
+        if failure_kind is not WorkFailureKind.TRANSIENT or failure_number == self.max_attempts:
             return WorkFailureDecision(
                 target_state=WorkUnitState.DEAD_LETTER,
                 attempt_outcome=WorkAttemptOutcome.DEAD_LETTERED,
@@ -65,12 +65,12 @@ class RetryPolicy:
         return WorkFailureDecision(
             target_state=WorkUnitState.RETRY_WAIT,
             attempt_outcome=WorkAttemptOutcome.RETRY_SCHEDULED,
-            retry_delay_seconds=self._retry_delay(attempt_number),
+            retry_delay_seconds=self._retry_delay(failure_number),
         )
 
-    def _retry_delay(self, attempt_number: int) -> int:
+    def _retry_delay(self, failure_number: int) -> int:
         delay = self.initial_delay_seconds
-        for _ in range(attempt_number - 1):
+        for _ in range(failure_number - 1):
             if delay >= self.max_delay_seconds:
                 break
             delay = min(delay * self.multiplier, self.max_delay_seconds)
