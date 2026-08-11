@@ -1,0 +1,96 @@
+name: Fix Work Engine Mypy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-work-engine-mypy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Apply exact type correction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/work_engine.py"
+          )
+          text = path.read_text(encoding="utf-8")
+          old = '''def _source_can_reserve(source: RowMapping, now_utc: datetime) -> bool:
+              retry_after_utc = source["retry_after_utc"]
+              return (
+                  source["operational_state"] == SourceOperationalState.ACTIVE.value
+                  and int(source["active_requests"]) < int(source["max_active_requests"])
+                  and source["next_allowed_request_at_utc"] <= now_utc
+                  and (retry_after_utc is None or retry_after_utc <= now_utc)
+              )
+          '''.replace("          ", "")
+          new = '''def _source_can_reserve(source: RowMapping, now_utc: datetime) -> bool:
+              next_allowed_request_at_utc = source["next_allowed_request_at_utc"]
+              retry_after_utc = source["retry_after_utc"]
+              if not isinstance(next_allowed_request_at_utc, datetime):
+                  raise ValueError("source next-allowed request time is not a datetime")
+              if retry_after_utc is not None and not isinstance(retry_after_utc, datetime):
+                  raise ValueError("source retry-after time is not a datetime")
+              return (
+                  str(source["operational_state"]) == SourceOperationalState.ACTIVE.value
+                  and int(source["active_requests"]) < int(source["max_active_requests"])
+                  and next_allowed_request_at_utc <= now_utc
+                  and (retry_after_utc is None or retry_after_utc <= now_utc)
+              )
+          '''.replace("          ", "")
+          if old not in text:
+              raise SystemExit("expected source-capacity predicate was not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Verify exact correction
+        run: |
+          uv run ruff format \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
+          uv run ruff check \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
+          uv run mypy
+
+      - name: Commit exact correction
+        run: |
+          if git diff --quiet -- \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py; then
+            exit 0
+          fi
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
+          git commit -m "Fix (Work): validate persisted source scheduling times" \
+            -m "Owner layer: PostgreSQL Work Engine source-capacity boundary." \
+            -m "Root cause: RowMapping timestamp values remained Any and could taint the boolean permit predicate." \
+            -m "Replacement: fail closed unless next-allowed and optional retry-after values are real datetimes before comparing them to the UTC owner clock." \
+            -m "Proof target: Ruff, strict mypy, permanent unit/architecture gates, and PostgreSQL runtime tests."
+          git push origin HEAD:main
