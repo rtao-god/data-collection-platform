@@ -17,6 +17,7 @@ from collection_infrastructure.postgres import (
     work_units,
     worker_capabilities,
     worker_heartbeats,
+    worker_output_contracts,
     worker_registrations,
 )
 from sqlalchemy.dialects import postgresql
@@ -35,6 +36,7 @@ def test_work_metadata_has_exact_owner_schemas_and_tables() -> None:
     assert tuple(table.fullname for table in WORK_TABLES) == (
         "work.worker_registrations",
         "work.worker_capabilities",
+        "work.worker_output_contracts",
         "work.worker_heartbeats",
         "work.work_units",
         "work.work_attempts",
@@ -57,10 +59,20 @@ def test_work_metadata_preserves_owner_identity_without_cascade_delete() -> None
     assert source_capacity_states.primary_key.columns.keys() == ["source_key"]
     assert worker_registrations.primary_key.columns.keys() == ["worker_id"]
     assert worker_capabilities.primary_key.columns.keys() == ["worker_id", "capability"]
+    assert worker_output_contracts.primary_key.columns.keys() == ["worker_id", "output_contract"]
     assert worker_heartbeats.primary_key.columns.keys() == ["worker_id"]
     assert work_units.primary_key.columns.keys() == ["work_id"]
     assert work_attempts.primary_key.columns.keys() == ["attempt_id"]
     assert dead_letters.primary_key.columns.keys() == ["work_id"]
+
+
+def test_worker_output_contract_ddl_is_explicit_and_bounded() -> None:
+    sql = str(CreateTable(worker_output_contracts).compile(dialect=postgresql.dialect()))
+
+    assert "PRIMARY KEY (worker_id, output_contract)" in sql
+    assert "CONSTRAINT ck_worker_output_contracts_identity" in sql
+    assert "output_contract ~ '^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$'" in sql
+    assert "REFERENCES work.worker_registrations" in sql
 
 
 def test_work_unit_ddl_contains_fail_closed_lease_and_idempotency_contracts() -> None:
@@ -70,10 +82,15 @@ def test_work_unit_ddl_contains_fail_closed_lease_and_idempotency_contracts() ->
         index.name: str(CreateIndex(index).compile(dialect=dialect)) for index in work_units.indexes
     }
 
+    assert "failure_count INTEGER NOT NULL" in sql
     assert "CONSTRAINT fk_work_units_stage_owner" in sql
     assert "CONSTRAINT uq_work_units_run_semantic_key" in sql
     assert "CONSTRAINT ck_work_units_stage_capability" in sql
     assert "CONSTRAINT ck_work_units_source_capability" in sql
+    assert "CONSTRAINT ck_work_units_expected_output_contract_format" in sql
+    assert "CONSTRAINT ck_work_units_attempt_budget" in sql
+    assert "failure_count BETWEEN 0 AND max_attempts" in sql
+    assert "failure_count <= attempt_count" in sql
     assert "CONSTRAINT ck_work_units_active_lease" in sql
     assert "CONSTRAINT ck_work_units_source_permit" in sql
     assert "CONSTRAINT ck_work_units_output" in sql
