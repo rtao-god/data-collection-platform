@@ -7,6 +7,7 @@ from collection_infrastructure.postgres.metadata import (
     config_bundles,
 )
 from collection_infrastructure.postgres.migrations import upgrade_database
+from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import (
     RUN_TABLES,
     RUNS_SCHEMA,
@@ -33,6 +34,7 @@ from collection_infrastructure.postgres.work_source_constraints import (
 __all__ = [
     "CONFIG_SCHEMA",
     "CONFIG_TABLES",
+    "PostgresWorkEngine",
     "RUNS_SCHEMA",
     "RUN_TABLES",
     "SOURCES_SCHEMA",
