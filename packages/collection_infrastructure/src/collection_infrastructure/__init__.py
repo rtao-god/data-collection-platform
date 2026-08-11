@@ -1,3 +1,4 @@
 from collection_infrastructure.filesystem_campaign_source import FilesystemCampaignBundleSource
+from collection_infrastructure.postgres import PostgresWorkEngine
 
-__all__ = ["FilesystemCampaignBundleSource"]
+__all__ = ["FilesystemCampaignBundleSource", "PostgresWorkEngine"]
