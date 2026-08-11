@@ -185,9 +185,7 @@ def upgrade() -> None:
             name="pk_config_bundle_blockers",
         ),
         schema="config",
-        comment=(
-            "Ordered explicit blockers that keep a campaign snapshot from production use."
-        ),
+        comment=("Ordered explicit blockers that keep a campaign snapshot from production use."),
     )
 
     op.execute(
