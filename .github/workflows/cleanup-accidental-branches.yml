@@ -1,0 +1,43 @@
+name: Cleanup Accidental Branch Probes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cleanup-accidental-branches.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Delete accidental branch probes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for branch in \
+            __schema_probe_should_not_create \
+            __do_not_create \
+            __cleanup_test \
+            __cleanup_test_2; do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" >/dev/null 2>&1 || true
+          done
+
+      - name: Remove cleanup workflow
+        run: |
+          rm .github/workflows/cleanup-accidental-branches.yml
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add -A
+          git commit -m "Build (Git): remove accidental branch probes" \
+            -m "Owner layer: repository branch hygiene." \
+            -m "Root cause: transient schema-probe calls could have created four unintended refs." \
+            -m "Replacement: delete those exact refs and remove this one-shot cleanup path." \
+            -m "Proof target: main remains the only working branch used by this implementation."
+          git push origin HEAD:main
