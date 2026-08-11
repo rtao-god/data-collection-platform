@@ -4,6 +4,42 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 
 
+class WorkStage(StrEnum):
+    DISCOVERY = "discovery"
+    ACQUISITION = "acquisition"
+    EXTRACTION = "extraction"
+    NORMALIZATION = "normalization"
+    GEOGRAPHY = "geography"
+    ENTITY_RESOLUTION = "entity_resolution"
+    QUALITY = "quality"
+    EXPORT = "export"
+
+
+class WorkCapability(StrEnum):
+    MANUAL_IMPORT = "manual_import"
+    OSM_QUERY = "osm_query"
+    HTTP_FETCH = "http_fetch"
+    BROWSER_FETCH = "browser_fetch"
+    EXTRACTION = "extraction"
+    NORMALIZATION = "normalization"
+    GEOGRAPHY = "geography"
+    ENTITY_RESOLUTION = "entity_resolution"
+    QUALITY = "quality"
+    EXPORT = "export"
+
+
+_STAGE_CAPABILITIES: dict[WorkStage, frozenset[WorkCapability]] = {
+    WorkStage.DISCOVERY: frozenset({WorkCapability.MANUAL_IMPORT, WorkCapability.OSM_QUERY}),
+    WorkStage.ACQUISITION: frozenset({WorkCapability.HTTP_FETCH, WorkCapability.BROWSER_FETCH}),
+    WorkStage.EXTRACTION: frozenset({WorkCapability.EXTRACTION}),
+    WorkStage.NORMALIZATION: frozenset({WorkCapability.NORMALIZATION}),
+    WorkStage.GEOGRAPHY: frozenset({WorkCapability.GEOGRAPHY}),
+    WorkStage.ENTITY_RESOLUTION: frozenset({WorkCapability.ENTITY_RESOLUTION}),
+    WorkStage.QUALITY: frozenset({WorkCapability.QUALITY}),
+    WorkStage.EXPORT: frozenset({WorkCapability.EXPORT}),
+}
+
+
 class WorkUnitState(StrEnum):
     PENDING = "pending"
     LEASED = "leased"
@@ -73,3 +109,7 @@ class WorkUnitLifecycle:
 
 def allowed_transitions(state: WorkUnitState) -> frozenset[WorkUnitState]:
     return _ALLOWED_TRANSITIONS[state]
+
+
+def capability_belongs_to_stage(stage: WorkStage, capability: WorkCapability) -> bool:
+    return capability in _STAGE_CAPABILITIES[stage]
