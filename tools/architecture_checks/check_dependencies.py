@@ -2,51 +2,89 @@ from __future__ import annotations
 
 import argparse
 import ast
+import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-_INTERNAL_OWNERS = frozenset(
-    {
-        "collection_application",
-        "collection_contracts",
-        "collection_domain",
-        "collection_infrastructure",
-        "collection_migration",
-        "collector_cli",
-    }
-)
-_ALLOWED_INTERNAL_IMPORTS: dict[str, frozenset[str]] = {
-    "collector_cli": frozenset(
-        {
+_PRODUCTION_GROUPS = ("apps", "packages", "connectors")
+_FORBIDDEN_PRODUCTION_SEGMENTS = frozenset({"common", "helpers", "shared_domain", "utils"})
+_DEPENDENCY_POLICY_PATH = Path("docs/architecture/dependency-rules.md")
+_DEPENDENCY_POLICY_START = "<!-- dependency-policy:start -->"
+_DEPENDENCY_POLICY_END = "<!-- dependency-policy:end -->"
+_REQUIREMENT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+@dataclass(frozen=True, slots=True)
+class OwnerPolicy:
+    project_path: str
+    distribution_name: str
+    allowed_internal_imports: tuple[str, ...]
+    allowed_external_imports: frozenset[str]
+
+
+_OWNER_POLICIES: dict[str, OwnerPolicy] = {
+    "collector_cli": OwnerPolicy(
+        project_path="apps/collector_cli",
+        distribution_name="collector-cli",
+        allowed_internal_imports=(
             "collection_application",
             "collection_contracts",
-            "collection_domain",
             "collection_infrastructure",
-        }
+        ),
+        allowed_external_imports=frozenset(),
     ),
-    "collection_migration": frozenset(
-        {
+    "collection_migration": OwnerPolicy(
+        project_path="apps/migration",
+        distribution_name="collection-migration",
+        allowed_internal_imports=(
             "collection_contracts",
             "collection_infrastructure",
-        }
+        ),
+        allowed_external_imports=frozenset(),
     ),
-    "collection_infrastructure": frozenset(
-        {"collection_application", "collection_contracts", "collection_domain"}
+    "collection_infrastructure": OwnerPolicy(
+        project_path="packages/collection_infrastructure",
+        distribution_name="collection-infrastructure",
+        allowed_internal_imports=(
+            "collection_application",
+            "collection_contracts",
+        ),
+        allowed_external_imports=frozenset({"alembic", "psycopg", "sqlalchemy"}),
     ),
-    "collection_application": frozenset({"collection_contracts", "collection_domain"}),
-    "collection_domain": frozenset(),
-    "collection_contracts": frozenset(),
+    "collection_application": OwnerPolicy(
+        project_path="packages/collection_application",
+        distribution_name="collection-application",
+        allowed_internal_imports=(
+            "collection_contracts",
+            "collection_domain",
+        ),
+        allowed_external_imports=frozenset({"pydantic", "yaml"}),
+    ),
+    "collection_domain": OwnerPolicy(
+        project_path="packages/collection_domain",
+        distribution_name="collection-domain",
+        allowed_internal_imports=(),
+        allowed_external_imports=frozenset(),
+    ),
+    "collection_contracts": OwnerPolicy(
+        project_path="packages/collection_contracts",
+        distribution_name="collection-contracts",
+        allowed_internal_imports=(),
+        allowed_external_imports=frozenset({"pydantic"}),
+    ),
 }
-_ALLOWED_EXTERNAL_IMPORTS: dict[str, frozenset[str]] = {
-    "collector_cli": frozenset(),
-    "collection_migration": frozenset(),
-    "collection_infrastructure": frozenset({"alembic", "sqlalchemy"}),
-    "collection_application": frozenset({"pydantic", "yaml"}),
-    "collection_domain": frozenset(),
-    "collection_contracts": frozenset({"pydantic"}),
+
+
+def _normalize_distribution_name(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value).lower()
+
+
+_INTERNAL_DISTRIBUTIONS = {
+    _normalize_distribution_name(policy.distribution_name): owner
+    for owner, policy in _OWNER_POLICIES.items()
 }
-_FORBIDDEN_PRODUCTION_SEGMENTS = frozenset({"common", "helpers", "shared_domain", "utils"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,14 +97,29 @@ class Violation:
         return f"{self.path}:{self.line}: {self.message}"
 
 
+@dataclass(frozen=True, slots=True)
+class DiscoveredOwner:
+    import_root: str
+    project_path: str
+    source_root: Path
+    files: tuple[Path, ...]
+
+
 def find_violations(repository_root: Path) -> tuple[Violation, ...]:
     root = repository_root.resolve(strict=True)
-    violations: list[Violation] = []
-    for source_root in _source_roots(root):
-        for file_path in sorted(source_root.rglob("*.py")):
+    discovered, discovery_violations = _discover_owners(root)
+    violations = list(discovery_violations)
+    violations.extend(_owner_registration_violations(root, discovered))
+
+    production_owners = frozenset(_OWNER_POLICIES).union(discovered)
+    for owner, discovered_owner in sorted(discovered.items()):
+        policy = _OWNER_POLICIES.get(owner)
+        if policy is None or policy.project_path != discovered_owner.project_path:
+            continue
+        for file_path in discovered_owner.files:
             relative = file_path.relative_to(root)
-            owner = _owner_for(relative)
-            if owner is None:
+            source_relative = file_path.relative_to(discovered_owner.source_root)
+            if len(source_relative.parts) < 2 or source_relative.parts[0] != owner:
                 continue
             forbidden_parts = _FORBIDDEN_PRODUCTION_SEGMENTS.intersection(relative.parts)
             if forbidden_parts:
@@ -77,28 +130,349 @@ def find_violations(repository_root: Path) -> tuple[Violation, ...]:
                         f"forbidden generic production path segment: {sorted(forbidden_parts)}",
                     )
                 )
-            violations.extend(_file_import_violations(root, file_path, owner))
-    return tuple(violations)
+            violations.extend(
+                _file_import_violations(
+                    root,
+                    file_path,
+                    owner,
+                    policy,
+                    production_owners,
+                )
+            )
+
+    violations.extend(_workspace_violations(root, discovered))
+    violations.extend(_dependency_documentation_violations(root))
+    return tuple(sorted(violations, key=lambda item: (item.path, item.line, item.message)))
 
 
-def _source_roots(root: Path) -> tuple[Path, ...]:
-    candidates = tuple((root / group) for group in ("apps", "packages"))
-    return tuple(path for path in candidates if path.is_dir())
+def render_dependency_policy() -> str:
+    lines = [
+        _DEPENDENCY_POLICY_START,
+        "| Production owner | Project | Allowed internal owners | Allowed external imports |",
+        "|---|---|---|---|",
+    ]
+    for owner, policy in _OWNER_POLICIES.items():
+        internal = ", ".join(f"`{value}`" for value in policy.allowed_internal_imports) or "none"
+        external = (
+            ", ".join(f"`{value}`" for value in sorted(policy.allowed_external_imports))
+            or "none"
+        )
+        lines.append(f"| `{owner}` | `{policy.project_path}` | {internal} | {external} |")
+    lines.append(_DEPENDENCY_POLICY_END)
+    return "\n".join(lines)
 
 
-def _owner_for(relative: Path) -> str | None:
-    parts = relative.parts
+def _discover_owners(root: Path) -> tuple[dict[str, DiscoveredOwner], list[Violation]]:
+    discovered: dict[str, DiscoveredOwner] = {}
+    violations: list[Violation] = []
+    for group in _PRODUCTION_GROUPS:
+        group_root = root / group
+        if not group_root.is_dir():
+            continue
+        for project_root in sorted(path for path in group_root.iterdir() if path.is_dir()):
+            source_root = project_root / "src"
+            if not source_root.is_dir():
+                continue
+            files = tuple(sorted(source_root.rglob("*.py")))
+            if not files:
+                continue
+
+            project_path = project_root.relative_to(root).as_posix()
+            import_roots: set[str] = set()
+            for file_path in files:
+                relative = file_path.relative_to(source_root)
+                if len(relative.parts) < 2:
+                    violations.append(
+                        Violation(
+                            file_path.relative_to(root).as_posix(),
+                            1,
+                            (
+                                "production Python source must live inside one import-root "
+                                "package under src/"
+                            ),
+                        )
+                    )
+                    continue
+                import_roots.add(relative.parts[0])
+
+            if len(import_roots) != 1:
+                violations.append(
+                    Violation(
+                        f"{project_path}/src",
+                        1,
+                        (
+                            "production project must expose exactly one import-root package; "
+                            f"found {sorted(import_roots)}"
+                        ),
+                    )
+                )
+                continue
+
+            owner = next(iter(import_roots))
+            previous = discovered.get(owner)
+            if previous is not None:
+                violations.append(
+                    Violation(
+                        f"{project_path}/src/{owner}",
+                        1,
+                        (
+                            f"production owner {owner} is duplicated by "
+                            f"{previous.project_path} and {project_path}"
+                        ),
+                    )
+                )
+                continue
+
+            discovered[owner] = DiscoveredOwner(
+                import_root=owner,
+                project_path=project_path,
+                source_root=source_root,
+                files=files,
+            )
+    return discovered, violations
+
+
+def _owner_registration_violations(
+    root: Path,
+    discovered: dict[str, DiscoveredOwner],
+) -> list[Violation]:
+    violations: list[Violation] = []
+    for owner, discovered_owner in sorted(discovered.items()):
+        policy = _OWNER_POLICIES.get(owner)
+        first_path = discovered_owner.files[0].relative_to(root).as_posix()
+        if policy is None:
+            violations.append(
+                Violation(
+                    first_path,
+                    1,
+                    (
+                        f"unregistered production owner {owner}; add an explicit OwnerPolicy "
+                        "before adding production source"
+                    ),
+                )
+            )
+            continue
+        if policy.project_path != discovered_owner.project_path:
+            violations.append(
+                Violation(
+                    first_path,
+                    1,
+                    (
+                        f"registered production owner {owner} must live at "
+                        f"{policy.project_path}, found {discovered_owner.project_path}"
+                    ),
+                )
+            )
+    return violations
+
+
+def _workspace_violations(
+    root: Path,
+    discovered: dict[str, DiscoveredOwner],
+) -> list[Violation]:
+    workspace_path = root / "pyproject.toml"
+    if not workspace_path.is_file():
+        return []
+
+    document, parse_violation = _read_toml(root, workspace_path)
+    if parse_violation is not None:
+        return [parse_violation]
+    if document is None:
+        return [Violation("pyproject.toml", 1, "TOML parser returned no document")]
+
+    tool = document.get("tool")
+    uv = tool.get("uv") if isinstance(tool, dict) else None
+    workspace = uv.get("workspace") if isinstance(uv, dict) else None
+    members = workspace.get("members") if isinstance(workspace, dict) else None
+    if not isinstance(members, list) or not all(isinstance(value, str) for value in members):
+        return [
+            Violation(
+                "pyproject.toml",
+                1,
+                "uv workspace members must be an explicit list of project paths",
+            )
+        ]
+
+    production_members = {
+        Path(member).as_posix()
+        for member in members
+        if Path(member).parts and Path(member).parts[0] in _PRODUCTION_GROUPS
+    }
+    discovered_projects = {owner.project_path for owner in discovered.values()}
+    violations: list[Violation] = []
+
+    for project_path in sorted(discovered_projects.difference(production_members)):
+        violations.append(
+            Violation(
+                f"{project_path}/pyproject.toml",
+                1,
+                "production project is not registered in tool.uv.workspace.members",
+            )
+        )
+    for project_path in sorted(production_members.difference(discovered_projects)):
+        violations.append(
+            Violation(
+                "pyproject.toml",
+                1,
+                f"workspace production member has no Python owner source: {project_path}",
+            )
+        )
+
+    for owner, discovered_owner in sorted(discovered.items()):
+        policy = _OWNER_POLICIES.get(owner)
+        if policy is None or policy.project_path != discovered_owner.project_path:
+            continue
+        violations.extend(_project_dependency_violations(root, owner, policy))
+    return violations
+
+
+def _project_dependency_violations(
+    root: Path,
+    owner: str,
+    policy: OwnerPolicy,
+) -> list[Violation]:
+    project_file = root / policy.project_path / "pyproject.toml"
+    relative_path = project_file.relative_to(root).as_posix()
+    if not project_file.is_file():
+        return [
+            Violation(
+                relative_path,
+                1,
+                f"registered production owner {owner} is missing pyproject.toml",
+            )
+        ]
+
+    document, parse_violation = _read_toml(root, project_file)
+    if parse_violation is not None:
+        return [parse_violation]
+    if document is None:
+        return [Violation(relative_path, 1, "TOML parser returned no document")]
+
+    project = document.get("project")
+    if not isinstance(project, dict):
+        return [Violation(relative_path, 1, "project table is required")]
+
+    actual_name = project.get("name")
+    if not isinstance(actual_name, str):
+        return [Violation(relative_path, 1, "project.name must be an explicit string")]
+    if _normalize_distribution_name(actual_name) != _normalize_distribution_name(
+        policy.distribution_name
+    ):
+        return [
+            Violation(
+                relative_path,
+                1,
+                (
+                    f"{owner} must use distribution name {policy.distribution_name}, "
+                    f"found {actual_name}"
+                ),
+            )
+        ]
+
+    dependencies = project.get("dependencies", [])
+    if not isinstance(dependencies, list) or not all(
+        isinstance(value, str) for value in dependencies
+    ):
+        return [
+            Violation(
+                relative_path,
+                1,
+                "project.dependencies must be an explicit list of requirement strings",
+            )
+        ]
+
+    declared_internal: set[str] = set()
+    for requirement in dependencies:
+        match = _REQUIREMENT_NAME.match(requirement.strip())
+        if match is None:
+            return [
+                Violation(
+                    relative_path,
+                    1,
+                    f"dependency requirement has no parseable distribution name: {requirement}",
+                )
+            ]
+        dependency_owner = _INTERNAL_DISTRIBUTIONS.get(
+            _normalize_distribution_name(match.group(0))
+        )
+        if dependency_owner is not None:
+            declared_internal.add(dependency_owner)
+
+    expected_internal = set(policy.allowed_internal_imports)
+    violations: list[Violation] = []
+    for imported in sorted(declared_internal.difference(expected_internal)):
+        violations.append(
+            Violation(
+                relative_path,
+                1,
+                f"{owner} must not declare internal dependency {imported}",
+            )
+        )
+    for imported in sorted(expected_internal.difference(declared_internal)):
+        violations.append(
+            Violation(
+                relative_path,
+                1,
+                f"{owner} architecture allowance is missing declared dependency {imported}",
+            )
+        )
+    return violations
+
+
+def _dependency_documentation_violations(root: Path) -> list[Violation]:
+    workspace_path = root / "pyproject.toml"
+    if not workspace_path.is_file():
+        return []
+
+    document_path = root / _DEPENDENCY_POLICY_PATH
+    relative_path = _DEPENDENCY_POLICY_PATH.as_posix()
+    if not document_path.is_file():
+        return [
+            Violation(
+                relative_path,
+                1,
+                "dependency policy documentation is required for the repository workspace",
+            )
+        ]
+
     try:
-        src_index = parts.index("src")
-    except ValueError:
-        return None
-    if src_index + 1 >= len(parts):
-        return None
-    owner = parts[src_index + 1]
-    return owner if owner in _INTERNAL_OWNERS else None
+        content = document_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        return [Violation(relative_path, 1, f"dependency policy is not UTF-8: {exc}")]
+
+    expected = render_dependency_policy()
+    start = content.find(_DEPENDENCY_POLICY_START)
+    end = content.find(_DEPENDENCY_POLICY_END)
+    if start < 0 or end < start:
+        return [
+            Violation(
+                relative_path,
+                1,
+                "dependency policy documentation is missing generated policy markers",
+            )
+        ]
+    actual = content[start : end + len(_DEPENDENCY_POLICY_END)]
+    if actual != expected:
+        return [
+            Violation(
+                relative_path,
+                1,
+                (
+                    "dependency policy documentation has drifted from the canonical "
+                    "OwnerPolicy registry"
+                ),
+            )
+        ]
+    return []
 
 
-def _file_import_violations(root: Path, file_path: Path, owner: str) -> list[Violation]:
+def _file_import_violations(
+    root: Path,
+    file_path: Path,
+    owner: str,
+    policy: OwnerPolicy,
+    production_owners: frozenset[str],
+) -> list[Violation]:
     relative = file_path.relative_to(root).as_posix()
     try:
         tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=relative)
@@ -107,24 +481,24 @@ def _file_import_violations(root: Path, file_path: Path, owner: str) -> list[Vio
         return [Violation(relative, line, f"source cannot be parsed: {exc}")]
 
     violations: list[Violation] = []
+    allowed_internal = frozenset(policy.allowed_internal_imports)
     for node in ast.walk(tree):
-        imports = _import_roots(node)
-        for imported in imports:
+        for imported in _import_roots(node):
             if imported == owner:
                 continue
-            if imported in _INTERNAL_OWNERS:
-                if imported not in _ALLOWED_INTERNAL_IMPORTS[owner]:
+            if imported in production_owners:
+                if imported not in allowed_internal:
                     violations.append(
                         Violation(
                             relative,
                             node.lineno,
-                            f"{owner} must not import internal owner {imported}",
+                            f"{owner} must not import production owner {imported}",
                         )
                     )
                 continue
             if imported in sys.stdlib_module_names or imported == "__future__":
                 continue
-            if imported not in _ALLOWED_EXTERNAL_IMPORTS[owner]:
+            if imported not in policy.allowed_external_imports:
                 violations.append(
                     Violation(
                         relative,
@@ -136,6 +510,18 @@ def _file_import_violations(root: Path, file_path: Path, owner: str) -> list[Vio
                     )
                 )
     return violations
+
+
+def _read_toml(
+    root: Path,
+    path: Path,
+) -> tuple[dict[str, object] | None, Violation | None]:
+    relative = path.relative_to(root).as_posix()
+    try:
+        document = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        return None, Violation(relative, 1, f"TOML cannot be parsed: {exc}")
+    return document, None
 
 
 def _import_roots(node: ast.AST) -> tuple[str, ...]:
@@ -151,11 +537,20 @@ def _import_roots(node: ast.AST) -> tuple[str, ...]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("repository_root", nargs="?", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--print-policy",
+        action="store_true",
+        help="Print the canonical dependency-policy documentation block.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.print_policy:
+        print(render_dependency_policy())
+        return 0
+
     violations = find_violations(args.repository_root)
     if not violations:
         print("Architecture dependency check passed.")
