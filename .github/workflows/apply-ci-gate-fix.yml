@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   apply:
-    if: "${{ startsWith(github.event.head_commit.message, 'Build (Tooling): repair exact CI gate workflow') }}"
+    if: "${{ startsWith(github.event.head_commit.message, 'Build (Tooling): preserve exact CI patch whitespace') }}"
     runs-on: ubuntu-24.04
     steps:
       - name: Check out exact revision
@@ -43,24 +43,28 @@ jobs:
           path = Path("database/tests/test_work_engine_schema.py")
           text = path.read_text(encoding="utf-8")
 
-          source_old = '''    assert set(inspector.get_table_names(schema="sources")) == {
-              "source_capacity_states",
-          }
-          '''
-          source_new = '''    assert set(inspector.get_table_names(schema="sources")) == {
-              "artifact_objects",
-              "artifact_uploads",
-              "raw_artifacts",
-              "source_capacity_states",
-          }
-          '''
-          work_old = '''        "work_units",
-              "worker_capabilities",
-          '''
-          work_new = '''        "work_units",
-              "work_output_artifacts",
-              "worker_capabilities",
-          '''
+          source_old = (
+              '    assert set(inspector.get_table_names(schema="sources")) == {\n'
+              '        "source_capacity_states",\n'
+              '    }\n'
+          )
+          source_new = (
+              '    assert set(inspector.get_table_names(schema="sources")) == {\n'
+              '        "artifact_objects",\n'
+              '        "artifact_uploads",\n'
+              '        "raw_artifacts",\n'
+              '        "source_capacity_states",\n'
+              '    }\n'
+          )
+          work_old = (
+              '        "work_units",\n'
+              '        "worker_capabilities",\n'
+          )
+          work_new = (
+              '        "work_units",\n'
+              '        "work_output_artifacts",\n'
+              '        "worker_capabilities",\n'
+          )
 
           for old, new, owner in (
               (source_old, source_new, "sources table inventory"),
