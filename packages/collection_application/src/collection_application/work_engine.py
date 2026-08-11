@@ -19,6 +19,7 @@ from collection_domain import (
     WorkStage,
     WorkUnitState,
     capability_belongs_to_stage,
+    capability_requires_source_permit,
 )
 
 _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -121,6 +122,9 @@ class WorkUnitSpec:
     def __post_init__(self) -> None:
         if not capability_belongs_to_stage(self.stage, self.capability):
             raise ValueError("work capability is not valid for the stage")
+        requires_source = capability_requires_source_permit(self.capability)
+        if requires_source != (self.source_key is not None):
+            raise ValueError("work source key does not match its capability")
         if self.source_key is not None:
             _require_key("source_key", self.source_key)
         _require_digest("semantic_key", self.semantic_key)
