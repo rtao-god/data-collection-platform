@@ -26,6 +26,7 @@ _ALLOWED_TRANSITIONS: dict[WorkUnitState, frozenset[WorkUnitState]] = {
     ),
     WorkUnitState.LEASED: frozenset(
         {
+            WorkUnitState.PENDING,
             WorkUnitState.RETRY_WAIT,
             WorkUnitState.SUCCEEDED,
             WorkUnitState.DEAD_LETTER,
