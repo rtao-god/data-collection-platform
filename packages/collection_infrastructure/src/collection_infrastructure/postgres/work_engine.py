@@ -1563,7 +1563,7 @@ def _advisory_lock(connection: Connection, identity: str) -> None:
 
 
 def _same_work_identity(existing: RowMapping, command: WorkUnitSpec) -> bool:
-    return (
+    return bool(
         existing["work_id"] == command.work_id
         and existing["run_id"] == command.run_id
         and existing["stage_run_id"] == command.stage_run_id
