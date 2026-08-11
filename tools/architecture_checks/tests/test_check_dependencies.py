@@ -248,12 +248,10 @@ def test_project_dependencies_must_equal_owner_policy(tmp_path: Path) -> None:
 
     assert "collector_cli must not declare internal dependency collection_domain" in messages
     assert (
-        "collector_cli architecture allowance is missing declared dependency "
-        "collection_application"
+        "collector_cli architecture allowance is missing declared dependency collection_application"
     ) in messages
     assert (
-        "collector_cli architecture allowance is missing declared dependency "
-        "collection_contracts"
+        "collector_cli architecture allowance is missing declared dependency collection_contracts"
     ) in messages
     assert (
         "collector_cli architecture allowance is missing declared dependency "
@@ -268,9 +266,7 @@ def test_dependency_documentation_drift_is_rejected(tmp_path: Path) -> None:
         checker,
         (),
         documented_policy=(
-            "<!-- dependency-policy:start -->\n"
-            "outdated\n"
-            "<!-- dependency-policy:end -->"
+            "<!-- dependency-policy:start -->\noutdated\n<!-- dependency-policy:end -->"
         ),
     )
 
