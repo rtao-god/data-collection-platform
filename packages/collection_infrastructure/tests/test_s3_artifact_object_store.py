@@ -9,13 +9,13 @@ from uuid import UUID
 
 import pytest
 from botocore.exceptions import ClientError
-
-from collection_application import ArtifactKind
 from collection_infrastructure.object_store.s3 import (
     ArtifactObjectStoreError,
     S3ArtifactObjectStore,
     S3Client,
 )
+
+from collection_application import ArtifactKind
 
 _UPLOAD_ID = UUID("019c0000-0000-7000-8000-000000000001")
 _NOW = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)

@@ -367,7 +367,9 @@ class PostgresArtifactTransfer:
                     "artifactId": str(command.artifact_id),
                     "workId": str(command.work_id),
                 },
-                required_action="Request only an artifact declared by the leased work input contract.",
+                required_action=(
+                    "Request only an artifact declared by the leased work input contract."
+                ),
             )
         return str(storage_reference)
 

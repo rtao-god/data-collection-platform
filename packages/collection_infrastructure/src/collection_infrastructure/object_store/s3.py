@@ -220,7 +220,8 @@ class S3ArtifactObjectStore:
                         "causeType": type(exc).__name__,
                     },
                     required_action=(
-                        "Restore object-store copy support and retry verification of the exact upload."
+                        "Restore object-store copy support and retry verification of the "
+                        "exact upload."
                     ),
                 ) from exc
             if not self._verified_final_exists(
@@ -232,7 +233,9 @@ class S3ArtifactObjectStore:
                     code="ARTIFACT_PROMOTION_UNVERIFIED",
                     message="The promoted artifact does not satisfy its content identity.",
                     context={"finalReference": final_reference},
-                    required_action="Inspect the object store before retrying artifact verification.",
+                    required_action=(
+                        "Inspect the object store before retrying artifact verification."
+                    ),
                 )
         try:
             self._client.delete_object(Bucket=self._bucket, Key=staging_reference)
@@ -246,7 +249,8 @@ class S3ArtifactObjectStore:
                     "causeType": type(exc).__name__,
                 },
                 required_action=(
-                    "Retry verification or remove only this staging object through the artifact owner."
+                    "Retry verification or remove only this staging object through the "
+                    "artifact owner."
                 ),
             ) from exc
         return VerifiedObject(
