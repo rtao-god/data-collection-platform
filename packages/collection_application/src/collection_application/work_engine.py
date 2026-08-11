@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
@@ -13,6 +13,7 @@ from collection_domain import (
     CollectionRunState,
     RetryPolicy,
     SourceOperationalState,
+    StageRunState,
     WorkCapability,
     WorkFailureKind,
     WorkLease,
@@ -43,6 +44,7 @@ class WorkerRegistration:
     worker_id: str
     build_identity: str
     capabilities: frozenset[WorkCapability]
+    supported_output_contracts: frozenset[str]
     max_concurrency: int
     resource_profile: str
     correlation_id: str
@@ -54,6 +56,10 @@ class WorkerRegistration:
         _require_token("correlation_id", self.correlation_id)
         if not self.capabilities:
             raise ValueError("worker registration requires at least one capability")
+        if not self.supported_output_contracts:
+            raise ValueError("worker registration requires at least one output contract")
+        for contract_identity in self.supported_output_contracts:
+            _require_token("supported_output_contract", contract_identity)
         if not 1 <= self.max_concurrency <= 10_000:
             raise ValueError("worker max concurrency must be between 1 and 10000")
 
@@ -98,10 +104,13 @@ class StageRunSpec:
     stage_run_id: UUID
     run_id: UUID
     stage: WorkStage
+    initial_state: StageRunState
     correlation_id: str
 
     def __post_init__(self) -> None:
         _require_token("correlation_id", self.correlation_id)
+        if self.initial_state not in {StageRunState.PENDING, StageRunState.RUNNING}:
+            raise ValueError("new stage run must start as pending or running")
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +126,7 @@ class WorkUnitSpec:
     expected_output_contract: str
     priority: int
     retry_policy: RetryPolicy
+    available_at_utc: datetime
     correlation_id: str
 
     def __post_init__(self) -> None:
@@ -130,6 +140,7 @@ class WorkUnitSpec:
         _require_digest("semantic_key", self.semantic_key)
         _require_digest("input_digest", self.input_digest)
         _require_token("expected_output_contract", self.expected_output_contract)
+        _require_aware_utc("available_at_utc", self.available_at_utc)
         _require_token("correlation_id", self.correlation_id)
         if not -1_000_000 <= self.priority <= 1_000_000:
             raise ValueError("work priority is outside the supported range")
@@ -236,6 +247,17 @@ class WorkRelease:
 
 
 @dataclass(frozen=True, slots=True)
+class LeaseExpirySweep:
+    limit: int
+    correlation_id: str
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.limit <= 1_000:
+            raise ValueError("lease expiry sweep limit must be between 1 and 1000")
+        _require_token("correlation_id", self.correlation_id)
+
+
+@dataclass(frozen=True, slots=True)
 class WorkerRegistrationResult:
     worker_id: str
     status: WorkerRegistrationStatus
@@ -255,6 +277,19 @@ class WorkMutationResult:
     state: WorkUnitState
     revision: int
     available_at_utc: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class LeaseExpirySweepResult:
+    expired_count: int
+    retry_wait_count: int
+    dead_letter_count: int
+
+    def __post_init__(self) -> None:
+        if min(self.expired_count, self.retry_wait_count, self.dead_letter_count) < 0:
+            raise ValueError("lease expiry counts cannot be negative")
+        if self.expired_count != self.retry_wait_count + self.dead_letter_count:
+            raise ValueError("expired lease count must equal retry and dead-letter outcomes")
 
 
 class WorkEngineConflict(Exception):
@@ -294,6 +329,8 @@ class WorkEnginePort(Protocol):
 
     def release(self, command: WorkRelease) -> WorkMutationResult: ...
 
+    def expire_leases(self, command: LeaseExpirySweep) -> LeaseExpirySweepResult: ...
+
 
 class WorkEngineService:
     def __init__(self, port: WorkEnginePort) -> None:
@@ -328,6 +365,9 @@ class WorkEngineService:
 
     def release(self, command: WorkRelease) -> WorkMutationResult:
         return self._invoke(command.correlation_id, lambda: self._port.release(command))
+
+    def expire_leases(self, command: LeaseExpirySweep) -> LeaseExpirySweepResult:
+        return self._invoke(command.correlation_id, lambda: self._port.expire_leases(command))
 
     @staticmethod
     def _invoke[ResultT](correlation_id: str, operation: Callable[[], ResultT]) -> ResultT:
@@ -364,6 +404,11 @@ def _require_token(name: str, value: str) -> None:
 def _require_text(name: str, value: str, maximum_length: int) -> None:
     if not value.strip() or len(value) > maximum_length:
         raise ValueError(f"{name} must be non-empty and at most {maximum_length} characters")
+
+
+def _require_aware_utc(name: str, value: datetime) -> None:
+    if value.tzinfo is None or value.utcoffset() != timedelta(0):
+        raise ValueError(f"{name} must be timezone-aware UTC")
 
 
 def _require_lease_timing(lease_duration_seconds: int, heartbeat_interval_seconds: int) -> None:
