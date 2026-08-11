@@ -26,7 +26,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LOCK_ARTIFACT_ID: "9099512915"
-          LOCK_SHA256: "c73f42f1209c798d4375e28915840003191a4cc7750eb640c1709e28fe4a1b9f"
+          LOCK_SHA256: "c73f7afd20ea687d4eadbf0d79a43cdf93acdf3ef55d7dd8721375105cb33cb4"
         run: |
           set -euo pipefail
 
@@ -91,7 +91,7 @@ jobs:
           Owner layer: uv workspace dependency graph.
           Root cause: the checked-in lock omitted the migration workspace member and infrastructure dependencies declared by current package metadata.
           Replacement: exact uv 0.10.0 output generated under Python 3.13.14 is checked in unchanged.
-          Proof: artifact SHA-256 c73f42f1209c798d4375e28915840003191a4cc7750eb640c1709e28fe4a1b9f; CI regeneration must produce no diff.
+          Proof: artifact SHA-256 c73f7afd20ea687d4eadbf0d79a43cdf93acdf3ef55d7dd8721375105cb33cb4; CI regeneration must produce no diff.
           EOF
           )
           commit_payload=$(jq -n \
