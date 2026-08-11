@@ -42,39 +42,58 @@ jobs:
               "postgres/work_engine.py"
           )
           text = path.read_text(encoding="utf-8")
-          text = text.replace(
-              "    WorkEngineConflict,\n    WorkFailure,",
-              "    WorkEngineConflict,\n"
-              "    WorkerRegistration,\n"
-              "    WorkerRegistrationResult,\n"
-              "    WorkerRegistrationStatus,\n"
-              "    WorkFailure,",
-          )
-          text = text.replace(
-              "def _same_work_identity(existing: Mapping[str, object], command: WorkUnitSpec)",
-              "def _same_work_identity(existing: RowMapping, command: WorkUnitSpec)",
-          )
-          text = text.replace(
-              "def _source_can_reserve(source: Mapping[str, object], now_utc: datetime)",
-              "def _source_can_reserve(source: RowMapping, now_utc: datetime)",
-          )
-          text = text.replace(
-              "def _retry_policy(work: Mapping[str, object])",
-              "def _retry_policy(work: RowMapping)",
-          )
-          text = text.replace(
-              "def _permit_from_work(work: Mapping[str, object])",
-              "def _permit_from_work(work: RowMapping)",
-          )
-          text = text.replace(
-              "    work: Mapping[str, object],\n    permit: SourcePermit | None,",
-              "    work: RowMapping,\n    permit: SourcePermit | None,",
-          )
+          replacements = {
+              "    WorkEngineConflict,\n    WorkFailure,": (
+                  "    WorkEngineConflict,\n"
+                  "    WorkerRegistration,\n"
+                  "    WorkerRegistrationResult,\n"
+                  "    WorkerRegistrationStatus,\n"
+                  "    WorkFailure,"
+              ),
+              "def _same_work_identity(existing: Mapping[str, object], command: WorkUnitSpec)": (
+                  "def _same_work_identity(existing: RowMapping, command: WorkUnitSpec)"
+              ),
+              "def _source_can_reserve(source: Mapping[str, object], now_utc: datetime)": (
+                  "def _source_can_reserve(source: RowMapping, now_utc: datetime)"
+              ),
+              "def _retry_policy(work: Mapping[str, object])": (
+                  "def _retry_policy(work: RowMapping)"
+              ),
+              "def _permit_from_work(work: Mapping[str, object])": (
+                  "def _permit_from_work(work: RowMapping)"
+              ),
+              "    work: Mapping[str, object],\n    permit: SourcePermit | None,": (
+                  "    work: RowMapping,\n    permit: SourcePermit | None,"
+              ),
+              '                required_action="Schedule work only for a created/running run and pending/running stage.",': (
+                  "                required_action=(\n"
+                  '                    "Schedule work only for a created/running run and "\n'
+                  '                    "pending/running stage."\n'
+                  "                ),"
+              ),
+              '                message="The work ID or semantic key is already bound to different immutable input.",': (
+                  "                message=(\n"
+                  '                    "The work ID or semantic key is already bound to different "\n'
+                  '                    "immutable input."\n'
+                  "                ),"
+              ),
+              "        work, attempt = active\n        expires_at_utc = now_utc + timedelta(": (
+                  "        _work, attempt = active\n"
+                  "        expires_at_utc = now_utc + timedelta("
+              ),
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"expected source fragment was not found: {old!r}")
+              text = text.replace(old, new, 1)
           path.write_text(text, encoding="utf-8")
           PY
 
-      - name: Apply canonical lint and formatting
+      - name: Apply canonical formatting and lint fixes
         run: |
+          uv run ruff format \
+            database/migrations/versions/20260811_0004_worker_compatibility_and_failure_budget.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
           uv run ruff check --fix \
             database/migrations/versions/20260811_0004_worker_compatibility_and_failure_budget.py \
             packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
@@ -96,7 +115,7 @@ jobs:
             packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
           git commit -m "Style (Work): normalize PostgreSQL adapter source" \
             -m "Owner layer: Work Engine PostgreSQL port and its migration." \
-            -m "Root cause: the initial large adapter commit differed from the pinned formatter and omitted three application public imports while retaining overly broad row annotations." \
-            -m "Replacement: apply the exact public imports, RowMapping boundaries, Ruff fixes, and canonical formatting only." \
+            -m "Root cause: the initial adapter commit differed from the pinned formatter and omitted three application imports while retaining broad row annotations and three lint findings." \
+            -m "Replacement: apply the exact public imports, RowMapping boundaries, diagnostic wrapping, unused-binding correction, and canonical formatting." \
             -m "Proof target: permanent formatting, lint, mypy, unit, architecture, image, and migration gates."
           git push origin HEAD:main
