@@ -7,6 +7,7 @@ import pytest
 
 from collection_domain import (
     RetryPolicy,
+    SourcePermit,
     StaleWorkLease,
     WorkAttemptOutcome,
     WorkCapability,
@@ -36,7 +37,11 @@ def _lease() -> WorkLease:
         issued_at_utc=_NOW,
         expires_at_utc=_NOW + timedelta(minutes=5),
         heartbeat_deadline_utc=_NOW + timedelta(minutes=1),
-        permit_not_before_utc=_NOW,
+        source_permit=SourcePermit(
+            source_key="official_website",
+            policy_digest=_DIGEST,
+            permit_not_before_utc=_NOW,
+        ),
         correlation_id="correlation-1",
     )
 
@@ -107,7 +112,7 @@ def test_lease_rejects_non_utc_time() -> None:
             issued_at_utc=datetime(2026, 8, 11, 12, 0),
             expires_at_utc=_NOW + timedelta(minutes=5),
             heartbeat_deadline_utc=_NOW + timedelta(minutes=1),
-            permit_not_before_utc=_NOW,
+            source_permit=None,
             correlation_id="correlation-1",
         )
 
@@ -126,7 +131,7 @@ def test_lease_rejects_capability_from_another_stage() -> None:
             issued_at_utc=_NOW,
             expires_at_utc=_NOW + timedelta(minutes=5),
             heartbeat_deadline_utc=_NOW + timedelta(minutes=1),
-            permit_not_before_utc=_NOW,
+            source_permit=None,
             correlation_id="correlation-1",
         )
 
