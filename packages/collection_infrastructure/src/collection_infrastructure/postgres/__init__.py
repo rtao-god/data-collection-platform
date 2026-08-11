@@ -34,7 +34,6 @@ from collection_infrastructure.postgres.work_source_constraints import (
 __all__ = [
     "CONFIG_SCHEMA",
     "CONFIG_TABLES",
-    "PostgresWorkEngine",
     "RUNS_SCHEMA",
     "RUN_TABLES",
     "SOURCES_SCHEMA",
@@ -43,6 +42,7 @@ __all__ = [
     "WORK_ENGINE_TABLES",
     "WORK_SCHEMA",
     "WORK_TABLES",
+    "PostgresWorkEngine",
     "collection_runs",
     "collector_metadata",
     "config_bundle_blockers",
