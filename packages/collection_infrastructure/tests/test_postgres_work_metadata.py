@@ -7,6 +7,7 @@ from collection_infrastructure.postgres import (
     RUNS_SCHEMA,
     RUN_TABLES,
     SOURCES_SCHEMA,
+    SOURCE_CAPABILITY_CONSTRAINTS,
     SOURCE_TABLES,
     WORK_ENGINE_TABLES,
     WORK_SCHEMA,
@@ -43,6 +44,10 @@ def test_work_metadata_has_exact_owner_schemas_and_tables() -> None:
         "work.dead_letters",
     )
     assert WORK_ENGINE_TABLES == RUN_TABLES + SOURCE_TABLES + WORK_TABLES
+    assert {constraint.name for constraint in SOURCE_CAPABILITY_CONSTRAINTS} == {
+        "ck_work_attempts_source_capability",
+        "ck_work_units_source_capability",
+    }
 
 
 def test_work_metadata_preserves_owner_identity_without_cascade_delete() -> None:
@@ -72,12 +77,14 @@ def test_work_unit_ddl_contains_fail_closed_lease_and_idempotency_contracts() ->
     assert "CONSTRAINT fk_work_units_stage_owner" in sql
     assert "CONSTRAINT uq_work_units_run_semantic_key" in sql
     assert "CONSTRAINT ck_work_units_stage_capability" in sql
+    assert "CONSTRAINT ck_work_units_source_capability" in sql
     assert "CONSTRAINT ck_work_units_active_lease" in sql
     assert "CONSTRAINT ck_work_units_source_permit" in sql
     assert "CONSTRAINT ck_work_units_output" in sql
     assert "active_lease_token IS NOT NULL" in sql
     assert "state <> 'leased' AND active_lease_id IS NULL" in sql
     assert "source_policy_digest ~ '^sha256:[0-9a-f]{64}$'" in sql
+    assert "capability IN ('manual_import', 'osm_query', 'http_fetch', 'browser_fetch')" in sql
     assert set(indexes) == {
         "ix_work_units_claim",
         "ix_work_units_lease_expiry",
@@ -94,6 +101,7 @@ def test_attempt_ddl_requires_one_typed_result_shape() -> None:
     assert "CONSTRAINT uq_work_attempts_number" in sql
     assert "CONSTRAINT uq_work_attempts_lease_id" in sql
     assert "CONSTRAINT uq_work_attempts_lease_token" in sql
+    assert "CONSTRAINT ck_work_attempts_source_capability" in sql
     assert "CONSTRAINT ck_work_attempts_result_shape" in sql
     assert "outcome = 'leased'" in sql
     assert "outcome = 'succeeded'" in sql
