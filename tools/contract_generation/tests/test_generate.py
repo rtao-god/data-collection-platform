@@ -57,6 +57,42 @@ def test_outputs_are_deterministic_and_manifest_digests_match() -> None:
         assert item["sha256"] == output_by_name[item["file"]].digest
 
 
+def test_worker_gateway_openapi_is_deterministic_and_owner_scoped() -> None:
+    generator = _load_generator()
+
+    first = generator.build_worker_gateway_openapi_output()
+    second = generator.build_worker_gateway_openapi_output()
+
+    assert first == second
+    assert first.file_name == "worker-gateway.openapi.json"
+    document = json.loads(first.content)
+    assert document["openapi"] == "3.1.0"
+    assert set(document["paths"]) == {
+        "/health/live",
+        "/health/ready",
+        "/worker/capabilities",
+        "/worker/leases/acquire",
+        "/worker/leases/{lease_id}/heartbeat",
+        "/worker/registrations",
+        "/worker/work/{work_id}/complete",
+        "/worker/work/{work_id}/fail",
+        "/worker/work/{work_id}/release",
+    }
+    operation_ids = [
+        operation["operationId"]
+        for path_item in document["paths"].values()
+        for operation in path_item.values()
+    ]
+    assert len(operation_ids) == len(set(operation_ids))
+    assert document["components"]["securitySchemes"] == {
+        "WorkerBearer": {"scheme": "bearer", "type": "http"}
+    }
+    assert document["paths"]["/worker/leases/acquire"]["post"]["security"] == [
+        {"WorkerBearer": []}
+    ]
+    assert "security" not in document["paths"]["/health/live"]["get"]
+
+
 def test_check_reports_missing_stale_and_unexpected_files(tmp_path: Path) -> None:
     generator = _load_generator()
     outputs = generator.build_outputs(_targets(generator))
