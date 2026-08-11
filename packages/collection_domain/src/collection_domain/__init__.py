@@ -1,3 +1,17 @@
+from collection_domain.runs import (
+    CollectionRunLifecycle,
+    CollectionRunState,
+    InvalidRunTransition,
+    StageRunLifecycle,
+    StageRunState,
+)
+from collection_domain.source_capacity import (
+    SourceCapacity,
+    SourceOperationalState,
+    SourcePermit,
+    SourcePermitUnavailable,
+    SourceReservation,
+)
 from collection_domain.work_leases import StaleWorkLease, WorkLease
 from collection_domain.work_retry import (
     RetryPolicy,
@@ -16,8 +30,18 @@ from collection_domain.work_units import (
 )
 
 __all__ = [
+    "CollectionRunLifecycle",
+    "CollectionRunState",
+    "InvalidRunTransition",
     "InvalidWorkUnitTransition",
     "RetryPolicy",
+    "SourceCapacity",
+    "SourceOperationalState",
+    "SourcePermit",
+    "SourcePermitUnavailable",
+    "SourceReservation",
+    "StageRunLifecycle",
+    "StageRunState",
     "StaleWorkLease",
     "WorkAttemptOutcome",
     "WorkCapability",
