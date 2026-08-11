@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from sqlalchemy.dialects import postgresql
-from sqlalchemy.schema import CreateIndex, CreateTable
-
 from collection_infrastructure.postgres import (
-    RUNS_SCHEMA,
     RUN_TABLES,
-    SOURCES_SCHEMA,
+    RUNS_SCHEMA,
     SOURCE_CAPABILITY_CONSTRAINTS,
     SOURCE_TABLES,
+    SOURCES_SCHEMA,
     WORK_ENGINE_TABLES,
     WORK_SCHEMA,
     WORK_TABLES,
@@ -22,6 +19,8 @@ from collection_infrastructure.postgres import (
     worker_heartbeats,
     worker_registrations,
 )
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateIndex, CreateTable
 
 
 def test_work_metadata_has_exact_owner_schemas_and_tables() -> None:
