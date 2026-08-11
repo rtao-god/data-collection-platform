@@ -1,4 +1,46 @@
 from collection_application.campaign_snapshot_service import CampaignSnapshotService
 from collection_application.ports import CampaignBundleSource, RawCampaignBundle
+from collection_application.work_engine import (
+    CollectionRunSpec,
+    LeaseHeartbeat,
+    LeaseRequest,
+    SourceCapacitySpec,
+    StageRunSpec,
+    WorkerRegistration,
+    WorkerRegistrationResult,
+    WorkerRegistrationStatus,
+    WorkCompletion,
+    WorkCompletionResult,
+    WorkCompletionStatus,
+    WorkEngineConflict,
+    WorkEnginePort,
+    WorkEngineService,
+    WorkFailure,
+    WorkMutationResult,
+    WorkRelease,
+    WorkUnitSpec,
+)
 
-__all__ = ["CampaignBundleSource", "CampaignSnapshotService", "RawCampaignBundle"]
+__all__ = [
+    "CampaignBundleSource",
+    "CampaignSnapshotService",
+    "CollectionRunSpec",
+    "LeaseHeartbeat",
+    "LeaseRequest",
+    "RawCampaignBundle",
+    "SourceCapacitySpec",
+    "StageRunSpec",
+    "WorkerRegistration",
+    "WorkerRegistrationResult",
+    "WorkerRegistrationStatus",
+    "WorkCompletion",
+    "WorkCompletionResult",
+    "WorkCompletionStatus",
+    "WorkEngineConflict",
+    "WorkEnginePort",
+    "WorkEngineService",
+    "WorkFailure",
+    "WorkMutationResult",
+    "WorkRelease",
+    "WorkUnitSpec",
+]
