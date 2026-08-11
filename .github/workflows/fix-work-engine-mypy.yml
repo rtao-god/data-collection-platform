@@ -58,7 +58,7 @@ jobs:
                   raise ValueError("source next-allowed request time is not a datetime")
               if retry_after_utc is not None and not isinstance(retry_after_utc, datetime):
                   raise ValueError("source retry-after time is not a datetime")
-              return (
+              return bool(
                   str(source["operational_state"]) == SourceOperationalState.ACTIVE.value
                   and int(source["active_requests"]) < int(source["max_active_requests"])
                   and next_allowed_request_at_utc <= now_utc
@@ -72,25 +72,17 @@ jobs:
 
       - name: Verify exact correction
         run: |
-          uv run ruff format \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
-          uv run ruff check \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
+          uv run ruff format packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
+          uv run ruff check packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
           uv run mypy
 
       - name: Commit exact correction
         run: |
-          if git diff --quiet -- \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py; then
+          if git diff --quiet -- packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py; then
             exit 0
           fi
           git config user.name "rtao-god"
           git config user.email "rtaogod@gmail.com"
-          git add \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
-          git commit -m "Fix (Work): validate persisted source scheduling times" \
-            -m "Owner layer: PostgreSQL Work Engine source-capacity boundary." \
-            -m "Root cause: RowMapping timestamp values remained Any and could taint the boolean permit predicate." \
-            -m "Replacement: fail closed unless next-allowed and optional retry-after values are real datetimes before comparing them to the UTC owner clock." \
-            -m "Proof target: Ruff, strict mypy, permanent unit/architecture gates, and PostgreSQL runtime tests."
+          git add packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
+          git commit -m "Fix (Work): validate persisted source scheduling times"
           git push origin HEAD:main
