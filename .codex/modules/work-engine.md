@@ -12,6 +12,8 @@
   owner-context error translation.
 - `collection_infrastructure.postgres.work_engine.PostgresWorkEngine` is the PostgreSQL port
   implementation.
+- `worker_gateway` is the authenticated worker-facing HTTP composition root. It may construct and
+  invoke application commands but does not own Work Engine state transitions.
 
 ## Implemented runtime path
 
@@ -22,11 +24,21 @@ path.
 The PostgreSQL adapter implements worker registration, source capacity configuration, run and stage
 creation, semantic work enqueue, lease acquisition, heartbeat, completion, classified failure,
 explicit safe release, and bounded lease-expiry sweeping. It is exported through
-`collection_infrastructure` for a composition root.
+`collection_infrastructure` for composition roots.
 
 Worker registration binds one worker ID to its build identity, capabilities, supported output
 contracts, resource profile, and local concurrency. Re-registration is idempotent only for the exact
 same contract.
+
+The Worker Gateway exposes authenticated registration, lease acquisition and heartbeat, typed
+completion, classified failure, explicit release, protocol metadata, liveness, and readiness routes.
+The authenticated principal supplies the worker identity; request bodies cannot choose another
+worker. A mounted local credential binds the worker ID to an exact capability set, and registration
+must match that scope. Tokens are hashed before in-memory lookup and are not returned in errors.
+
+The gateway runs bounded lease-expiry sweeps through `WorkEngineService`. Health and readiness are
+read-only. Readiness verifies its required database path and reports the latest expiry-owner failure
+without performing migration, repair, or recovery.
 
 ## Persistence
 
@@ -55,15 +67,37 @@ requires the exact work ID, lease ID, lease token, worker ID, worker build ident
 expected output contract. An expired lease is persisted as expired before the stale worker receives
 its rejection. Terminal failure creates one dead-letter record without deleting prior attempts.
 
+## Generated contract and deployment
+
+`contracts/openapi/worker-gateway.openapi.json` is generated deterministically from the dependency-free
+FastAPI app factory. CI checks route inventory, stable operation IDs, OpenAPI 3.1 identity, bearer
+security on worker routes, and absence of that security requirement from public health routes.
+
+`deploy/docker/worker-gateway.Dockerfile` builds a separate pinned, non-root runtime image from the
+frozen workspace. The executable host composes `WorkEngineService` over `PostgresWorkEngine`, reads
+its worker credential document from a mounted file, performs no startup migration, and rejects an
+unsafe non-local bind until a broader deployment identity contract exists.
+
 ## Proof
 
-Unit and structural tests cover command validation, transition and retry semantics, owner metadata,
-and fail-closed SQL constraints. PostgreSQL integration tests cover ready/blocked run admission,
-registration idempotency, output compatibility, concurrent claims, worker and source capacity,
-heartbeat, idempotent completion, safe release, retry/dead-letter, expiry, and stale completion.
+Unit and structural tests cover command validation, transition and retry semantics, credential
+parsing and rotation, capability authorization, request validation, owner-error mapping, correlation,
+protocol metadata, readiness behavior, owner metadata, generated OpenAPI, and fail-closed SQL
+constraints.
 
-## Pending consumer boundary
+PostgreSQL integration tests cover ready/blocked run admission, registration idempotency, output
+compatibility, concurrent claims, worker and source capacity, heartbeat, idempotent completion, safe
+release, retry/dead-letter, expiry, stale completion, and authenticated HTTP registration, lease, and
+completion against the durable database owner.
 
-The Worker Gateway HTTP composition root, worker authentication, pre-signed object protocol, and
-artifact verification are not implemented yet. No worker-facing transport may bypass
-`WorkEngineService` or receive PostgreSQL credentials.
+Permanent CI restores the frozen workspace, checks generated-contract drift, formatting, lint,
+strict typing, unit and architecture tests, compiles owned Python, validates the Berlin campaign,
+builds the Collector CLI, migration, and Worker Gateway images, applies a fresh PostgreSQL/PostGIS
+migration, and runs the integration suite.
+
+## Remaining boundary
+
+Pre-signed object upload/read commands, uploaded-object size and digest verification, immutable raw
+artifact metadata, and atomic artifact-plus-completion commit are not implemented yet. No worker may
+receive PostgreSQL credentials or bypass `WorkEngineService`; the future artifact routes must compose
+through an application-owned object-store port and preserve this boundary.
