@@ -1,3 +1,15 @@
+from collection_application.artifacts import (
+    ArtifactKind,
+    ArtifactTransferConflict,
+    ArtifactTransferPort,
+    ArtifactTransferService,
+    PrepareArtifactRead,
+    PrepareArtifactUpload,
+    PreparedArtifactRead,
+    PreparedArtifactUpload,
+    VerifiedArtifactUpload,
+    VerifyArtifactUpload,
+)
 from collection_application.campaign_snapshot_service import CampaignSnapshotService
 from collection_application.ports import CampaignBundleSource, RawCampaignBundle
 from collection_application.work_engine import (
@@ -39,6 +51,10 @@ from collection_domain import (
 )
 
 __all__ = [
+    "ArtifactKind",
+    "ArtifactTransferConflict",
+    "ArtifactTransferPort",
+    "ArtifactTransferService",
     "CampaignBundleSource",
     "CampaignSnapshotService",
     "CollectionRunSpec",
@@ -47,6 +63,10 @@ __all__ = [
     "LeaseExpirySweepResult",
     "LeaseHeartbeat",
     "LeaseRequest",
+    "PrepareArtifactRead",
+    "PrepareArtifactUpload",
+    "PreparedArtifactRead",
+    "PreparedArtifactUpload",
     "RawCampaignBundle",
     "RetryPolicy",
     "SourceCapacitySpec",
@@ -54,6 +74,8 @@ __all__ = [
     "SourcePermit",
     "StageRunSpec",
     "StageRunState",
+    "VerifiedArtifactUpload",
+    "VerifyArtifactUpload",
     "WorkAttemptOutcome",
     "WorkCapability",
     "WorkCompletion",
