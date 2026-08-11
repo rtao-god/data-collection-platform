@@ -1,0 +1,58 @@
+name: Final Control Cleanup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/final-control-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Delete exact accidental branch probes
+        run: |
+          for branch in \
+            __schema_probe_should_not_create \
+            __do_not_create \
+            __cleanup_test \
+            __cleanup_test_2; do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" >/dev/null 2>&1 || true
+          done
+
+      - name: Remove exact one-shot paths
+        run: |
+          rm -f \
+            tools/apply_run_admission_batch.py \
+            tools/apply_worker_lease_batch.py \
+            .github/workflows/reconcile-run-and-work.yml \
+            .github/workflows/reconcile-worker-lease.yml \
+            .github/workflows/apply-worker-lease.yml \
+            .github/workflows/cleanup-worker-lease-executor.yml \
+            .github/workflows/apply-run-admission.yml \
+            .github/workflows/repair-current-ci.yml \
+            .github/workflows/cleanup-accidental-branches.yml \
+            .github/workflows/consolidate-current-ci.yml \
+            .github/workflows/finalize-one-shot-writers.yml \
+            .github/workflows/final-control-cleanup.yml
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Build (Safety): remove control-plane one-shot paths" \
+            -m "Owner layer: permanent repository safety boundary." \
+            -m "Root cause: temporary implementation executors and accidental probe refs must not survive either a successful or failed proof run." \
+            -m "Replacement: remove only the exact temporary paths and refs; production owner files are untouched." \
+            -m "Proof target: main contains no persistent contents-write workflow."
+          git push origin HEAD:main
