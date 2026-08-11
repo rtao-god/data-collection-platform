@@ -339,10 +339,14 @@ def _lease_request(
 
 def _work_row(engine: Engine, work_id: UUID) -> RowMapping:
     with engine.connect() as connection:
-        return connection.execute(
-            sa.text("SELECT * FROM work.work_units WHERE work_id = :work_id"),
-            {"work_id": work_id},
-        ).mappings().one()
+        return (
+            connection.execute(
+                sa.text("SELECT * FROM work.work_units WHERE work_id = :work_id"),
+                {"work_id": work_id},
+            )
+            .mappings()
+            .one()
+        )
 
 
 def _worker_active_leases(engine: Engine, worker_id: str) -> int:
