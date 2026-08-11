@@ -42,31 +42,16 @@ jobs:
               "postgres/work_engine.py"
           )
           text = path.read_text(encoding="utf-8")
-          old = '''def _source_can_reserve(source: RowMapping, now_utc: datetime) -> bool:
-              retry_after_utc = source["retry_after_utc"]
-              return (
-                  source["operational_state"] == SourceOperationalState.ACTIVE.value
-                  and int(source["active_requests"]) < int(source["max_active_requests"])
-                  and source["next_allowed_request_at_utc"] <= now_utc
-                  and (retry_after_utc is None or retry_after_utc <= now_utc)
-              )
-          '''.replace("          ", "")
-          new = '''def _source_can_reserve(source: RowMapping, now_utc: datetime) -> bool:
-              next_allowed_request_at_utc = source["next_allowed_request_at_utc"]
-              retry_after_utc = source["retry_after_utc"]
-              if not isinstance(next_allowed_request_at_utc, datetime):
-                  raise ValueError("source next-allowed request time is not a datetime")
-              if retry_after_utc is not None and not isinstance(retry_after_utc, datetime):
-                  raise ValueError("source retry-after time is not a datetime")
-              return bool(
-                  str(source["operational_state"]) == SourceOperationalState.ACTIVE.value
-                  and int(source["active_requests"]) < int(source["max_active_requests"])
-                  and next_allowed_request_at_utc <= now_utc
-                  and (retry_after_utc is None or retry_after_utc <= now_utc)
-              )
-          '''.replace("          ", "")
+          old = (
+              "def _same_work_identity(existing: RowMapping, command: WorkUnitSpec) -> bool:\n"
+              "    return (\n"
+          )
+          new = (
+              "def _same_work_identity(existing: RowMapping, command: WorkUnitSpec) -> bool:\n"
+              "    return bool(\n"
+          )
           if old not in text:
-              raise SystemExit("expected source-capacity predicate was not found")
+              raise SystemExit("expected semantic-identity comparator was not found")
           path.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
 
@@ -84,5 +69,5 @@ jobs:
           git config user.name "rtao-god"
           git config user.email "rtaogod@gmail.com"
           git add packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py
-          git commit -m "Fix (Work): validate persisted source scheduling times"
+          git commit -m "Fix (Work): make semantic identity comparison strictly boolean"
           git push origin HEAD:main
