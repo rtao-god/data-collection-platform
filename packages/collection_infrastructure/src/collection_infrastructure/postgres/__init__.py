@@ -25,6 +25,9 @@ from collection_infrastructure.postgres.work_metadata import (
     worker_heartbeats,
     worker_registrations,
 )
+from collection_infrastructure.postgres.work_source_constraints import (
+    SOURCE_CAPABILITY_CONSTRAINTS,
+)
 
 __all__ = [
     "CONFIG_SCHEMA",
@@ -32,6 +35,7 @@ __all__ = [
     "RUNS_SCHEMA",
     "RUN_TABLES",
     "SOURCES_SCHEMA",
+    "SOURCE_CAPABILITY_CONSTRAINTS",
     "SOURCE_TABLES",
     "WORK_ENGINE_TABLES",
     "WORK_SCHEMA",
