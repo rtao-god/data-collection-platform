@@ -149,9 +149,7 @@ def test_fresh_migration_creates_exact_config_owner_contract() -> None:
         "ck_config_bundles_readiness",
     }.issubset(root_checks)
 
-    component_foreign_keys = inspector.get_foreign_keys(
-        "config_bundle_components", schema="config"
-    )
+    component_foreign_keys = inspector.get_foreign_keys("config_bundle_components", schema="config")
     assert component_foreign_keys[0]["options"] == {
         "initially": "DEFERRED",
         "deferrable": True,
