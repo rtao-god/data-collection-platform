@@ -1,0 +1,58 @@
+name: Format Work Engine
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/format-work-engine.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Apply canonical formatting
+        run: |
+          uv run ruff format \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py \
+            packages/collection_infrastructure/tests/test_postgres_work_metadata.py
+
+      - name: Commit formatter output
+        run: |
+          if git diff --quiet -- \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py \
+            packages/collection_infrastructure/tests/test_postgres_work_metadata.py; then
+            exit 0
+          fi
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py \
+            packages/collection_infrastructure/tests/test_postgres_work_metadata.py
+          git commit -m "Style (Database): apply canonical work metadata formatting" \
+            -m "Owner layer: PostgreSQL work-engine metadata and its structural proof." \
+            -m "Root cause: five expressions differed from the pinned Ruff formatter output while migration and integration behavior already passed." \
+            -m "Replacement: apply only canonical formatting to the two reported files." \
+            -m "Proof target: repository formatting, lint, typing, unit, architecture, image, and migration gates."
+          git push origin HEAD:main
