@@ -77,8 +77,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute(
-        "ALTER TABLE work.work_units DROP CONSTRAINT "
-        "ck_work_units_expected_output_contract_format"
+        "ALTER TABLE work.work_units DROP CONSTRAINT ck_work_units_expected_output_contract_format"
     )
     op.execute("ALTER TABLE work.work_units DROP CONSTRAINT ck_work_units_attempt_budget")
     op.execute(

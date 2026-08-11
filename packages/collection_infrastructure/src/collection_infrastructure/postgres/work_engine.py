@@ -31,6 +31,9 @@ from collection_application import (
     WorkCompletionResult,
     WorkCompletionStatus,
     WorkEngineConflict,
+    WorkerRegistration,
+    WorkerRegistrationResult,
+    WorkerRegistrationStatus,
     WorkFailure,
     WorkFailureKind,
     WorkLease,
@@ -182,11 +185,15 @@ class PostgresWorkEngine:
     ) -> WorkerRegistrationResult:
         _advisory_lock(connection, f"worker:{command.worker_id}")
         registration_digest = _registration_digest(command)
-        existing = connection.execute(
-            sa.select(worker_registrations)
-            .where(worker_registrations.c.worker_id == command.worker_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        existing = (
+            connection.execute(
+                sa.select(worker_registrations)
+                .where(worker_registrations.c.worker_id == command.worker_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if existing is not None:
             capabilities = frozenset(
                 WorkCapability(value)
@@ -281,11 +288,15 @@ class PostgresWorkEngine:
         command: SourceCapacitySpec,
     ) -> None:
         _advisory_lock(connection, f"source:{command.source_key}")
-        existing = connection.execute(
-            sa.select(source_capacity_states)
-            .where(source_capacity_states.c.source_key == command.source_key)
-            .with_for_update()
-        ).mappings().one_or_none()
+        existing = (
+            connection.execute(
+                sa.select(source_capacity_states)
+                .where(source_capacity_states.c.source_key == command.source_key)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if existing is None:
             connection.execute(
                 sa.insert(source_capacity_states).values(
@@ -320,8 +331,7 @@ class PostgresWorkEngine:
             existing["policy_digest"] == command.policy_digest
             and existing["operational_state"] == command.state.value
             and existing["max_active_requests"] == command.max_active_requests
-            and existing["minimum_interval_milliseconds"]
-            == command.minimum_interval_milliseconds
+            and existing["minimum_interval_milliseconds"] == command.minimum_interval_milliseconds
         ):
             return
         connection.execute(
@@ -345,12 +355,16 @@ class PostgresWorkEngine:
         command: CollectionRunSpec,
     ) -> None:
         _advisory_lock(connection, f"run:{command.run_id}")
-        bundle = connection.execute(
-            sa.select(
-                config_bundles.c.campaign_key,
-                config_bundles.c.readiness,
-            ).where(config_bundles.c.bundle_digest == command.config_bundle_digest)
-        ).mappings().one_or_none()
+        bundle = (
+            connection.execute(
+                sa.select(
+                    config_bundles.c.campaign_key,
+                    config_bundles.c.readiness,
+                ).where(config_bundles.c.bundle_digest == command.config_bundle_digest)
+            )
+            .mappings()
+            .one_or_none()
+        )
         if bundle is None:
             raise _conflict(
                 code="RUN_CONFIG_NOT_FOUND",
@@ -375,10 +389,7 @@ class PostgresWorkEngine:
             blocker_codes = list(
                 connection.execute(
                     sa.select(config_bundle_blockers.c.code)
-                    .where(
-                        config_bundle_blockers.c.bundle_digest
-                        == command.config_bundle_digest
-                    )
+                    .where(config_bundle_blockers.c.bundle_digest == command.config_bundle_digest)
                     .order_by(config_bundle_blockers.c.position)
                 ).scalars()
             )
@@ -394,11 +405,15 @@ class PostgresWorkEngine:
                     "Resolve every snapshot blocker and publish a different ready snapshot."
                 ),
             )
-        existing = connection.execute(
-            sa.select(collection_runs)
-            .where(collection_runs.c.run_id == command.run_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        existing = (
+            connection.execute(
+                sa.select(collection_runs)
+                .where(collection_runs.c.run_id == command.run_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if existing is not None:
             if (
                 existing["campaign_key"] == command.campaign_key
@@ -431,11 +446,15 @@ class PostgresWorkEngine:
         command: StageRunSpec,
     ) -> None:
         _advisory_lock(connection, f"stage:{command.run_id}:{command.stage.value}")
-        run = connection.execute(
-            sa.select(collection_runs)
-            .where(collection_runs.c.run_id == command.run_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        run = (
+            connection.execute(
+                sa.select(collection_runs)
+                .where(collection_runs.c.run_id == command.run_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if run is None:
             raise _conflict(
                 code="STAGE_RUN_OWNER_NOT_FOUND",
@@ -463,19 +482,23 @@ class PostgresWorkEngine:
                 context={"runId": str(command.run_id), "runState": run["state"]},
                 required_action="Start the collection run or create the stage as pending.",
             )
-        existing_rows = connection.execute(
-            sa.select(stage_runs)
-            .where(
-                sa.or_(
-                    stage_runs.c.stage_run_id == command.stage_run_id,
-                    sa.and_(
-                        stage_runs.c.run_id == command.run_id,
-                        stage_runs.c.stage == command.stage.value,
-                    ),
+        existing_rows = (
+            connection.execute(
+                sa.select(stage_runs)
+                .where(
+                    sa.or_(
+                        stage_runs.c.stage_run_id == command.stage_run_id,
+                        sa.and_(
+                            stage_runs.c.run_id == command.run_id,
+                            stage_runs.c.stage == command.stage.value,
+                        ),
+                    )
                 )
+                .with_for_update()
             )
-            .with_for_update()
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         if existing_rows:
             if len(existing_rows) == 1:
                 existing = existing_rows[0]
@@ -515,24 +538,28 @@ class PostgresWorkEngine:
         command: WorkUnitSpec,
     ) -> None:
         _advisory_lock(connection, f"work:{command.run_id}:{command.semantic_key}")
-        owner = connection.execute(
-            sa.select(
-                collection_runs.c.state.label("run_state"),
-                stage_runs.c.state.label("stage_state"),
-                stage_runs.c.stage,
-            )
-            .select_from(
-                stage_runs.join(
-                    collection_runs,
-                    collection_runs.c.run_id == stage_runs.c.run_id,
+        owner = (
+            connection.execute(
+                sa.select(
+                    collection_runs.c.state.label("run_state"),
+                    stage_runs.c.state.label("stage_state"),
+                    stage_runs.c.stage,
                 )
+                .select_from(
+                    stage_runs.join(
+                        collection_runs,
+                        collection_runs.c.run_id == stage_runs.c.run_id,
+                    )
+                )
+                .where(
+                    stage_runs.c.stage_run_id == command.stage_run_id,
+                    stage_runs.c.run_id == command.run_id,
+                )
+                .with_for_update()
             )
-            .where(
-                stage_runs.c.stage_run_id == command.stage_run_id,
-                stage_runs.c.run_id == command.run_id,
-            )
-            .with_for_update()
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if owner is None or owner["stage"] != command.stage.value:
             raise _conflict(
                 code="WORK_OWNER_MISMATCH",
@@ -559,7 +586,9 @@ class PostgresWorkEngine:
                     "runState": owner["run_state"],
                     "stageState": owner["stage_state"],
                 },
-                required_action="Schedule work only for a created/running run and pending/running stage.",
+                required_action=(
+                    "Schedule work only for a created/running run and pending/running stage."
+                ),
             )
         if command.source_key is not None:
             source_exists = connection.execute(
@@ -574,26 +603,32 @@ class PostgresWorkEngine:
                     context={"sourceKey": command.source_key, "workId": str(command.work_id)},
                     required_action="Configure the source before scheduling its work.",
                 )
-        existing_rows = connection.execute(
-            sa.select(work_units)
-            .where(
-                sa.or_(
-                    work_units.c.work_id == command.work_id,
-                    sa.and_(
-                        work_units.c.run_id == command.run_id,
-                        work_units.c.semantic_key == command.semantic_key,
-                    ),
+        existing_rows = (
+            connection.execute(
+                sa.select(work_units)
+                .where(
+                    sa.or_(
+                        work_units.c.work_id == command.work_id,
+                        sa.and_(
+                            work_units.c.run_id == command.run_id,
+                            work_units.c.semantic_key == command.semantic_key,
+                        ),
+                    )
                 )
+                .with_for_update()
             )
-            .with_for_update()
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         if existing_rows:
             if len(existing_rows) == 1 and _same_work_identity(existing_rows[0], command):
                 return
             canonical_work_id = str(existing_rows[0]["work_id"])
             raise _conflict(
                 code="WORK_SEMANTIC_IDENTITY_CONFLICT",
-                message="The work ID or semantic key is already bound to different immutable input.",
+                message=(
+                    "The work ID or semantic key is already bound to different immutable input."
+                ),
                 context={
                     "workId": str(command.work_id),
                     "canonicalWorkId": canonical_work_id,
@@ -648,9 +683,10 @@ class PostgresWorkEngine:
         now_utc: datetime,
         command: LeaseRequest,
     ) -> WorkLease | None:
-        worker = connection.execute(
-            sa.text(
-                """
+        worker = (
+            connection.execute(
+                sa.text(
+                    """
                 SELECT
                     registration.worker_id,
                     registration.build_identity,
@@ -662,9 +698,12 @@ class PostgresWorkEngine:
                 WHERE registration.worker_id = :worker_id
                 FOR UPDATE OF registration, heartbeat
                 """
-            ),
-            {"worker_id": command.worker_id},
-        ).mappings().one_or_none()
+                ),
+                {"worker_id": command.worker_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
         if worker is None:
             raise _conflict(
                 code="WORKER_NOT_REGISTERED",
@@ -691,9 +730,10 @@ class PostgresWorkEngine:
         if worker["active_lease_count"] >= worker["max_concurrency"]:
             return None
 
-        work = connection.execute(
-            sa.text(
-                """
+        work = (
+            connection.execute(
+                sa.text(
+                    """
                 SELECT unit.*
                 FROM work.work_units AS unit
                 JOIN runs.collection_runs AS run
@@ -737,13 +777,16 @@ class PostgresWorkEngine:
                 FOR UPDATE OF unit SKIP LOCKED
                 LIMIT 1
                 """
-            ),
-            {
-                "worker_id": command.worker_id,
-                "capability": command.capability.value,
-                "now_utc": now_utc,
-            },
-        ).mappings().one_or_none()
+                ),
+                {
+                    "worker_id": command.worker_id,
+                    "capability": command.capability.value,
+                    "now_utc": now_utc,
+                },
+            )
+            .mappings()
+            .one_or_none()
+        )
         if work is None:
             return None
 
@@ -751,11 +794,15 @@ class PostgresWorkEngine:
         source_policy_digest: str | None = None
         permit_not_before_utc: datetime | None = None
         if work["source_key"] is not None:
-            source = connection.execute(
-                sa.select(source_capacity_states)
-                .where(source_capacity_states.c.source_key == work["source_key"])
-                .with_for_update()
-            ).mappings().one_or_none()
+            source = (
+                connection.execute(
+                    sa.select(source_capacity_states)
+                    .where(source_capacity_states.c.source_key == work["source_key"])
+                    .with_for_update()
+                )
+                .mappings()
+                .one_or_none()
+            )
             if source is None:
                 raise _state_conflict(
                     code="SOURCE_CAPACITY_MISSING",
@@ -788,30 +835,32 @@ class PostgresWorkEngine:
         lease_id = self._uuid_factory()
         lease_token = self._uuid_factory()
         expires_at_utc = now_utc + timedelta(seconds=command.lease_duration_seconds)
-        heartbeat_deadline_utc = now_utc + timedelta(
-            seconds=command.heartbeat_interval_seconds
-        )
+        heartbeat_deadline_utc = now_utc + timedelta(seconds=command.heartbeat_interval_seconds)
         attempt_number = int(work["attempt_count"]) + 1
-        updated_work = connection.execute(
-            sa.update(work_units)
-            .where(work_units.c.work_id == work["work_id"])
-            .values(
-                state=WorkUnitState.LEASED.value,
-                attempt_count=attempt_number,
-                active_lease_id=lease_id,
-                active_lease_token=lease_token,
-                active_worker_id=command.worker_id,
-                lease_issued_at_utc=now_utc,
-                lease_expires_at_utc=expires_at_utc,
-                heartbeat_deadline_utc=heartbeat_deadline_utc,
-                source_policy_digest=source_policy_digest,
-                source_permit_not_before_utc=permit_not_before_utc,
-                revision=work_units.c.revision + 1,
-                updated_at_utc=now_utc,
-                correlation_id=command.correlation_id,
+        updated_work = (
+            connection.execute(
+                sa.update(work_units)
+                .where(work_units.c.work_id == work["work_id"])
+                .values(
+                    state=WorkUnitState.LEASED.value,
+                    attempt_count=attempt_number,
+                    active_lease_id=lease_id,
+                    active_lease_token=lease_token,
+                    active_worker_id=command.worker_id,
+                    lease_issued_at_utc=now_utc,
+                    lease_expires_at_utc=expires_at_utc,
+                    heartbeat_deadline_utc=heartbeat_deadline_utc,
+                    source_policy_digest=source_policy_digest,
+                    source_permit_not_before_utc=permit_not_before_utc,
+                    revision=work_units.c.revision + 1,
+                    updated_at_utc=now_utc,
+                    correlation_id=command.correlation_id,
+                )
+                .returning(*work_units.c)
             )
-            .returning(*work_units.c)
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         connection.execute(
             sa.insert(work_attempts).values(
                 attempt_id=attempt_id,
@@ -870,23 +919,25 @@ class PostgresWorkEngine:
         )
         if isinstance(active, _CommittedConflict):
             return active
-        work, attempt = active
+        _work, attempt = active
         expires_at_utc = now_utc + timedelta(seconds=command.lease_duration_seconds)
-        heartbeat_deadline_utc = now_utc + timedelta(
-            seconds=command.heartbeat_interval_seconds
-        )
-        updated_work = connection.execute(
-            sa.update(work_units)
-            .where(work_units.c.work_id == command.work_id)
-            .values(
-                lease_expires_at_utc=expires_at_utc,
-                heartbeat_deadline_utc=heartbeat_deadline_utc,
-                revision=work_units.c.revision + 1,
-                updated_at_utc=now_utc,
-                correlation_id=command.correlation_id,
+        heartbeat_deadline_utc = now_utc + timedelta(seconds=command.heartbeat_interval_seconds)
+        updated_work = (
+            connection.execute(
+                sa.update(work_units)
+                .where(work_units.c.work_id == command.work_id)
+                .values(
+                    lease_expires_at_utc=expires_at_utc,
+                    heartbeat_deadline_utc=heartbeat_deadline_utc,
+                    revision=work_units.c.revision + 1,
+                    updated_at_utc=now_utc,
+                    correlation_id=command.correlation_id,
+                )
+                .returning(*work_units.c)
             )
-            .returning(*work_units.c)
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         connection.execute(
             sa.update(work_attempts)
             .where(work_attempts.c.attempt_id == attempt["attempt_id"])
@@ -1096,9 +1147,7 @@ class PostgresWorkEngine:
             state=decision.target_state,
             revision=int(updated_work.revision),
             available_at_utc=(
-                available_at_utc
-                if decision.target_state is WorkUnitState.RETRY_WAIT
-                else None
+                available_at_utc if decision.target_state is WorkUnitState.RETRY_WAIT else None
             ),
         )
 
@@ -1171,9 +1220,10 @@ class PostgresWorkEngine:
         now_utc: datetime,
         command: LeaseExpirySweep,
     ) -> LeaseExpirySweepResult:
-        due = connection.execute(
-            sa.text(
-                """
+        due = (
+            connection.execute(
+                sa.text(
+                    """
                 SELECT unit.*
                 FROM work.work_units AS unit
                 WHERE unit.state = 'leased'
@@ -1187,17 +1237,24 @@ class PostgresWorkEngine:
                 FOR UPDATE OF unit SKIP LOCKED
                 LIMIT :limit
                 """
-            ),
-            {"now_utc": now_utc, "limit": command.limit},
-        ).mappings().all()
+                ),
+                {"now_utc": now_utc, "limit": command.limit},
+            )
+            .mappings()
+            .all()
+        )
         retry_wait_count = 0
         dead_letter_count = 0
         for work in due:
-            attempt = connection.execute(
-                sa.select(work_attempts)
-                .where(work_attempts.c.lease_id == work["active_lease_id"])
-                .with_for_update()
-            ).mappings().one_or_none()
+            attempt = (
+                connection.execute(
+                    sa.select(work_attempts)
+                    .where(work_attempts.c.lease_id == work["active_lease_id"])
+                    .with_for_update()
+                )
+                .mappings()
+                .one_or_none()
+            )
             if attempt is None:
                 raise _state_conflict(
                     code="WORK_ATTEMPT_MISSING",
@@ -1261,11 +1318,13 @@ class PostgresWorkEngine:
         work_id: UUID,
         lease_id: UUID,
     ) -> tuple[RowMapping, RowMapping]:
-        work = connection.execute(
-            sa.select(work_units)
-            .where(work_units.c.work_id == work_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        work = (
+            connection.execute(
+                sa.select(work_units).where(work_units.c.work_id == work_id).with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if work is None:
             raise _conflict(
                 code="WORK_NOT_FOUND",
@@ -1273,11 +1332,15 @@ class PostgresWorkEngine:
                 context={"workId": str(work_id)},
                 required_action="Discard the result and acquire an existing work unit.",
             )
-        attempt = connection.execute(
-            sa.select(work_attempts)
-            .where(work_attempts.c.lease_id == lease_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        attempt = (
+            connection.execute(
+                sa.select(work_attempts)
+                .where(work_attempts.c.lease_id == lease_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if attempt is None:
             raise _stale_conflict(work_id, "lease_id_unknown")
         return work, attempt
@@ -1324,14 +1387,9 @@ class PostgresWorkEngine:
             or attempt["outcome"] != WorkAttemptOutcome.LEASED.value
         ):
             raise _stale_conflict(UUID(str(work["work_id"])), "lease_not_active")
-        if (
-            now_utc >= work["lease_expires_at_utc"]
-            or now_utc >= work["heartbeat_deadline_utc"]
-        ):
+        if now_utc >= work["lease_expires_at_utc"] or now_utc >= work["heartbeat_deadline_utc"]:
             self._expire_locked(connection, work, attempt, now_utc, correlation_id)
-            return _CommittedConflict(
-                _stale_conflict(UUID(str(work["work_id"])), "lease_expired")
-            )
+            return _CommittedConflict(_stale_conflict(UUID(str(work["work_id"])), "lease_expired"))
         return work, attempt
 
     def _expire_locked(
@@ -1504,7 +1562,7 @@ def _advisory_lock(connection: Connection, identity: str) -> None:
     )
 
 
-def _same_work_identity(existing: Mapping[str, object], command: WorkUnitSpec) -> bool:
+def _same_work_identity(existing: RowMapping, command: WorkUnitSpec) -> bool:
     return (
         existing["work_id"] == command.work_id
         and existing["run_id"] == command.run_id
@@ -1517,15 +1575,14 @@ def _same_work_identity(existing: Mapping[str, object], command: WorkUnitSpec) -
         and existing["expected_output_contract"] == command.expected_output_contract
         and existing["priority"] == command.priority
         and existing["max_attempts"] == command.retry_policy.max_attempts
-        and existing["retry_initial_delay_seconds"]
-        == command.retry_policy.initial_delay_seconds
+        and existing["retry_initial_delay_seconds"] == command.retry_policy.initial_delay_seconds
         and existing["retry_multiplier"] == command.retry_policy.multiplier
         and existing["retry_max_delay_seconds"] == command.retry_policy.max_delay_seconds
         and existing["available_at_utc"] == command.available_at_utc
     )
 
 
-def _source_can_reserve(source: Mapping[str, object], now_utc: datetime) -> bool:
+def _source_can_reserve(source: RowMapping, now_utc: datetime) -> bool:
     retry_after_utc = source["retry_after_utc"]
     return (
         source["operational_state"] == SourceOperationalState.ACTIVE.value
@@ -1535,7 +1592,7 @@ def _source_can_reserve(source: Mapping[str, object], now_utc: datetime) -> bool
     )
 
 
-def _retry_policy(work: Mapping[str, object]) -> RetryPolicy:
+def _retry_policy(work: RowMapping) -> RetryPolicy:
     return RetryPolicy(
         max_attempts=int(work["max_attempts"]),
         initial_delay_seconds=int(work["retry_initial_delay_seconds"]),
@@ -1544,7 +1601,7 @@ def _retry_policy(work: Mapping[str, object]) -> RetryPolicy:
     )
 
 
-def _permit_from_work(work: Mapping[str, object]) -> SourcePermit | None:
+def _permit_from_work(work: RowMapping) -> SourcePermit | None:
     if work["source_key"] is None:
         return None
     policy_digest = work["source_policy_digest"]
@@ -1559,7 +1616,7 @@ def _permit_from_work(work: Mapping[str, object]) -> SourcePermit | None:
 
 
 def _lease_from_work(
-    work: Mapping[str, object],
+    work: RowMapping,
     permit: SourcePermit | None,
     correlation_id: str,
 ) -> WorkLease:
