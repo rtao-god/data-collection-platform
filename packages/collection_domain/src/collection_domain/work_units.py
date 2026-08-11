@@ -38,6 +38,14 @@ _STAGE_CAPABILITIES: dict[WorkStage, frozenset[WorkCapability]] = {
     WorkStage.QUALITY: frozenset({WorkCapability.QUALITY}),
     WorkStage.EXPORT: frozenset({WorkCapability.EXPORT}),
 }
+_SOURCE_BOUND_CAPABILITIES = frozenset(
+    {
+        WorkCapability.MANUAL_IMPORT,
+        WorkCapability.OSM_QUERY,
+        WorkCapability.HTTP_FETCH,
+        WorkCapability.BROWSER_FETCH,
+    }
+)
 
 
 class WorkUnitState(StrEnum):
@@ -113,3 +121,7 @@ def allowed_transitions(state: WorkUnitState) -> frozenset[WorkUnitState]:
 
 def capability_belongs_to_stage(stage: WorkStage, capability: WorkCapability) -> bool:
     return capability in _STAGE_CAPABILITIES[stage]
+
+
+def capability_requires_source_permit(capability: WorkCapability) -> bool:
+    return capability in _SOURCE_BOUND_CAPABILITIES
