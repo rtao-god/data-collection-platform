@@ -8,10 +8,10 @@ from collection_infrastructure.postgres.metadata import (
 )
 from collection_infrastructure.postgres.migrations import upgrade_database
 from collection_infrastructure.postgres.work_metadata import (
-    RUNS_SCHEMA,
     RUN_TABLES,
-    SOURCES_SCHEMA,
+    RUNS_SCHEMA,
     SOURCE_TABLES,
+    SOURCES_SCHEMA,
     WORK_ENGINE_TABLES,
     WORK_SCHEMA,
     WORK_TABLES,
