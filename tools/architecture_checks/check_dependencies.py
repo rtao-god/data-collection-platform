@@ -154,8 +154,7 @@ def render_dependency_policy() -> str:
     for owner, policy in _OWNER_POLICIES.items():
         internal = ", ".join(f"`{value}`" for value in policy.allowed_internal_imports) or "none"
         external = (
-            ", ".join(f"`{value}`" for value in sorted(policy.allowed_external_imports))
-            or "none"
+            ", ".join(f"`{value}`" for value in sorted(policy.allowed_external_imports)) or "none"
         )
         lines.append(f"| `{owner}` | `{policy.project_path}` | {internal} | {external} |")
     lines.append(_DEPENDENCY_POLICY_END)
@@ -392,9 +391,7 @@ def _project_dependency_violations(
                     f"dependency requirement has no parseable distribution name: {requirement}",
                 )
             ]
-        dependency_owner = _INTERNAL_DISTRIBUTIONS.get(
-            _normalize_distribution_name(match.group(0))
-        )
+        dependency_owner = _INTERNAL_DISTRIBUTIONS.get(_normalize_distribution_name(match.group(0)))
         if dependency_owner is not None:
             declared_internal.add(dependency_owner)
 
