@@ -170,11 +170,15 @@ class PostgresArtifactTransfer:
             worker_id=command.worker_id,
             input_digest=command.input_digest,
         )
-        existing = connection.execute(
-            sa.select(artifact_uploads)
-            .where(artifact_uploads.c.upload_id == command.upload_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        existing = (
+            connection.execute(
+                sa.select(artifact_uploads)
+                .where(artifact_uploads.c.upload_id == command.upload_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if existing is not None:
             if not _same_upload_identity(existing, command, staging_reference):
                 raise _conflict(
@@ -230,11 +234,15 @@ class PostgresArtifactTransfer:
         command: VerifyArtifactUpload,
     ) -> RowMapping:
         now_utc = self._now_utc()
-        row = connection.execute(
-            sa.select(artifact_uploads)
-            .where(artifact_uploads.c.upload_id == command.upload_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        row = (
+            connection.execute(
+                sa.select(artifact_uploads)
+                .where(artifact_uploads.c.upload_id == command.upload_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise _conflict(
                 code="ARTIFACT_UPLOAD_NOT_REGISTERED",
@@ -269,11 +277,15 @@ class PostgresArtifactTransfer:
         final_reference: str,
         verified_at_utc: datetime,
     ) -> RowMapping:
-        row = connection.execute(
-            sa.select(artifact_uploads)
-            .where(artifact_uploads.c.upload_id == command.upload_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+        row = (
+            connection.execute(
+                sa.select(artifact_uploads)
+                .where(artifact_uploads.c.upload_id == command.upload_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise _conflict(
                 code="ARTIFACT_UPLOAD_NOT_REGISTERED",
@@ -300,18 +312,22 @@ class PostgresArtifactTransfer:
             worker_id=command.worker_id,
             input_digest=command.input_digest,
         )
-        return connection.execute(
-            sa.update(artifact_uploads)
-            .where(artifact_uploads.c.upload_id == command.upload_id)
-            .values(
-                final_reference=final_reference,
-                state="verified",
-                verified_at_utc=verified_at_utc,
-                revision=artifact_uploads.c.revision + 1,
-                correlation_id=command.correlation_id,
+        return (
+            connection.execute(
+                sa.update(artifact_uploads)
+                .where(artifact_uploads.c.upload_id == command.upload_id)
+                .values(
+                    final_reference=final_reference,
+                    state="verified",
+                    verified_at_utc=verified_at_utc,
+                    revision=artifact_uploads.c.revision + 1,
+                    correlation_id=command.correlation_id,
+                )
+                .returning(*artifact_uploads.c)
             )
-            .returning(*artifact_uploads.c)
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
 
     def _authorize_scoped_read(
         self,
@@ -366,27 +382,31 @@ class PostgresArtifactTransfer:
         worker_id: str,
         input_digest: str,
     ) -> None:
-        row = connection.execute(
-            sa.select(
-                work_units.c.work_id,
-                work_units.c.state,
-                work_units.c.active_lease_id,
-                work_units.c.active_lease_token,
-                work_units.c.active_worker_id,
-                work_units.c.input_digest,
-                work_units.c.lease_expires_at_utc,
-                work_units.c.heartbeat_deadline_utc,
-                work_attempts.c.outcome,
-            )
-            .select_from(
-                work_units.join(
-                    work_attempts,
-                    work_attempts.c.lease_id == work_units.c.active_lease_id,
+        row = (
+            connection.execute(
+                sa.select(
+                    work_units.c.work_id,
+                    work_units.c.state,
+                    work_units.c.active_lease_id,
+                    work_units.c.active_lease_token,
+                    work_units.c.active_worker_id,
+                    work_units.c.input_digest,
+                    work_units.c.lease_expires_at_utc,
+                    work_units.c.heartbeat_deadline_utc,
+                    work_attempts.c.outcome,
                 )
+                .select_from(
+                    work_units.join(
+                        work_attempts,
+                        work_attempts.c.lease_id == work_units.c.active_lease_id,
+                    )
+                )
+                .where(work_units.c.work_id == work_id)
+                .with_for_update(of=work_units)
             )
-            .where(work_units.c.work_id == work_id)
-            .with_for_update(of=work_units)
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise _stale_conflict(work_id, "lease_not_active")
         checks = (

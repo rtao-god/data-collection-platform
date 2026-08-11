@@ -411,12 +411,16 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
         "stage_runs",
     }
     assert set(inspector.get_table_names(schema="sources")) == {
+        "artifact_objects",
+        "artifact_uploads",
+        "raw_artifacts",
         "source_capacity_states",
     }
     assert set(inspector.get_table_names(schema="work")) == {
         "dead_letters",
         "work_attempts",
         "work_units",
+        "work_output_artifacts",
         "worker_capabilities",
         "worker_heartbeats",
         "worker_output_contracts",

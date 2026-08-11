@@ -176,9 +176,7 @@ def test_verify_streams_promotes_checks_and_deletes_staging() -> None:
     assert client.copy_calls == [(_staging_key(), _final_key())]
     assert client.deleted == [_staging_key()]
     assert client.objects[_final_key()].content == _BODY
-    assert client.objects[_final_key()].metadata == {
-        "sha256": _DIGEST.removeprefix("sha256:")
-    }
+    assert client.objects[_final_key()].metadata == {"sha256": _DIGEST.removeprefix("sha256:")}
 
 
 def test_digest_mismatch_never_promotes_or_deletes() -> None:

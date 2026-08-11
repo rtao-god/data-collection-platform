@@ -182,8 +182,7 @@ raw_artifacts = sa.Table(
         name="ck_raw_artifacts_content_type",
     ),
     sa.CheckConstraint(
-        "source_policy_digest IS NULL OR "
-        "source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
+        "source_policy_digest IS NULL OR source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
         name="ck_raw_artifacts_source_policy_digest_format",
     ),
     schema=SOURCES_SCHEMA,
