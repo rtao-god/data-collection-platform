@@ -26,10 +26,10 @@ __all__ = [
     "VerifiedUpload",
     "WorkCapability",
     "WorkCompletionResult",
-    "WorkerGatewayFailure",
-    "WorkerLease",
-    "WorkerRegistrationResult",
     "WorkFailureKind",
     "WorkMutationResult",
     "WorkStage",
+    "WorkerGatewayFailure",
+    "WorkerLease",
+    "WorkerRegistrationResult",
 ]

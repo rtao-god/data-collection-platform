@@ -523,7 +523,9 @@ class SourceWorkerGateway:
         if verified.upload_id != upload_id or verified.work_id != lease.work_id:
             raise self._protocol_failure(
                 code="WORKER_GATEWAY_VERIFIED_UPLOAD_IDENTITY_MISMATCH",
-                message="The verified upload response does not match the requested work and upload.",
+                message=(
+                    "The verified upload response does not match the requested work and upload."
+                ),
                 context={
                     "requestedUploadId": str(upload_id),
                     "actualUploadId": str(verified.upload_id),
@@ -782,7 +784,9 @@ class SourceWorkerGateway:
                 code="WORKER_GATEWAY_UNREACHABLE",
                 message="The source connector could not reach Worker Gateway.",
                 context={"causeType": type(exc).__name__},
-                required_action="Restore Worker Gateway connectivity and retry the same work action.",
+                required_action=(
+                    "Restore Worker Gateway connectivity and retry the same work action."
+                ),
             ) from exc
         if not 200 <= response.status_code < 300:
             raise self._gateway_failure(response)
@@ -818,7 +822,9 @@ class SourceWorkerGateway:
         except Exception as exc:
             raise self._protocol_failure(
                 code="WORKER_GATEWAY_ERROR_ENVELOPE_INVALID",
-                message="Worker Gateway returned a non-success response without its error contract.",
+                message=(
+                    "Worker Gateway returned a non-success response without its error contract."
+                ),
                 context={
                     "statusCode": response.status_code,
                     "causeType": type(exc).__name__,
@@ -839,7 +845,9 @@ class SourceWorkerGateway:
             code=code,
             message=message,
             context={"statusCode": response.status_code},
-            required_action="Inspect the scoped object transfer and retry only while the URL is valid.",
+            required_action=(
+                "Inspect the scoped object transfer and retry only while the URL is valid."
+            ),
             status_code=response.status_code,
             correlation_id=response.headers.get("X-Correlation-Id"),
         )
