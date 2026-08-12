@@ -102,3 +102,22 @@ def test_manual_seed_header_must_be_exact() -> None:
         )
 
     assert captured.value.envelope.code == "MANUAL_SEED_HEADER_INVALID"
+
+
+def test_manual_seed_declared_format_must_be_policy_approved() -> None:
+    files = _valid_files()
+    files["source_bindings.yaml"] = files["source_bindings.yaml"].replace(
+        b"      format: csv\n",
+        b"      format: json\n",
+    )
+    files["source_policies/manual_seed_policy.yaml"] = files[
+        "source_policies/manual_seed_policy.yaml"
+    ].replace(b"    - json\n", b"")
+
+    with pytest.raises(OwnerContextError) as captured:
+        CampaignSnapshotService(InMemorySource(files)).create(
+            "berlin_recording_services",
+            "correlation-format-policy",
+        )
+
+    assert captured.value.envelope.code == "MANUAL_SEED_FORMAT_FORBIDDEN"

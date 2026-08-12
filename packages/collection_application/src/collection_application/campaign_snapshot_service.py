@@ -22,6 +22,7 @@ class CampaignSnapshotService:
         seed_rows = load_manual_seed_rows(
             raw_bundle,
             documents.source_bindings,
+            documents.source_policies,
             correlation_id,
         )
         validate_campaign_references(
