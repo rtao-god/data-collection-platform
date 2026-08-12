@@ -1,0 +1,46 @@
+name: Fix Connector SDK Format
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-sdk-format.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply exact Ruff formatting
+        run: |
+          uv sync --frozen --all-packages --dev
+          uv run ruff format \
+            packages/source_connector_sdk/src/source_connector_sdk/gateway.py \
+            packages/source_connector_sdk/tests/test_gateway.py
+          git rm .github/workflows/fix-sdk-format.yml
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git add \
+            packages/source_connector_sdk/src/source_connector_sdk/gateway.py \
+            packages/source_connector_sdk/tests/test_gateway.py
+          git commit -m 'Style (Connector SDK): apply canonical Ruff formatting'
+          git push origin HEAD:main
