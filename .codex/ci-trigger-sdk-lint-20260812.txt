@@ -1,0 +1,1 @@
+Trigger permanent read-only verification for the lint-clean connector SDK tree.
