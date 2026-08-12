@@ -77,9 +77,11 @@ artifact_uploads = sa.Table(
         name="ck_artifact_uploads_content_type",
     ),
     sa.CheckConstraint(
-        "staging_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$' AND "
-        "(final_reference IS NULL OR "
-        "final_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$')",
+        "char_length(staging_reference) BETWEEN 1 AND 512 AND "
+        "staging_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$' AND "
+        "(final_reference IS NULL OR ("
+        "char_length(final_reference) BETWEEN 1 AND 512 AND "
+        "final_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'))",
         name="ck_artifact_uploads_storage_reference",
     ),
     sa.CheckConstraint(
@@ -137,7 +139,8 @@ artifact_objects = sa.Table(
         name="ck_artifact_objects_size",
     ),
     sa.CheckConstraint(
-        "storage_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$'",
+        "char_length(storage_reference) BETWEEN 1 AND 512 AND "
+        "storage_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'",
         name="ck_artifact_objects_storage_reference",
     ),
     sa.CheckConstraint(

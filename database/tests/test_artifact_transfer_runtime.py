@@ -406,7 +406,7 @@ def _complete(harness: RuntimeHarness, lease, upload_id: UUID):
 def test_verified_output_is_committed_atomically_and_becomes_scoped_input(
     engine: Engine,
 ) -> None:
-    harness = _harness(engine, _label("artifact-flow"))
+    harness = _harness(engine, _label("artifact_flow"))
     _enqueue_acquisition(harness, "first")
     lease = _lease(harness)
     upload_id = uuid4()
@@ -538,7 +538,7 @@ def test_verified_output_is_committed_atomically_and_becomes_scoped_input(
 
 
 def test_unverified_output_cannot_partially_complete_work(engine: Engine) -> None:
-    harness = _harness(engine, _label("artifact-unverified"))
+    harness = _harness(engine, _label("artifact_unverified"))
     work = _enqueue_acquisition(harness, "first")
     lease = _lease(harness)
     upload_id = uuid4()
@@ -592,7 +592,7 @@ def test_unverified_output_cannot_partially_complete_work(engine: Engine) -> Non
 
 
 def test_duplicate_content_reuses_object_and_preserves_distinct_records(engine: Engine) -> None:
-    harness = _harness(engine, _label("artifact-dedup"))
+    harness = _harness(engine, _label("artifact_dedup"))
     upload_ids: list[UUID] = []
     for suffix in ("first", "second"):
         _enqueue_acquisition(harness, suffix)
