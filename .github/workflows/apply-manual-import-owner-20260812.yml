@@ -55,13 +55,26 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("packages/collection_contracts/src/collection_contracts/manual_import.py")
-          text = path.read_text(encoding="utf-8")
-          old = "str | int | bool | None | tuple[str, ...]"
-          new = "str | int | bool | tuple[str, ...] | None"
-          if text.count(old) != 1:
+          contract_path = Path("packages/collection_contracts/src/collection_contracts/manual_import.py")
+          contract_text = contract_path.read_text(encoding="utf-8")
+          old_union = "str | int | bool | None | tuple[str, ...]"
+          new_union = "str | int | bool | tuple[str, ...] | None"
+          if contract_text.count(old_union) != 1:
               raise RuntimeError("manual import context union owner source did not match exactly once")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          contract_path.write_text(contract_text.replace(old_union, new_union), encoding="utf-8")
+
+          dockerfiles = (
+              Path("deploy/docker/collector-cli.Dockerfile"),
+              Path("deploy/docker/migration.Dockerfile"),
+              Path("deploy/docker/worker-gateway.Dockerfile"),
+          )
+          anchor = "COPY packages/collection_infrastructure/ packages/collection_infrastructure/\n"
+          addition = anchor + "COPY packages/manual_import_core/ packages/manual_import_core/\n"
+          for dockerfile in dockerfiles:
+              text = dockerfile.read_text(encoding="utf-8")
+              if text.count(anchor) != 1:
+                  raise RuntimeError(f"Docker dependency anchor is invalid: {dockerfile}")
+              dockerfile.write_text(text.replace(anchor, addition), encoding="utf-8")
           PY
           rm -f .github/workflows/apply-manual-import-planner-20260812.yml
           rm -f .github/workflows/reconcile-manual-import-planner-20260812.yml
