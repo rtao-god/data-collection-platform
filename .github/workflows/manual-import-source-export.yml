@@ -1,0 +1,40 @@
+name: Manual Import Source Export
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/manual-import-source-export.yml
+
+permissions:
+  contents: write
+
+jobs:
+  export-and-clean:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Remove exact accidental branch probe
+        run: gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/__do_not_create" >/dev/null 2>&1 || true
+
+      - name: Upload exact source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-collection-platform-manual-import-source
+          path: .
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Remove this bounded workflow
+        run: |
+          rm -f .github/workflows/manual-import-source-export.yml
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add -A
+          git commit -m "Build (Tooling): remove manual-import source exporter"
+          git push origin HEAD:main
