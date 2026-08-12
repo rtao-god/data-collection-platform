@@ -1,0 +1,2 @@
+GitHub Write probe for the current conversation.
+Created on 2026-08-12; no production behavior depends on this file.
