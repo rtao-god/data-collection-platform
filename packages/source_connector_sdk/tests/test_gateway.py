@@ -209,7 +209,9 @@ def test_upload_bytes_never_sends_gateway_token_to_object_store() -> None:
         )
 
     assert verified.content_digest == digest
-    assert all(request.headers["authorization"] == "Bearer worker-secret" for request in gateway_requests)
+    assert all(
+        request.headers["authorization"] == "Bearer worker-secret" for request in gateway_requests
+    )
     assert len(object_requests) == 1
     assert "authorization" not in object_requests[0].headers
     assert object_requests[0].content == body

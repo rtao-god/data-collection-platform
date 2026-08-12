@@ -78,9 +78,7 @@ _WORK_STAGES = frozenset(
         "export",
     }
 )
-_FAILURE_KINDS = frozenset(
-    {"transient", "permanent", "policy_blocked", "contract_invalid"}
-)
+_FAILURE_KINDS = frozenset({"transient", "permanent", "policy_blocked", "contract_invalid"})
 _WORK_STATES = frozenset(
     {
         "pending",
@@ -975,9 +973,7 @@ def _parse_mutation(
         )
     available_value = payload["availableAtUtc"]
     available_at_utc = (
-        None
-        if available_value is None
-        else _parse_datetime(available_value, "availableAtUtc")
+        None if available_value is None else _parse_datetime(available_value, "availableAtUtc")
     )
     return WorkMutationResult(
         work_id=work_id,
