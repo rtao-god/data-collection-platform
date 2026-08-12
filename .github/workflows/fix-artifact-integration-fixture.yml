@@ -1,4 +1,4 @@
-name: Fix Artifact Integration Fixture
+name: Repair Artifact Storage Constraint
 
 on:
   push:
@@ -47,33 +47,177 @@ jobs:
           version: "0.10.0"
           enable-cache: true
 
-      - name: Correct contract-invalid fixture identities
+      - name: Repair artifact storage owner and fixtures
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("database/tests/test_artifact_transfer_runtime.py")
-          content = path.read_text(encoding="utf-8")
-          replacements = {
+          fixture_path = Path("database/tests/test_artifact_transfer_runtime.py")
+          fixture = fixture_path.read_text(encoding="utf-8")
+          fixture_replacements = {
               '_label("artifact-flow")': '_label("artifact_flow")',
               '_label("artifact-unverified")': '_label("artifact_unverified")',
               '_label("artifact-dedup")': '_label("artifact_dedup")',
           }
-          for before, after in replacements.items():
-              if content.count(before) != 1:
+          for before, after in fixture_replacements.items():
+              if fixture.count(before) != 1:
                   raise SystemExit(f"expected exactly one fixture identity: {before}")
-              content = content.replace(before, after)
-          path.write_text(content, encoding="utf-8")
+              fixture = fixture.replace(before, after)
+          fixture_path.write_text(fixture, encoding="utf-8")
+
+          metadata_path = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "artifact_metadata.py"
+          )
+          metadata = metadata_path.read_text(encoding="utf-8")
+          replacements = {
+              '''    sa.CheckConstraint(
+                  "staging_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$' AND "
+                  "(final_reference IS NULL OR "
+                  "final_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$')",
+                  name="ck_artifact_uploads_storage_reference",
+              ),''': '''    sa.CheckConstraint(
+                  "char_length(staging_reference) BETWEEN 1 AND 512 AND "
+                  "staging_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$' AND "
+                  "(final_reference IS NULL OR ("
+                  "char_length(final_reference) BETWEEN 1 AND 512 AND "
+                  "final_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'))",
+                  name="ck_artifact_uploads_storage_reference",
+              ),''',
+              '''    sa.CheckConstraint(
+                  "storage_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$'",
+                  name="ck_artifact_objects_storage_reference",
+              ),''': '''    sa.CheckConstraint(
+                  "char_length(storage_reference) BETWEEN 1 AND 512 AND "
+                  "storage_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'",
+                  name="ck_artifact_objects_storage_reference",
+              ),''',
+          }
+          for before, after in replacements.items():
+              if metadata.count(before) != 1:
+                  raise SystemExit("expected exactly one artifact metadata constraint target")
+              metadata = metadata.replace(before, after)
+          metadata_path.write_text(metadata, encoding="utf-8")
+
+          migration = '''\
+          """Use PostgreSQL-compatible artifact storage-reference constraints.
+
+          Revision ID: 20260812_0007
+          Revises: 20260812_0006
+          Create Date: 2026-08-12
+          """
+
+          from __future__ import annotations
+
+          from collections.abc import Sequence
+
+          from alembic import op
+
+          revision: str = "20260812_0007"
+          down_revision: str | None = "20260812_0006"
+          branch_labels: str | Sequence[str] | None = None
+          depends_on: str | Sequence[str] | None = None
+
+
+          def upgrade() -> None:
+              op.drop_constraint(
+                  "ck_artifact_uploads_storage_reference",
+                  "artifact_uploads",
+                  schema="sources",
+                  type_="check",
+              )
+              op.create_check_constraint(
+                  "ck_artifact_uploads_storage_reference",
+                  "artifact_uploads",
+                  """
+                  char_length(staging_reference) BETWEEN 1 AND 512
+                  AND staging_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'
+                  AND (
+                      final_reference IS NULL
+                      OR (
+                          char_length(final_reference) BETWEEN 1 AND 512
+                          AND final_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'
+                      )
+                  )
+                  """,
+                  schema="sources",
+              )
+              op.drop_constraint(
+                  "ck_artifact_objects_storage_reference",
+                  "artifact_objects",
+                  schema="sources",
+                  type_="check",
+              )
+              op.create_check_constraint(
+                  "ck_artifact_objects_storage_reference",
+                  "artifact_objects",
+                  """
+                  char_length(storage_reference) BETWEEN 1 AND 512
+                  AND storage_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'
+                  """,
+                  schema="sources",
+              )
+
+
+          def downgrade() -> None:
+              op.drop_constraint(
+                  "ck_artifact_objects_storage_reference",
+                  "artifact_objects",
+                  schema="sources",
+                  type_="check",
+              )
+              op.create_check_constraint(
+                  "ck_artifact_objects_storage_reference",
+                  "artifact_objects",
+                  "storage_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$'",
+                  schema="sources",
+              )
+              op.drop_constraint(
+                  "ck_artifact_uploads_storage_reference",
+                  "artifact_uploads",
+                  schema="sources",
+                  type_="check",
+              )
+              op.create_check_constraint(
+                  "ck_artifact_uploads_storage_reference",
+                  "artifact_uploads",
+                  """
+                  staging_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$'
+                  AND (
+                      final_reference IS NULL
+                      OR final_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,511}$'
+                  )
+                  """,
+                  schema="sources",
+              )
+          '''
+          migration = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in migration.splitlines()
+          ) + "\n"
+          migration_path = Path(
+              "database/migrations/versions/20260812_0007_artifact_storage_references.py"
+          )
+          if migration_path.exists():
+              raise SystemExit(f"migration already exists: {migration_path}")
+          migration_path.write_text(migration, encoding="utf-8")
           PY
 
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
 
-      - name: Verify formatting
-        run: uv run ruff format --check .
+      - name: Normalize owned source
+        run: |
+          uv run ruff check --fix .
+          uv run ruff format .
 
-      - name: Lint
-        run: uv run ruff check .
+      - name: Verify formatting and lint
+        run: |
+          uv run ruff format --check .
+          uv run ruff check .
+
+      - name: Type-check
+        run: uv run mypy
 
       - name: Apply fresh database migration
         run: uv run collection-migrate upgrade head
@@ -81,7 +225,7 @@ jobs:
       - name: Verify all PostgreSQL contracts
         run: uv run pytest -m integration database/tests
 
-      - name: Commit verified fixture correction
+      - name: Commit owner repair
         run: |
           rm .github/workflows/fix-artifact-integration-fixture.yml
           git add -A
@@ -89,9 +233,9 @@ jobs:
           git config user.name "rtao-god"
           git config user.email "rtaogod@gmail.com"
           git commit --no-verify \
-            -m "Test (Artifacts): use contract-valid campaign fixtures" \
-            -m "Owner layer: PostgreSQL artifact integration proof." \
-            -m "Root cause: three artifact fixtures embedded hyphens in campaign keys although the canonical campaign-key contract permits lowercase letters, digits, and underscores." \
-            -m "Replacement: keep fixture uniqueness while using contract-valid underscore labels; the production database constraint remains unchanged." \
-            -m "Proof target: fresh migration and the complete PostgreSQL integration suite."
+            -m "Fix (Artifacts): enforce portable storage references" \
+            -m "Owner layer: PostgreSQL artifact schema and integration proof." \
+            -m "Root cause: storage-reference checks used a repetition bound of 511, which PostgreSQL accepts as DDL text but rejects when evaluating the regular expression." \
+            -m "Replacement: enforce the 512-character limit with char_length and keep the character allowlist in an unbounded PostgreSQL-compatible regular expression." \
+            -m "Proof target: strict typing, fresh migration, and the complete PostgreSQL integration suite."
           git push origin HEAD:main
