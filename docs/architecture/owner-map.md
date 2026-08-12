@@ -14,6 +14,7 @@
 | Run, stage, work, lease, retry semantics | `collection_domain.runs`, `work_units`, `work_leases`, and `work_retry` |
 | Work commands and ports | `collection_application.work_engine` |
 | Worker-facing transport | `apps/worker_gateway` |
+| Source connector Worker Gateway client | `source_connector_sdk.SourceWorkerGateway` |
 | Worker authentication scope | `worker_gateway.auth` and mounted worker token document |
 | Work persistence and queue claim | `collection_infrastructure.postgres.PostgresWorkEngine` |
 | Artifact transfer contract | `collection_application.artifacts` |

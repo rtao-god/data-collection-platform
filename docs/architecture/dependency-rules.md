@@ -14,6 +14,7 @@ by the normal architecture check.
 | `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
 | `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
 | `manual_import_core` | `packages/manual_import_core` | `collection_contracts` | `pydantic` |
+| `source_connector_sdk` | `packages/source_connector_sdk` | `collection_contracts` | `httpx` |
 | `collection_domain` | `packages/collection_domain` | none | none |
 | `collection_contracts` | `packages/collection_contracts` | none | `pydantic` |
 <!-- dependency-policy:end -->

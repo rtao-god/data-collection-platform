@@ -18,6 +18,7 @@ members = [
   "packages/collection_domain",
   "packages/collection_infrastructure",
   "packages/manual_import_core",
+  "packages/source_connector_sdk",
 ]
 
 [dependency-groups]
@@ -69,10 +70,11 @@ files = [
   "packages/collection_contracts/src/collection_contracts",
   "packages/collection_domain/src/collection_domain",
   "packages/collection_infrastructure/src/collection_infrastructure",
+  "packages/manual_import_core/src/manual_import_core",
+  "packages/source_connector_sdk/src/source_connector_sdk",
   "database/migrations/env.py",
   "database/migrations/versions",
   "tools/contract_generation/generate.py",
-  "packages/manual_import_core/src/manual_import_core",
 ]
 
 [tool.pydantic-mypy]

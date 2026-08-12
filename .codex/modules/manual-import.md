@@ -5,6 +5,7 @@
 - `collection_contracts.manual_import` owns the immutable plan, locator, issue, record, mode, and disposition contracts.
 - `manual_import_core` owns UTF-8 decoding, CSV/JSON/JSONL parsing, exact locators, row validation, record digests, plan digests, and the complete issue ledger.
 - `collection_application.manual_seed` owns campaign binding and source-policy enforcement and delegates parsing to `manual_import_core`.
+- `source_connector_sdk` owns strict consumption of the app-owned Worker Gateway transport; it never receives PostgreSQL or object-store credentials.
 
 ## Invariants
 

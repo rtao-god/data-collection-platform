@@ -81,6 +81,12 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         allowed_internal_imports=("collection_contracts",),
         allowed_external_imports=frozenset({"pydantic"}),
     ),
+    "source_connector_sdk": OwnerPolicy(
+        project_path="packages/source_connector_sdk",
+        distribution_name="source-connector-sdk",
+        allowed_internal_imports=("collection_contracts",),
+        allowed_external_imports=frozenset({"httpx"}),
+    ),
     "collection_domain": OwnerPolicy(
         project_path="packages/collection_domain",
         distribution_name="collection-domain",

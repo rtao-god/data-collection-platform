@@ -16,6 +16,7 @@ COPY packages/collection_contracts/ packages/collection_contracts/
 COPY packages/collection_domain/ packages/collection_domain/
 COPY packages/collection_infrastructure/ packages/collection_infrastructure/
 COPY packages/manual_import_core/ packages/manual_import_core/
+COPY packages/source_connector_sdk/pyproject.toml packages/source_connector_sdk/pyproject.toml
 RUN uv sync --frozen --no-dev --package collector-cli --no-editable
 
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS runtime
