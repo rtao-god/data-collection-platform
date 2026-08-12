@@ -34,7 +34,9 @@ jobs:
       - name: Apply exact owner patch
         run: |
           cat .codex/owner-patch/part-* > /tmp/artifact-owner.patch.b64
+          echo "76087b9f116765f9696cf5d24846c32fdc0cbd0f90642a8ce4caf16a6de53cdc  /tmp/artifact-owner.patch.b64" | sha256sum --check --strict
           base64 --decode /tmp/artifact-owner.patch.b64 | gzip --decompress > /tmp/artifact-owner.patch
+          echo "9b0e613a79a04e5ed7ec35aa19a9e20843122ef0ca2cf946a5e63e5f8b3a4088  /tmp/artifact-owner.patch" | sha256sum --check --strict
           git apply --check /tmp/artifact-owner.patch
           git apply /tmp/artifact-owner.patch
 
