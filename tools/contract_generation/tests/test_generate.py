@@ -70,6 +70,9 @@ def test_worker_gateway_openapi_is_deterministic_and_owner_scoped() -> None:
     assert set(document["paths"]) == {
         "/health/live",
         "/health/ready",
+        "/worker/artifacts/prepare-read",
+        "/worker/artifacts/prepare-upload",
+        "/worker/artifacts/verify-upload",
         "/worker/capabilities",
         "/worker/leases/acquire",
         "/worker/leases/{lease_id}/heartbeat",

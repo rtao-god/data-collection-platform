@@ -17,9 +17,13 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from collection_application import (
+    ArtifactTransferService,
     LeaseExpirySweep,
     LeaseHeartbeat,
     LeaseRequest,
+    PrepareArtifactRead,
+    PrepareArtifactUpload,
+    VerifyArtifactUpload,
     WorkCompletion,
     WorkEngineService,
     WorkerRegistration,
@@ -34,12 +38,18 @@ from worker_gateway.auth import (
     WorkerPrincipal,
 )
 from worker_gateway.contracts import (
+    ArtifactPrepareReadRequest,
+    ArtifactPrepareUploadRequest,
+    ArtifactVerifyUploadRequest,
     HealthResponse,
     LeaseAcquiredResponse,
     LeaseAcquireRequest,
     LeaseAcquireResponse,
     LeaseHeartbeatRequest,
     NoEligibleWorkResponse,
+    PreparedArtifactReadResponse,
+    PreparedArtifactUploadResponse,
+    VerifiedArtifactUploadResponse,
     WorkCompletionRequest,
     WorkCompletionResponse,
     WorkerProtocolMetadataResponse,
@@ -59,6 +69,7 @@ _WORKER_BEARER = HTTPBearer(auto_error=False, scheme_name="WorkerBearer")
 @dataclass(frozen=True, slots=True)
 class GatewayDependencies:
     work_engine: WorkEngineService
+    artifact_transfer: ArtifactTransferService
     authenticator: WorkerAuthenticator
     readiness_probe: Callable[[], None]
     expiry_interval_seconds: float = 5.0
@@ -390,6 +401,84 @@ def _worker_router() -> APIRouter:
         return WorkLeaseResponse.from_domain(_dependencies(request).work_engine.heartbeat(command))
 
     @router.post(
+        "/artifacts/prepare-upload",
+        response_model=PreparedArtifactUploadResponse,
+        operation_id="prepareWorkerArtifactUpload",
+    )
+    def prepare_artifact_upload(
+        payload: ArtifactPrepareUploadRequest,
+        request: Request,
+        principal: Annotated[WorkerPrincipal, Depends(_authenticate_worker)],
+    ) -> PreparedArtifactUploadResponse:
+        command = _command(
+            lambda: PrepareArtifactUpload(
+                upload_id=payload.upload_id,
+                work_id=payload.work_id,
+                lease_id=payload.lease_id,
+                lease_token=payload.lease_token,
+                worker_id=principal.worker_id,
+                input_digest=payload.input_digest,
+                artifact_kind=payload.artifact_kind,
+                expected_digest=payload.expected_digest,
+                expected_size_bytes=payload.expected_size_bytes,
+                content_type=payload.content_type,
+                expires_in_seconds=payload.expires_in_seconds,
+                correlation_id=_correlation_id(request),
+            )
+        )
+        result = _dependencies(request).artifact_transfer.prepare_upload(command)
+        return PreparedArtifactUploadResponse.from_result(result)
+
+    @router.post(
+        "/artifacts/verify-upload",
+        response_model=VerifiedArtifactUploadResponse,
+        operation_id="verifyWorkerArtifactUpload",
+    )
+    def verify_artifact_upload(
+        payload: ArtifactVerifyUploadRequest,
+        request: Request,
+        principal: Annotated[WorkerPrincipal, Depends(_authenticate_worker)],
+    ) -> VerifiedArtifactUploadResponse:
+        command = _command(
+            lambda: VerifyArtifactUpload(
+                upload_id=payload.upload_id,
+                work_id=payload.work_id,
+                lease_id=payload.lease_id,
+                lease_token=payload.lease_token,
+                worker_id=principal.worker_id,
+                input_digest=payload.input_digest,
+                correlation_id=_correlation_id(request),
+            )
+        )
+        result = _dependencies(request).artifact_transfer.verify_upload(command)
+        return VerifiedArtifactUploadResponse.from_result(result)
+
+    @router.post(
+        "/artifacts/prepare-read",
+        response_model=PreparedArtifactReadResponse,
+        operation_id="prepareWorkerArtifactRead",
+    )
+    def prepare_artifact_read(
+        payload: ArtifactPrepareReadRequest,
+        request: Request,
+        principal: Annotated[WorkerPrincipal, Depends(_authenticate_worker)],
+    ) -> PreparedArtifactReadResponse:
+        command = _command(
+            lambda: PrepareArtifactRead(
+                artifact_id=payload.artifact_id,
+                work_id=payload.work_id,
+                lease_id=payload.lease_id,
+                lease_token=payload.lease_token,
+                worker_id=principal.worker_id,
+                input_digest=payload.input_digest,
+                expires_in_seconds=payload.expires_in_seconds,
+                correlation_id=_correlation_id(request),
+            )
+        )
+        result = _dependencies(request).artifact_transfer.prepare_read(command)
+        return PreparedArtifactReadResponse.from_result(result)
+
+    @router.post(
         "/work/{work_id}/complete",
         response_model=WorkCompletionResponse,
         operation_id="completeWorkerWork",
@@ -411,6 +500,9 @@ def _worker_router() -> APIRouter:
                 output_digest=payload.output_digest,
                 worker_build_identity=payload.worker_build_identity,
                 correlation_id=_correlation_id(request),
+                output_artifacts=tuple(
+                    binding.to_application() for binding in payload.output_artifacts
+                ),
             )
         )
         return WorkCompletionResponse.from_result(

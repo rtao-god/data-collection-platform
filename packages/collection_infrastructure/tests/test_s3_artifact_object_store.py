@@ -53,6 +53,7 @@ class FakeS3Client:
         self.presign_calls: list[tuple[str, Mapping[str, object], int, str | None]] = []
         self.copy_calls: list[tuple[str, str]] = []
         self.deleted: list[str] = []
+        self.head_bucket_error: Exception | None = None
 
     def generate_presigned_url(
         self,
@@ -76,6 +77,12 @@ class FakeS3Client:
             "ContentType": stored.content_type,
             "Metadata": dict(stored.metadata),
         }
+
+    def head_bucket(self, **kwargs: object) -> Mapping[str, object]:
+        assert kwargs == {"Bucket": "collector-artifacts"}
+        if self.head_bucket_error is not None:
+            raise self.head_bucket_error
+        return {}
 
     def head_object(self, **kwargs: object) -> Mapping[str, object]:
         key = str(kwargs["Key"])
@@ -157,7 +164,7 @@ def test_prepare_upload_signs_exact_content_identity() -> None:
     assert http_method == "PUT"
 
 
-def test_verify_streams_promotes_checks_and_deletes_staging() -> None:
+def test_verify_streams_promotes_and_preserves_retryable_staging() -> None:
     client = FakeS3Client()
     client.objects[_staging_key()] = _uploaded()
 
@@ -174,7 +181,8 @@ def test_verify_streams_promotes_checks_and_deletes_staging() -> None:
     assert verified.content_digest == _DIGEST
     assert verified.size_bytes == len(_BODY)
     assert client.copy_calls == [(_staging_key(), _final_key())]
-    assert client.deleted == [_staging_key()]
+    assert client.deleted == []
+    assert client.objects[_staging_key()].content == _BODY
     assert client.objects[_final_key()].content == _BODY
     assert client.objects[_final_key()].metadata == {"sha256": _DIGEST.removeprefix("sha256:")}
 
@@ -215,7 +223,8 @@ def test_existing_verified_content_is_reused_without_copy() -> None:
     )
 
     assert client.copy_calls == []
-    assert client.deleted == [_staging_key()]
+    assert client.deleted == []
+    assert _staging_key() in client.objects
 
 
 def test_prepare_read_signs_only_the_exact_storage_reference() -> None:
@@ -233,6 +242,72 @@ def test_prepare_read_signs_only_the_exact_storage_reference() -> None:
     assert parameters == {"Bucket": "collector-artifacts", "Key": _final_key()}
     assert expiry == 120
     assert http_method == "GET"
+
+
+def test_readiness_checks_the_exact_bucket() -> None:
+    client = FakeS3Client()
+
+    _store(client).assert_ready()
+
+
+def test_readiness_wraps_bucket_failure_with_owner_context() -> None:
+    client = FakeS3Client()
+    client.head_bucket_error = RuntimeError("bucket unavailable")
+
+    with pytest.raises(ArtifactObjectStoreError) as raised:
+        _store(client).assert_ready()
+
+    assert raised.value.code == "ARTIFACT_OBJECT_STORE_UNAVAILABLE"
+    assert raised.value.context == {"causeType": "RuntimeError"}
+
+
+def test_existing_final_with_wrong_content_type_is_replaced() -> None:
+    client = FakeS3Client()
+    client.objects[_staging_key()] = _uploaded()
+    client.objects[_final_key()] = StoredObject(
+        content=_BODY,
+        content_type="application/octet-stream",
+        metadata={"sha256": _DIGEST.removeprefix("sha256:")},
+    )
+
+    _store(client).verify_and_promote(
+        staging_reference=_staging_key(),
+        artifact_kind=ArtifactKind.RAW_ARTIFACT,
+        expected_digest=_DIGEST,
+        expected_size_bytes=len(_BODY),
+        expected_content_type="text/html",
+        now_utc=_NOW,
+    )
+
+    assert client.copy_calls == [(_staging_key(), _final_key())]
+    assert client.objects[_final_key()].content_type == "text/html"
+
+
+def test_invalid_object_store_response_is_typed() -> None:
+    class InvalidHeadClient(FakeS3Client):
+        def head_object(self, **kwargs: object) -> Mapping[str, object]:
+            del kwargs
+            return {
+                "ContentLength": "not-an-integer",
+                "ContentType": "text/html",
+                "Metadata": {"sha256": _DIGEST.removeprefix("sha256:")},
+            }
+
+    client = InvalidHeadClient()
+    client.objects[_staging_key()] = _uploaded()
+
+    with pytest.raises(ArtifactObjectStoreError) as raised:
+        _store(client).verify_and_promote(
+            staging_reference=_staging_key(),
+            artifact_kind=ArtifactKind.RAW_ARTIFACT,
+            expected_digest=_DIGEST,
+            expected_size_bytes=len(_BODY),
+            expected_content_type="text/html",
+            now_utc=_NOW,
+        )
+
+    assert raised.value.code == "ARTIFACT_OBJECT_STORE_RESPONSE_INVALID"
+    assert raised.value.context == {"field": "ContentLength", "expectedType": "integer"}
 
 
 def _missing_key(key: str) -> ClientError:

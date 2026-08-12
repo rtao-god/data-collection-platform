@@ -7,6 +7,7 @@
 - `collection_domain.work_leases` owns immutable lease identity, active-time validation, and
   heartbeat renewal semantics.
 - `collection_domain.work_retry` owns classified failure decisions and bounded retry delays.
+- `collection_domain.work_artifacts` owns immutable lease input identity and role constraints.
 - `collection_domain.source_capacity` owns source operational state and permit value contracts.
 - `collection_application.work_engine` owns commands, results, validation, the `WorkEnginePort`, and
   owner-context error translation.
@@ -30,15 +31,17 @@ Worker registration binds one worker ID to its build identity, capabilities, sup
 contracts, resource profile, and local concurrency. Re-registration is idempotent only for the exact
 same contract.
 
-The Worker Gateway exposes authenticated registration, lease acquisition and heartbeat, typed
-completion, classified failure, explicit release, protocol metadata, liveness, and readiness routes.
+The Worker Gateway exposes authenticated registration, lease acquisition and heartbeat,
+lease-scoped artifact upload/verification/read, typed completion, classified failure, explicit
+release, protocol metadata, liveness, and readiness routes.
 The authenticated principal supplies the worker identity; request bodies cannot choose another
 worker. A mounted local credential binds the worker ID to an exact capability set, and registration
 must match that scope. Tokens are hashed before in-memory lookup and are not returned in errors.
 
 The gateway runs bounded lease-expiry sweeps through `WorkEngineService`. Health and readiness are
-read-only. Readiness verifies its required database path and reports the latest expiry-owner failure
-without performing migration, repair, or recovery.
+read-only. Readiness verifies PostgreSQL and the configured S3-compatible bucket and reports the
+latest expiry-owner failure without performing migration, repair, or recovery. Object-store access
+keys are read from bounded secret files rather than request bodies or campaign configuration.
 
 ## Persistence
 
@@ -48,7 +51,9 @@ Alembic and SQLAlchemy metadata own these physical schemas:
 - `sources.source_capacity_states`;
 - `work.worker_registrations`, `work.worker_capabilities`,
   `work.worker_output_contracts`, and `work.worker_heartbeats`;
-- `work.work_units`, `work.work_attempts`, and `work.dead_letters`.
+- `work.work_units`, `work.work_attempts`, and `work.dead_letters`;
+- `sources.artifact_uploads`, `sources.artifact_objects`, and `sources.artifact_records`;
+- `work.work_input_artifacts` and `work.work_output_artifacts`.
 
 `attempt_count` records every acquired lease. `failure_count` alone consumes retry budget, so a safe
 release does not become a classified failure. Immutable work input is protected by a run-scoped
@@ -62,10 +67,14 @@ worker concurrency, source operational state, source capacity, minimum interval,
 then it reserves capacity, creates the attempt, writes the lease token and deadlines, and returns the
 lease.
 
-Heartbeat, completion, failure, release, and expiry lock the current work and attempt. Completion
-requires the exact work ID, lease ID, lease token, worker ID, worker build identity, input digest, and
-expected output contract. An expired lease is persisted as expired before the stale worker receives
-its rejection. Terminal failure creates one dead-letter record without deleting prior attempts.
+Heartbeat, completion, failure, release, and expiry lock the current work and attempt. Completion requires the exact work ID, lease ID, lease token, worker ID, worker build identity,
+input digest, expected output contract, and ordered output-artifact bindings. Each selected upload
+must already be verified under that same active lease. Physical content objects may be reused by
+kind and digest, while every completion creates a distinct immutable artifact record and role-bound
+lineage. Artifact records, output bindings, consumed-upload state, attempt success, work success, and
+capacity release are committed in one PostgreSQL transaction. An expired lease is persisted as
+expired before the stale worker receives its rejection. Terminal failure creates one dead-letter
+record without deleting prior attempts.
 
 ## Generated contract and deployment
 
@@ -97,7 +106,7 @@ migration, and runs the integration suite.
 
 ## Remaining boundary
 
-Pre-signed object upload/read commands, uploaded-object size and digest verification, immutable raw
-artifact metadata, and atomic artifact-plus-completion commit are not implemented yet. No worker may
-receive PostgreSQL credentials or bypass `WorkEngineService`; the future artifact routes must compose
-through an application-owned object-store port and preserve this boundary.
+The pre-signed protocol and atomic completion path are implemented. Stage 3 remains open until a
+real SeaweedFS compatibility proof, owner-controlled staging/orphan cleanup, retention tombstones,
+and manual-import raw-file preservation exist. No worker may receive PostgreSQL credentials or
+bypass Worker Gateway and its application-owned ports.

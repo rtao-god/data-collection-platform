@@ -10,6 +10,7 @@ WORK_SCHEMA = "work"
 
 _ARTIFACT_KINDS = tuple(value.value for value in ArtifactKind)
 _UPLOAD_STATES = ("prepared", "verified", "consumed")
+_ROLE_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,63}$"
 
 
 def _in_values(column: str, values: tuple[str, ...]) -> str:
@@ -103,21 +104,30 @@ sa.Index(
     "ix_artifact_uploads_orphan_candidates",
     artifact_uploads.c.state,
     artifact_uploads.c.expires_at_utc,
-    postgresql_where=artifact_uploads.c.state.in_(("prepared", "verified")),
+    postgresql_where=artifact_uploads.c.state.in_(("prepared", "verified", "consumed")),
 )
 
 artifact_objects = sa.Table(
     "artifact_objects",
     collector_metadata,
     sa.Column("object_id", sa.Uuid, primary_key=True),
+    sa.Column("artifact_kind", sa.Text, nullable=False),
     sa.Column("content_digest", sa.Text, nullable=False),
     sa.Column("size_bytes", sa.BigInteger, nullable=False),
     sa.Column("storage_reference", sa.Text, nullable=False),
     sa.Column("verified_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("recorded_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("correlation_id", sa.Text, nullable=False),
-    sa.UniqueConstraint("content_digest", name="uq_artifact_objects_content_digest"),
+    sa.UniqueConstraint(
+        "artifact_kind",
+        "content_digest",
+        name="uq_artifact_objects_kind_content_digest",
+    ),
     sa.UniqueConstraint("storage_reference", name="uq_artifact_objects_storage_reference"),
+    sa.CheckConstraint(
+        _in_values("artifact_kind", _ARTIFACT_KINDS),
+        name="ck_artifact_objects_kind",
+    ),
     sa.CheckConstraint(
         "content_digest ~ '^sha256:[0-9a-f]{64}$'",
         name="ck_artifact_objects_digest_format",
@@ -137,8 +147,8 @@ artifact_objects = sa.Table(
     schema=SOURCES_SCHEMA,
 )
 
-raw_artifacts = sa.Table(
-    "raw_artifacts",
+artifact_records = sa.Table(
+    "artifact_records",
     collector_metadata,
     sa.Column("artifact_id", sa.Uuid, primary_key=True),
     sa.Column(
@@ -175,17 +185,45 @@ raw_artifacts = sa.Table(
     sa.Column("source_policy_digest", sa.Text, nullable=True),
     sa.Column("recorded_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("correlation_id", sa.Text, nullable=False),
-    sa.UniqueConstraint("upload_id", name="uq_raw_artifacts_upload_id"),
+    sa.UniqueConstraint("upload_id", name="uq_artifact_records_upload_id"),
     sa.CheckConstraint(
         "content_type ~ '^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,63}/"
         "[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,63}$'",
-        name="ck_raw_artifacts_content_type",
+        name="ck_artifact_records_content_type",
     ),
     sa.CheckConstraint(
         "source_policy_digest IS NULL OR source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
-        name="ck_raw_artifacts_source_policy_digest_format",
+        name="ck_artifact_records_source_policy_digest_format",
     ),
     schema=SOURCES_SCHEMA,
+)
+
+work_input_artifacts = sa.Table(
+    "work_input_artifacts",
+    collector_metadata,
+    sa.Column(
+        "work_id",
+        sa.Uuid,
+        sa.ForeignKey("work.work_units.work_id"),
+        primary_key=True,
+    ),
+    sa.Column("position", sa.Integer, primary_key=True),
+    sa.Column(
+        "artifact_id",
+        sa.Uuid,
+        sa.ForeignKey("sources.artifact_records.artifact_id"),
+        nullable=False,
+    ),
+    sa.Column("role", sa.Text, nullable=False),
+    sa.UniqueConstraint(
+        "work_id",
+        "artifact_id",
+        name="uq_work_input_artifacts_work_artifact",
+    ),
+    sa.UniqueConstraint("work_id", "role", name="uq_work_input_artifacts_work_role"),
+    sa.CheckConstraint("position BETWEEN 0 AND 31", name="ck_work_input_artifacts_position"),
+    sa.CheckConstraint(f"role ~ '{_ROLE_PATTERN}'", name="ck_work_input_artifacts_role"),
+    schema=WORK_SCHEMA,
 )
 
 work_output_artifacts = sa.Table(
@@ -201,17 +239,21 @@ work_output_artifacts = sa.Table(
     sa.Column(
         "artifact_id",
         sa.Uuid,
-        sa.ForeignKey("sources.raw_artifacts.artifact_id"),
+        sa.ForeignKey("sources.artifact_records.artifact_id"),
         nullable=False,
     ),
+    sa.Column("role", sa.Text, nullable=False),
     sa.UniqueConstraint("artifact_id", name="uq_work_output_artifacts_artifact_id"),
+    sa.UniqueConstraint("work_id", "role", name="uq_work_output_artifacts_work_role"),
     sa.CheckConstraint("position BETWEEN 0 AND 31", name="ck_work_output_artifacts_position"),
+    sa.CheckConstraint(f"role ~ '{_ROLE_PATTERN}'", name="ck_work_output_artifacts_role"),
     schema=WORK_SCHEMA,
 )
 
 ARTIFACT_TABLES = (
     artifact_uploads,
     artifact_objects,
-    raw_artifacts,
+    artifact_records,
+    work_input_artifacts,
     work_output_artifacts,
 )

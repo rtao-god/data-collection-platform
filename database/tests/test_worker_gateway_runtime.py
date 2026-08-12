@@ -13,11 +13,19 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
 from collection_application import (
+    ArtifactTransferPort,
+    ArtifactTransferService,
     CollectionRunSpec,
     CollectionRunState,
+    PrepareArtifactRead,
+    PrepareArtifactUpload,
+    PreparedArtifactRead,
+    PreparedArtifactUpload,
     RetryPolicy,
     StageRunSpec,
     StageRunState,
+    VerifiedArtifactUpload,
+    VerifyArtifactUpload,
     WorkCapability,
     WorkEngineService,
     WorkStage,
@@ -111,6 +119,20 @@ def _insert_ready_snapshot(engine: Engine, label: str) -> tuple[str, str]:
     return campaign_key, bundle_digest
 
 
+class _UnusedArtifactPort(ArtifactTransferPort):
+    def prepare_upload(self, command: PrepareArtifactUpload) -> PreparedArtifactUpload:
+        del command
+        raise AssertionError("artifact transfer is not used by this integration scenario")
+
+    def verify_upload(self, command: VerifyArtifactUpload) -> VerifiedArtifactUpload:
+        del command
+        raise AssertionError("artifact transfer is not used by this integration scenario")
+
+    def prepare_read(self, command: PrepareArtifactRead) -> PreparedArtifactRead:
+        del command
+        raise AssertionError("artifact transfer is not used by this integration scenario")
+
+
 def test_authenticated_gateway_completes_durable_work(engine: Engine) -> None:
     label = f"gateway_{uuid4().hex}"
     campaign_key, bundle_digest = _insert_ready_snapshot(engine, label)
@@ -177,6 +199,7 @@ def test_authenticated_gateway_completes_durable_work(engine: Engine) -> None:
     application = create_app(
         GatewayDependencies(
             work_engine=service,
+            artifact_transfer=ArtifactTransferService(_UnusedArtifactPort()),
             authenticator=authenticator,
             readiness_probe=readiness_probe,
             expiry_interval_seconds=0,

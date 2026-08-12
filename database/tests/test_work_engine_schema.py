@@ -412,13 +412,14 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
     }
     assert set(inspector.get_table_names(schema="sources")) == {
         "artifact_objects",
+        "artifact_records",
         "artifact_uploads",
-        "raw_artifacts",
         "source_capacity_states",
     }
     assert set(inspector.get_table_names(schema="work")) == {
         "dead_letters",
         "work_attempts",
+        "work_input_artifacts",
         "work_units",
         "work_output_artifacts",
         "worker_capabilities",
@@ -438,6 +439,48 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
         "uq_work_units_active_lease_token",
         "uq_work_units_run_semantic_key",
     }
+    assert {
+        column["name"] for column in inspector.get_columns("artifact_objects", schema="sources")
+    } == {
+        "object_id",
+        "artifact_kind",
+        "content_digest",
+        "size_bytes",
+        "storage_reference",
+        "verified_at_utc",
+        "recorded_at_utc",
+        "correlation_id",
+    }
+    assert {
+        column["name"] for column in inspector.get_columns("artifact_records", schema="sources")
+    } == {
+        "artifact_id",
+        "object_id",
+        "upload_id",
+        "work_id",
+        "attempt_id",
+        "worker_id",
+        "content_type",
+        "source_policy_digest",
+        "recorded_at_utc",
+        "correlation_id",
+    }
+    assert {
+        column["name"] for column in inspector.get_columns("work_input_artifacts", schema="work")
+    } == {"work_id", "position", "artifact_id", "role"}
+    assert {
+        column["name"] for column in inspector.get_columns("work_output_artifacts", schema="work")
+    } == {"work_id", "position", "artifact_id", "role"}
+    assert {
+        constraint["name"]
+        for constraint in inspector.get_unique_constraints("artifact_objects", schema="sources")
+    } == {
+        "uq_artifact_objects_kind_content_digest",
+        "uq_artifact_objects_storage_reference",
+    }
+    assert {
+        index["name"] for index in inspector.get_indexes("artifact_uploads", schema="sources")
+    } >= {"ix_artifact_uploads_orphan_candidates"}
 
 
 def test_worker_output_contract_identity_is_fail_closed() -> None:

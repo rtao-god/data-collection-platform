@@ -9,26 +9,26 @@ platform packages.
 
 ## Current implementation slice
 
-The repository currently implements the foundation and the first database-backed contract slice:
+The repository currently implements the foundation, immutable campaign configuration, and the
+runtime Work Engine boundary:
 
-- strict declarative campaign contracts;
-- filesystem campaign-boundary validation;
-- duplicate-key-safe YAML parsing and exact CSV validation;
-- cross-document reference validation;
-- deterministic canonical JSON and SHA-256 campaign snapshot identity;
-- generated JSON Schemas with a checked-in digest manifest and drift proof;
-- typed owner-context error envelopes;
-- work-unit state-transition vocabulary;
-- PostgreSQL/PostGIS migration ownership;
-- atomically sealed config bundle metadata, component identities, and blockers;
-- separate migration CLI and container image;
-- import-boundary checks, tests, Git hooks, and CI.
+- strict declarative campaign contracts and CSV/JSON/JSONL manual input validation;
+- deterministic canonical JSON, component digests, and campaign snapshot identity;
+- transactional publication of immutable campaign snapshots;
+- generated JSON Schemas and Worker Gateway OpenAPI with checked-in drift proof;
+- durable runs, stages, semantic work units, attempts, leases, retries, dead letters, and source permits;
+- authenticated Worker Gateway registration, claim, heartbeat, completion, failure, and release;
+- lease-scoped pre-signed artifact upload/read contracts;
+- streamed size, MIME, metadata, and SHA-256 verification before content-addressed promotion;
+- ordered role-bound artifact inputs and outputs;
+- one PostgreSQL transaction for verified artifact metadata and work completion;
+- separate migration and Worker Gateway images;
+- fail-closed architecture, contract, unit, PostgreSQL/PostGIS, and concurrency checks.
 
-This is not yet the complete platform. Runtime snapshot persistence remains blocked until the
-content-addressed Object Store and upload-verification transaction exist. Collection runs, durable
-leases, Worker Gateway, acquisition workers, entity resolution, review console, and sealed export
-materialization remain later implementation stages. The Berlin boundary is intentionally not
-fabricated; the campaign remains explicitly blocked until an approved polygon artifact is added.
+This is not yet the complete platform. SeaweedFS Compose compatibility, orphan/retention ownership,
+manual-file artifact ingestion, source connectors, acquisition workers, processing, entity resolution,
+review, and sealed exports remain later stages. The Berlin boundary is intentionally not fabricated;
+the campaign remains explicitly blocked until an approved polygon artifact is added.
 
 ## Requirements
 
@@ -36,6 +36,7 @@ fabricated; the campaign remains explicitly blocked until an approved polygon ar
 - `uv`
 - Git with `core.hooksPath=.githooks`
 - PostgreSQL 18 with PostGIS for integration verification
+- an S3-compatible private bucket for Worker Gateway artifact operations
 - Docker for image and service verification
 
 ## Bootstrap
@@ -65,9 +66,20 @@ COLLECTOR_DATABASE_URL=<runtime secret> uv run collection-migrate upgrade head
 COLLECTOR_DATABASE_URL=<runtime secret> uv run pytest -m integration database/tests
 ```
 
-The collector CLI only reads the allowlisted campaign directory. It does not create a run, write
-runtime state, or perform network acquisition. The migration CLI changes only the Collection
-database schema through checked-in Alembic revisions.
+Worker Gateway additionally requires exact object-store configuration and mounted secret files:
+
+```text
+COLLECTOR_DATABASE_URL=<runtime secret>
+WORKER_GATEWAY_TOKEN_FILE=<mounted worker-token document>
+COLLECTOR_OBJECT_STORE_ENDPOINT=<http-or-https endpoint>
+COLLECTOR_OBJECT_STORE_BUCKET=<private bucket>
+COLLECTOR_OBJECT_STORE_ACCESS_KEY_FILE=<mounted access-key file>
+COLLECTOR_OBJECT_STORE_SECRET_KEY_FILE=<mounted secret-key file>
+COLLECTOR_OBJECT_STORE_REGION=<region identity>
+```
+
+Worker processes call Worker Gateway and use only scoped pre-signed URLs. They do not receive
+`COLLECTOR_DATABASE_URL`, object-store account credentials, or a direct PostgreSQL route.
 
 ## Repository boundary
 

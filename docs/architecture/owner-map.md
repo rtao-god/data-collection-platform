@@ -1,21 +1,32 @@
 # Owner map
 
-| Meaning | Canonical owner in the current slice |
+| Meaning | Canonical production owner |
 |---|---|
 | Authored campaign content | Versioned files under `campaigns/<campaign-key>/` |
 | Campaign schema | `collection_contracts.campaign_config` |
 | Campaign filesystem boundary | `collection_infrastructure.FilesystemCampaignBundleSource` |
 | Campaign validation/canonicalization | `collection_application.CampaignSnapshotService` |
 | Snapshot digest contract | `collection_contracts.snapshot` |
-| Generated JSON Schema | Python contract types + `tools/contract_generation/generate.py` |
+| Snapshot persistence | `collection_infrastructure.postgres.PostgresCampaignSnapshotStore` |
+| Generated JSON Schema/OpenAPI | Python owner types and `tools/contract_generation/generate.py` |
 | Typed error envelope | `collection_contracts.errors` |
-| Config database metadata | `collection_infrastructure.postgres.metadata` |
+| Run, stage, work, lease, retry semantics | `collection_domain.runs`, `work_units`, `work_leases`, and `work_retry` |
+| Work commands and ports | `collection_application.work_engine` |
+| Worker-facing transport | `apps/worker_gateway` |
+| Worker authentication scope | `worker_gateway.auth` and mounted worker token document |
+| Work persistence and queue claim | `collection_infrastructure.postgres.PostgresWorkEngine` |
+| Artifact transfer contract | `collection_application.artifacts` |
+| Artifact object integrity and content keys | `collection_infrastructure.object_store.S3ArtifactObjectStore` |
+| Artifact metadata and work bindings | `collection_infrastructure.postgres.artifact_metadata` |
+| Lease-scoped artifact transfer | `collection_infrastructure.postgres.PostgresArtifactTransfer` |
 | Database migration history | `database/migrations/` |
 | Migration execution | `collection_infrastructure.postgres.migrations` |
 | Migration composition | `apps/migration` |
-| Work-unit transitions | `collection_domain.work_units` |
 | Import dependency policy | `tools/architecture_checks/check_dependencies.py` |
 
-The migrated database scope contains only meanings already represented by the campaign snapshot.
+Workers consume only Worker Gateway contracts and pre-signed object URLs. They do not import the
+PostgreSQL adapters and receive no Collection database credentials. S3/SeaweedFS details remain
+infrastructure concerns and do not enter domain or application contracts.
+
 Planned owners without production contracts remain absent; empty packages and placeholder services
 are not created.

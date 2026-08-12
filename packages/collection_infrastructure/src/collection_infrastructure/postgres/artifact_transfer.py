@@ -25,8 +25,8 @@ from collection_infrastructure.object_store import (
 )
 from collection_infrastructure.postgres.artifact_metadata import (
     artifact_objects,
+    artifact_records,
     artifact_uploads,
-    raw_artifacts,
     work_input_artifacts,
 )
 from collection_infrastructure.postgres.work_metadata import work_attempts, work_units
@@ -90,7 +90,7 @@ class PostgresArtifactTransfer:
                 staging_reference=str(prepared["staging_reference"]),
                 artifact_kind=ArtifactKind(str(prepared["artifact_kind"])),
                 expected_digest=str(prepared["expected_digest"]),
-                expected_size_bytes=int(prepared["expected_size_bytes"]),
+                expected_size_bytes=_required_int(prepared, "expected_size_bytes"),
                 expected_content_type=str(prepared["content_type"]),
                 now_utc=now_utc,
             )
@@ -347,11 +347,11 @@ class PostgresArtifactTransfer:
             sa.select(artifact_objects.c.storage_reference)
             .select_from(
                 work_input_artifacts.join(
-                    raw_artifacts,
-                    raw_artifacts.c.artifact_id == work_input_artifacts.c.artifact_id,
+                    artifact_records,
+                    artifact_records.c.artifact_id == work_input_artifacts.c.artifact_id,
                 ).join(
                     artifact_objects,
-                    artifact_objects.c.object_id == raw_artifacts.c.object_id,
+                    artifact_objects.c.object_id == artifact_records.c.object_id,
                 )
             )
             .where(
@@ -444,7 +444,7 @@ class PostgresArtifactTransfer:
 
 
 def _same_upload_identity(
-    row: Mapping[str, object],
+    row: RowMapping,
     command: PrepareArtifactUpload,
     staging_reference: str,
 ) -> bool:
@@ -463,7 +463,7 @@ def _same_upload_identity(
 
 
 def _require_upload_lease_identity(
-    row: Mapping[str, object],
+    row: RowMapping,
     command: VerifyArtifactUpload,
 ) -> None:
     checks = (
@@ -478,7 +478,7 @@ def _require_upload_lease_identity(
             raise _stale_conflict(command.work_id, reason)
 
 
-def _verified_upload_from_row(row: Mapping[str, object]) -> VerifiedArtifactUpload:
+def _verified_upload_from_row(row: RowMapping) -> VerifiedArtifactUpload:
     final_reference = row["final_reference"]
     verified_at_utc = row["verified_at_utc"]
     if not isinstance(final_reference, str) or not isinstance(verified_at_utc, datetime):
@@ -493,11 +493,23 @@ def _verified_upload_from_row(row: Mapping[str, object]) -> VerifiedArtifactUplo
         work_id=UUID(str(row["work_id"])),
         artifact_kind=ArtifactKind(str(row["artifact_kind"])),
         content_digest=str(row["expected_digest"]),
-        size_bytes=int(row["expected_size_bytes"]),
+        size_bytes=_required_int(row, "expected_size_bytes"),
         content_type=str(row["content_type"]),
         storage_reference=final_reference,
         verified_at_utc=verified_at_utc,
     )
+
+
+def _required_int(row: RowMapping, key: str) -> int:
+    value = row[key]
+    if not isinstance(value, int):
+        raise _conflict(
+            code="ARTIFACT_VERIFICATION_STATE_INVALID",
+            message="The verified upload has a non-integer persisted size.",
+            context={"uploadId": str(row["upload_id"]), "field": key},
+            required_action="Repair the artifact upload through its owner recovery path.",
+        )
+    return value
 
 
 def _stale_conflict(work_id: UUID, reason: str) -> ArtifactTransferConflict:

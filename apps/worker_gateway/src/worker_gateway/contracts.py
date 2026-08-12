@@ -7,6 +7,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from collection_application import (
+    ArtifactKind,
+    PreparedArtifactRead,
+    PreparedArtifactUpload,
+    VerifiedArtifactUpload,
     WorkCapability,
     WorkCompletionResult,
     WorkCompletionStatus,
@@ -15,6 +19,7 @@ from collection_application import (
     WorkFailureKind,
     WorkLease,
     WorkMutationResult,
+    WorkOutputArtifact,
     WorkStage,
     WorkUnitState,
 )
@@ -22,6 +27,7 @@ from collection_application import (
 _WIRE_IDENTITY_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$"
 _DIGEST_PATTERN = r"^sha256:[0-9a-f]{64}$"
 _CODE_PATTERN = r"^[A-Z][A-Z0-9_]{0,99}$"
+_ROLE_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,63}$"
 
 
 class WorkerWireModel(BaseModel):
@@ -105,6 +111,157 @@ class LeaseHeartbeatRequest(WorkerWireModel):
     )
 
 
+class ArtifactPrepareUploadRequest(WorkerWireModel):
+    upload_id: UUID = Field(alias="uploadId", serialization_alias="uploadId")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
+    lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
+    input_digest: str = Field(
+        alias="inputDigest",
+        serialization_alias="inputDigest",
+        pattern=_DIGEST_PATTERN,
+    )
+    artifact_kind: ArtifactKind = Field(
+        alias="artifactKind",
+        serialization_alias="artifactKind",
+    )
+    expected_digest: str = Field(
+        alias="expectedDigest",
+        serialization_alias="expectedDigest",
+        pattern=_DIGEST_PATTERN,
+    )
+    expected_size_bytes: int = Field(
+        alias="expectedSizeBytes",
+        serialization_alias="expectedSizeBytes",
+        ge=1,
+        le=5 * 1024 * 1024 * 1024,
+    )
+    content_type: str = Field(
+        alias="contentType",
+        serialization_alias="contentType",
+        min_length=3,
+        max_length=129,
+    )
+    expires_in_seconds: int = Field(
+        alias="expiresInSeconds",
+        serialization_alias="expiresInSeconds",
+        ge=60,
+        le=3_600,
+    )
+
+
+class ArtifactVerifyUploadRequest(WorkerWireModel):
+    upload_id: UUID = Field(alias="uploadId", serialization_alias="uploadId")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
+    lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
+    input_digest: str = Field(
+        alias="inputDigest",
+        serialization_alias="inputDigest",
+        pattern=_DIGEST_PATTERN,
+    )
+
+
+class ArtifactPrepareReadRequest(WorkerWireModel):
+    artifact_id: UUID = Field(alias="artifactId", serialization_alias="artifactId")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
+    lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
+    lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
+    input_digest: str = Field(
+        alias="inputDigest",
+        serialization_alias="inputDigest",
+        pattern=_DIGEST_PATTERN,
+    )
+    expires_in_seconds: int = Field(
+        alias="expiresInSeconds",
+        serialization_alias="expiresInSeconds",
+        ge=60,
+        le=3_600,
+    )
+
+
+class PreparedArtifactUploadResponse(WorkerWireModel):
+    upload_id: UUID = Field(alias="uploadId", serialization_alias="uploadId")
+    method: Literal["PUT"]
+    url: str
+    required_headers: dict[str, str] = Field(
+        alias="requiredHeaders",
+        serialization_alias="requiredHeaders",
+    )
+    expires_at_utc: datetime = Field(alias="expiresAtUtc", serialization_alias="expiresAtUtc")
+
+    @classmethod
+    def from_result(cls, result: PreparedArtifactUpload) -> PreparedArtifactUploadResponse:
+        return cls(
+            upload_id=result.upload_id,
+            method="PUT",
+            url=result.url,
+            required_headers=dict(result.required_headers),
+            expires_at_utc=result.expires_at_utc,
+        )
+
+
+class VerifiedArtifactUploadResponse(WorkerWireModel):
+    upload_id: UUID = Field(alias="uploadId", serialization_alias="uploadId")
+    work_id: UUID = Field(alias="workId", serialization_alias="workId")
+    artifact_kind: ArtifactKind = Field(
+        alias="artifactKind",
+        serialization_alias="artifactKind",
+    )
+    content_digest: str = Field(
+        alias="contentDigest",
+        serialization_alias="contentDigest",
+        pattern=_DIGEST_PATTERN,
+    )
+    size_bytes: int = Field(alias="sizeBytes", serialization_alias="sizeBytes", ge=1)
+    content_type: str = Field(alias="contentType", serialization_alias="contentType")
+    storage_reference: str = Field(
+        alias="storageReference",
+        serialization_alias="storageReference",
+    )
+    verified_at_utc: datetime = Field(
+        alias="verifiedAtUtc",
+        serialization_alias="verifiedAtUtc",
+    )
+
+    @classmethod
+    def from_result(cls, result: VerifiedArtifactUpload) -> VerifiedArtifactUploadResponse:
+        return cls(
+            upload_id=result.upload_id,
+            work_id=result.work_id,
+            artifact_kind=result.artifact_kind,
+            content_digest=result.content_digest,
+            size_bytes=result.size_bytes,
+            content_type=result.content_type,
+            storage_reference=result.storage_reference,
+            verified_at_utc=result.verified_at_utc,
+        )
+
+
+class PreparedArtifactReadResponse(WorkerWireModel):
+    artifact_id: UUID = Field(alias="artifactId", serialization_alias="artifactId")
+    method: Literal["GET"]
+    url: str
+    expires_at_utc: datetime = Field(alias="expiresAtUtc", serialization_alias="expiresAtUtc")
+
+    @classmethod
+    def from_result(cls, result: PreparedArtifactRead) -> PreparedArtifactReadResponse:
+        return cls(
+            artifact_id=result.artifact_id,
+            method="GET",
+            url=result.url,
+            expires_at_utc=result.expires_at_utc,
+        )
+
+
+class WorkOutputArtifactRequest(WorkerWireModel):
+    upload_id: UUID = Field(alias="uploadId", serialization_alias="uploadId")
+    role: str = Field(pattern=_ROLE_PATTERN)
+
+    def to_application(self) -> WorkOutputArtifact:
+        return WorkOutputArtifact(upload_id=self.upload_id, role=self.role)
+
+
 class WorkCompletionRequest(WorkerWireModel):
     lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
     lease_token: UUID = Field(alias="leaseToken", serialization_alias="leaseToken")
@@ -127,6 +284,12 @@ class WorkCompletionRequest(WorkerWireModel):
         alias="workerBuildIdentity",
         serialization_alias="workerBuildIdentity",
         pattern=_WIRE_IDENTITY_PATTERN,
+    )
+    output_artifacts: tuple[WorkOutputArtifactRequest, ...] = Field(
+        default=(),
+        alias="outputArtifacts",
+        serialization_alias="outputArtifacts",
+        max_length=32,
     )
 
 
@@ -191,6 +354,11 @@ class SourcePermitResponse(WorkerWireModel):
     )
 
 
+class WorkInputArtifactResponse(WorkerWireModel):
+    artifact_id: UUID = Field(alias="artifactId", serialization_alias="artifactId")
+    role: str = Field(pattern=_ROLE_PATTERN)
+
+
 class WorkLeaseResponse(WorkerWireModel):
     lease_id: UUID = Field(alias="leaseId", serialization_alias="leaseId")
     work_id: UUID = Field(alias="workId", serialization_alias="workId")
@@ -216,6 +384,10 @@ class WorkLeaseResponse(WorkerWireModel):
     source_permit: SourcePermitResponse | None = Field(
         alias="sourcePermit",
         serialization_alias="sourcePermit",
+    )
+    input_artifacts: tuple[WorkInputArtifactResponse, ...] = Field(
+        alias="inputArtifacts",
+        serialization_alias="inputArtifacts",
     )
     correlation_id: str = Field(alias="correlationId", serialization_alias="correlationId")
 
@@ -243,6 +415,10 @@ class WorkLeaseResponse(WorkerWireModel):
             expires_at_utc=lease.expires_at_utc,
             heartbeat_deadline_utc=lease.heartbeat_deadline_utc,
             source_permit=source_permit,
+            input_artifacts=tuple(
+                WorkInputArtifactResponse(artifact_id=binding.artifact_id, role=binding.role)
+                for binding in lease.input_artifacts
+            ),
             correlation_id=lease.correlation_id,
         )
 

@@ -12,6 +12,11 @@ from collection_domain.source_capacity import (
     SourcePermitUnavailable,
     SourceReservation,
 )
+from collection_domain.work_artifacts import (
+    WorkInputArtifact,
+    require_artifact_role,
+    validate_artifact_binding_identity,
+)
 from collection_domain.work_leases import StaleWorkLease, WorkLease
 from collection_domain.work_retry import (
     RetryPolicy,
@@ -48,6 +53,7 @@ __all__ = [
     "WorkCapability",
     "WorkFailureDecision",
     "WorkFailureKind",
+    "WorkInputArtifact",
     "WorkLease",
     "WorkStage",
     "WorkUnitLifecycle",
@@ -55,4 +61,6 @@ __all__ = [
     "allowed_transitions",
     "capability_belongs_to_stage",
     "capability_requires_source_permit",
+    "require_artifact_role",
+    "validate_artifact_binding_identity",
 ]

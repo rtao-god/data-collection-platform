@@ -61,7 +61,9 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
             "collection_application",
             "collection_contracts",
         ),
-        allowed_external_imports=frozenset({"alembic", "psycopg", "sqlalchemy"}),
+        allowed_external_imports=frozenset(
+            {"alembic", "boto3", "botocore", "psycopg", "sqlalchemy"}
+        ),
     ),
     "collection_application": OwnerPolicy(
         project_path="packages/collection_application",

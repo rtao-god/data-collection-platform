@@ -5,6 +5,8 @@ description = "Infrastructure adapters for the Data Collection Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "alembic==1.18.5",
+  "boto3==1.43.54",
+  "botocore==1.43.54",
   "collection-application",
   "collection-contracts",
   "psycopg[binary]==3.3.4",

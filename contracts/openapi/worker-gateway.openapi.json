@@ -1,6 +1,169 @@
 {
   "components": {
     "schemas": {
+      "ArtifactKind": {
+        "enum": [
+          "raw_artifact",
+          "diagnostic_artifact"
+        ],
+        "title": "ArtifactKind",
+        "type": "string"
+      },
+      "ArtifactPrepareReadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "title": "Artifactid",
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "maximum": 3600.0,
+            "minimum": 60.0,
+            "title": "Expiresinseconds",
+            "type": "integer"
+          },
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "leaseId": {
+            "format": "uuid",
+            "title": "Leaseid",
+            "type": "string"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "workId",
+          "leaseId",
+          "leaseToken",
+          "inputDigest",
+          "expiresInSeconds"
+        ],
+        "title": "ArtifactPrepareReadRequest",
+        "type": "object"
+      },
+      "ArtifactPrepareUploadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactKind": {
+            "$ref": "#/components/schemas/ArtifactKind"
+          },
+          "contentType": {
+            "maxLength": 129,
+            "minLength": 3,
+            "title": "Contenttype",
+            "type": "string"
+          },
+          "expectedDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Expecteddigest",
+            "type": "string"
+          },
+          "expectedSizeBytes": {
+            "maximum": 5368709120.0,
+            "minimum": 1.0,
+            "title": "Expectedsizebytes",
+            "type": "integer"
+          },
+          "expiresInSeconds": {
+            "maximum": 3600.0,
+            "minimum": 60.0,
+            "title": "Expiresinseconds",
+            "type": "integer"
+          },
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "leaseId": {
+            "format": "uuid",
+            "title": "Leaseid",
+            "type": "string"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "uploadId": {
+            "format": "uuid",
+            "title": "Uploadid",
+            "type": "string"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uploadId",
+          "workId",
+          "leaseId",
+          "leaseToken",
+          "inputDigest",
+          "artifactKind",
+          "expectedDigest",
+          "expectedSizeBytes",
+          "contentType",
+          "expiresInSeconds"
+        ],
+        "title": "ArtifactPrepareUploadRequest",
+        "type": "object"
+      },
+      "ArtifactVerifyUploadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "inputDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Inputdigest",
+            "type": "string"
+          },
+          "leaseId": {
+            "format": "uuid",
+            "title": "Leaseid",
+            "type": "string"
+          },
+          "leaseToken": {
+            "format": "uuid",
+            "title": "Leasetoken",
+            "type": "string"
+          },
+          "uploadId": {
+            "format": "uuid",
+            "title": "Uploadid",
+            "type": "string"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uploadId",
+          "workId",
+          "leaseId",
+          "leaseToken",
+          "inputDigest"
+        ],
+        "title": "ArtifactVerifyUploadRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -144,6 +307,78 @@
         "title": "NoEligibleWorkResponse",
         "type": "object"
       },
+      "PreparedArtifactReadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "title": "Artifactid",
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "format": "date-time",
+            "title": "Expiresatutc",
+            "type": "string"
+          },
+          "method": {
+            "const": "GET",
+            "title": "Method",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "method",
+          "url",
+          "expiresAtUtc"
+        ],
+        "title": "PreparedArtifactReadResponse",
+        "type": "object"
+      },
+      "PreparedArtifactUploadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "expiresAtUtc": {
+            "format": "date-time",
+            "title": "Expiresatutc",
+            "type": "string"
+          },
+          "method": {
+            "const": "PUT",
+            "title": "Method",
+            "type": "string"
+          },
+          "requiredHeaders": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Requiredheaders",
+            "type": "object"
+          },
+          "uploadId": {
+            "format": "uuid",
+            "title": "Uploadid",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uploadId",
+          "method",
+          "url",
+          "requiredHeaders",
+          "expiresAtUtc"
+        ],
+        "title": "PreparedArtifactUploadResponse",
+        "type": "object"
+      },
       "SourcePermitResponse": {
         "additionalProperties": false,
         "properties": {
@@ -210,6 +445,59 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerifiedArtifactUploadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactKind": {
+            "$ref": "#/components/schemas/ArtifactKind"
+          },
+          "contentDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Contentdigest",
+            "type": "string"
+          },
+          "contentType": {
+            "title": "Contenttype",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "minimum": 1.0,
+            "title": "Sizebytes",
+            "type": "integer"
+          },
+          "storageReference": {
+            "title": "Storagereference",
+            "type": "string"
+          },
+          "uploadId": {
+            "format": "uuid",
+            "title": "Uploadid",
+            "type": "string"
+          },
+          "verifiedAtUtc": {
+            "format": "date-time",
+            "title": "Verifiedatutc",
+            "type": "string"
+          },
+          "workId": {
+            "format": "uuid",
+            "title": "Workid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uploadId",
+          "workId",
+          "artifactKind",
+          "contentDigest",
+          "sizeBytes",
+          "contentType",
+          "storageReference",
+          "verifiedAtUtc"
+        ],
+        "title": "VerifiedArtifactUploadResponse",
+        "type": "object"
+      },
       "WorkCapability": {
         "enum": [
           "manual_import",
@@ -243,6 +531,15 @@
             "format": "uuid",
             "title": "Leasetoken",
             "type": "string"
+          },
+          "outputArtifacts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WorkOutputArtifactRequest"
+            },
+            "maxItems": 32,
+            "title": "Outputartifacts",
+            "type": "array"
           },
           "outputContract": {
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
@@ -384,6 +681,27 @@
         "title": "WorkFailureRequest",
         "type": "object"
       },
+      "WorkInputArtifactResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "title": "Artifactid",
+            "type": "string"
+          },
+          "role": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,63}$",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "role"
+        ],
+        "title": "WorkInputArtifactResponse",
+        "type": "object"
+      },
       "WorkLeaseResponse": {
         "additionalProperties": false,
         "properties": {
@@ -407,6 +725,13 @@
             "format": "date-time",
             "title": "Heartbeatdeadlineutc",
             "type": "string"
+          },
+          "inputArtifacts": {
+            "items": {
+              "$ref": "#/components/schemas/WorkInputArtifactResponse"
+            },
+            "title": "Inputartifacts",
+            "type": "array"
           },
           "inputDigest": {
             "pattern": "^sha256:[0-9a-f]{64}$",
@@ -464,6 +789,7 @@
           "expiresAtUtc",
           "heartbeatDeadlineUtc",
           "sourcePermit",
+          "inputArtifacts",
           "correlationId"
         ],
         "title": "WorkLeaseResponse",
@@ -505,6 +831,27 @@
           "availableAtUtc"
         ],
         "title": "WorkMutationResponse",
+        "type": "object"
+      },
+      "WorkOutputArtifactRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,63}$",
+            "title": "Role",
+            "type": "string"
+          },
+          "uploadId": {
+            "format": "uuid",
+            "title": "Uploadid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uploadId",
+          "role"
+        ],
+        "title": "WorkOutputArtifactRequest",
         "type": "object"
       },
       "WorkReleaseRequest": {
@@ -738,6 +1085,144 @@
           }
         },
         "summary": "Readiness"
+      }
+    },
+    "/worker/artifacts/prepare-read": {
+      "post": {
+        "operationId": "prepareWorkerArtifactRead",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactPrepareReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparedArtifactReadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Prepare Artifact Read",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/artifacts/prepare-upload": {
+      "post": {
+        "operationId": "prepareWorkerArtifactUpload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactPrepareUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparedArtifactUploadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Prepare Artifact Upload",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/worker/artifacts/verify-upload": {
+      "post": {
+        "operationId": "verifyWorkerArtifactUpload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactVerifyUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifiedArtifactUploadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "WorkerBearer": []
+          }
+        ],
+        "summary": "Verify Artifact Upload",
+        "tags": [
+          "worker"
+        ]
       }
     },
     "/worker/capabilities": {

@@ -8,6 +8,10 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
+from collection_application.work_artifacts import (
+    WorkOutputArtifact,
+    validate_artifact_bindings,
+)
 from collection_contracts import owner_error
 from collection_domain import (
     CollectionRunState,
@@ -16,6 +20,7 @@ from collection_domain import (
     StageRunState,
     WorkCapability,
     WorkFailureKind,
+    WorkInputArtifact,
     WorkLease,
     WorkStage,
     WorkUnitState,
@@ -128,6 +133,7 @@ class WorkUnitSpec:
     retry_policy: RetryPolicy
     available_at_utc: datetime
     correlation_id: str
+    input_artifacts: tuple[WorkInputArtifact, ...] = ()
 
     def __post_init__(self) -> None:
         if not capability_belongs_to_stage(self.stage, self.capability):
@@ -144,6 +150,11 @@ class WorkUnitSpec:
         _require_token("correlation_id", self.correlation_id)
         if not -1_000_000 <= self.priority <= 1_000_000:
             raise ValueError("work priority is outside the supported range")
+        validate_artifact_bindings(
+            identities=tuple(binding.artifact_id for binding in self.input_artifacts),
+            roles=tuple(binding.role for binding in self.input_artifacts),
+            owner_name="work unit input",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +200,7 @@ class WorkCompletion:
     output_digest: str
     worker_build_identity: str
     correlation_id: str
+    output_artifacts: tuple[WorkOutputArtifact, ...] = ()
 
     def __post_init__(self) -> None:
         _require_token("worker_id", self.worker_id)
@@ -197,6 +209,11 @@ class WorkCompletion:
         _require_digest("output_digest", self.output_digest)
         _require_token("worker_build_identity", self.worker_build_identity)
         _require_token("correlation_id", self.correlation_id)
+        validate_artifact_bindings(
+            identities=tuple(binding.upload_id for binding in self.output_artifacts),
+            roles=tuple(binding.role for binding in self.output_artifacts),
+            owner_name="work completion output",
+        )
 
 
 @dataclass(frozen=True, slots=True)

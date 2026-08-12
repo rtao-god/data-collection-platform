@@ -1,10 +1,12 @@
 from collection_infrastructure.postgres.artifact_metadata import (
     ARTIFACT_TABLES,
     artifact_objects,
+    artifact_records,
     artifact_uploads,
-    raw_artifacts,
+    work_input_artifacts,
     work_output_artifacts,
 )
+from collection_infrastructure.postgres.artifact_transfer import PostgresArtifactTransfer
 from collection_infrastructure.postgres.metadata import (
     CONFIG_SCHEMA,
     CONFIG_TABLES,
@@ -50,8 +52,10 @@ __all__ = [
     "WORK_ENGINE_TABLES",
     "WORK_SCHEMA",
     "WORK_TABLES",
+    "PostgresArtifactTransfer",
     "PostgresWorkEngine",
     "artifact_objects",
+    "artifact_records",
     "artifact_uploads",
     "collection_runs",
     "collector_metadata",
@@ -59,11 +63,11 @@ __all__ = [
     "config_bundle_components",
     "config_bundles",
     "dead_letters",
-    "raw_artifacts",
     "source_capacity_states",
     "stage_runs",
     "upgrade_database",
     "work_attempts",
+    "work_input_artifacts",
     "work_output_artifacts",
     "work_units",
     "worker_capabilities",

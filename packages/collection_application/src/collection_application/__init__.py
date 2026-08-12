@@ -12,6 +12,7 @@ from collection_application.artifacts import (
 )
 from collection_application.campaign_snapshot_service import CampaignSnapshotService
 from collection_application.ports import CampaignBundleSource, RawCampaignBundle
+from collection_application.work_artifacts import WorkInputArtifact, WorkOutputArtifact
 from collection_application.work_engine import (
     CollectionRunSpec,
     LeaseExpirySweep,
@@ -86,8 +87,10 @@ __all__ = [
     "WorkEngineService",
     "WorkFailure",
     "WorkFailureKind",
+    "WorkInputArtifact",
     "WorkLease",
     "WorkMutationResult",
+    "WorkOutputArtifact",
     "WorkRelease",
     "WorkStage",
     "WorkUnitSpec",

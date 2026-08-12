@@ -34,6 +34,8 @@ class S3Client(Protocol):
 
     def get_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
+    def head_bucket(self, **kwargs: object) -> Mapping[str, object]: ...
+
     def head_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
     def copy_object(self, **kwargs: object) -> Mapping[str, object]: ...
@@ -112,11 +114,26 @@ class S3ArtifactObjectStore:
             region_name=region_name,
             config=Config(
                 signature_version="s3v4",
+                connect_timeout=5,
+                read_timeout=30,
                 s3={"addressing_style": "path"},
                 retries={"max_attempts": 3, "mode": "standard"},
             ),
         )
         return cls(cast(S3Client, client), bucket=bucket)
+
+    def assert_ready(self) -> None:
+        try:
+            self._client.head_bucket(Bucket=self._bucket)
+        except Exception as exc:
+            raise ArtifactObjectStoreError(
+                code="ARTIFACT_OBJECT_STORE_UNAVAILABLE",
+                message="The artifact object-store bucket is unavailable.",
+                context={"causeType": type(exc).__name__},
+                required_action=(
+                    "Restore the configured S3-compatible bucket and verify gateway credentials."
+                ),
+            ) from exc
 
     def prepare_upload(
         self,
@@ -200,6 +217,7 @@ class S3ArtifactObjectStore:
             final_reference=final_reference,
             expected_digest=expected_digest,
             expected_size_bytes=expected_size_bytes,
+            expected_content_type=expected_content_type,
         ):
             try:
                 self._client.copy_object(
@@ -228,6 +246,7 @@ class S3ArtifactObjectStore:
                 final_reference=final_reference,
                 expected_digest=expected_digest,
                 expected_size_bytes=expected_size_bytes,
+                expected_content_type=expected_content_type,
             ):
                 raise ArtifactObjectStoreError(
                     code="ARTIFACT_PROMOTION_UNVERIFIED",
@@ -237,22 +256,8 @@ class S3ArtifactObjectStore:
                         "Inspect the object store before retrying artifact verification."
                     ),
                 )
-        try:
-            self._client.delete_object(Bucket=self._bucket, Key=staging_reference)
-        except Exception as exc:
-            raise ArtifactObjectStoreError(
-                code="ARTIFACT_STAGING_CLEANUP_FAILED",
-                message="The verified artifact was promoted but its staging object remains.",
-                context={
-                    "stagingReference": staging_reference,
-                    "finalReference": final_reference,
-                    "causeType": type(exc).__name__,
-                },
-                required_action=(
-                    "Retry verification or remove only this staging object through the "
-                    "artifact owner."
-                ),
-            ) from exc
+        # Retain the staging copy until owner-controlled orphan cleanup. Deleting it here
+        # would make a failed PostgreSQL verification commit impossible to retry safely.
         return VerifiedObject(
             staging_reference=staging_reference,
             final_reference=final_reference,
@@ -319,6 +324,7 @@ class S3ArtifactObjectStore:
         final_reference: str,
         expected_digest: str,
         expected_size_bytes: int,
+        expected_content_type: str,
     ) -> bool:
         try:
             response = self._client.head_object(Bucket=self._bucket, Key=final_reference)
@@ -346,6 +352,7 @@ class S3ArtifactObjectStore:
         metadata = response.get("Metadata")
         return (
             _required_int(response, "ContentLength") == expected_size_bytes
+            and _required_string(response, "ContentType") == expected_content_type
             and isinstance(metadata, Mapping)
             and metadata.get("sha256") == expected_digest.removeprefix("sha256:")
         )
@@ -388,15 +395,27 @@ def _stream_digest(body: StreamingBody) -> tuple[str, int]:
 def _required_int(response: Mapping[str, object], key: str) -> int:
     value = response.get(key)
     if not isinstance(value, int):
-        raise ValueError(f"S3 response {key} must be an integer")
+        raise _response_contract_error(key, "integer")
     return value
 
 
 def _required_string(response: Mapping[str, object], key: str) -> str:
     value = response.get(key)
     if not isinstance(value, str) or not value:
-        raise ValueError(f"S3 response {key} must be a non-empty string")
+        raise _response_contract_error(key, "non-empty string")
     return value
+
+
+def _response_contract_error(field: str, expected_type: str) -> ArtifactObjectStoreError:
+    return ArtifactObjectStoreError(
+        code="ARTIFACT_OBJECT_STORE_RESPONSE_INVALID",
+        message="The object store returned an invalid response contract.",
+        context={"field": field, "expectedType": expected_type},
+        required_action=(
+            "Verify the configured S3-compatible adapter and restore a "
+            "compatible response contract."
+        ),
+    )
 
 
 def _integrity_error(staging_reference: str, reason: str) -> ArtifactObjectStoreError:

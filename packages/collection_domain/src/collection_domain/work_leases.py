@@ -6,6 +6,10 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from collection_domain.source_capacity import SourcePermit
+from collection_domain.work_artifacts import (
+    WorkInputArtifact,
+    validate_artifact_binding_identity,
+)
 from collection_domain.work_units import (
     WorkCapability,
     WorkStage,
@@ -38,6 +42,7 @@ class WorkLease:
     heartbeat_deadline_utc: datetime
     source_permit: SourcePermit | None
     correlation_id: str
+    input_artifacts: tuple[WorkInputArtifact, ...] = ()
 
     def __post_init__(self) -> None:
         _require_token("worker_id", self.worker_id)
@@ -48,6 +53,11 @@ class WorkLease:
             raise ValueError("work lease source permit does not match its capability")
         _require_token("expected_output_contract", self.expected_output_contract)
         _require_token("correlation_id", self.correlation_id)
+        validate_artifact_binding_identity(
+            identities=tuple(binding.artifact_id for binding in self.input_artifacts),
+            roles=tuple(binding.role for binding in self.input_artifacts),
+            owner_name="work lease input",
+        )
         if _SHA256_PATTERN.fullmatch(self.input_digest) is None:
             raise ValueError("work lease input digest must be canonical SHA-256")
         _require_aware_utc("issued_at_utc", self.issued_at_utc)

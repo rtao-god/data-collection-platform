@@ -36,12 +36,20 @@ from collection_application import (
     WorkerRegistrationStatus,
     WorkFailure,
     WorkFailureKind,
+    WorkInputArtifact,
     WorkLease,
     WorkMutationResult,
     WorkRelease,
     WorkStage,
     WorkUnitSpec,
     WorkUnitState,
+)
+from collection_infrastructure.postgres.artifact_metadata import (
+    artifact_objects,
+    artifact_records,
+    artifact_uploads,
+    work_input_artifacts,
+    work_output_artifacts,
 )
 from collection_infrastructure.postgres.metadata import (
     config_bundle_blockers,
@@ -603,6 +611,7 @@ class PostgresWorkEngine:
                     context={"sourceKey": command.source_key, "workId": str(command.work_id)},
                     required_action="Configure the source before scheduling its work.",
                 )
+        self._require_input_artifacts_exist(connection, command)
         existing_rows = (
             connection.execute(
                 sa.select(work_units)
@@ -621,7 +630,12 @@ class PostgresWorkEngine:
             .all()
         )
         if existing_rows:
-            if len(existing_rows) == 1 and _same_work_identity(existing_rows[0], command):
+            existing_inputs = self._load_work_input_artifacts(
+                connection, UUID(str(existing_rows[0]["work_id"]))
+            )
+            if len(existing_rows) == 1 and _same_work_identity(
+                existing_rows[0], command, existing_inputs
+            ):
                 return
             canonical_work_id = str(existing_rows[0]["work_id"])
             raise _conflict(
@@ -675,6 +689,68 @@ class PostgresWorkEngine:
                 updated_at_utc=now_utc,
                 correlation_id=command.correlation_id,
             )
+        )
+        if command.input_artifacts:
+            connection.execute(
+                sa.insert(work_input_artifacts),
+                [
+                    {
+                        "work_id": command.work_id,
+                        "position": position,
+                        "artifact_id": binding.artifact_id,
+                        "role": binding.role,
+                    }
+                    for position, binding in enumerate(command.input_artifacts)
+                ],
+            )
+
+    def _require_input_artifacts_exist(
+        self,
+        connection: Connection,
+        command: WorkUnitSpec,
+    ) -> None:
+        if not command.input_artifacts:
+            return
+        requested = {binding.artifact_id for binding in command.input_artifacts}
+        existing = {
+            UUID(str(value))
+            for value in connection.execute(
+                sa.select(artifact_records.c.artifact_id).where(
+                    artifact_records.c.artifact_id.in_(requested)
+                )
+            ).scalars()
+        }
+        missing = sorted(str(value) for value in requested.difference(existing))
+        if missing:
+            raise _conflict(
+                code="WORK_INPUT_ARTIFACT_NOT_FOUND",
+                message="The work unit references artifact inputs that do not exist.",
+                context={"workId": str(command.work_id), "artifactIds": missing},
+                required_action=(
+                    "Schedule the work only after every exact input artifact has been committed."
+                ),
+            )
+
+    def _load_work_input_artifacts(
+        self,
+        connection: Connection,
+        work_id: UUID,
+    ) -> tuple[WorkInputArtifact, ...]:
+        rows = (
+            connection.execute(
+                sa.select(
+                    work_input_artifacts.c.artifact_id,
+                    work_input_artifacts.c.role,
+                )
+                .where(work_input_artifacts.c.work_id == work_id)
+                .order_by(work_input_artifacts.c.position)
+            )
+            .mappings()
+            .all()
+        )
+        return tuple(
+            WorkInputArtifact(artifact_id=UUID(str(row["artifact_id"])), role=str(row["role"]))
+            for row in rows
         )
 
     def _acquire_lease(
@@ -899,7 +975,10 @@ class PostgresWorkEngine:
                 correlation_id=command.correlation_id,
             )
         )
-        return _lease_from_work(updated_work, permit, command.correlation_id)
+        input_artifacts = self._load_work_input_artifacts(
+            connection, UUID(str(updated_work["work_id"]))
+        )
+        return _lease_from_work(updated_work, permit, command.correlation_id, input_artifacts)
 
     def _heartbeat(
         self,
@@ -953,7 +1032,10 @@ class PostgresWorkEngine:
             .values(last_seen_at_utc=now_utc, correlation_id=command.correlation_id)
         )
         permit = _permit_from_work(updated_work)
-        return _lease_from_work(updated_work, permit, command.correlation_id)
+        input_artifacts = self._load_work_input_artifacts(
+            connection, UUID(str(updated_work["work_id"]))
+        )
+        return _lease_from_work(updated_work, permit, command.correlation_id, input_artifacts)
 
     def _complete(
         self,
@@ -976,12 +1058,17 @@ class PostgresWorkEngine:
         )
         self._require_worker_build(attempt, command.worker_build_identity)
         if work["state"] == WorkUnitState.SUCCEEDED.value:
+            persisted_artifacts = self._load_work_output_identity(connection, command.work_id)
+            requested_artifacts = tuple(
+                (binding.upload_id, binding.role) for binding in command.output_artifacts
+            )
             if (
                 attempt["outcome"] == WorkAttemptOutcome.SUCCEEDED.value
                 and attempt["output_contract"] == command.output_contract
                 and attempt["output_digest"] == command.output_digest
                 and work["output_contract"] == command.output_contract
                 and work["output_digest"] == command.output_digest
+                and persisted_artifacts == requested_artifacts
             ):
                 return WorkCompletionResult(
                     work_id=command.work_id,
@@ -1015,6 +1102,7 @@ class PostgresWorkEngine:
                 },
                 required_action="Produce the exact output contract declared by the lease.",
             )
+        self._consume_output_artifacts(connection, work, attempt, command, now_utc)
         connection.execute(
             sa.update(work_attempts)
             .where(work_attempts.c.attempt_id == attempt["attempt_id"])
@@ -1060,6 +1148,209 @@ class PostgresWorkEngine:
             output_digest=command.output_digest,
             revision=int(updated_work.revision),
         )
+
+    def _load_work_output_identity(
+        self,
+        connection: Connection,
+        work_id: UUID,
+    ) -> tuple[tuple[UUID, str], ...]:
+        rows = (
+            connection.execute(
+                sa.select(artifact_records.c.upload_id, work_output_artifacts.c.role)
+                .select_from(
+                    work_output_artifacts.join(
+                        artifact_records,
+                        artifact_records.c.artifact_id == work_output_artifacts.c.artifact_id,
+                    )
+                )
+                .where(work_output_artifacts.c.work_id == work_id)
+                .order_by(work_output_artifacts.c.position)
+            )
+            .mappings()
+            .all()
+        )
+        return tuple((UUID(str(row["upload_id"])), str(row["role"])) for row in rows)
+
+    def _consume_output_artifacts(
+        self,
+        connection: Connection,
+        work: RowMapping,
+        attempt: RowMapping,
+        command: WorkCompletion,
+        now_utc: datetime,
+    ) -> None:
+        if not command.output_artifacts:
+            return
+        requested_ids = tuple(binding.upload_id for binding in command.output_artifacts)
+        rows = (
+            connection.execute(
+                sa.select(artifact_uploads)
+                .where(artifact_uploads.c.upload_id.in_(requested_ids))
+                .with_for_update()
+            )
+            .mappings()
+            .all()
+        )
+        uploads = {UUID(str(row["upload_id"])): row for row in rows}
+        missing = [str(value) for value in requested_ids if value not in uploads]
+        if missing:
+            raise _conflict(
+                code="WORK_OUTPUT_ARTIFACT_NOT_FOUND",
+                message="The completion references uploads that were not prepared.",
+                context={"workId": str(command.work_id), "uploadIds": missing},
+                required_action=(
+                    "Prepare and verify every output upload under the active lease "
+                    "before completion."
+                ),
+            )
+
+        for position, binding in enumerate(command.output_artifacts):
+            upload = uploads[binding.upload_id]
+            self._require_completion_upload_identity(upload, command)
+            if upload["state"] != "verified":
+                raise _conflict(
+                    code="WORK_OUTPUT_ARTIFACT_NOT_VERIFIED",
+                    message="The completion references an upload that is not verified.",
+                    context={
+                        "workId": str(command.work_id),
+                        "uploadId": str(binding.upload_id),
+                        "state": upload["state"],
+                    },
+                    required_action=(
+                        "Verify the exact upload through Worker Gateway before completing work."
+                    ),
+                )
+            final_reference = upload["final_reference"]
+            verified_at_utc = upload["verified_at_utc"]
+            if not isinstance(final_reference, str) or not isinstance(verified_at_utc, datetime):
+                raise _state_conflict(
+                    code="ARTIFACT_VERIFICATION_STATE_INVALID",
+                    message="A verified upload has incomplete persisted object identity.",
+                    context={"uploadId": str(binding.upload_id)},
+                )
+            object_id = self._get_or_create_artifact_object(
+                connection,
+                upload,
+                final_reference=final_reference,
+                verified_at_utc=verified_at_utc,
+                now_utc=now_utc,
+                correlation_id=command.correlation_id,
+            )
+            artifact_id = self._uuid_factory()
+            connection.execute(
+                sa.insert(artifact_records).values(
+                    artifact_id=artifact_id,
+                    object_id=object_id,
+                    upload_id=binding.upload_id,
+                    work_id=command.work_id,
+                    attempt_id=attempt["attempt_id"],
+                    worker_id=command.worker_id,
+                    content_type=upload["content_type"],
+                    source_policy_digest=work["source_policy_digest"],
+                    recorded_at_utc=now_utc,
+                    correlation_id=command.correlation_id,
+                )
+            )
+            connection.execute(
+                sa.insert(work_output_artifacts).values(
+                    work_id=command.work_id,
+                    position=position,
+                    artifact_id=artifact_id,
+                    role=binding.role,
+                )
+            )
+            connection.execute(
+                sa.update(artifact_uploads)
+                .where(artifact_uploads.c.upload_id == binding.upload_id)
+                .values(
+                    state="consumed",
+                    consumed_at_utc=now_utc,
+                    revision=artifact_uploads.c.revision + 1,
+                    correlation_id=command.correlation_id,
+                )
+            )
+
+    def _require_completion_upload_identity(
+        self,
+        upload: RowMapping,
+        command: WorkCompletion,
+    ) -> None:
+        checks = (
+            (upload["work_id"] == command.work_id, "work_id_mismatch"),
+            (upload["lease_id"] == command.lease_id, "lease_id_mismatch"),
+            (upload["lease_token"] == command.lease_token, "lease_token_mismatch"),
+            (upload["worker_id"] == command.worker_id, "worker_id_mismatch"),
+            (upload["input_digest"] == command.input_digest, "input_digest_mismatch"),
+        )
+        for valid, reason in checks:
+            if not valid:
+                raise _conflict(
+                    code="WORK_OUTPUT_ARTIFACT_STALE",
+                    message="The output upload is not owned by this active work lease.",
+                    context={
+                        "workId": str(command.work_id),
+                        "uploadId": str(upload["upload_id"]),
+                        "reason": reason,
+                    },
+                    required_action=(
+                        "Discard the upload and prepare a new one under the active lease."
+                    ),
+                )
+
+    def _get_or_create_artifact_object(
+        self,
+        connection: Connection,
+        upload: RowMapping,
+        *,
+        final_reference: str,
+        verified_at_utc: datetime,
+        now_utc: datetime,
+        correlation_id: str,
+    ) -> UUID:
+        _advisory_lock(
+            connection,
+            f"artifact-object:{upload['artifact_kind']}:{upload['expected_digest']}",
+        )
+        existing = (
+            connection.execute(
+                sa.select(artifact_objects)
+                .where(
+                    artifact_objects.c.artifact_kind == upload["artifact_kind"],
+                    artifact_objects.c.content_digest == upload["expected_digest"],
+                )
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if existing is not None:
+            if (
+                existing["size_bytes"] != upload["expected_size_bytes"]
+                or existing["storage_reference"] != final_reference
+            ):
+                raise _state_conflict(
+                    code="ARTIFACT_OBJECT_IDENTITY_CONFLICT",
+                    message="A content-addressed object has conflicting persisted identity.",
+                    context={
+                        "artifactKind": upload["artifact_kind"],
+                        "contentDigest": upload["expected_digest"],
+                    },
+                )
+            return UUID(str(existing["object_id"]))
+        object_id = self._uuid_factory()
+        connection.execute(
+            sa.insert(artifact_objects).values(
+                object_id=object_id,
+                artifact_kind=upload["artifact_kind"],
+                content_digest=upload["expected_digest"],
+                size_bytes=upload["expected_size_bytes"],
+                storage_reference=final_reference,
+                verified_at_utc=verified_at_utc,
+                recorded_at_utc=now_utc,
+                correlation_id=correlation_id,
+            )
+        )
+        return object_id
 
     def _fail(
         self,
@@ -1562,7 +1853,11 @@ def _advisory_lock(connection: Connection, identity: str) -> None:
     )
 
 
-def _same_work_identity(existing: RowMapping, command: WorkUnitSpec) -> bool:
+def _same_work_identity(
+    existing: RowMapping,
+    command: WorkUnitSpec,
+    existing_inputs: tuple[WorkInputArtifact, ...],
+) -> bool:
     return bool(
         existing["work_id"] == command.work_id
         and existing["run_id"] == command.run_id
@@ -1579,6 +1874,7 @@ def _same_work_identity(existing: RowMapping, command: WorkUnitSpec) -> bool:
         and existing["retry_multiplier"] == command.retry_policy.multiplier
         and existing["retry_max_delay_seconds"] == command.retry_policy.max_delay_seconds
         and existing["available_at_utc"] == command.available_at_utc
+        and existing_inputs == command.input_artifacts
     )
 
 
@@ -1619,6 +1915,7 @@ def _lease_from_work(
     work: RowMapping,
     permit: SourcePermit | None,
     correlation_id: str,
+    input_artifacts: tuple[WorkInputArtifact, ...],
 ) -> WorkLease:
     return WorkLease(
         lease_id=UUID(str(work["active_lease_id"])),
@@ -1634,6 +1931,7 @@ def _lease_from_work(
         heartbeat_deadline_utc=work["heartbeat_deadline_utc"],
         source_permit=permit,
         correlation_id=correlation_id,
+        input_artifacts=input_artifacts,
     )
 
 

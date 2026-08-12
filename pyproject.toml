@@ -21,6 +21,7 @@ members = [
 
 [dependency-groups]
 dev = [
+  "boto3-stubs[s3]==1.43.54",
   "httpx",
   "mypy==2.3.0",
   "pytest==9.0.2",

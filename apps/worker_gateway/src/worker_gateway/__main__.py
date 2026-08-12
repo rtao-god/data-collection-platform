@@ -8,8 +8,12 @@ import uvicorn
 from fastapi import FastAPI
 from sqlalchemy.engine import Engine
 
-from collection_application import WorkEngineService
-from collection_infrastructure import PostgresWorkEngine
+from collection_application import ArtifactTransferService, WorkEngineService
+from collection_infrastructure import (
+    PostgresArtifactTransfer,
+    PostgresWorkEngine,
+    S3ArtifactObjectStore,
+)
 from worker_gateway.app import GatewayDependencies, create_app
 from worker_gateway.auth import WorkerAuthenticator
 
@@ -23,6 +27,19 @@ _LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 def build_runtime() -> tuple[FastAPI, Engine]:
     database_url = _required_environment("COLLECTOR_DATABASE_URL")
     credential_file = Path(_required_environment("WORKER_GATEWAY_TOKEN_FILE"))
+    authenticator = WorkerAuthenticator.from_secret_file(credential_file)
+
+    object_store = S3ArtifactObjectStore.create(
+        endpoint_url=_required_environment("COLLECTOR_OBJECT_STORE_ENDPOINT"),
+        bucket=_required_environment("COLLECTOR_OBJECT_STORE_BUCKET"),
+        access_key_id=_read_secret_file(
+            Path(_required_environment("COLLECTOR_OBJECT_STORE_ACCESS_KEY_FILE"))
+        ),
+        secret_access_key=_read_secret_file(
+            Path(_required_environment("COLLECTOR_OBJECT_STORE_SECRET_KEY_FILE"))
+        ),
+        region_name=_required_environment("COLLECTOR_OBJECT_STORE_REGION"),
+    )
     expiry_interval = _float_environment(
         "WORKER_GATEWAY_EXPIRY_INTERVAL_SECONDS",
         _DEFAULT_EXPIRY_INTERVAL_SECONDS,
@@ -35,18 +52,20 @@ def build_runtime() -> tuple[FastAPI, Engine]:
         minimum=1,
         maximum=1_000,
     )
-    authenticator = WorkerAuthenticator.from_secret_file(credential_file)
     engine = sa.create_engine(database_url, pool_pre_ping=True)
     work_engine = WorkEngineService(PostgresWorkEngine(engine))
+    artifact_transfer = ArtifactTransferService(PostgresArtifactTransfer(engine, object_store))
 
     def readiness_probe() -> None:
         with engine.connect() as connection:
             if connection.execute(sa.text("SELECT 1")).scalar_one() != 1:
                 raise RuntimeError("PostgreSQL readiness probe returned an unexpected result")
+        object_store.assert_ready()
 
     application = create_app(
         GatewayDependencies(
             work_engine=work_engine,
+            artifact_transfer=artifact_transfer,
             authenticator=authenticator,
             readiness_probe=readiness_probe,
             expiry_interval_seconds=expiry_interval,
@@ -87,6 +106,18 @@ def _required_environment(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
         raise RuntimeError(f"{name} is required")
+    return value
+
+
+def _read_secret_file(path: Path) -> str:
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise RuntimeError(f"cannot read required secret file: {path}") from exc
+    if not value:
+        raise RuntimeError(f"required secret file is empty: {path}")
+    if len(value) > 4_096:
+        raise RuntimeError(f"required secret file is too large: {path}")
     return value
 
 
