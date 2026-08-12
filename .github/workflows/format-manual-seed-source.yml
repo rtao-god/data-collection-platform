@@ -36,18 +36,29 @@ jobs:
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
 
-      - name: Format and verify the exact owner file
+      - name: Correct, format, and verify the owner source
         shell: bash
         run: |
           set -euo pipefail
           target='packages/collection_application/src/collection_application/manual_seed.py'
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('packages/collection_application/src/collection_application/manual_seed.py')
+          source = path.read_text(encoding='utf-8')
+          old = 'optional_strings[field] = cast(str | None, value)'
+          new = 'optional_strings[field] = value'
+          if source.count(old) != 1:
+              raise SystemExit('expected exactly one redundant optional-string cast')
+          path.write_text(source.replace(old, new), encoding='utf-8')
+          PY
           uv run ruff format "$target"
           uv run ruff format --check "$target"
           uv run ruff check "$target"
-          uv run mypy "$target"
+          uv run mypy
           uv run pytest -q packages/collection_application/tests/test_manual_seed.py packages/collection_application/tests/test_campaign_snapshot_service.py
 
-      - name: Commit formatted source and remove workflow
+      - name: Commit verified source and remove workflow
         shell: bash
         run: |
           set -euo pipefail
@@ -55,5 +66,5 @@ jobs:
           git config user.email 'rtaogod@gmail.com'
           git rm .github/workflows/format-manual-seed-source.yml
           git add packages/collection_application/src/collection_application/manual_seed.py
-          git commit -m 'Fix (Manual Import): apply canonical source formatting' -m 'Owner layer: manual import application boundary.' -m 'Root cause: the restored source differed from the repository Ruff 0.16.1 canonical layout in two whitespace-only locations.' -m 'Replacement: format the exact owner file, then run its lint, strict typing, and targeted tests before removing this workflow in the same commit.'
+          git commit -m 'Fix (Manual Import): apply canonical formatting and typing' -m 'Owner layer: manual import application boundary.' -m 'Root cause: the restored source differed from Ruff canonical layout and retained one redundant cast found by the workspace strict typing gate.' -m 'Replacement: remove the redundant cast, format the exact owner source, and pass repository-wide mypy plus targeted owner tests before removing this workflow.'
           git push origin HEAD:main
