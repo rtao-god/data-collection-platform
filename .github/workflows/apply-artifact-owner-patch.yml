@@ -39,6 +39,7 @@ jobs:
           echo "9b0e613a79a04e5ed7ec35aa19a9e20843122ef0ca2cf946a5e63e5f8b3a4088  /tmp/artifact-owner.patch" | sha256sum --check --strict
           git apply --check /tmp/artifact-owner.patch
           git apply /tmp/artifact-owner.patch
+          sed -i 's/botocore==1\.46\.54/botocore==1.43.54/' packages/collection_infrastructure/pyproject.toml
 
       - name: Resolve exact dependency graph
         run: uv lock
