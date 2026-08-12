@@ -71,8 +71,15 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         allowed_internal_imports=(
             "collection_contracts",
             "collection_domain",
+            "manual_import_core",
         ),
         allowed_external_imports=frozenset({"pydantic", "yaml"}),
+    ),
+    "manual_import_core": OwnerPolicy(
+        project_path="packages/manual_import_core",
+        distribution_name="manual-import-core",
+        allowed_internal_imports=("collection_contracts",),
+        allowed_external_imports=frozenset({"pydantic"}),
     ),
     "collection_domain": OwnerPolicy(
         project_path="packages/collection_domain",

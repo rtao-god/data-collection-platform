@@ -5,6 +5,7 @@
 | Authored campaign content | Versioned files under `campaigns/<campaign-key>/` |
 | Campaign schema | `collection_contracts.campaign_config` |
 | Campaign filesystem boundary | `collection_infrastructure.FilesystemCampaignBundleSource` |
+| Manual import parsing, locators, record identity, plan identity, and error ledger | `manual_import_core` |
 | Campaign validation/canonicalization | `collection_application.CampaignSnapshotService` |
 | Snapshot digest contract | `collection_contracts.snapshot` |
 | Snapshot persistence | `collection_infrastructure.postgres.PostgresCampaignSnapshotStore` |

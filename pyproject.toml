@@ -17,6 +17,7 @@ members = [
   "packages/collection_contracts",
   "packages/collection_domain",
   "packages/collection_infrastructure",
+  "packages/manual_import_core",
 ]
 
 [dependency-groups]
@@ -71,6 +72,7 @@ files = [
   "database/migrations/env.py",
   "database/migrations/versions",
   "tools/contract_generation/generate.py",
+  "packages/manual_import_core/src/manual_import_core",
 ]
 
 [tool.pydantic-mypy]

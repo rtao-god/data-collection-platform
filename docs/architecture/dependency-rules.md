@@ -12,7 +12,8 @@ by the normal architecture check.
 | `worker_gateway` | `apps/worker_gateway` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
 | `collection_migration` | `apps/migration` | `collection_contracts`, `collection_infrastructure` | none |
 | `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
-| `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain` | `pydantic`, `yaml` |
+| `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
+| `manual_import_core` | `packages/manual_import_core` | `collection_contracts` | `pydantic` |
 | `collection_domain` | `packages/collection_domain` | none | none |
 | `collection_contracts` | `packages/collection_contracts` | none | `pydantic` |
 <!-- dependency-policy:end -->

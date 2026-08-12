@@ -12,6 +12,15 @@ from collection_contracts.campaign_config import (
     TaxonomyDocument,
 )
 from collection_contracts.errors import ErrorEnvelope, OwnerContextError, owner_error
+from collection_contracts.manual_import import (
+    ManualImportDisposition,
+    ManualImportFormat,
+    ManualImportIssue,
+    ManualImportLocator,
+    ManualImportMode,
+    ManualImportPlan,
+    ManualImportRecord,
+)
 from collection_contracts.snapshot import CampaignSnapshot, ComponentDigest, SnapshotBlocker
 
 __all__ = [
@@ -23,6 +32,13 @@ __all__ = [
     "EntityKind",
     "EntityKindsDocument",
     "ErrorEnvelope",
+    "ManualImportDisposition",
+    "ManualImportFormat",
+    "ManualImportIssue",
+    "ManualImportLocator",
+    "ManualImportMode",
+    "ManualImportPlan",
+    "ManualImportRecord",
     "ManualSeedRow",
     "OwnerContextError",
     "SnapshotBlocker",

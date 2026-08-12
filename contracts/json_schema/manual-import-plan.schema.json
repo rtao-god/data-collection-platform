@@ -1,0 +1,311 @@
+{
+  "$defs": {
+    "ManualImportContextValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ManualImportDisposition": {
+      "enum": [
+        "accepted",
+        "partial",
+        "rejected"
+      ],
+      "title": "ManualImportDisposition",
+      "type": "string"
+    },
+    "ManualImportFormat": {
+      "enum": [
+        "csv",
+        "json",
+        "jsonl"
+      ],
+      "title": "ManualImportFormat",
+      "type": "string"
+    },
+    "ManualImportIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "context": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ManualImportContextValue"
+          },
+          "title": "Context",
+          "type": "object"
+        },
+        "locator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManualImportLocator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ManualImportIssue",
+      "type": "object"
+    },
+    "ManualImportLocator": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "minimum": 1,
+          "title": "Index",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "csv_row",
+            "json_index",
+            "jsonl_line"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "pointer": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Pointer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "index",
+        "pointer"
+      ],
+      "title": "ManualImportLocator",
+      "type": "object"
+    },
+    "ManualImportMode": {
+      "enum": [
+        "atomic",
+        "partial"
+      ],
+      "title": "ManualImportMode",
+      "type": "string"
+    },
+    "ManualImportRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "locator": {
+          "$ref": "#/$defs/ManualImportLocator"
+        },
+        "record": {
+          "$ref": "#/$defs/ManualSeedRow"
+        },
+        "recordDigest": {
+          "title": "Recorddigest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "locator",
+        "record",
+        "recordDigest"
+      ],
+      "title": "ManualImportRecord",
+      "type": "object"
+    },
+    "ManualSeedRow": {
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "expected_entity_kind": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Expected Entity Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Note"
+        },
+        "osm_id": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Osm Id"
+        },
+        "provenance": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Provenance",
+          "type": "string"
+        },
+        "reference_urls": {
+          "items": {
+            "format": "uri",
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Reference Urls",
+          "type": "array"
+        },
+        "row_number": {
+          "exclusiveMinimum": 0,
+          "title": "Row Number",
+          "type": "integer"
+        },
+        "website": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Website"
+        }
+      },
+      "required": [
+        "row_number",
+        "expected_entity_kind",
+        "display_name",
+        "website",
+        "osm_id",
+        "reference_urls",
+        "note",
+        "provenance"
+      ],
+      "title": "ManualSeedRow",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "collector-manual-import-plan",
+      "default": "collector-manual-import-plan",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "manual-import-plan-v1",
+      "default": "manual-import-plan-v1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "disposition": {
+      "$ref": "#/$defs/ManualImportDisposition"
+    },
+    "format": {
+      "$ref": "#/$defs/ManualImportFormat"
+    },
+    "issueCount": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Issuecount",
+      "type": "integer"
+    },
+    "issues": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ManualImportIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "mode": {
+      "$ref": "#/$defs/ManualImportMode"
+    },
+    "planDigest": {
+      "title": "Plandigest",
+      "type": "string"
+    },
+    "records": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ManualImportRecord"
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "sourceDigest": {
+      "title": "Sourcedigest",
+      "type": "string"
+    },
+    "sourceSizeBytes": {
+      "maximum": 5368709120,
+      "minimum": 0,
+      "title": "Sourcesizebytes",
+      "type": "integer"
+    },
+    "validRecordCount": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Validrecordcount",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "sourceDigest",
+    "sourceSizeBytes",
+    "format",
+    "mode",
+    "disposition",
+    "validRecordCount",
+    "issueCount",
+    "planDigest"
+  ],
+  "title": "ManualImportPlan",
+  "type": "object"
+}

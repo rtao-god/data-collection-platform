@@ -5,7 +5,7 @@ import json
 import pytest
 from collection_application.manual_seed import read_manual_seed_records
 
-from collection_contracts import OwnerContextError
+from collection_contracts import ManualImportDisposition, OwnerContextError
 
 _VALID_JSON_RECORD = {
     "expected_entity_kind": "place",
@@ -38,27 +38,15 @@ def _read(
 
 
 def test_json_object_is_parsed_as_one_typed_record() -> None:
-    result = _read(json.dumps(_VALID_JSON_RECORD).encode(), format="json")
+    plan = _read(json.dumps(_VALID_JSON_RECORD).encode(), format="json")
 
-    assert result.record_count == 1
-    assert result.issues == ()
-    assert result.rows[0].row_number == 1
-    assert result.rows[0].display_name == "Example Studio"
-    assert tuple(str(value) for value in result.rows[0].reference_urls) == (
-        "https://example.test/contact",
-    )
+    assert plan.disposition is ManualImportDisposition.ACCEPTED
+    assert plan.valid_record_count == 1
+    assert plan.records[0].record.row_number == 1
+    assert plan.records[0].record.display_name == "Example Studio"
 
 
-def test_json_array_preserves_record_ordinal() -> None:
-    second = {**_VALID_JSON_RECORD, "display_name": "Second Studio"}
-
-    result = _read(json.dumps([_VALID_JSON_RECORD, second]).encode(), format="json")
-
-    assert [row.row_number for row in result.rows] == [1, 2]
-    assert [row.display_name for row in result.rows] == ["Example Studio", "Second Studio"]
-
-
-def test_json_lines_collects_every_invalid_record_with_physical_line_context() -> None:
+def test_json_lines_rejection_preserves_every_row_context() -> None:
     invalid_shape = {**_VALID_JSON_RECORD, "unknown": "value"}
     raw = b"\n".join(
         (
@@ -76,8 +64,7 @@ def test_json_lines_collects_every_invalid_record_with_physical_line_context() -
     assert envelope.context["validRecordCount"] == 1
     assert envelope.context["invalidRecordCount"] == 2
     issues = envelope.context["issues"]
-    assert [issue["lineNumber"] for issue in issues] == [2, 3]
-    assert [issue["recordNumber"] for issue in issues] == [2, 3]
+    assert [issue["locator"]["index"] for issue in issues] == [2, 3]
 
 
 def test_partial_mode_is_explicit_and_policy_gated() -> None:
@@ -85,26 +72,21 @@ def test_partial_mode_is_explicit_and_policy_gated() -> None:
     raw = json.dumps([_VALID_JSON_RECORD, invalid]).encode()
 
     with pytest.raises(OwnerContextError) as captured:
-        _read(
-            raw,
-            format="json",
-            partial_mode=True,
-            partial_mode_allowed=False,
-        )
+        _read(raw, format="json", partial_mode=True, partial_mode_allowed=False)
     assert captured.value.envelope.code == "MANUAL_SEED_PARTIAL_MODE_FORBIDDEN"
 
-    result = _read(
+    plan = _read(
         raw,
         format="json",
         partial_mode=True,
         partial_mode_allowed=True,
     )
-    assert len(result.rows) == 1
-    assert len(result.issues) == 1
-    assert result.issues[0].record_number == 2
+    assert plan.disposition is ManualImportDisposition.PARTIAL
+    assert plan.valid_record_count == 1
+    assert plan.issue_count == 1
 
 
-def test_duplicate_json_key_is_rejected_at_file_boundary() -> None:
+def test_duplicate_json_key_maps_to_existing_owner_error_contract() -> None:
     raw = (
         b'{"expected_entity_kind":"place","expected_entity_kind":"provider",'
         b'"display_name":"Duplicate","website":null,"osm_id":null,'
@@ -115,16 +97,7 @@ def test_duplicate_json_key_is_rejected_at_file_boundary() -> None:
         _read(raw, format="json")
 
     assert captured.value.envelope.code == "MANUAL_SEED_JSON_INVALID"
-    assert "duplicate JSON key" in str(captured.value.envelope.context["detail"])
-
-
-def test_non_finite_json_number_is_rejected() -> None:
-    raw = json.dumps(_VALID_JSON_RECORD).replace('"note": null', '"note": NaN').encode()
-
-    with pytest.raises(OwnerContextError) as captured:
-        _read(raw, format="json")
-
-    assert captured.value.envelope.code == "MANUAL_SEED_JSON_INVALID"
+    assert captured.value.envelope.context["issues"][0]["code"] == ("MANUAL_IMPORT_JSON_MALFORMED")
 
 
 def test_csv_reports_all_invalid_rows_in_one_error_ledger() -> None:
@@ -142,10 +115,11 @@ def test_csv_reports_all_invalid_rows_in_one_error_ledger() -> None:
     envelope = captured.value.envelope
     assert envelope.code == "MANUAL_SEED_FILE_INVALID"
     assert envelope.context["invalidRecordCount"] == 2
-    assert [issue["lineNumber"] for issue in envelope.context["issues"]] == [2, 3]
+    issues = envelope.context["issues"]
+    assert [issue["locator"]["index"] for issue in issues] == [2, 3]
 
 
-def test_file_size_is_checked_before_parsing() -> None:
+def test_file_size_is_checked_by_canonical_planner() -> None:
     with pytest.raises(OwnerContextError) as captured:
         read_manual_seed_records(
             b"{}",

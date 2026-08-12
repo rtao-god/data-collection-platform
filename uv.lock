@@ -11,6 +11,7 @@ members = [
     "collection-migration",
     "collector-cli",
     "data-collection-platform-workspace",
+    "manual-import-core",
     "worker-gateway",
 ]
 
@@ -166,6 +167,7 @@ source = { editable = "packages/collection_application" }
 dependencies = [
     { name = "collection-contracts" },
     { name = "collection-domain" },
+    { name = "manual-import-core" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
@@ -174,6 +176,7 @@ dependencies = [
 requires-dist = [
     { name = "collection-contracts", editable = "packages/collection_contracts" },
     { name = "collection-domain", editable = "packages/collection_domain" },
+    { name = "manual-import-core", editable = "packages/manual_import_core" },
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "pyyaml", specifier = "==6.0.3" },
 ]
@@ -415,6 +418,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/2a/12/b5fa2353e2754cd67fb9f83793fa48ff42c213a5da7e719869d2301f6ab8/mako-1.4.1.tar.gz", hash = "sha256:d7904710b662996425a21627710c4777c45053146942cf8a7aebf757c92b8c27", size = 410165, upload-time = "2026-08-05T06:10:56.611Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a5/54/12ed58d458474aaab5c3d180173e745a4fe131bb330370596876d19ff60f/mako-1.4.1-py3-none-any.whl", hash = "sha256:a359d9a94a541213958742b2698d0a7757bb83551767bc468a74b9905aba9617", size = 80010, upload-time = "2026-08-05T06:10:58.248Z" },
+]
+
+[[package]]
+name = "manual-import-core"
+version = "0.1.0"
+source = { editable = "packages/manual_import_core" }
+dependencies = [
+    { name = "collection-contracts" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "collection-contracts", editable = "packages/collection_contracts" },
+    { name = "pydantic", specifier = "==2.13.4" },
 ]
 
 [[package]]

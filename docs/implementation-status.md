@@ -9,6 +9,7 @@ integration test, or synthetic fixture is not reported as implemented behavior.
 |---|---|
 | Campaign authoring | Strict YAML/CSV/JSON/JSONL campaign bundle under `campaigns/` |
 | Campaign contracts | Pydantic owners in `collection_contracts` |
+| Manual import planning | One canonical CSV/JSON/JSONL parser, exact row/line locators, deterministic record and plan digests, complete issue ledger, and explicit atomic/partial disposition |
 | Snapshot compilation | Deterministic canonical JSON and SHA-256 identity |
 | Snapshot persistence | Transactional publication of immutable bundle metadata and blockers |
 | Generated contracts | Checked-in JSON Schemas and Worker Gateway OpenAPI with drift checks |
@@ -27,7 +28,7 @@ integration test, or synthetic fixture is not reported as implemented behavior.
 
 - no owner command for staging/orphan cleanup, retention tombstones, or legal hold;
 - no SeaweedFS Compose profile or live compatibility proof against a real S3-compatible server;
-- manual files are parsed and snapshot-bound, but the source file is not yet preserved as a raw artifact and each row is not yet scheduled as its own work unit;
+- manual plans are deterministic and snapshot validation consumes the same parser, but runtime intake still does not preserve the exact source as a raw artifact or schedule one work unit per accepted row;
 - no OSM, HTTP, browser, extraction, normalization, matching, quality, review, suppression, or export flow;
 - no Control API, Dagster composition, acquisition/processing workers, or review frontend;
 - no approved Berlin polygon or real-source production run.

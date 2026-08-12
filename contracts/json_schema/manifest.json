@@ -29,6 +29,11 @@
       "sha256": "sha256:aaf83bd998b1e04e47794df8dada2e5d2c507a58dd34cd0386deb97fe6b61834"
     },
     {
+      "file": "manual-import-plan.schema.json",
+      "model": "collection_contracts.manual_import.ManualImportPlan",
+      "sha256": "sha256:ad64cc85ad707f12c4b4d68d2458579207233f3d053b0c2f48fbcde3c6be5b9e"
+    },
+    {
       "file": "manual-seed-row.schema.json",
       "model": "collection_contracts.campaign_config.ManualSeedRow",
       "sha256": "sha256:831fde8ab9db5f568d5d84976924cf87e635362b04ea8e5452eaffe662ef91a1"

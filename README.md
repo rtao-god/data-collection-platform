@@ -12,7 +12,8 @@ platform packages.
 The repository currently implements the foundation, immutable campaign configuration, and the
 runtime Work Engine boundary:
 
-- strict declarative campaign contracts and CSV/JSON/JSONL manual input validation;
+- strict declarative campaign contracts and one canonical CSV/JSON/JSONL manual import planner;
+- exact manual record locators, deterministic record/plan digests, complete issue ledgers, and explicit atomic/partial disposition;
 - deterministic canonical JSON, component digests, and campaign snapshot identity;
 - transactional publication of immutable campaign snapshots;
 - generated JSON Schemas and Worker Gateway OpenAPI with checked-in drift proof;
