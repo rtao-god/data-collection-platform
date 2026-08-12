@@ -54,6 +54,12 @@ jobs:
                   '                    "Prepare and verify every output upload under the active lease "\n'
                   '                    "before completion."',
               ),
+              Path("packages/collection_infrastructure/tests/test_postgres_artifact_metadata.py"): (
+                  '        index for index in artifact_uploads.indexes if index.name == "ix_artifact_uploads_orphan_candidates"',
+                  '        index\n'
+                  '        for index in artifact_uploads.indexes\n'
+                  '        if index.name == "ix_artifact_uploads_orphan_candidates"',
+              ),
           }
           for path, (before, after) in replacements.items():
               content = path.read_text(encoding="utf-8")
