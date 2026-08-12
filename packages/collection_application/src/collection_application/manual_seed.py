@@ -167,8 +167,7 @@ def read_manual_seed_records(
             message="Partial manual import is not allowed by the source policy.",
             context={"path": path},
             required_action=(
-                "Correct the complete file or publish a policy that explicitly allows "
-                "partial mode."
+                "Correct the complete file or publish a policy that explicitly allows partial mode."
             ),
             correlation_id=correlation_id,
         )
@@ -466,7 +465,7 @@ def _parse_json_record(
                 }
             )
         else:
-            optional_strings[field] = cast(str | None, value)
+            optional_strings[field] = value
 
     raw_references = typed_record["reference_urls"]
     references: tuple[str, ...] = ()
@@ -554,6 +553,7 @@ def _load_json(text: str) -> object:
             parse_constant=_reject_json_constant,
         ),
     )
+
 
 def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
