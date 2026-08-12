@@ -1,0 +1,26 @@
+[project]
+name = "manual-import-worker"
+version = "0.1.0"
+description = "Isolated runtime worker for deterministic manual import planning"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "collection-contracts",
+  "httpx==0.28.1",
+  "manual-import-core",
+  "source-connector-sdk",
+]
+
+[project.scripts]
+manual-import-worker = "manual_import_worker.app:main"
+
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/manual_import_worker"]
+
+[tool.uv.sources]
+collection-contracts = { workspace = true }
+manual-import-core = { workspace = true }
+source-connector-sdk = { workspace = true }
