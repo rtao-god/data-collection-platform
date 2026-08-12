@@ -1,0 +1,1 @@
+Trigger permanent read-only verification for the preceding connector SDK commit.
