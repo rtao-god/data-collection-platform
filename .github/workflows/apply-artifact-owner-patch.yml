@@ -40,6 +40,27 @@ jobs:
           git apply --check /tmp/artifact-owner.patch
           git apply /tmp/artifact-owner.patch
           sed -i 's/botocore==1\.46\.54/botocore==1.43.54/' packages/collection_infrastructure/pyproject.toml
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path("packages/collection_infrastructure/src/collection_infrastructure/object_store/s3.py"): (
+                  '            "Verify the configured S3-compatible adapter and restore a compatible response contract."',
+                  '            "Verify the configured S3-compatible adapter and restore a "\n'
+                  '            "compatible response contract."',
+              ),
+              Path("packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py"): (
+                  '                    "Prepare and verify every output upload under the active lease before completion."',
+                  '                    "Prepare and verify every output upload under the active lease "\n'
+                  '                    "before completion."',
+              ),
+          }
+          for path, (before, after) in replacements.items():
+              content = path.read_text(encoding="utf-8")
+              if content.count(before) != 1:
+                  raise SystemExit(f"expected exactly one owner correction target in {path}")
+              path.write_text(content.replace(before, after), encoding="utf-8")
+          PY
 
       - name: Resolve exact dependency graph
         run: uv lock
@@ -47,8 +68,10 @@ jobs:
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
 
-      - name: Format owned source
-        run: uv run ruff format .
+      - name: Normalize owned source
+        run: |
+          uv run ruff check --fix .
+          uv run ruff format .
 
       - name: Regenerate owner contracts
         run: uv run python tools/contract_generation/generate.py
