@@ -1,0 +1,319 @@
+name: Finalize Manual Import Planner
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-manual-import-planner-20260812.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Converge exact production owner
+        run: |
+          script_commit="$(git log -n 1 --format=%H --all -- tools/apply_manual_import_planner_20260812.py)"
+          test -n "$script_commit"
+          git show "${script_commit}:tools/apply_manual_import_planner_20260812.py" > /tmp/apply_manual_import_planner.py
+          python /tmp/apply_manual_import_planner.py
+          python - <<'PY'
+          from pathlib import Path
+
+          contract = Path(
+              "packages/collection_contracts/src/collection_contracts/manual_import.py"
+          )
+          contract_text = contract.read_text(encoding="utf-8").replace(
+              'source_size_bytes: int = Field(alias="sourceSizeBytes", ge=0, le=16_777_216)',
+              'source_size_bytes: int = Field(alias="sourceSizeBytes", ge=0, le=5_368_709_120)',
+          )
+          contract.write_text(contract_text, encoding="utf-8")
+
+          planner = Path("packages/manual_import_core/src/manual_import_core/planner.py")
+          text = planner.read_text(encoding="utf-8")
+          text = text.replace("from typing import NoReturn", "from typing import NoReturn, cast")
+          text = text.replace(
+              "except (_UnsupportedJsonValue, ValidationError, ValueError) as exc:",
+              "except ValueError as exc:",
+          )
+          text = text.replace(
+              "except (ValidationError, ValueError) as exc:",
+              "except ValueError as exc:",
+          )
+          text = text.replace(
+              "except (json.JSONDecodeError, _DuplicateJsonKey, ValueError) as exc:",
+              "except ValueError as exc:",
+          )
+          text = text.replace(
+              "records.append((locator, row))",
+              "records.append((locator, cast(Mapping[str, object], row)))",
+          )
+          text = text.replace(
+              "return ((locator, document),), ()",
+              "return ((locator, cast(Mapping[str, object], document)),), ()",
+          )
+          text = text.replace(
+              "                value,\n            )",
+              "                cast(Mapping[str, object], value),\n            )",
+          )
+          text = text.replace(
+              "records.append((locator, value))",
+              "records.append((locator, cast(Mapping[str, object], value)))",
+          )
+          text = text.replace(
+              '        return _canonical_json(exc.errors(include_url=False))[:1_000]\n',
+              '        return str(exc)[:1_000]\n',
+          )
+          planner.write_text(text, encoding="utf-8")
+
+          planner_test = Path("packages/manual_import_core/tests/test_planner.py")
+          planner_test.write_text(
+              '''from __future__ import annotations
+
+import json
+
+from collection_contracts import (
+    ManualImportDisposition,
+    ManualImportFormat,
+    ManualImportIssue,
+    ManualImportMode,
+    ManualImportRecord,
+    ManualSeedRow,
+)
+from manual_import_core import (
+    build_manual_import_plan,
+    canonical_manual_import_plan_json,
+    schedulable_manual_import_records,
+)
+from manual_import_core.planner import _assemble_plan
+
+
+def _header_only_csv() -> bytes:
+    headers = [field.alias or name for name, field in ManualSeedRow.model_fields.items()]
+    return (",".join(headers) + "\n").encode("utf-8")
+
+
+def test_canonical_header_only_csv_has_deterministic_plan() -> None:
+    content = _header_only_csv()
+    first = build_manual_import_plan(content, format=ManualImportFormat.CSV)
+    second = build_manual_import_plan(content, format=ManualImportFormat.CSV)
+
+    assert first == second
+    assert first.disposition is ManualImportDisposition.ACCEPTED
+    assert canonical_manual_import_plan_json(first) == canonical_manual_import_plan_json(second)
+
+
+def test_duplicate_json_key_is_rejected_with_file_ledger() -> None:
+    plan = build_manual_import_plan(
+        b'{"entityKey":"one","entityKey":"two"}',
+        format=ManualImportFormat.JSON,
+    )
+
+    assert plan.disposition is ManualImportDisposition.REJECTED
+    assert plan.issues[0].code == "MANUAL_IMPORT_JSON_MALFORMED"
+    assert schedulable_manual_import_records(plan) == ()
+
+
+def test_jsonl_reports_exact_physical_line() -> None:
+    plan = build_manual_import_plan(
+        b'\n{"nested":{"value":1}}\n',
+        format=ManualImportFormat.JSONL,
+        mode=ManualImportMode.PARTIAL,
+    )
+
+    assert plan.disposition is ManualImportDisposition.REJECTED
+    assert plan.issues[0].locator is not None
+    assert plan.issues[0].locator.kind == "jsonl_line"
+    assert plan.issues[0].locator.index == 2
+
+
+def test_partial_mode_is_explicit_and_schedules_only_valid_records() -> None:
+    record = ManualImportRecord(
+        locator={"kind": "json_index", "index": 1, "pointer": "$[0]"},
+        record=ManualSeedRow.model_construct(),
+        record_digest="sha256:" + "1" * 64,
+    )
+    issue = ManualImportIssue(
+        locator={"kind": "json_index", "index": 2, "pointer": "$[1]"},
+        code="MANUAL_IMPORT_RECORD_INVALID",
+        message="invalid",
+    )
+    partial = _assemble_plan(
+        source_digest="sha256:" + "2" * 64,
+        source_size_bytes=2,
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.PARTIAL,
+        records=(record,),
+        issues=(issue,),
+    )
+    atomic = _assemble_plan(
+        source_digest="sha256:" + "2" * 64,
+        source_size_bytes=2,
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+        records=(record,),
+        issues=(issue,),
+    )
+
+    assert partial.disposition is ManualImportDisposition.PARTIAL
+    assert schedulable_manual_import_records(partial) == (record,)
+    assert atomic.disposition is ManualImportDisposition.REJECTED
+    assert schedulable_manual_import_records(atomic) == ()
+
+
+def test_plan_digest_covers_error_ledger() -> None:
+    first = build_manual_import_plan(b"not-json", format=ManualImportFormat.JSON)
+    second = build_manual_import_plan(b"still-not-json", format=ManualImportFormat.JSON)
+
+    assert first.plan_digest != second.plan_digest
+    payload = json.loads(canonical_manual_import_plan_json(first))
+    assert payload["planDigest"] == first.plan_digest
+''',
+              encoding="utf-8",
+          )
+
+          worker_test = Path("apps/manual_import_worker/tests/test_cli.py")
+          worker_test.write_text(
+              '''from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from collection_contracts import ManualSeedRow
+from manual_import_worker.app import main
+
+
+def _header_only_csv() -> str:
+    headers = [field.alias or name for name, field in ManualSeedRow.model_fields.items()]
+    return ",".join(headers) + "\n"
+
+
+def test_plan_command_writes_canonical_ledger(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text(_header_only_csv(), encoding="utf-8")
+    output = tmp_path / "plan.json"
+
+    result = main(
+        [
+            "plan",
+            str(source),
+            "--format",
+            "csv",
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["contract"] == "collector-manual-import-plan"
+    assert payload["disposition"] == "accepted"
+
+
+def test_rejected_plan_is_written_and_returns_distinct_exit(tmp_path: Path) -> None:
+    source = tmp_path / "invalid.json"
+    source.write_text("not-json", encoding="utf-8")
+    output = tmp_path / "plan.json"
+
+    result = main(
+        [
+            "plan",
+            str(source),
+            "--format",
+            "json",
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert result == 2
+    assert json.loads(output.read_text(encoding="utf-8"))["disposition"] == "rejected"
+''',
+              encoding="utf-8",
+          )
+          PY
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run python tools/contract_generation/generate.py
+          uv run ruff check --fix .
+          uv run ruff format .
+
+      - name: Verify complete repository
+        run: |
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m "not integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps database packages tools
+          uv run collector config validate berlin_recording_services
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+          docker build --file deploy/docker/collector-cli.Dockerfile .
+          docker build --file deploy/docker/migration.Dockerfile .
+          docker build --file deploy/docker/worker-gateway.Dockerfile .
+          docker build --file deploy/docker/manual-import-worker.Dockerfile .
+
+      - name: Remove all bounded implementation tooling
+        run: |
+          rm -f \
+            tools/apply_manual_import_planner_20260812.py \
+            .github/workflows/apply-manual-import-planner-20260812.yml \
+            .github/workflows/reconcile-manual-import-planner-20260812.yml \
+            .github/workflows/repair-manual-import-planner-20260812.yml \
+            .github/workflows/finalize-manual-import-planner-20260812.yml
+          test "$(find .github/workflows -maxdepth 1 -type f -printf '%f\n' | sort)" = "ci.yml"
+
+      - name: Commit verified planner owner
+        run: |
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit \
+            -m "Feat (Manual Import): add deterministic isolated planning" \
+            -m "Owner layers: manual import contracts, planning core, and connector process." \
+            -m "Root cause: CSV, JSON, and JSONL inputs lacked one runtime-neutral owner for exact locators, fail-closed atomic semantics, explicit partial acceptance, deterministic record identity, and a complete immutable error ledger." \
+            -m "Replacement: add strict public contracts, a pure planning package, an isolated non-database worker CLI/image, generated schema, fail-closed dependency registration, and regression proof while preserving the existing campaign authoring path." \
+            -m "Proof target: frozen restore, generated-contract drift, formatting, lint, strict typing, unit and architecture tests, fresh PostgreSQL/PostGIS migration, integration suite, campaign validation, and every production image."
+          git push origin HEAD:main
