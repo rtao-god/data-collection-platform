@@ -52,6 +52,17 @@ jobs:
           cat .codex/payloads/manual-import-owner-20260812.part* | base64 --decode > /tmp/manual-import-owner.tar.gz
           echo "761c2d80af7bb8630996b5c66050f18b3e844126fecaa6f7c5181d0e0b276fcd  /tmp/manual-import-owner.tar.gz" | sha256sum --check
           tar -xzf /tmp/manual-import-owner.tar.gz -C .
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("packages/collection_contracts/src/collection_contracts/manual_import.py")
+          text = path.read_text(encoding="utf-8")
+          old = "str | int | bool | None | tuple[str, ...]"
+          new = "str | int | bool | tuple[str, ...] | None"
+          if text.count(old) != 1:
+              raise RuntimeError("manual import context union owner source did not match exactly once")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
           rm -f .github/workflows/apply-manual-import-planner-20260812.yml
           rm -f .github/workflows/reconcile-manual-import-planner-20260812.yml
           rm -f .github/workflows/repair-manual-import-planner-20260812.yml
