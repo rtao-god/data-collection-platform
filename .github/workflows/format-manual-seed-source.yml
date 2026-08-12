@@ -1,0 +1,59 @@
+name: Format Manual Seed Source
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/format-manual-seed-source.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: format-manual-seed-source
+  cancel-in-progress: false
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Format and verify the exact owner file
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='packages/collection_application/src/collection_application/manual_seed.py'
+          uv run ruff format "$target"
+          uv run ruff format --check "$target"
+          uv run ruff check "$target"
+          uv run mypy "$target"
+          uv run pytest -q packages/collection_application/tests/test_manual_seed.py packages/collection_application/tests/test_campaign_snapshot_service.py
+
+      - name: Commit formatted source and remove workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git rm .github/workflows/format-manual-seed-source.yml
+          git add packages/collection_application/src/collection_application/manual_seed.py
+          git commit -m 'Fix (Manual Import): apply canonical source formatting' -m 'Owner layer: manual import application boundary.' -m 'Root cause: the restored source differed from the repository Ruff 0.16.1 canonical layout in two whitespace-only locations.' -m 'Replacement: format the exact owner file, then run its lint, strict typing, and targeted tests before removing this workflow in the same commit.'
+          git push origin HEAD:main
