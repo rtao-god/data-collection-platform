@@ -1,0 +1,1 @@
+Trigger the permanent read-only verification workflow for the sealed manual-import admission tree.
