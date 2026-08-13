@@ -1,0 +1,105 @@
+name: Worker Image Isolation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/worker-image-isolation.yml
+      - .python-version
+      - pyproject.toml
+      - uv.lock
+      - apps/manual_import_worker/**
+      - apps/osm_worker/**
+      - connectors/osm_overpass/**
+      - packages/collection_contracts/**
+      - packages/manual_import_core/**
+      - packages/source_connector_sdk/**
+      - deploy/docker/manual-import-worker.Dockerfile
+      - deploy/docker/osm-worker.Dockerfile
+  pull_request:
+    paths:
+      - .github/workflows/worker-image-isolation.yml
+      - .python-version
+      - pyproject.toml
+      - uv.lock
+      - apps/manual_import_worker/**
+      - apps/osm_worker/**
+      - connectors/osm_overpass/**
+      - packages/collection_contracts/**
+      - packages/manual_import_core/**
+      - packages/source_connector_sdk/**
+      - deploy/docker/manual-import-worker.Dockerfile
+      - deploy/docker/osm-worker.Dockerfile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image-isolation:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - worker: manual-import-worker
+            dockerfile: deploy/docker/manual-import-worker.Dockerfile
+            image: data-collection-platform/manual-import-worker:ci
+            required_module: manual_import_worker
+          - worker: osm-worker
+            dockerfile: deploy/docker/osm-worker.Dockerfile
+            image: data-collection-platform/osm-worker:ci
+            required_module: osm_worker
+    name: ${{ matrix.worker }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build capability-minimal image
+        run: docker build --tag "${{ matrix.image }}" --file "${{ matrix.dockerfile }}" .
+
+      - name: Verify runtime identity and entrypoint
+        env:
+          IMAGE: ${{ matrix.image }}
+          EXPECTED_ENTRYPOINT: ${{ matrix.worker }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "10001:10001"
+          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' "$IMAGE")" = "$EXPECTED_ENTRYPOINT"
+
+      - name: Verify required module and forbidden dependency inventory
+        env:
+          IMAGE: ${{ matrix.image }}
+          REQUIRED_MODULE: ${{ matrix.required_module }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -i \
+            --entrypoint python \
+            --env "REQUIRED_MODULE=$REQUIRED_MODULE" \
+            "$IMAGE" \
+            - <<'PY'
+          from importlib import import_module
+          from importlib.util import find_spec
+          import os
+
+          import_module(os.environ["REQUIRED_MODULE"])
+          import_module("source_connector_sdk")
+
+          forbidden = {
+              "alembic",
+              "boto3",
+              "botocore",
+              "playwright",
+              "psycopg",
+              "scrapy",
+              "sqlalchemy",
+          }
+          present = sorted(name for name in forbidden if find_spec(name) is not None)
+          if present:
+              raise SystemExit(
+                  "worker image contains forbidden dependencies: " + ", ".join(present)
+              )
+          PY
