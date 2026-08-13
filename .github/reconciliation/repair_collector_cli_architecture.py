@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -19,8 +21,9 @@ def main() -> int:
         '  "sqlalchemy==2.0.51",\n'
         ']\n',
     )
+    checker = Path("tools/architecture_checks/check_dependencies.py")
     _replace_once(
-        Path("tools/architecture_checks/check_dependencies.py"),
+        checker,
         '        allowed_external_imports=frozenset(),\n'
         '    ),\n'
         '    "worker_gateway": OwnerPolicy(\n',
@@ -28,6 +31,18 @@ def main() -> int:
         '    ),\n'
         '    "worker_gateway": OwnerPolicy(\n',
     )
+
+    policy = subprocess.check_output(
+        [sys.executable, str(checker), "--print-policy"],
+        text=True,
+    ).strip()
+    policy_path = Path("docs/architecture/dependency-rules.md")
+    text = policy_path.read_text(encoding="utf-8")
+    start_marker = "<!-- dependency-policy:start -->"
+    end_marker = "<!-- dependency-policy:end -->"
+    start = text.index(start_marker)
+    end = text.index(end_marker, start) + len(end_marker)
+    policy_path.write_text(text[:start] + policy + text[end:], encoding="utf-8")
     return 0
 
 
