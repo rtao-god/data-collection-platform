@@ -38,53 +38,43 @@ def _worker_id(value: str) -> str:
     return f"worker-{sha256(value.encode('utf-8')).hexdigest()[:12]}"
 
 
+def _table(connection: sa.Connection, schema: str, name: str) -> sa.Table:
+    return sa.Table(name, sa.MetaData(), schema=schema, autoload_with=connection)
+
+
+def _insert(
+    connection: sa.Connection,
+    schema: str,
+    name: str,
+    values: dict[str, object],
+) -> None:
+    connection.execute(sa.insert(_table(connection, schema, name)).values(**values))
+
+
 def _insert_config(connection: sa.Connection, label: str) -> str:
     bundle_digest = _digest(f"{label}:config")
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO config.config_bundle_components (
-                bundle_digest,
-                position,
-                path,
-                component_digest
-            ) VALUES (
-                :bundle_digest,
-                0,
-                'campaign.yaml',
-                :component_digest
-            )
-            """
-        ),
+    _insert(
+        connection,
+        "config",
+        "config_bundle_components",
         {
             "bundle_digest": bundle_digest,
+            "position": 0,
+            "path": "campaign.yaml",
             "component_digest": _digest(f"{label}:component"),
         },
     )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO config.config_bundles (
-                bundle_digest,
-                campaign_key,
-                contract,
-                contract_revision,
-                readiness,
-                recorded_at_utc
-            ) VALUES (
-                :bundle_digest,
-                :campaign_key,
-                'collector-campaign-snapshot',
-                'campaign-snapshot-v1',
-                'ready',
-                :now_utc
-            )
-            """
-        ),
+    _insert(
+        connection,
+        "config",
+        "config_bundles",
         {
             "bundle_digest": bundle_digest,
             "campaign_key": f"campaign_{sha256(label.encode('utf-8')).hexdigest()[:12]}",
-            "now_utc": _NOW,
+            "contract": "collector-campaign-snapshot",
+            "contract_revision": "campaign-snapshot-v1",
+            "readiness": "ready",
+            "recorded_at_utc": _NOW,
         },
     )
     return bundle_digest
@@ -98,68 +88,35 @@ def _insert_run_stage(
 ) -> tuple[UUID, UUID]:
     run_id = _id(f"{label}:run")
     stage_run_id = _id(f"{label}:stage")
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO runs.collection_runs (
-                run_id,
-                campaign_key,
-                config_bundle_digest,
-                state,
-                revision,
-                created_at_utc,
-                updated_at_utc,
-                correlation_id
-            ) VALUES (
-                :run_id,
-                :campaign_key,
-                :config_bundle_digest,
-                'running',
-                0,
-                :now_utc,
-                :now_utc,
-                :correlation_id
-            )
-            """
-        ),
+    correlation_id = f"correlation-{label}"
+    _insert(
+        connection,
+        "runs",
+        "collection_runs",
         {
             "run_id": run_id,
             "campaign_key": f"campaign_{sha256(label.encode('utf-8')).hexdigest()[:12]}",
             "config_bundle_digest": _insert_config(connection, label),
-            "now_utc": _NOW,
-            "correlation_id": f"correlation-{label}",
+            "state": "running",
+            "revision": 0,
+            "created_at_utc": _NOW,
+            "updated_at_utc": _NOW,
+            "correlation_id": correlation_id,
         },
     )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO runs.stage_runs (
-                stage_run_id,
-                run_id,
-                stage,
-                state,
-                revision,
-                created_at_utc,
-                updated_at_utc,
-                correlation_id
-            ) VALUES (
-                :stage_run_id,
-                :run_id,
-                :stage,
-                'running',
-                0,
-                :now_utc,
-                :now_utc,
-                :correlation_id
-            )
-            """
-        ),
+    _insert(
+        connection,
+        "runs",
+        "stage_runs",
         {
             "stage_run_id": stage_run_id,
             "run_id": run_id,
             "stage": stage,
-            "now_utc": _NOW,
-            "correlation_id": f"correlation-{label}",
+            "state": "running",
+            "revision": 0,
+            "created_at_utc": _NOW,
+            "updated_at_utc": _NOW,
+            "correlation_id": correlation_id,
         },
     )
     return run_id, stage_run_id
@@ -168,40 +125,21 @@ def _insert_run_stage(
 def _insert_source(connection: sa.Connection, label: str) -> tuple[str, str]:
     source_key = _source_key(label)
     policy_digest = _digest(f"{label}:policy")
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO sources.source_capacity_states (
-                source_key,
-                policy_digest,
-                operational_state,
-                max_active_requests,
-                active_requests,
-                minimum_interval_milliseconds,
-                next_allowed_request_at_utc,
-                retry_after_utc,
-                revision,
-                updated_at_utc,
-                correlation_id
-            ) VALUES (
-                :source_key,
-                :policy_digest,
-                'active',
-                2,
-                0,
-                100,
-                :now_utc,
-                NULL,
-                0,
-                :now_utc,
-                :correlation_id
-            )
-            """
-        ),
+    _insert(
+        connection,
+        "sources",
+        "source_capacity_states",
         {
             "source_key": source_key,
             "policy_digest": policy_digest,
-            "now_utc": _NOW,
+            "operational_state": "active",
+            "max_active_requests": 2,
+            "active_requests": 0,
+            "minimum_interval_milliseconds": 100,
+            "next_allowed_request_at_utc": _NOW,
+            "retry_after_utc": None,
+            "revision": 0,
+            "updated_at_utc": _NOW,
             "correlation_id": f"correlation-{label}",
         },
     )
@@ -215,74 +153,42 @@ def _insert_worker(
     output_contract: str = "integration-output",
 ) -> str:
     worker_id = _worker_id(label)
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO work.worker_registrations (
-                worker_id,
-                registration_digest,
-                build_identity,
-                max_concurrency,
-                resource_profile,
-                registered_at_utc,
-                correlation_id
-            ) VALUES (
-                :worker_id,
-                :registration_digest,
-                :build_identity,
-                2,
-                'integration-test',
-                :now_utc,
-                :correlation_id
-            )
-            """
-        ),
+    correlation_id = f"correlation-{label}"
+    _insert(
+        connection,
+        "work",
+        "worker_registrations",
         {
             "worker_id": worker_id,
             "registration_digest": _digest(f"{label}:worker-registration"),
             "build_identity": f"build-{label}",
-            "now_utc": _NOW,
-            "correlation_id": f"correlation-{label}",
+            "max_concurrency": 2,
+            "resource_profile": "integration-test",
+            "registered_at_utc": _NOW,
+            "correlation_id": correlation_id,
         },
     )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO work.worker_capabilities (worker_id, capability)
-            VALUES (:worker_id, :capability)
-            """
-        ),
+    _insert(
+        connection,
+        "work",
+        "worker_capabilities",
         {"worker_id": worker_id, "capability": capability},
     )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO work.worker_output_contracts (worker_id, output_contract)
-            VALUES (:worker_id, :output_contract)
-            """
-        ),
+    _insert(
+        connection,
+        "work",
+        "worker_output_contracts",
         {"worker_id": worker_id, "output_contract": output_contract},
     )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO work.worker_heartbeats (
-                worker_id,
-                last_seen_at_utc,
-                active_lease_count,
-                correlation_id
-            ) VALUES (
-                :worker_id,
-                :now_utc,
-                0,
-                :correlation_id
-            )
-            """
-        ),
+    _insert(
+        connection,
+        "work",
+        "worker_heartbeats",
         {
             "worker_id": worker_id,
-            "now_utc": _NOW,
-            "correlation_id": f"correlation-{label}",
+            "last_seen_at_utc": _NOW,
+            "active_lease_count": 0,
+            "correlation_id": correlation_id,
         },
     )
     return worker_id
@@ -316,6 +222,17 @@ def _pending_work_values(
         "retry_multiplier": 2,
         "retry_max_delay_seconds": 60,
         "available_at_utc": _NOW,
+        "active_lease_id": None,
+        "active_lease_token": None,
+        "active_worker_id": None,
+        "lease_issued_at_utc": None,
+        "lease_expires_at_utc": None,
+        "heartbeat_deadline_utc": None,
+        "source_policy_digest": None,
+        "source_permit_not_before_utc": None,
+        "output_contract": None,
+        "output_digest": None,
+        "completed_at_utc": None,
         "revision": 0,
         "created_at_utc": _NOW,
         "updated_at_utc": _NOW,
@@ -323,83 +240,8 @@ def _pending_work_values(
     }
 
 
-def _insert_pending_work(connection: sa.Connection, values: dict[str, object]) -> None:
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO work.work_units (
-                work_id,
-                run_id,
-                stage_run_id,
-                stage,
-                capability,
-                source_key,
-                semantic_key,
-                input_digest,
-                expected_output_contract,
-                priority,
-                state,
-                attempt_count,
-                failure_count,
-                max_attempts,
-                retry_initial_delay_seconds,
-                retry_multiplier,
-                retry_max_delay_seconds,
-                available_at_utc,
-                active_lease_id,
-                active_lease_token,
-                active_worker_id,
-                lease_issued_at_utc,
-                lease_expires_at_utc,
-                heartbeat_deadline_utc,
-                source_policy_digest,
-                source_permit_not_before_utc,
-                output_contract,
-                output_digest,
-                completed_at_utc,
-                revision,
-                created_at_utc,
-                updated_at_utc,
-                correlation_id
-            ) VALUES (
-                :work_id,
-                :run_id,
-                :stage_run_id,
-                :stage,
-                :capability,
-                :source_key,
-                :semantic_key,
-                :input_digest,
-                :expected_output_contract,
-                :priority,
-                :state,
-                :attempt_count,
-                :failure_count,
-                :max_attempts,
-                :retry_initial_delay_seconds,
-                :retry_multiplier,
-                :retry_max_delay_seconds,
-                :available_at_utc,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                NULL,
-                :revision,
-                :created_at_utc,
-                :updated_at_utc,
-                :correlation_id
-            )
-            """
-        ),
-        values,
-    )
+def _insert_work(connection: sa.Connection, values: dict[str, object]) -> None:
+    _insert(connection, "work", "work_units", values)
 
 
 def test_fresh_migration_creates_exact_work_engine_contract() -> None:
@@ -411,10 +253,15 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
         "stage_runs",
     }
     assert set(inspector.get_table_names(schema="sources")) == {
+        "artifact_cleanup_tombstones",
         "artifact_objects",
         "artifact_records",
         "artifact_uploads",
         "source_capacity_states",
+    }
+    assert set(inspector.get_table_names(schema="manual_import")) == {
+        "plan_admission_items",
+        "plan_admissions",
     }
     assert set(inspector.get_table_names(schema="work")) == {
         "dead_letters",
@@ -481,6 +328,10 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
     assert {
         index["name"] for index in inspector.get_indexes("artifact_uploads", schema="sources")
     } >= {"ix_artifact_uploads_orphan_candidates"}
+    assert {
+        index["name"]
+        for index in inspector.get_indexes("artifact_cleanup_tombstones", schema="sources")
+    } == {"ix_artifact_cleanup_tombstones_claim"}
 
 
 def test_worker_output_contract_identity_is_fail_closed() -> None:
@@ -490,14 +341,11 @@ def test_worker_output_contract_identity_is_fail_closed() -> None:
         worker_id = _insert_worker(connection, "worker-contract", "extraction")
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO work.worker_output_contracts (worker_id, output_contract)
-                VALUES (:worker_id, 'invalid contract')
-                """
-            ),
-            {"worker_id": worker_id},
+        _insert(
+            connection,
+            "work",
+            "worker_output_contracts",
+            {"worker_id": worker_id, "output_contract": "invalid contract"},
         )
 
 
@@ -520,14 +368,14 @@ def test_failure_budget_is_independent_from_safe_attempts() -> None:
         )
         values["attempt_count"] = 5
         values["failure_count"] = 1
-        _insert_pending_work(connection, values)
+        _insert_work(connection, values)
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
         invalid = dict(values)
         invalid["work_id"] = _id("safe-attempt-budget:invalid")
         invalid["semantic_key"] = _digest("safe-attempt-budget:invalid")
         invalid["failure_count"] = 6
-        _insert_pending_work(connection, invalid)
+        _insert_work(connection, invalid)
 
 
 def test_source_capability_contract_rejects_missing_or_extraneous_source() -> None:
@@ -541,7 +389,7 @@ def test_source_capability_contract_rejects_missing_or_extraneous_source() -> No
         )
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
-        _insert_pending_work(
+        _insert_work(
             connection,
             _pending_work_values(
                 "missing-source",
@@ -562,7 +410,7 @@ def test_source_capability_contract_rejects_missing_or_extraneous_source() -> No
         source_key, _ = _insert_source(connection, "extraneous-source")
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
-        _insert_pending_work(
+        _insert_work(
             connection,
             _pending_work_values(
                 "extraneous-source",
@@ -586,7 +434,7 @@ def test_work_unit_rejects_stage_mismatch_and_duplicate_semantic_identity() -> N
         )
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
-        _insert_pending_work(
+        _insert_work(
             connection,
             _pending_work_values(
                 "stage-mismatch",
@@ -612,12 +460,12 @@ def test_work_unit_rejects_stage_mismatch_and_duplicate_semantic_identity() -> N
             capability="extraction",
             source_key=None,
         )
-        _insert_pending_work(connection, values)
+        _insert_work(connection, values)
 
     duplicate = dict(values)
     duplicate["work_id"] = _id("semantic-identity:duplicate-work")
     with pytest.raises(IntegrityError), engine.begin() as connection:
-        _insert_pending_work(connection, duplicate)
+        _insert_work(connection, duplicate)
 
 
 def test_leased_work_and_attempt_result_shapes_fail_closed() -> None:
@@ -650,149 +498,22 @@ def test_leased_work_and_attempt_result_shapes_fail_closed() -> None:
                 "source_permit_not_before_utc": _NOW,
             }
         )
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO work.work_units (
-                    work_id,
-                    run_id,
-                    stage_run_id,
-                    stage,
-                    capability,
-                    source_key,
-                    semantic_key,
-                    input_digest,
-                    expected_output_contract,
-                    priority,
-                    state,
-                    attempt_count,
-                    failure_count,
-                    max_attempts,
-                    retry_initial_delay_seconds,
-                    retry_multiplier,
-                    retry_max_delay_seconds,
-                    available_at_utc,
-                    active_lease_id,
-                    active_lease_token,
-                    active_worker_id,
-                    lease_issued_at_utc,
-                    lease_expires_at_utc,
-                    heartbeat_deadline_utc,
-                    source_policy_digest,
-                    source_permit_not_before_utc,
-                    output_contract,
-                    output_digest,
-                    completed_at_utc,
-                    revision,
-                    created_at_utc,
-                    updated_at_utc,
-                    correlation_id
-                ) VALUES (
-                    :work_id,
-                    :run_id,
-                    :stage_run_id,
-                    :stage,
-                    :capability,
-                    :source_key,
-                    :semantic_key,
-                    :input_digest,
-                    :expected_output_contract,
-                    :priority,
-                    :state,
-                    :attempt_count,
-                    :failure_count,
-                    :max_attempts,
-                    :retry_initial_delay_seconds,
-                    :retry_multiplier,
-                    :retry_max_delay_seconds,
-                    :available_at_utc,
-                    :active_lease_id,
-                    :active_lease_token,
-                    :active_worker_id,
-                    :lease_issued_at_utc,
-                    :lease_expires_at_utc,
-                    :heartbeat_deadline_utc,
-                    :source_policy_digest,
-                    :source_permit_not_before_utc,
-                    NULL,
-                    NULL,
-                    NULL,
-                    :revision,
-                    :created_at_utc,
-                    :updated_at_utc,
-                    :correlation_id
-                )
-                """
-            ),
-            values,
-        )
+        _insert_work(connection, values)
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO work.work_attempts (
-                    attempt_id,
-                    work_id,
-                    attempt_number,
-                    lease_id,
-                    lease_token,
-                    worker_id,
-                    worker_build_identity,
-                    capability,
-                    input_digest,
-                    source_key,
-                    source_policy_digest,
-                    source_permit_not_before_utc,
-                    issued_at_utc,
-                    expires_at_utc,
-                    heartbeat_deadline_utc,
-                    finished_at_utc,
-                    outcome,
-                    failure_kind,
-                    result_code,
-                    failure_owner,
-                    failure_message,
-                    required_action,
-                    output_contract,
-                    output_digest,
-                    correlation_id
-                ) VALUES (
-                    :attempt_id,
-                    :work_id,
-                    1,
-                    :lease_id,
-                    :lease_token,
-                    :worker_id,
-                    :worker_build_identity,
-                    'http_fetch',
-                    :input_digest,
-                    :source_key,
-                    :source_policy_digest,
-                    :source_permit_not_before_utc,
-                    :issued_at_utc,
-                    :expires_at_utc,
-                    :heartbeat_deadline_utc,
-                    :finished_at_utc,
-                    'succeeded',
-                    NULL,
-                    NULL,
-                    NULL,
-                    NULL,
-                    NULL,
-                    NULL,
-                    NULL,
-                    :correlation_id
-                )
-                """
-            ),
+        _insert(
+            connection,
+            "work",
+            "work_attempts",
             {
                 "attempt_id": _id(f"{label}:attempt"),
                 "work_id": values["work_id"],
+                "attempt_number": 1,
                 "lease_id": values["active_lease_id"],
                 "lease_token": values["active_lease_token"],
                 "worker_id": worker_id,
                 "worker_build_identity": f"build-{label}",
+                "capability": "http_fetch",
                 "input_digest": values["input_digest"],
                 "source_key": source_key,
                 "source_policy_digest": policy_digest,
@@ -801,6 +522,14 @@ def test_leased_work_and_attempt_result_shapes_fail_closed() -> None:
                 "expires_at_utc": _NOW + timedelta(minutes=5),
                 "heartbeat_deadline_utc": _NOW + timedelta(minutes=1),
                 "finished_at_utc": _NOW + timedelta(seconds=30),
+                "outcome": "succeeded",
+                "failure_kind": None,
+                "result_code": None,
+                "failure_owner": None,
+                "failure_message": None,
+                "required_action": None,
+                "output_contract": None,
+                "output_digest": None,
                 "correlation_id": f"correlation-{label}",
             },
         )
