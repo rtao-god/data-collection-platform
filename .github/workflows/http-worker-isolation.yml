@@ -1,0 +1,89 @@
+name: HTTP Worker Isolation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/http-worker-isolation.yml
+      - .python-version
+      - pyproject.toml
+      - uv.lock
+      - apps/http_worker/**
+      - connectors/official_http/**
+      - packages/source_connector_sdk/**
+      - deploy/docker/http-worker.Dockerfile
+  pull_request:
+    paths:
+      - .github/workflows/http-worker-isolation.yml
+      - .python-version
+      - pyproject.toml
+      - uv.lock
+      - apps/http_worker/**
+      - connectors/official_http/**
+      - packages/source_connector_sdk/**
+      - deploy/docker/http-worker.Dockerfile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image-isolation:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build capability-minimal HTTP image
+        run: >-
+          docker build
+          --tag data-collection-platform/http-worker:ci
+          --file deploy/docker/http-worker.Dockerfile
+          .
+
+      - name: Verify runtime identity and entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="data-collection-platform/http-worker:ci"
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "10001:10001"
+          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' "$image")" = "http-worker"
+
+      - name: Verify Scrapy ownership and forbidden dependency inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -i \
+            --entrypoint python \
+            data-collection-platform/http-worker:ci \
+            - <<'PY'
+          from importlib import import_module
+          from importlib.util import find_spec
+
+          import_module("http_worker")
+          import_module("official_http")
+          import_module("scrapy")
+
+          from official_http.scrapy_child import SCRAPY_SETTINGS_BASE
+
+          assert SCRAPY_SETTINGS_BASE["JOBDIR"] is None
+          assert SCRAPY_SETTINGS_BASE["RETRY_ENABLED"] is False
+          assert SCRAPY_SETTINGS_BASE["REDIRECT_ENABLED"] is False
+          assert SCRAPY_SETTINGS_BASE["COOKIES_ENABLED"] is False
+
+          forbidden = {
+              "alembic",
+              "boto3",
+              "botocore",
+              "playwright",
+              "psycopg",
+              "sqlalchemy",
+          }
+          present = sorted(name for name in forbidden if find_spec(name) is not None)
+          if present:
+              raise SystemExit(
+                  "HTTP worker image contains forbidden dependencies: "
+                  + ", ".join(present)
+              )
+          PY
