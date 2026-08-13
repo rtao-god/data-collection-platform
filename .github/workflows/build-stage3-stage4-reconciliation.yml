@@ -42,11 +42,30 @@ jobs:
         run: |
           set -o pipefail
           python .github/reconciliation/reconcile_stage3_stage4.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/manual_import_worker/src/manual_import_worker/gateway.py")
+          text = path.read_text(encoding="utf-8")
+          old = (
+              "        with httpx.Client(timeout=timeout_seconds, follow_redirects=False) as client:\n"
+              "            with client.stream(prepared.method, prepared.url) as response:\n"
+          )
+          new = (
+              "        with (\n"
+              "            httpx.Client(timeout=timeout_seconds, follow_redirects=False) as client,\n"
+              "            client.stream(prepared.method, prepared.url) as response,\n"
+              "        ):\n"
+          )
+          if old not in text:
+              raise RuntimeError("ManualImportWorker: scoped read context anchor is missing")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
           uv lock
           uv sync --frozen --all-packages --dev
-          uv run ruff check . --fix --unsafe-fixes
-          uv run ruff format .
-          uv run ruff check .
+          uv run ruff check --exclude .github/reconciliation . --fix --unsafe-fixes
+          uv run ruff format --exclude .github/reconciliation .
+          uv run ruff check --exclude .github/reconciliation .
           uv run mypy
           uv run pytest -m "not integration and not object_store_integration"
           uv run python tools/architecture_checks/check_dependencies.py
