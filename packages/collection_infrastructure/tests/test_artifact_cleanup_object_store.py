@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from collection_infrastructure.artifact_cleanup_object_store import (
     S3ArtifactCleanupObjectStore,
 )

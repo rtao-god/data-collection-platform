@@ -5,8 +5,9 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
 
-from osm_overpass import OverpassFetchFailure, OverpassFetchResult
 from osm_worker.worker import OSMWorker, OSMWorkerPolicy
+
+from osm_overpass import OverpassFetchFailure, OverpassFetchResult
 from source_connector_sdk import LeaseArtifact, WorkerLease
 
 
@@ -20,7 +21,7 @@ def _lease() -> WorkerLease:
         stage="discovery",
         capability="osm_query",
         input_digest="sha256:" + "1" * 64,
-        expected_output_contract="osm-overpass-result/1",
+        expected_output_contract="osm-overpass-result@1",
         issued_at_utc=issued,
         expires_at_utc=issued + timedelta(minutes=5),
         heartbeat_deadline_utc=issued + timedelta(minutes=1),

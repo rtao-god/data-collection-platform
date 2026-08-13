@@ -1,5 +1,6 @@
 from collection_infrastructure.postgres.artifact_metadata import (
     ARTIFACT_TABLES,
+    artifact_cleanup_tombstones,
     artifact_objects,
     artifact_records,
     artifact_uploads,
@@ -7,6 +8,12 @@ from collection_infrastructure.postgres.artifact_metadata import (
     work_output_artifacts,
 )
 from collection_infrastructure.postgres.artifact_transfer import PostgresArtifactTransfer
+from collection_infrastructure.postgres.manual_import_metadata import (
+    MANUAL_IMPORT_SCHEMA,
+    MANUAL_IMPORT_TABLES,
+    plan_admission_items,
+    plan_admissions,
+)
 from collection_infrastructure.postgres.metadata import (
     CONFIG_SCHEMA,
     CONFIG_TABLES,
@@ -44,6 +51,8 @@ __all__ = [
     "ARTIFACT_TABLES",
     "CONFIG_SCHEMA",
     "CONFIG_TABLES",
+    "MANUAL_IMPORT_SCHEMA",
+    "MANUAL_IMPORT_TABLES",
     "RUNS_SCHEMA",
     "RUN_TABLES",
     "SOURCES_SCHEMA",
@@ -54,6 +63,7 @@ __all__ = [
     "WORK_TABLES",
     "PostgresArtifactTransfer",
     "PostgresWorkEngine",
+    "artifact_cleanup_tombstones",
     "artifact_objects",
     "artifact_records",
     "artifact_uploads",
@@ -63,6 +73,8 @@ __all__ = [
     "config_bundle_components",
     "config_bundles",
     "dead_letters",
+    "plan_admission_items",
+    "plan_admissions",
     "source_capacity_states",
     "stage_runs",
     "upgrade_database",

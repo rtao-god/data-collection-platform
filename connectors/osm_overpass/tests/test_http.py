@@ -4,17 +4,17 @@ from collections.abc import Sequence
 
 import httpx
 import pytest
+from osm_overpass.http import (
+    OverpassEndpointPolicy,
+    OverpassFetchFailure,
+    OverpassHttpClient,
+)
 
 from osm_overpass import (
     GeoPoint,
     OsmTagFilter,
     OverpassPolygon,
     OverpassQuerySpec,
-)
-from osm_overpass.http import (
-    OverpassEndpointPolicy,
-    OverpassFetchFailure,
-    OverpassHttpClient,
 )
 
 
@@ -87,67 +87,75 @@ def test_client_blocks_non_global_dns_addresses_before_transport(address: str) -
         called = True
         return httpx.Response(200, json={"elements": []})
 
-    with OverpassHttpClient(
-        policy(),
-        resolver=Resolver((address,)),
-        peer_address_reader=peer,
-        transport=httpx.MockTransport(handler),
-    ) as client:
-        with pytest.raises(OverpassFetchFailure) as error:
-            client.fetch(spec())
+    with (
+        OverpassHttpClient(
+            policy(),
+            resolver=Resolver((address,)),
+            peer_address_reader=peer,
+            transport=httpx.MockTransport(handler),
+        ) as client,
+        pytest.raises(OverpassFetchFailure) as error,
+    ):
+        client.fetch(spec())
     assert error.value.code == "OVERPASS_PRIVATE_ADDRESS_BLOCKED"
     assert called is False
 
 
 def test_client_revalidates_the_connected_peer_address() -> None:
-    with OverpassHttpClient(
-        policy(),
-        resolver=Resolver(("1.1.1.1",)),
-        peer_address_reader=lambda _: ("127.0.0.1",),
-        transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"elements": []})),
-    ) as client:
-        with pytest.raises(OverpassFetchFailure) as error:
-            client.fetch(spec())
+    with (
+        OverpassHttpClient(
+            policy(),
+            resolver=Resolver(("1.1.1.1",)),
+            peer_address_reader=lambda _: ("127.0.0.1",),
+            transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"elements": []})),
+        ) as client,
+        pytest.raises(OverpassFetchFailure) as error,
+    ):
+        client.fetch(spec())
     assert error.value.kind == "policy_blocked"
     assert error.value.code == "OVERPASS_PRIVATE_ADDRESS_BLOCKED"
 
 
 def test_429_is_typed_transient_and_does_not_expose_the_body() -> None:
     secret_body = "upstream internal diagnostic"
-    with OverpassHttpClient(
-        policy(),
-        resolver=Resolver(("1.1.1.1",)),
-        peer_address_reader=peer,
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(
-                429,
-                headers={"Retry-After": "30"},
-                text=secret_body,
-            )
-        ),
-    ) as client:
-        with pytest.raises(OverpassFetchFailure) as error:
-            client.fetch(spec())
+    with (
+        OverpassHttpClient(
+            policy(),
+            resolver=Resolver(("1.1.1.1",)),
+            peer_address_reader=peer,
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    429,
+                    headers={"Retry-After": "30"},
+                    text=secret_body,
+                )
+            ),
+        ) as client,
+        pytest.raises(OverpassFetchFailure) as error,
+    ):
+        client.fetch(spec())
     assert error.value.kind == "transient"
     assert error.value.retry_after_seconds == 30
     assert secret_body not in str(error.value)
 
 
 def test_decompressed_response_limit_is_enforced_while_streaming() -> None:
-    with OverpassHttpClient(
-        policy(maximum_response_bytes=1024),
-        resolver=Resolver(("1.1.1.1",)),
-        peer_address_reader=peer,
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(
-                200,
-                headers={"Content-Type": "application/json"},
-                content=b"x" * 1025,
-            )
-        ),
-    ) as client:
-        with pytest.raises(OverpassFetchFailure) as error:
-            client.fetch(spec())
+    with (
+        OverpassHttpClient(
+            policy(maximum_response_bytes=1024),
+            resolver=Resolver(("1.1.1.1",)),
+            peer_address_reader=peer,
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(
+                    200,
+                    headers={"Content-Type": "application/json"},
+                    content=b"x" * 1025,
+                )
+            ),
+        ) as client,
+        pytest.raises(OverpassFetchFailure) as error,
+    ):
+        client.fetch(spec())
     assert error.value.code == "OVERPASS_RESPONSE_TOO_LARGE"
 
 

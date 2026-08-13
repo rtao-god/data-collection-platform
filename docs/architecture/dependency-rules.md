@@ -8,9 +8,12 @@ by the normal architecture check.
 <!-- dependency-policy:start -->
 | Production owner | Project | Allowed internal owners | Allowed external imports |
 |---|---|---|---|
-| `collector_cli` | `apps/collector_cli` | `collection_application`, `collection_contracts`, `collection_infrastructure` | none |
+| `collector_cli` | `apps/collector_cli` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `boto3`, `sqlalchemy` |
 | `worker_gateway` | `apps/worker_gateway` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
 | `collection_migration` | `apps/migration` | `collection_contracts`, `collection_infrastructure` | none |
+| `manual_import_worker` | `apps/manual_import_worker` | `collection_contracts`, `manual_import_core`, `source_connector_sdk` | `httpx` |
+| `osm_worker` | `apps/osm_worker` | `osm_overpass`, `source_connector_sdk` | none |
+| `osm_overpass` | `connectors/osm_overpass` | none | `httpx` |
 | `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
 | `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
 | `manual_import_core` | `packages/manual_import_core` | `collection_contracts` | `pydantic` |

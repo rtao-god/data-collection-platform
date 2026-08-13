@@ -127,12 +127,11 @@ class OsmObservationBatch:
         for value in (self.query_digest, self.response_digest):
             if _SHA256.fullmatch(value) is None:
                 raise ValueError("OSM observation digest is invalid")
-        if self.osm_base_timestamp_utc is not None:
-            if (
-                self.osm_base_timestamp_utc.tzinfo is None
-                or self.osm_base_timestamp_utc.utcoffset() != timedelta(0)
-            ):
-                raise ValueError("OSM base timestamp must be UTC")
+        if self.osm_base_timestamp_utc is not None and (
+            self.osm_base_timestamp_utc.tzinfo is None
+            or self.osm_base_timestamp_utc.utcoffset() != timedelta(0)
+        ):
+            raise ValueError("OSM base timestamp must be UTC")
         identities = tuple(
             (observation.element_type, observation.osm_id) for observation in self.observations
         )

@@ -3,10 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
-from typing import NoReturn, Sequence
-
-from sqlalchemy import create_engine
+from typing import NoReturn
 
 from collection_application.artifact_cleanup import (
     ArtifactCleanupPolicy,
@@ -18,6 +17,7 @@ from collection_infrastructure.artifact_cleanup_object_store import (
 from collection_infrastructure.postgres.artifact_cleanup import (
     PostgresArtifactCleanupStore,
 )
+from sqlalchemy import create_engine
 
 
 def main(argv: Sequence[str] | None = None) -> int:

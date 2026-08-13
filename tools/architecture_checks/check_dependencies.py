@@ -33,7 +33,7 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
             "collection_contracts",
             "collection_infrastructure",
         ),
-        allowed_external_imports=frozenset(),
+        allowed_external_imports=frozenset({"boto3", "sqlalchemy"}),
     ),
     "worker_gateway": OwnerPolicy(
         project_path="apps/worker_gateway",
@@ -53,6 +53,31 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
             "collection_infrastructure",
         ),
         allowed_external_imports=frozenset(),
+    ),
+    "manual_import_worker": OwnerPolicy(
+        project_path="apps/manual_import_worker",
+        distribution_name="manual-import-worker",
+        allowed_internal_imports=(
+            "collection_contracts",
+            "manual_import_core",
+            "source_connector_sdk",
+        ),
+        allowed_external_imports=frozenset({"httpx"}),
+    ),
+    "osm_worker": OwnerPolicy(
+        project_path="apps/osm_worker",
+        distribution_name="osm-worker",
+        allowed_internal_imports=(
+            "osm_overpass",
+            "source_connector_sdk",
+        ),
+        allowed_external_imports=frozenset(),
+    ),
+    "osm_overpass": OwnerPolicy(
+        project_path="connectors/osm_overpass",
+        distribution_name="osm-overpass-connector",
+        allowed_internal_imports=(),
+        allowed_external_imports=frozenset({"httpx"}),
     ),
     "collection_infrastructure": OwnerPolicy(
         project_path="packages/collection_infrastructure",

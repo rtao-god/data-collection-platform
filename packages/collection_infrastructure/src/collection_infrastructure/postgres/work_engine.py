@@ -115,6 +115,14 @@ class PostgresWorkEngine:
             lambda connection, now_utc: self._enqueue_work(connection, now_utc, command)
         )
 
+    def enqueue_work_in_transaction(
+        self,
+        connection: Connection,
+        command: WorkUnitSpec,
+    ) -> None:
+        """Enqueue work inside a transaction owned by a higher-level use case."""
+        self._enqueue_work(connection, self._now_utc(), command)
+
     def acquire_lease(self, command: LeaseRequest) -> WorkLease | None:
         return self._transaction(
             lambda connection, now_utc: self._acquire_lease(connection, now_utc, command)

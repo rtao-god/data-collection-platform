@@ -8,7 +8,6 @@ import boto3
 import httpx
 import pytest
 from botocore.exceptions import ClientError
-
 from collection_infrastructure.artifact_cleanup_object_store import (
     S3ArtifactCleanupObjectStore,
 )

@@ -43,7 +43,7 @@ class NetworkStreamInfo(Protocol):
 class SystemAddressResolver:
     def resolve(self, host: str, port: int) -> Sequence[str]:
         addresses = {
-            item[4][0]
+            str(item[4][0])
             for item in socket.getaddrinfo(
                 host,
                 port,

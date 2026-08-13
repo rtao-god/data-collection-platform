@@ -1,28 +1,22 @@
 from __future__ import annotations
 
-import inspect
 import threading
-from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 from time import sleep
-from typing import Protocol, cast
 
-from manual_import_core import build_manual_import_plan
-from source_connector_sdk import WorkerLease
-
+from collection_contracts import ManualImportPlan
+from manual_import_core import (
+    build_manual_import_plan,
+    canonical_manual_import_plan_json,
+)
 from manual_import_worker.contracts import (
     ManualImportGateway,
     ManualImportSource,
     ManualImportWorkerSettings,
     parse_manual_import_source,
 )
-
-
-class _PlanView(Protocol):
-    digest: str
-
-    def to_bytes(self) -> bytes: ...
+from source_connector_sdk import WorkerLease
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,14 +54,13 @@ class ManualImportWorker:
             )
             heartbeat.raise_if_failed()
             plan = _build_plan(body, source)
-            payload = plan.to_bytes()
-            plan_digest = _sha256_identity(payload)
-            if plan.digest != plan_digest:
-                raise ValueError("manual import plan digest does not match canonical bytes")
+            payload = canonical_manual_import_plan_json(plan).encode("utf-8")
+            artifact_digest = _sha256_identity(payload)
+            plan_digest = plan.plan_digest
             upload = self._gateway.publish_plan(
                 heartbeat.current(),
                 payload,
-                content_digest=plan_digest,
+                content_digest=artifact_digest,
                 timeout_seconds=self._settings.transfer_timeout_seconds,
             )
             heartbeat.raise_if_failed()
@@ -162,36 +155,12 @@ class _LeaseHeartbeat:
                 return
 
 
-def _build_plan(body: bytes, source: ManualImportSource) -> _PlanView:
-    source_digest = _sha256_identity(body)
-    values: dict[str, object] = {
-        "format": source.format,
-        "mode": source.mode,
-        "source_artifact_id": source.artifact.artifact_id,
-        "source_digest": source_digest,
-        "source_content_digest": source_digest,
-    }
-    callable_plan = cast(Callable[..., object], build_manual_import_plan)
-    signature = inspect.signature(callable_plan)
-    arguments: dict[str, object] = {}
-    missing: list[str] = []
-    positional_body = False
-    for index, (name, parameter) in enumerate(signature.parameters.items()):
-        if index == 0 and name not in values:
-            positional_body = True
-            continue
-        if name in values:
-            arguments[name] = values[name]
-        elif parameter.default is inspect.Parameter.empty:
-            missing.append(name)
-    if missing:
-        joined = ", ".join(sorted(missing))
-        raise RuntimeError(f"manual import planner has unsupported required fields: {joined}")
-    result = callable_plan(body, **arguments) if positional_body else callable_plan(**arguments)
-    plan = cast(_PlanView, result)
-    if not callable(getattr(plan, "to_bytes", None)) or not isinstance(plan.digest, str):
-        raise RuntimeError("manual import planner returned an invalid plan contract")
-    return plan
+def _build_plan(body: bytes, source: ManualImportSource) -> ManualImportPlan:
+    return build_manual_import_plan(
+        body,
+        format=source.format,
+        mode=source.mode,
+    )
 
 
 def _sha256_identity(payload: bytes) -> str:

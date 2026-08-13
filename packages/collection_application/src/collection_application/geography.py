@@ -9,6 +9,8 @@ from hashlib import sha256
 from typing import Literal, Protocol, cast
 
 type GeographyCoverageKind = Literal["inside", "boundary", "outside"]
+type PolygonCoordinates = list[list[list[float]]]
+type MultiPolygonCoordinates = list[PolygonCoordinates]
 
 _MAX_BOUNDARY_BYTES = 16 * 1024 * 1024
 _MAX_POSITIONS = 100_000
@@ -176,6 +178,7 @@ def decode_boundary_geojson(body: bytes) -> GeographyBoundaryArtifact:
         )
     coordinates = root["coordinates"]
     counter = [0]
+    canonical_coordinates: PolygonCoordinates | MultiPolygonCoordinates
     if geometry_type == "Polygon":
         canonical_coordinates = _polygon(coordinates, counter=counter, owner="coordinates")
     else:
@@ -202,7 +205,7 @@ def decode_boundary_geojson(body: bytes) -> GeographyBoundaryArtifact:
         source_digest=source_digest,
         geometry_digest=f"sha256:{sha256(canonical).hexdigest()}",
         canonical_geojson=canonical,
-        geometry_type=cast(Literal["Polygon", "MultiPolygon"], geometry_type),
+        geometry_type=geometry_type,
         position_count=counter[0],
     )
 

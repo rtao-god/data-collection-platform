@@ -7,6 +7,8 @@ dependencies = [
   "collection-application",
   "collection-contracts",
   "collection-infrastructure",
+  "boto3==1.43.54",
+  "sqlalchemy==2.0.51",
 ]
 
 [project.scripts]

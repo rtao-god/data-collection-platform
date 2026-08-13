@@ -4,11 +4,10 @@ import argparse
 import json
 from collections.abc import Sequence
 
-from source_connector_sdk import SourceWorkerGateway, WorkerGatewayFailure
-
 from manual_import_worker.contracts import ManualImportWorkerSettings
 from manual_import_worker.gateway import SourceWorkerGatewayAdapter
 from manual_import_worker.worker import ManualImportWorker
+from source_connector_sdk import SourceWorkerGateway, WorkerGatewayFailure
 
 
 def build_parser() -> argparse.ArgumentParser:

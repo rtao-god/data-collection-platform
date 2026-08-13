@@ -11,8 +11,11 @@ package = false
 [tool.uv.workspace]
 members = [
   "apps/collector_cli",
+  "apps/manual_import_worker",
   "apps/migration",
+  "apps/osm_worker",
   "apps/worker_gateway",
+  "connectors/osm_overpass",
   "packages/collection_application",
   "packages/collection_contracts",
   "packages/collection_domain",
@@ -33,15 +36,16 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers --import-mode=importlib"
-testpaths = ["apps", "database", "packages", "tools"]
+testpaths = ["apps", "connectors", "database", "packages", "tools"]
 markers = [
   "integration: requires explicit PostgreSQL/PostGIS infrastructure",
+  "object_store_integration: requires explicit SeaweedFS S3 infrastructure",
 ]
 
 [tool.ruff]
 target-version = "py313"
 line-length = 100
-src = ["apps", "database", "packages", "tools"]
+src = ["apps", "connectors", "database", "packages", "tools"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -64,8 +68,11 @@ show_error_codes = true
 plugins = ["pydantic.mypy"]
 files = [
   "apps/collector_cli/src/collector_cli",
+  "apps/manual_import_worker/src/manual_import_worker",
   "apps/migration/src/collection_migration",
+  "apps/osm_worker/src/osm_worker",
   "apps/worker_gateway/src/worker_gateway",
+  "connectors/osm_overpass/src/osm_overpass",
   "packages/collection_application/src/collection_application",
   "packages/collection_contracts/src/collection_contracts",
   "packages/collection_domain/src/collection_domain",

@@ -1,50 +1,25 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
-from sqlalchemy import Engine
-
 from collection_application.artifact_cleanup import (
     ArtifactCleanupClaim,
     ArtifactCleanupPolicy,
     ArtifactCleanupStore,
     validate_cleanup_failure,
 )
+from sqlalchemy import Engine
+from sqlalchemy.engine import RowMapping
+
 from collection_infrastructure.postgres.artifact_metadata import (
     artifact_cleanup_tombstones,
-    metadata,
+    artifact_objects,
+    artifact_records,
+    artifact_uploads,
 )
-
-
-def _table_with_columns(required: set[str]) -> sa.Table:
-    matches = [
-        table
-        for table in metadata.tables.values()
-        if required.issubset({column.name for column in table.columns})
-    ]
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"expected one artifact table with columns {sorted(required)}, "
-            f"found {[table.fullname for table in matches]}"
-        )
-    return matches[0]
-
-
-_UPLOADS = _table_with_columns({"upload_id", "state", "storage_reference", "work_id"})
-_RAW_ARTIFACTS = _table_with_columns({"artifact_id", "upload_id"})
-_UPLOAD_AGE_COLUMN = next(
-    (
-        _UPLOADS.c[name]
-        for name in ("created_at_utc", "prepared_at_utc", "recorded_at_utc")
-        if name in _UPLOADS.c
-    ),
-    None,
-)
-if _UPLOAD_AGE_COLUMN is None:
-    raise RuntimeError("artifact uploads have no cleanup age column")
 
 
 class PostgresArtifactCleanupStore(ArtifactCleanupStore):
@@ -107,25 +82,52 @@ class PostgresArtifactCleanupStore(ArtifactCleanupStore):
 
             remaining = policy.batch_size - len(claims)
             if remaining > 0:
-                existing_tombstone = sa.exists(
+                artifact_record_exists = sa.exists(
+                    sa.select(1).where(artifact_records.c.upload_id == artifact_uploads.c.upload_id)
+                )
+                final_object_exists = sa.exists(
                     sa.select(1).where(
-                        artifact_cleanup_tombstones.c.upload_id == _UPLOADS.c.upload_id
+                        artifact_objects.c.storage_reference == artifact_uploads.c.final_reference
                     )
                 )
-                existing_artifact = sa.exists(
-                    sa.select(1).where(_RAW_ARTIFACTS.c.upload_id == _UPLOADS.c.upload_id)
+                existing_tombstone = sa.exists(
+                    sa.select(1).where(
+                        artifact_cleanup_tombstones.c.upload_id == artifact_uploads.c.upload_id
+                    )
                 )
+                storage_reference = sa.case(
+                    (
+                        artifact_uploads.c.state == "prepared",
+                        artifact_uploads.c.staging_reference,
+                    ),
+                    else_=artifact_uploads.c.final_reference,
+                ).label("cleanup_storage_reference")
                 candidates = (
                     connection.execute(
-                        sa.select(_UPLOADS)
-                        .where(
-                            _UPLOADS.c.state.in_(("prepared", "verified")),
-                            _UPLOAD_AGE_COLUMN <= cutoff,
-                            _UPLOADS.c.storage_reference.is_not(None),
-                            sa.not_(existing_tombstone),
-                            sa.not_(existing_artifact),
+                        sa.select(
+                            artifact_uploads.c.upload_id,
+                            artifact_uploads.c.state,
+                            artifact_uploads.c.prepared_at_utc,
+                            storage_reference,
                         )
-                        .order_by(_UPLOAD_AGE_COLUMN, _UPLOADS.c.upload_id)
+                        .where(
+                            artifact_uploads.c.state.in_(("prepared", "verified")),
+                            artifact_uploads.c.prepared_at_utc <= cutoff,
+                            sa.not_(artifact_record_exists),
+                            sa.not_(existing_tombstone),
+                            sa.or_(
+                                artifact_uploads.c.state == "prepared",
+                                sa.and_(
+                                    artifact_uploads.c.state == "verified",
+                                    artifact_uploads.c.final_reference.is_not(None),
+                                    sa.not_(final_object_exists),
+                                ),
+                            ),
+                        )
+                        .order_by(
+                            artifact_uploads.c.prepared_at_utc,
+                            artifact_uploads.c.upload_id,
+                        )
                         .limit(remaining)
                         .with_for_update(skip_locked=True)
                     )
@@ -134,16 +136,17 @@ class PostgresArtifactCleanupStore(ArtifactCleanupStore):
                 )
                 for row in candidates:
                     tombstone_id = uuid4()
-                    storage_reference = str(row["storage_reference"])
+                    reference = str(row["cleanup_storage_reference"])
+                    reason = "orphan_staging" if row["state"] == "prepared" else "orphan_verified"
                     connection.execute(
                         sa.insert(artifact_cleanup_tombstones).values(
                             tombstone_id=tombstone_id,
                             upload_id=row["upload_id"],
-                            storage_reference=storage_reference,
-                            reason="orphan_staging",
+                            storage_reference=reference,
+                            reason=reason,
                             state="pending",
                             created_at_utc=now_utc,
-                            eligible_at_utc=cutoff,
+                            eligible_at_utc=_datetime(row, "prepared_at_utc") + policy.grace_period,
                             claimed_at_utc=now_utc,
                             claim_expires_at_utc=claim_expires,
                             attempt_count=1,
@@ -158,7 +161,7 @@ class PostgresArtifactCleanupStore(ArtifactCleanupStore):
                         ArtifactCleanupClaim(
                             tombstone_id=tombstone_id,
                             upload_id=_uuid(row, "upload_id"),
-                            storage_reference=storage_reference,
+                            storage_reference=reference,
                             attempt_count=1,
                         )
                     )
@@ -228,7 +231,7 @@ class PostgresArtifactCleanupStore(ArtifactCleanupStore):
                 raise RuntimeError("artifact cleanup claim is no longer active")
 
 
-def _claim(row: Mapping[str, object], *, attempt_count: int) -> ArtifactCleanupClaim:
+def _claim(row: RowMapping, *, attempt_count: int) -> ArtifactCleanupClaim:
     return ArtifactCleanupClaim(
         tombstone_id=_uuid(row, "tombstone_id"),
         upload_id=_uuid(row, "upload_id"),
@@ -237,8 +240,15 @@ def _claim(row: Mapping[str, object], *, attempt_count: int) -> ArtifactCleanupC
     )
 
 
-def _uuid(row: Mapping[str, object], key: str) -> UUID:
+def _uuid(row: RowMapping, key: str) -> UUID:
     value = row[key]
     if isinstance(value, UUID):
         return value
     return UUID(str(value))
+
+
+def _datetime(row: RowMapping, key: str) -> datetime:
+    value = row[key]
+    if not isinstance(value, datetime):
+        raise RuntimeError(f"artifact cleanup row {key} is not a datetime")
+    return value

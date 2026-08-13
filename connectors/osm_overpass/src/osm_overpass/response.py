@@ -11,7 +11,6 @@ from osm_overpass.contracts import (
     GeoPoint,
     OsmAddress,
     OsmElementObservation,
-    OsmElementType,
     OsmObservationBatch,
     OverpassQuerySpec,
 )
@@ -183,7 +182,7 @@ def _decode_element(value: object, *, index: int) -> OsmElementObservation:
         tags[key] = tag_value
     frozen_tags = MappingProxyType(dict(sorted(tags.items())))
     return OsmElementObservation(
-        element_type=cast(OsmElementType, element_type),
+        element_type=element_type,
         osm_id=osm_id,
         location=point,
         tags=frozen_tags,

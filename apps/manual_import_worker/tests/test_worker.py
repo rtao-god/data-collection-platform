@@ -6,13 +6,12 @@ from uuid import UUID
 
 import pytest
 
-from source_connector_sdk import LeaseArtifact, WorkerLease
-
 from manual_import_worker import (
     ManualImportWorker,
     ManualImportWorkerSettings,
     parse_manual_import_source,
 )
+from source_connector_sdk import LeaseArtifact, WorkerLease
 
 _NOW = datetime(2026, 8, 12, 12, 0, tzinfo=UTC)
 
@@ -45,7 +44,11 @@ class _FakeGateway:
         timeout_seconds: float,
     ) -> bytes:
         del lease, source, max_bytes, timeout_seconds
-        return b"name,active,count\nStudio,true,2\n"
+        return (
+            b"expected_entity_kind,display_name,website,osm_id,"
+            b"reference_urls,note,provenance\n"
+            b"place,Studio,,,,,manual-test\n"
+        )
 
     def publish_plan(
         self,

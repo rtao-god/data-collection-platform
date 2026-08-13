@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 from time import sleep
-from typing import Literal, Protocol
+from typing import Protocol
 
 from osm_overpass import (
     OverpassFetchFailure,
@@ -13,14 +13,7 @@ from osm_overpass import (
     decode_query_spec,
     parse_overpass_response,
 )
-from source_connector_sdk import WorkerLease
-
-type WorkerFailureKind = Literal[
-    "transient",
-    "permanent",
-    "policy_blocked",
-    "contract_invalid",
-]
+from source_connector_sdk import WorkerLease, WorkFailureKind
 
 
 class OSMGateway(Protocol):
@@ -59,7 +52,7 @@ class OSMGateway(Protocol):
         self,
         lease: WorkerLease,
         *,
-        failure_kind: WorkerFailureKind,
+        failure_kind: WorkFailureKind,
         error_code: str,
         message: str,
         retry_after_seconds: int | None = None,

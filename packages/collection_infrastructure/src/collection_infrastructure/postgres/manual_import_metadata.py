@@ -3,11 +3,12 @@ from __future__ import annotations
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from collection_infrastructure.postgres.artifact_metadata import raw_artifacts
+from collection_infrastructure.postgres.artifact_metadata import artifact_records
+from collection_infrastructure.postgres.metadata import collector_metadata
 from collection_infrastructure.postgres.work_metadata import work_units
 
 MANUAL_IMPORT_SCHEMA = "manual_import"
-manual_import_metadata = sa.MetaData()
+manual_import_metadata = collector_metadata
 
 plan_admissions = sa.Table(
     "plan_admissions",
@@ -23,13 +24,13 @@ plan_admissions = sa.Table(
     sa.Column(
         "plan_artifact_id",
         postgresql.UUID(as_uuid=True),
-        sa.ForeignKey(raw_artifacts.c.artifact_id, ondelete="RESTRICT"),
+        sa.ForeignKey(artifact_records.c.artifact_id, ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column(
         "source_artifact_id",
         postgresql.UUID(as_uuid=True),
-        sa.ForeignKey(raw_artifacts.c.artifact_id, ondelete="RESTRICT"),
+        sa.ForeignKey(artifact_records.c.artifact_id, ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column("plan_digest", sa.Text(), nullable=False),
@@ -55,6 +56,12 @@ plan_admissions = sa.Table(
     sa.CheckConstraint(
         "accepted_record_count = child_work_count",
         name="ck_plan_admissions_child_count",
+    ),
+    sa.CheckConstraint(
+        "plan_digest ~ '^sha256:[0-9a-f]{64}$' AND "
+        "source_digest ~ '^sha256:[0-9a-f]{64}$' AND "
+        "result_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_plan_admissions_digest_format",
     ),
     sa.UniqueConstraint(
         "parent_work_id",
@@ -85,5 +92,11 @@ plan_admission_items = sa.Table(
     sa.Column("locator_value", sa.Text(), nullable=False),
     sa.Column("record_digest", sa.Text(), nullable=False),
     sa.CheckConstraint("position >= 0", name="ck_plan_admission_items_position"),
+    sa.CheckConstraint(
+        "record_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_plan_admission_items_record_digest_format",
+    ),
     schema=MANUAL_IMPORT_SCHEMA,
 )
+
+MANUAL_IMPORT_TABLES = (plan_admissions, plan_admission_items)

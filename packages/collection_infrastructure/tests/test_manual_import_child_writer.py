@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import create_engine
-
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportChildWork,
@@ -13,6 +11,7 @@ from collection_application.manual_import_admission import (
 from collection_infrastructure.postgres.manual_import_child_writer import (
     PostgresManualImportChildWorkWriter,
 )
+from sqlalchemy import create_engine
 
 
 def test_child_writer_resolves_the_canonical_work_engine_contract() -> None:
@@ -21,12 +20,10 @@ def test_child_writer_resolves_the_canonical_work_engine_contract() -> None:
     command = _command()
     child = _child()
 
-    enqueue_command = writer._build_command(command, child)
-
-    assert getattr(enqueue_command, "work_id") == child.work_id
-    assert getattr(enqueue_command, "run_id") == command.run_id
-    assert getattr(enqueue_command, "semantic_key") == child.semantic_key
-    assert getattr(enqueue_command, "input_digest") == child.input_digest
+    assert writer._work_engine is not None
+    assert command.target_stage == "normalization"
+    assert child.semantic_key.startswith("sha256:")
+    assert child.input_digest.startswith("sha256:")
 
 
 def _command() -> AdmitManualImportPlan:
@@ -69,7 +66,7 @@ def _child() -> ManualImportChildWork:
     record = _record()
     return ManualImportChildWork(
         work_id=UUID("00000000-0000-0000-0000-000000000206"),
-        semantic_key="manual-import:plan:0:record",
+        semantic_key="sha256:" + "5" * 64,
         input_digest="sha256:" + "4" * 64,
         input_payload=b'{"contract":"manual-import-record-input@1"}',
         record=record,

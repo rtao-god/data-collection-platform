@@ -15,16 +15,14 @@ from sqlalchemy.schema import CreateIndex, CreateTable
 def test_artifact_metadata_has_exact_owner_tables_and_no_cascade_delete() -> None:
     assert tuple(table.fullname for table in ARTIFACT_TABLES) == (
         "sources.artifact_uploads",
+        "sources.artifact_cleanup_tombstones",
         "sources.artifact_objects",
         "sources.artifact_records",
         "work.work_input_artifacts",
         "work.work_output_artifacts",
     )
     for table in ARTIFACT_TABLES:
-        assert all(
-            foreign_key.ondelete in {None, "RESTRICT"}
-            for foreign_key in table.foreign_keys
-        )
+        assert all(foreign_key.ondelete in {None, "RESTRICT"} for foreign_key in table.foreign_keys)
         assert all(column.server_default is None for column in table.columns)
 
 

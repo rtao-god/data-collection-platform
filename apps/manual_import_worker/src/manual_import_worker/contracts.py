@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Protocol
 
-from manual_import_core import ManualImportFormat, ManualImportMode
+from collection_contracts import ManualImportFormat, ManualImportMode
 from source_connector_sdk import LeaseArtifact, WorkerLease
 
 _SOURCE_ROLE = re.compile(

@@ -253,8 +253,69 @@ work_output_artifacts = sa.Table(
     schema=WORK_SCHEMA,
 )
 
+
+artifact_cleanup_tombstones = sa.Table(
+    "artifact_cleanup_tombstones",
+    collector_metadata,
+    sa.Column("tombstone_id", sa.Uuid(), primary_key=True),
+    sa.Column(
+        "upload_id",
+        sa.Uuid(),
+        sa.ForeignKey("sources.artifact_uploads.upload_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("storage_reference", sa.Text, nullable=False),
+    sa.Column("reason", sa.Text, nullable=False),
+    sa.Column("state", sa.Text, nullable=False),
+    sa.Column("created_at_utc", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("eligible_at_utc", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("claimed_at_utc", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("claim_expires_at_utc", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("attempt_count", sa.Integer, nullable=False),
+    sa.Column("retry_not_before_utc", sa.DateTime(timezone=True), nullable=True),
+    sa.Column("deleted_at_utc", sa.DateTime(timezone=True), nullable=True),
+    sa.Column("error_code", sa.Text, nullable=True),
+    sa.Column("error_digest", sa.Text, nullable=True),
+    sa.Column("revision", sa.Integer, nullable=False),
+    sa.CheckConstraint(
+        "reason IN ('orphan_staging', 'orphan_verified')",
+        name="ck_artifact_cleanup_tombstones_reason",
+    ),
+    sa.CheckConstraint(
+        "state IN ('pending', 'retry_wait', 'deleted', 'failed')",
+        name="ck_artifact_cleanup_tombstones_state",
+    ),
+    sa.CheckConstraint(
+        "char_length(storage_reference) BETWEEN 1 AND 512 AND "
+        "storage_reference ~ '^[A-Za-z0-9][A-Za-z0-9._/@+-]*$'",
+        name="ck_artifact_cleanup_tombstones_storage_reference",
+    ),
+    sa.CheckConstraint(
+        "attempt_count >= 1 AND revision >= 0",
+        name="ck_artifact_cleanup_tombstones_counters",
+    ),
+    sa.CheckConstraint(
+        "error_code IS NULL OR error_code ~ '^[A-Z][A-Z0-9_]{0,99}$'",
+        name="ck_artifact_cleanup_tombstones_error_code",
+    ),
+    sa.CheckConstraint(
+        "error_digest IS NULL OR error_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_artifact_cleanup_tombstones_error_digest",
+    ),
+    schema=SOURCES_SCHEMA,
+)
+
+sa.Index(
+    "ix_artifact_cleanup_tombstones_claim",
+    artifact_cleanup_tombstones.c.state,
+    artifact_cleanup_tombstones.c.retry_not_before_utc,
+    artifact_cleanup_tombstones.c.claim_expires_at_utc,
+)
+
 ARTIFACT_TABLES = (
     artifact_uploads,
+    artifact_cleanup_tombstones,
     artifact_objects,
     artifact_records,
     work_input_artifacts,

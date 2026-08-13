@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Connection, Engine, RowMapping
-from sqlalchemy.exc import SQLAlchemyError
-
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionResult,
     ManualImportChildWork,
     admission_result_digest,
 )
+from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.exc import SQLAlchemyError
+
 from collection_infrastructure.postgres import artifact_metadata
 from collection_infrastructure.postgres.manual_import_metadata import (
     plan_admission_items,
@@ -74,7 +74,8 @@ class PostgresManualImportAdmissionStore:
                         message="The Work Engine returned a different child work identity.",
                         command=command,
                         required_action=(
-                            "Inspect the Work Engine semantic identity and retry the exact admission."
+                            "Inspect the Work Engine semantic identity and "
+                            "retry the exact admission."
                         ),
                     )
                 result_digest = admission_result_digest(
@@ -137,7 +138,8 @@ class PostgresManualImportAdmissionStore:
                 message="The manual import admission transaction did not complete.",
                 command=command,
                 required_action=(
-                    "Inspect admission, artifact, and Work Engine rows before retrying the exact plan."
+                    "Inspect admission, artifact, and Work Engine rows before "
+                    "retrying the exact plan."
                 ),
                 cause_type=type(exc).__name__,
             ) from exc
@@ -258,7 +260,7 @@ class PostgresManualImportAdmissionStore:
                 command=command,
                 required_action="Use the run identity owned by the parent work unit.",
             )
-        raw_artifacts = artifact_metadata.raw_artifacts
+        raw_artifacts = artifact_metadata.artifact_records
         artifact_ids = {
             command.plan.plan_artifact_id,
             command.plan.source_artifact_id,
@@ -320,7 +322,7 @@ def _require_artifact_binding(
         )
 
 
-def _result(row: Mapping[str, object], *, status: str) -> ManualImportAdmissionResult:
+def _result(row: RowMapping, *, status: str) -> ManualImportAdmissionResult:
     return ManualImportAdmissionResult(
         admission_id=UUID(str(row["admission_id"])),
         plan_digest=str(row["plan_digest"]),

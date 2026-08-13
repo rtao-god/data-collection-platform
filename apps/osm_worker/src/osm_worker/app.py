@@ -4,10 +4,9 @@ import os
 from typing import NoReturn
 
 from osm_overpass import OverpassEndpointPolicy, OverpassHttpClient
-from source_connector_sdk import SourceWorkerGateway
-
 from osm_worker.gateway import SdkOsmWorkerGateway
 from osm_worker.worker import OSMWorker, OSMWorkerPolicy
+from source_connector_sdk import SourceWorkerGateway
 
 
 def main() -> int:

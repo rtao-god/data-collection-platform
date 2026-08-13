@@ -153,9 +153,18 @@ class ManualImportAdmissionService:
 def _child_work(
     command: AdmitManualImportPlan, record: ManualImportRecord
 ) -> ManualImportChildWork:
-    semantic_key = (
-        f"manual-import:{command.plan.plan_digest}:{record.position}:{record.record_digest}"
+    semantic_material = _canonical_bytes(
+        {
+            "contract": "manual-import-record-work-identity@1",
+            "planDigest": command.plan.plan_digest,
+            "position": record.position,
+            "recordDigest": record.record_digest,
+            "targetStage": command.target_stage,
+            "targetCapability": command.target_capability,
+            "targetOutputContract": command.target_output_contract,
+        }
     )
+    semantic_key = f"sha256:{sha256(semantic_material).hexdigest()}"
     work_id = uuid5(_CHILD_NAMESPACE, f"{command.run_id}:{semantic_key}")
     payload = _canonical_bytes(
         {

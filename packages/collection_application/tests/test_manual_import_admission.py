@@ -3,7 +3,6 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
-
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionResult,
@@ -113,7 +112,8 @@ def test_ready_plan_creates_one_deterministic_child_per_accepted_record() -> Non
     assert store.children is not None
     assert len(store.children) == 1
     child = store.children[0]
-    assert child.semantic_key.startswith(f"manual-import:{_PLAN_DIGEST}:0:")
+    assert child.semantic_key.startswith("sha256:")
+    assert len(child.semantic_key) == 71
     assert child.input_digest.startswith("sha256:")
     assert b'"planArtifactId":"00000000-0000-0000-0000-000000000104"' in child.input_payload
     assert b'"sourceArtifactId":"00000000-0000-0000-0000-000000000105"' in child.input_payload
