@@ -1,0 +1,228 @@
+name: Reconcile Current Persistence
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/reconcile-current-persistence.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-persistence-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: collection
+          POSTGRES_PASSWORD: collection
+          POSTGRES_DB: collection
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collection -d collection"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://collection:collection@localhost:5432/collection
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collection:collection@localhost:5432/collection
+      COLLECTION_DATABASE_URL: postgresql+psycopg://collection:collection@localhost:5432/collection
+      TEST_DATABASE_URL: postgresql+psycopg://collection:collection@localhost:5432/collection
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Reconcile Alembic metadata and prove fresh schema
+        id: reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'apps/manual_import_worker' pyproject.toml
+          grep -q 'apps/osm_worker' pyproject.toml
+          grep -q 'connectors/osm_overpass' pyproject.toml
+          uv sync --frozen --all-packages --dev
+          python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          import importlib
+          from pathlib import Path
+
+          root = Path.cwd()
+          env_path = root / "database/migrations/env.py"
+          if not env_path.exists():
+              candidates = sorted(root.glob("**/migrations/env.py"))
+              if len(candidates) != 1:
+                  raise RuntimeError(f"expected one Alembic env.py, found {candidates}")
+              env_path = candidates[0]
+
+          postgres_root = (
+              root
+              / "packages/collection_infrastructure/src/collection_infrastructure/postgres"
+          )
+          module_names = sorted(
+              f"collection_infrastructure.postgres.{path.stem}"
+              for path in postgres_root.glob("*_metadata.py")
+          )
+          unique_modules: list[str] = []
+          seen_metadata: set[int] = set()
+          for module_name in module_names:
+              module = importlib.import_module(module_name)
+              metadata = getattr(module, "metadata", None)
+              if metadata is None or not getattr(metadata, "tables", None):
+                  continue
+              identity = id(metadata)
+              if identity in seen_metadata:
+                  continue
+              seen_metadata.add(identity)
+              unique_modules.append(module_name)
+          if not unique_modules:
+              raise RuntimeError("no PostgreSQL metadata owners were discovered")
+
+          source = env_path.read_text(encoding="utf-8")
+          tree = ast.parse(source)
+          assignment: ast.Assign | ast.AnnAssign | None = None
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Assign) and any(
+                  isinstance(target, ast.Name) and target.id == "target_metadata"
+                  for target in node.targets
+              ):
+                  assignment = node
+                  break
+              if (
+                  isinstance(node, ast.AnnAssign)
+                  and isinstance(node.target, ast.Name)
+                  and node.target.id == "target_metadata"
+              ):
+                  assignment = node
+                  break
+          if assignment is None or assignment.lineno is None or assignment.end_lineno is None:
+              raise RuntimeError("Alembic target_metadata assignment was not found")
+
+          aliases = [f"owned_metadata_{index}" for index in range(len(unique_modules))]
+          imports = "".join(
+              f"from {module_name} import metadata as {alias}\n"
+              for module_name, alias in zip(unique_modules, aliases, strict=True)
+          )
+          marker_start = "# BEGIN GENERATED OWNED METADATA\n"
+          marker_end = "# END GENERATED OWNED METADATA\n"
+          if marker_start in source:
+              prefix, remainder = source.split(marker_start, 1)
+              _, suffix = remainder.split(marker_end, 1)
+              source = prefix + suffix
+              tree = ast.parse(source)
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Assign) and any(
+                      isinstance(target, ast.Name) and target.id == "target_metadata"
+                      for target in node.targets
+                  ):
+                      assignment = node
+                      break
+                  if (
+                      isinstance(node, ast.AnnAssign)
+                      and isinstance(node.target, ast.Name)
+                      and node.target.id == "target_metadata"
+                  ):
+                      assignment = node
+                      break
+          if assignment is None or assignment.lineno is None or assignment.end_lineno is None:
+              raise RuntimeError("target_metadata disappeared during reconciliation")
+          lines = source.splitlines(keepends=True)
+          replacement = (
+              marker_start
+              + imports
+              + f"target_metadata = [{', '.join(aliases)}]\n"
+              + marker_end
+          )
+          lines[assignment.lineno - 1 : assignment.end_lineno] = [replacement]
+          env_path.write_text("".join(lines), encoding="utf-8")
+          print(f"Alembic metadata owners: {', '.join(unique_modules)}")
+          PY
+          ALEMBIC_CONFIG="$(find . -name alembic.ini -type f -print -quit)"
+          test -n "$ALEMBIC_CONFIG"
+          uv run alembic -c "$ALEMBIC_CONFIG" upgrade head
+          if ! uv run alembic -c "$ALEMBIC_CONFIG" check; then
+            REVISION_ID="$(python - <<'PY'
+          from pathlib import Path
+          existing = {path.stem.split('_', 2)[0] + '_' + path.stem.split('_', 2)[1] for path in Path('database/migrations/versions').glob('20260813_*.py') if len(path.stem.split('_', 2)) >= 2}
+          index = 1
+          while f'20260813_{index:04d}' in existing:
+              index += 1
+          print(f'20260813_{index:04d}')
+          PY
+          )"
+            uv run alembic -c "$ALEMBIC_CONFIG" revision \
+              --autogenerate \
+              --rev-id "$REVISION_ID" \
+              -m "reconcile current owned metadata"
+          fi
+          uv run ruff check database packages apps connectors tools --fix --unsafe-fixes
+          uv run ruff format database packages apps connectors tools
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m 'not integration and not object_store_integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
+          PGPASSWORD=collection psql -h localhost -U collection -d postgres \
+            -c 'DROP DATABASE IF EXISTS collection_fresh'
+          PGPASSWORD=collection psql -h localhost -U collection -d postgres \
+            -c 'CREATE DATABASE collection_fresh'
+          export DATABASE_URL='postgresql+psycopg://collection:collection@localhost:5432/collection_fresh'
+          export COLLECTOR_DATABASE_URL="$DATABASE_URL"
+          export COLLECTION_DATABASE_URL="$DATABASE_URL"
+          export TEST_DATABASE_URL="$DATABASE_URL"
+          uv run alembic -c "$ALEMBIC_CONFIG" upgrade head
+          uv run pytest -m 'integration and not object_store_integration'
+
+      - name: Commit persistence reconciliation or remove failed automation
+        if: always()
+        shell: bash
+        env:
+          RECONCILE_OUTCOME: ${{ steps.reconcile.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$RECONCILE_OUTCOME" != "success" ]; then
+            git reset --hard HEAD
+          fi
+          git rm -f --ignore-unmatch .github/workflows/reconcile-current-persistence.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          if [ "$RECONCILE_OUTCOME" = "success" ]; then
+            git commit -m 'Fix (Database): reconcile current owner metadata'
+          else
+            git commit -m 'Build (Tooling): remove failed persistence reconciliation'
+          fi
+          git push origin HEAD:main
+
+      - name: Preserve failed status
+        if: steps.reconcile.outcome != 'success'
+        run: exit 1
