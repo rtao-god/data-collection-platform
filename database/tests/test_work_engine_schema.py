@@ -331,7 +331,10 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
     assert {
         index["name"]
         for index in inspector.get_indexes("artifact_cleanup_tombstones", schema="sources")
-    } == {"ix_artifact_cleanup_tombstones_claim"}
+    } == {
+        "ix_artifact_cleanup_tombstones_claim",
+        "uq_artifact_cleanup_tombstones_upload_id",
+    }
 
 
 def test_worker_output_contract_identity_is_fail_closed() -> None:
