@@ -1,0 +1,74 @@
+name: Normalize Manual Import Admission
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/normalize-manual-import-admission.yml
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Normalize owned source and remove transient tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f ! -name ci.yml -print0 \
+            | xargs -0 -r git rm -f
+          find .codex -maxdepth 1 -type f -name '*.py' -print0 \
+            | xargs -0 -r git rm -f
+          if [ -d .codex/payloads ]; then
+            find .codex/payloads -type f -print0 | xargs -0 -r git rm -f
+          fi
+          uv run ruff format .
+          uv run ruff check --fix .
+          uv run ruff format .
+
+      - name: Verify normalized owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps packages connectors
+
+      - name: Commit normalized owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'Fix (Manual Import): normalize admission owner boundary'
+          git push origin HEAD:main
