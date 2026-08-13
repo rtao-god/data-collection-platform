@@ -1,0 +1,67 @@
+name: Commit Manual Import Normalization
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/commit-manual-import-normalization.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manual-import-owner-write
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Normalize and remove transient tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f ! -name ci.yml -print0 \
+            | xargs -0 -r git rm -f
+          find .codex -maxdepth 1 -type f -name '*.py' -print0 \
+            | xargs -0 -r git rm -f
+          if [ -d .codex/payloads ]; then
+            find .codex/payloads -type f -print0 | xargs -0 -r git rm -f
+          fi
+          uv run ruff format .
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run ruff format --check .
+          uv run ruff check .
+
+      - name: Commit cleanup and formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'Fix (Manual Import): normalize admission owner boundary'
+          git push origin HEAD:main
