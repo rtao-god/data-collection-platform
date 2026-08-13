@@ -1,0 +1,311 @@
+name: Implement HTTP Observation Artifact Contract
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/implement-http-artifact-contract.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: implement-http-observation-artifact
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check prerequisite
+        id: prerequisite
+        shell: bash
+        run: |
+          if [ -f docs/proofs/current-owners-stabilized.md ] && [ -f connectors/http_web/src/http_web/contracts.py ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install exact Python
+        if: steps.prerequisite.outputs.ready == 'true'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        if: steps.prerequisite.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Add immutable observation artifact
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > connectors/http_web/src/http_web/artifacts.py <<'PY'
+          from __future__ import annotations
+
+          import json
+          from collections.abc import Mapping
+          from dataclasses import dataclass
+          from hashlib import sha256
+          from types import MappingProxyType
+          from uuid import UUID
+
+          from http_web.contracts import HttpFetchOutcome, HttpFetchResult
+
+          _SCHEMA_REVISION = "http-fetch-observation/1"
+
+
+          @dataclass(frozen=True, slots=True)
+          class HttpBodyArtifactReference:
+              artifact_id: UUID
+              content_digest: str
+              content_length: int
+
+              def __post_init__(self) -> None:
+                  if not self.content_digest.startswith("sha256:"):
+                      raise ValueError("HTTP body artifact digest must use SHA-256")
+                  if self.content_length < 0:
+                      raise ValueError("HTTP body artifact length cannot be negative")
+
+
+          @dataclass(frozen=True, slots=True)
+          class HttpFetchObservationArtifact:
+              requested_url: str
+              final_url: str
+              status_code: int
+              outcome: HttpFetchOutcome
+              redirect_chain: tuple[str, ...]
+              response_headers: Mapping[str, str]
+              body_artifact: HttpBodyArtifactReference | None
+              policy_reason: str | None
+
+              def __post_init__(self) -> None:
+                  if self.outcome is HttpFetchOutcome.FETCHED:
+                      if self.body_artifact is None:
+                          raise ValueError("fetched observation requires a body artifact")
+                  elif self.body_artifact is not None:
+                      raise ValueError("non-fetched observation cannot reference a body artifact")
+                  if self.outcome is HttpFetchOutcome.POLICY_BLOCKED:
+                      if self.policy_reason is None:
+                          raise ValueError("policy-blocked observation requires a reason")
+                  elif self.policy_reason is not None:
+                      raise ValueError("only policy-blocked observation can have a reason")
+                  object.__setattr__(
+                      self,
+                      "response_headers",
+                      MappingProxyType(dict(sorted(self.response_headers.items()))),
+                  )
+
+              def canonical_bytes(self) -> bytes:
+                  body = (
+                      {
+                          "artifactId": str(self.body_artifact.artifact_id),
+                          "contentDigest": self.body_artifact.content_digest,
+                          "contentLength": self.body_artifact.content_length,
+                      }
+                      if self.body_artifact is not None
+                      else None
+                  )
+                  document = {
+                      "bodyArtifact": body,
+                      "finalUrl": self.final_url,
+                      "outcome": self.outcome.value,
+                      "policyReason": self.policy_reason,
+                      "redirectChain": list(self.redirect_chain),
+                      "requestedUrl": self.requested_url,
+                      "responseHeaders": dict(self.response_headers),
+                      "schemaRevision": _SCHEMA_REVISION,
+                      "statusCode": self.status_code,
+                  }
+                  return json.dumps(
+                      document,
+                      ensure_ascii=False,
+                      separators=(",", ":"),
+                      sort_keys=True,
+                  ).encode("utf-8")
+
+              @property
+              def digest(self) -> str:
+                  return f"sha256:{sha256(self.canonical_bytes()).hexdigest()}"
+
+
+          def observation_from_fetch_result(
+              result: HttpFetchResult,
+              *,
+              body_artifact_id: UUID | None,
+          ) -> HttpFetchObservationArtifact:
+              body_artifact: HttpBodyArtifactReference | None = None
+              if result.outcome is HttpFetchOutcome.FETCHED:
+                  if body_artifact_id is None or result.body_digest is None:
+                      raise ValueError("fetched result requires promoted body artifact identity")
+                  body_artifact = HttpBodyArtifactReference(
+                      artifact_id=body_artifact_id,
+                      content_digest=result.body_digest,
+                      content_length=len(result.body),
+                  )
+              elif body_artifact_id is not None:
+                  raise ValueError("non-fetched result cannot receive a body artifact identity")
+              return HttpFetchObservationArtifact(
+                  requested_url=result.requested_url,
+                  final_url=result.final_url,
+                  status_code=result.status_code,
+                  outcome=result.outcome,
+                  redirect_chain=result.redirect_chain,
+                  response_headers=result.response_headers,
+                  body_artifact=body_artifact,
+                  policy_reason=result.policy_reason,
+              )
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('connectors/http_web/src/http_web/__init__.py')
+          text = path.read_text(encoding='utf-8')
+          block = '''from http_web.artifacts import (
+              HttpBodyArtifactReference,
+              HttpFetchObservationArtifact,
+              observation_from_fetch_result,
+          )
+          '''
+          if 'from http_web.artifacts import' not in text:
+              text = block + text
+          names = (
+              '    "HttpBodyArtifactReference",\n'
+              '    "HttpFetchObservationArtifact",\n'
+              '    "observation_from_fetch_result",\n'
+          )
+          if '    "HttpFetchObservationArtifact",' not in text:
+              text = text.replace('__all__ = [\n', '__all__ = [\n' + names, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          cat > connectors/http_web/tests/test_artifacts.py <<'PY'
+          from types import MappingProxyType
+          from uuid import UUID
+
+          import pytest
+
+          from http_web import (
+              HttpFetchObservationArtifact,
+              HttpFetchOutcome,
+              HttpFetchResult,
+              observation_from_fetch_result,
+          )
+
+          _ARTIFACT_ID = UUID("00000000-0000-0000-0000-000000000101")
+
+
+          def fetched() -> HttpFetchResult:
+              return HttpFetchResult(
+                  outcome=HttpFetchOutcome.FETCHED,
+                  requested_url="https://example.com",
+                  final_url="https://example.com/",
+                  status_code=200,
+                  redirect_chain=(),
+                  response_headers=MappingProxyType(
+                      {"content-type": "text/html", "etag": '"abc"'}
+                  ),
+                  body=b"payload",
+                  body_digest=(
+                      "sha256:239f59ed55e737c77147cf55ad0c1b030b6d7ee748a7426952f9b852d5a935e5"
+                  ),
+              )
+
+
+          def test_observation_references_promoted_body_without_embedding_bytes() -> None:
+              observation = observation_from_fetch_result(
+                  fetched(),
+                  body_artifact_id=_ARTIFACT_ID,
+              )
+              payload = observation.canonical_bytes()
+              assert b"payload" not in payload
+              assert str(_ARTIFACT_ID).encode() in payload
+              assert observation.body_artifact is not None
+              assert observation.body_artifact.content_length == 7
+
+
+          def test_observation_digest_is_header_order_independent() -> None:
+              first = observation_from_fetch_result(fetched(), body_artifact_id=_ARTIFACT_ID)
+              changed = HttpFetchObservationArtifact(
+                  requested_url=first.requested_url,
+                  final_url=first.final_url,
+                  status_code=first.status_code,
+                  outcome=first.outcome,
+                  redirect_chain=first.redirect_chain,
+                  response_headers={"etag": '"abc"', "content-type": "text/html"},
+                  body_artifact=first.body_artifact,
+                  policy_reason=None,
+              )
+              assert first.digest == changed.digest
+
+
+          def test_fetched_result_cannot_be_sealed_without_body_artifact() -> None:
+              with pytest.raises(ValueError, match="promoted body"):
+                  observation_from_fetch_result(fetched(), body_artifact_id=None)
+          PY
+
+          cat > docs/http-observation-artifact.md <<'EOF'
+          # HTTP fetch observation artifact
+
+          Fetch metadata is a deterministic derived artifact. Successful response bytes are promoted
+          independently as a raw content-addressed artifact; metadata stores only its immutable ID,
+          digest, and length. `unchanged` and `policy_blocked` observations cannot reference a body.
+          Header ordering does not affect the observation digest.
+          EOF
+
+      - name: Verify artifact contract
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          uv run ruff format connectors/http_web
+          uv run ruff check connectors/http_web
+          uv run mypy
+          uv run pytest -q connectors/http_web/tests
+          uv run pytest -q -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q connectors/http_web
+
+      - name: Commit observation artifact owner
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git add connectors/http_web/src/http_web/artifacts.py connectors/http_web/src/http_web/__init__.py
+          git diff --cached --check
+          git commit -m 'Feature (HTTP Acquisition): add immutable observation artifact'
+          git add connectors/http_web/tests/test_artifacts.py
+          git commit -m 'New tests (HTTP Acquisition): prove artifact lineage contract'
+          git add docs/http-observation-artifact.md
+          git commit -m 'Docs (HTTP Acquisition): document body metadata separation'
+
+      - name: Remove temporary workflow
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git pull --rebase origin main
+          git rm -f --ignore-unmatch .github/workflows/implement-http-artifact-contract.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Chore (Tooling): remove HTTP artifact workflow'
+          fi
+          git push origin HEAD:main
