@@ -1,0 +1,46 @@
+name: Cleanup Manual Import Automation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cleanup-manual-import-automation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manual-import-owner-write
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Remove transient automation and probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f ! -name ci.yml -print0 \
+            | xargs -0 -r git rm -f
+          find .codex -maxdepth 1 -type f \( -name '*.py' -o -name '*probe*' -o -name 'ci-trigger*' \) -print0 \
+            | xargs -0 -r git rm -f
+          if [ -d .codex/payloads ]; then
+            find .codex/payloads -type f -print0 | xargs -0 -r git rm -f
+          fi
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Chore (Manual Import): remove transient owner automation'
+          git push origin HEAD:main
