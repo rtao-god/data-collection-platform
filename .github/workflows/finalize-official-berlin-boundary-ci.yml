@@ -1,0 +1,80 @@
+name: Finalize Official Berlin Boundary CI
+
+on:
+  workflow_run:
+    workflows:
+      - Verify
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-official-berlin-boundary-finalizer
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 30
+
+      - name: Record exact successful boundary proof
+        if: github.event.workflow_run.conclusion == 'success'
+        shell: bash
+        env:
+          VERIFIED_HEAD: ${{ github.event.workflow_run.head_sha }}
+          VERIFIED_RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$VERIFIED_HEAD"
+          test -f docs/proofs/reconciled-baseline-ci.md
+          test -f docs/proofs/worker-image-isolation-ci.md
+          test -f docs/proofs/official-berlin-boundary.md
+          find campaigns/berlin_recording_services -type f -name '*.geojson' -print -quit | grep -q .
+          find campaigns/berlin_recording_services -type f -name '*.provenance.json' -print -quit | grep -q .
+          cat > docs/proofs/official-berlin-boundary-ci.md <<EOF
+          # Official Berlin boundary permanent CI proof
+
+          - workflow: \`Verify\`
+          - conclusion: \`success\`
+          - verified head: \`${VERIFIED_HEAD}\`
+          - workflow run: \`${VERIFIED_RUN}\`
+          - authority: Land Berlin
+          - source transport: official gdi.berlin.de WFS
+          - campaign blocker: removed by a validated campaign-owned artifact
+          EOF
+
+      - name: Remove finalizer and commit exact result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch .github/workflows/finalize-official-berlin-boundary-ci.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          if [ -f docs/proofs/official-berlin-boundary-ci.md ]; then
+            git commit -m 'CI (Geography): finalize official boundary proof'
+          else
+            git commit -m 'Build (Tooling): remove unsuccessful boundary finalizer'
+          fi
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            git fetch origin main
+            git rebase origin/main
+            sleep 2
+          done
+          exit 1
