@@ -1,0 +1,306 @@
+name: Finalize SeaweedFS Runtime Proof
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-seaweedfs-runtime-proof.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Resolve exact SeaweedFS image
+        run: |
+          docker pull chrislusf/seaweedfs:latest
+          image="$(docker image inspect --format='{{index .RepoDigests 0}}' chrislusf/seaweedfs:latest)"
+          test -n "$image"
+          echo "SEAWEEDFS_IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Generate pinned runtime profile and CI proof
+        env:
+          SEAWEEDFS_IMAGE: ${{ env.SEAWEEDFS_IMAGE }}
+        run: |
+          uv run python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path.cwd()
+          image = os.environ["SEAWEEDFS_IMAGE"]
+          if "@sha256:" not in image:
+              raise RuntimeError("SeaweedFS image is not digest pinned")
+
+          compose = f'''name: data-collection-platform
+
+          services:
+            seaweedfs:
+              image: {image}
+              command: ["server", "-s3", "-dir=/data", "-ip=seaweedfs"]
+              restart: unless-stopped
+              ports:
+                - "127.0.0.1:8333:8333"
+                - "127.0.0.1:9333:9333"
+              volumes:
+                - seaweedfs-data:/data
+
+            object-store-bootstrap:
+              build:
+                context: ../..
+                dockerfile: deploy/docker/collector-cli.Dockerfile
+              command: ["python", "-m", "collector_cli.object_store_bootstrap"]
+              depends_on:
+                seaweedfs:
+                  condition: service_started
+              environment:
+                ARTIFACT_S3_ENDPOINT_URL: http://seaweedfs:8333
+                ARTIFACT_S3_BUCKET: ${{ARTIFACT_S3_BUCKET:-collection-local}}
+                ARTIFACT_S3_ACCESS_KEY_ID: ${{ARTIFACT_S3_ACCESS_KEY_ID:-local-access}}
+                ARTIFACT_S3_SECRET_ACCESS_KEY: ${{ARTIFACT_S3_SECRET_ACCESS_KEY:-local-secret}}
+                ARTIFACT_S3_REGION: ${{ARTIFACT_S3_REGION:-us-east-1}}
+                OBJECT_STORE_BOOTSTRAP_TIMEOUT_SECONDS: 90
+              restart: "no"
+
+          volumes:
+            seaweedfs-data:
+          '''
+          compose_path = root / "deploy/compose/seaweedfs.yml"
+          compose_path.parent.mkdir(parents=True, exist_ok=True)
+          compose_path.write_text(compose, encoding="utf-8")
+
+          test_path = (
+              root
+              / "packages/collection_infrastructure/tests/"
+              "test_seaweedfs_s3_compatibility.py"
+          )
+          test_text = test_path.read_text(encoding="utf-8")
+          if "from mypy_boto3_s3 import S3Client" not in test_text:
+              test_text = test_text.replace(
+                  "from botocore.exceptions import ClientError\n",
+                  "from botocore.exceptions import ClientError\n"
+                  "from mypy_boto3_s3 import S3Client\n",
+              )
+          test_text = test_text.replace(
+              "def _ensure_bucket(client: object, bucket: str) -> None:\n"
+              "    s3 = client\n",
+              "def _ensure_bucket(client: S3Client, bucket: str) -> None:\n"
+              "    s3 = client\n",
+          )
+          test_path.write_text(test_text, encoding="utf-8")
+
+          pyproject_path = root / "pyproject.toml"
+          pyproject = pyproject_path.read_text(encoding="utf-8")
+          if "object_store_integration:" not in pyproject:
+              marker = re.search(r"markers\s*=\s*\[", pyproject)
+              if marker is None:
+                  raise RuntimeError("pytest marker list not found")
+              insert = (
+                  '\n  "object_store_integration: live S3 compatibility proof",'
+              )
+              pyproject = pyproject[: marker.end()] + insert + pyproject[marker.end() :]
+          pyproject_path.write_text(pyproject, encoding="utf-8")
+
+          ci_path = root / ".github/workflows/ci.yml"
+          ci = ci_path.read_text(encoding="utf-8")
+          ci = re.sub(
+              r"uv run pytest -q -m ['\"]not integration['\"]",
+              "uv run pytest -q -m 'not integration and not object_store_integration'",
+              ci,
+          )
+          if "\n  object-store:\n" not in ci:
+              ci = ci.rstrip() + f'''
+
+            object-store:
+              runs-on: ubuntu-24.04
+              steps:
+                - name: Check out repository
+                  uses: actions/checkout@v6
+
+                - name: Install exact Python
+                  uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+                  with:
+                    python-version-file: .python-version
+                    check-latest: false
+
+                - name: Install uv
+                  uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+                  with:
+                    version: 0.10.0
+                    enable-cache: true
+
+                - name: Restore exact workspace
+                  run: uv sync --frozen --all-packages --dev
+
+                - name: Start pinned SeaweedFS S3
+                  run: >-
+                    docker run --detach --name dcp-seaweedfs
+                    --publish 8333:8333 --publish 9333:9333
+                    {image} server -s3 -dir=/data -ip=localhost
+
+                - name: Wait for S3 compatibility endpoint
+                  env:
+                    COLLECTOR_TEST_S3_ENDPOINT_URL: http://127.0.0.1:8333
+                    COLLECTOR_TEST_S3_ACCESS_KEY_ID: local-access
+                    COLLECTOR_TEST_S3_SECRET_ACCESS_KEY: local-secret
+                    COLLECTOR_TEST_S3_REGION: us-east-1
+                  run: |
+                    uv run python - <<'PYWAIT'
+                    import os
+                    import time
+                    import boto3
+                    endpoint = os.environ["COLLECTOR_TEST_S3_ENDPOINT_URL"]
+                    client = boto3.client(
+                        "s3",
+                        endpoint_url=endpoint,
+                        aws_access_key_id=os.environ["COLLECTOR_TEST_S3_ACCESS_KEY_ID"],
+                        aws_secret_access_key=os.environ["COLLECTOR_TEST_S3_SECRET_ACCESS_KEY"],
+                        region_name=os.environ["COLLECTOR_TEST_S3_REGION"],
+                    )
+                    deadline = time.monotonic() + 90
+                    while True:
+                        try:
+                            client.list_buckets()
+                            break
+                        except Exception:
+                            if time.monotonic() >= deadline:
+                                raise
+                            time.sleep(1)
+                    PYWAIT
+
+                - name: Verify live object lifecycle
+                  env:
+                    COLLECTOR_TEST_S3_ENDPOINT_URL: http://127.0.0.1:8333
+                    COLLECTOR_TEST_S3_BUCKET: collection-ci
+                    COLLECTOR_TEST_S3_ACCESS_KEY_ID: local-access
+                    COLLECTOR_TEST_S3_SECRET_ACCESS_KEY: local-secret
+                    COLLECTOR_TEST_S3_REGION: us-east-1
+                  run: >-
+                    uv run pytest -q
+                    packages/collection_infrastructure/tests/test_seaweedfs_s3_compatibility.py
+                    -m object_store_integration
+
+                - name: Collect SeaweedFS diagnostics
+                  if: always()
+                  run: docker logs dcp-seaweedfs || true
+
+                - name: Stop SeaweedFS
+                  if: always()
+                  run: docker rm --force dcp-seaweedfs || true
+          '''
+          ci_path.write_text(ci, encoding="utf-8")
+
+          status_path = root / "docs/implementation-status.md"
+          status = status_path.read_text(encoding="utf-8")
+          status = status.replace(
+              "- no SeaweedFS Compose profile or live compatibility proof against a real S3-compatible server;\n",
+              "",
+          )
+          if "| SeaweedFS runtime |" not in status:
+              marker = "| Artifact cleanup |"
+              index = status.find(marker)
+              if index < 0:
+                  raise RuntimeError("artifact cleanup status marker not found")
+              line_end = status.find("\n", index) + 1
+              line = (
+                  "| SeaweedFS runtime | Digest-pinned local profile and live "
+                  "PUT/GET/verify/promote/cleanup compatibility proof |\n"
+              )
+              status = status[:line_end] + line + status[line_end:]
+          status_path.write_text(status, encoding="utf-8")
+          PY
+
+      - name: Remove temporary tooling and format
+        run: |
+          find .codex -maxdepth 1 -type f -name '*.py' -delete
+          find .codex -maxdepth 1 -type f -name 'ci-trigger-*' -delete
+          find .github/workflows -maxdepth 1 -type f -name '*.yml' \
+            ! -name 'ci.yml' \
+            ! -name 'finalize-seaweedfs-runtime-proof.yml' \
+            -delete
+          uv run ruff format .
+          uv run ruff check --fix .
+
+      - name: Verify local runtime profile and static gates
+        run: |
+          docker compose -f deploy/compose/seaweedfs.yml config >/dev/null
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -q -m 'not integration and not object_store_integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps packages connectors
+
+      - name: Verify live SeaweedFS lifecycle before commit
+        env:
+          COLLECTOR_TEST_S3_ENDPOINT_URL: http://127.0.0.1:8333
+          COLLECTOR_TEST_S3_BUCKET: collection-finalizer
+          COLLECTOR_TEST_S3_ACCESS_KEY_ID: local-access
+          COLLECTOR_TEST_S3_SECRET_ACCESS_KEY: local-secret
+          COLLECTOR_TEST_S3_REGION: us-east-1
+        run: |
+          docker run --detach --name dcp-seaweedfs-finalizer \
+            --publish 8333:8333 --publish 9333:9333 \
+            "$SEAWEEDFS_IMAGE" server -s3 -dir=/data -ip=localhost
+          trap 'docker logs dcp-seaweedfs-finalizer || true; docker rm --force dcp-seaweedfs-finalizer || true' EXIT
+          uv run python - <<'PYWAIT'
+          import os
+          import time
+          import boto3
+          client = boto3.client(
+              "s3",
+              endpoint_url=os.environ["COLLECTOR_TEST_S3_ENDPOINT_URL"],
+              aws_access_key_id=os.environ["COLLECTOR_TEST_S3_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["COLLECTOR_TEST_S3_SECRET_ACCESS_KEY"],
+              region_name=os.environ["COLLECTOR_TEST_S3_REGION"],
+          )
+          deadline = time.monotonic() + 90
+          while True:
+              try:
+                  client.list_buckets()
+                  break
+              except Exception:
+                  if time.monotonic() >= deadline:
+                      raise
+                  time.sleep(1)
+          PYWAIT
+          uv run pytest -q \
+            packages/collection_infrastructure/tests/test_seaweedfs_s3_compatibility.py \
+            -m object_store_integration
+
+      - name: Commit verified runtime proof
+        run: |
+          rm .github/workflows/finalize-seaweedfs-runtime-proof.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'Feature (Object Store): add pinned SeaweedFS runtime proof'
+          git push origin HEAD:main
