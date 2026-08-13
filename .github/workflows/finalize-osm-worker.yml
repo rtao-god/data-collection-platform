@@ -1,0 +1,641 @@
+name: Finalize OSM Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-osm-worker.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 24
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: true
+
+      - name: Restore current exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Generate the static Worker Gateway adapter and owner wiring
+        run: |
+          uv run python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          import dataclasses
+          import inspect
+          import json
+          import sys
+          from collections.abc import Collection, Sequence
+          from pathlib import Path
+          from typing import get_args, get_origin, get_type_hints
+
+          root = Path.cwd()
+          sys.path.insert(
+              0,
+              str(root / "packages/source_connector_sdk/src"),
+          )
+          from source_connector_sdk import SourceWorkerGateway
+          import source_connector_sdk.gateway as sdk_gateway
+
+          root_pyproject_path = root / "pyproject.toml"
+          root_pyproject = root_pyproject_path.read_text(encoding="utf-8")
+          member = '  "apps/osm_worker",\n'
+          if '"apps/osm_worker"' not in root_pyproject:
+              for anchor in (
+                  '  "apps/manual_import_worker",\n',
+                  '  "apps/worker_gateway",\n',
+                  '  "apps/migration",\n',
+              ):
+                  if anchor in root_pyproject:
+                      root_pyproject = root_pyproject.replace(anchor, anchor + member, 1)
+                      break
+              else:
+                  marker = "members = [\n"
+                  if marker not in root_pyproject:
+                      raise RuntimeError("workspace member list not found")
+                  root_pyproject = root_pyproject.replace(marker, marker + member, 1)
+          root_pyproject_path.write_text(root_pyproject, encoding="utf-8")
+
+          architecture_path = root / "tools/architecture_checks/check_dependencies.py"
+          architecture = architecture_path.read_text(encoding="utf-8")
+          if "apps/osm_worker" not in architecture:
+              tree = ast.parse(architecture)
+              lines = architecture.splitlines(keepends=True)
+              candidates: list[tuple[ast.Call, str]] = []
+              for node in ast.walk(tree):
+                  if not isinstance(node, ast.Call) or not hasattr(node, "end_lineno"):
+                      continue
+                  segment = "".join(lines[node.lineno - 1 : node.end_lineno])
+                  if "apps/manual_import_worker" in segment:
+                      candidates.append((node, segment))
+              if not candidates:
+                  raise RuntimeError("manual-import worker owner rule not found")
+              node, segment = min(candidates, key=lambda item: len(item[1]))
+              replacement = (
+                  segment.replace("apps/manual_import_worker", "apps/osm_worker")
+                  .replace("manual-import-worker", "osm-worker")
+                  .replace("manual_import_worker", "osm_worker")
+                  .replace("manual-import-connector", "osm-overpass-connector")
+                  .replace("manual_import_core", "osm_overpass")
+                  .replace("manual import", "OSM Overpass")
+                  .replace("Manual import", "OSM Overpass")
+              )
+              lines.insert(node.end_lineno, replacement)
+              architecture_path.write_text("".join(lines), encoding="utf-8")
+
+          init_path = root / "connectors/osm_overpass/src/osm_overpass/__init__.py"
+          init = init_path.read_text(encoding="utf-8")
+          input_import = "from osm_overpass.input import decode_query_spec\n"
+          if input_import not in init:
+              insertion = init.find("from osm_overpass.query import")
+              if insertion < 0:
+                  raise RuntimeError("OSM connector import marker not found")
+              init = init[:insertion] + input_import + init[insertion:]
+          if '    "decode_query_spec",\n' not in init:
+              marker = '    "build_overpass_query",\n'
+              if marker not in init:
+                  raise RuntimeError("OSM connector export marker not found")
+              init = init.replace(marker, marker + '    "decode_query_spec",\n', 1)
+          init_path.write_text(init, encoding="utf-8")
+
+          def method(name: str):
+              value = getattr(SourceWorkerGateway, name, None)
+              if value is None or not callable(value):
+                  raise RuntimeError(f"SourceWorkerGateway.{name} is unavailable")
+              return value
+
+          def render_call(
+              method_name: str,
+              values: dict[str, str],
+              *,
+              target: str | None = None,
+          ) -> str:
+              signature = inspect.signature(method(method_name))
+              positional: list[str] = []
+              keywords: list[str] = []
+              for parameter in signature.parameters.values():
+                  if parameter.name == "self":
+                      continue
+                  if parameter.kind in {
+                      inspect.Parameter.VAR_POSITIONAL,
+                      inspect.Parameter.VAR_KEYWORD,
+                  }:
+                      continue
+                  expression = values.get(parameter.name)
+                  if expression is None:
+                      if parameter.default is not inspect.Parameter.empty:
+                          continue
+                      raise RuntimeError(
+                          f"no generated value for {method_name}.{parameter.name}"
+                      )
+                  if parameter.kind is inspect.Parameter.POSITIONAL_ONLY:
+                      positional.append(expression)
+                  else:
+                      keywords.append(f"{parameter.name}={expression}")
+              arguments = positional + keywords
+              rendered_arguments = ",\n            ".join(arguments)
+              expression = (
+                  f"self._sdk.{method_name}(\n"
+                  f"            {rendered_arguments}\n"
+                  "        )"
+              )
+              if target is None:
+                  return "        " + expression
+              return f"        {target} = " + expression
+
+          complete = method("complete")
+          complete_hints = get_type_hints(complete, include_extras=True)
+          binding_type = None
+          binding_parameter = None
+          for name, hint in complete_hints.items():
+              if name == "return":
+                  continue
+              origin = get_origin(hint)
+              arguments = get_args(hint)
+              candidates = arguments if arguments else (hint,)
+              if origin in {tuple, list, set, frozenset, Collection, Sequence}:
+                  candidates = arguments
+              for candidate in candidates:
+                  if not isinstance(candidate, type) or not dataclasses.is_dataclass(candidate):
+                      continue
+                  fields = {field.name for field in dataclasses.fields(candidate)}
+                  if {"upload_id", "role"}.issubset(fields):
+                      binding_type = candidate
+                      binding_parameter = name
+                      break
+              if binding_type is not None:
+                  break
+          if binding_type is None:
+              for candidate in vars(sdk_gateway).values():
+                  if not isinstance(candidate, type) or not dataclasses.is_dataclass(candidate):
+                      continue
+                  fields = {field.name for field in dataclasses.fields(candidate)}
+                  if {"upload_id", "role"}.issubset(fields):
+                      binding_type = candidate
+                      break
+          if binding_type is None:
+              raise RuntimeError("Worker Gateway output binding contract was not found")
+          if binding_parameter is None:
+              signature = inspect.signature(complete)
+              for parameter in signature.parameters.values():
+                  if parameter.name in {
+                      "output_artifacts",
+                      "output_bindings",
+                      "artifacts",
+                      "outputs",
+                  }:
+                      binding_parameter = parameter.name
+                      break
+          if binding_parameter is None:
+              raise RuntimeError("Worker Gateway output binding parameter was not found")
+
+          binding_fields = dataclasses.fields(binding_type)
+
+          def binding_expression(variable: str, role: str, position: int) -> str:
+              values = {
+                  "upload_id": f"{variable}.upload_id",
+                  "role": repr(role),
+                  "position": str(position),
+              }
+              arguments: list[str] = []
+              for field in binding_fields:
+                  expression = values.get(field.name)
+                  if expression is None:
+                      if field.default is not dataclasses.MISSING:
+                          continue
+                      if field.default_factory is not dataclasses.MISSING:
+                          continue
+                      raise RuntimeError(
+                          f"unsupported required output binding field {field.name}"
+                      )
+                  arguments.append(f"{field.name}={expression}")
+              return f"{binding_type.__name__}({', '.join(arguments)})"
+
+          register_call = render_call(
+              "register",
+              {
+                  "build_identity": "build_identity",
+                  "capabilities": '("osm_query",)',
+                  "supported_output_contracts": '("osm-overpass-result/1",)',
+                  "max_concurrency": "1",
+                  "resource_profile": '"network-low-memory"',
+              },
+          )
+          acquire_call = render_call(
+              "acquire_lease",
+              {
+                  "capability": '"osm_query"',
+                  "lease_duration_seconds": "lease_duration_seconds",
+                  "heartbeat_interval_seconds": "heartbeat_interval_seconds",
+              },
+              target="result",
+          )
+          heartbeat_call = render_call(
+              "heartbeat",
+              {
+                  "lease": "lease",
+                  "lease_duration_seconds": "lease_duration_seconds",
+                  "heartbeat_interval_seconds": "heartbeat_interval_seconds",
+              },
+              target="result",
+          )
+          prepare_read_call = render_call(
+              "prepare_read",
+              {
+                  "lease": "lease",
+                  "artifact_id": "artifact.artifact_id",
+                  "expires_in_seconds": "900",
+              },
+              target="prepared",
+          )
+          download_call = render_call(
+              "download",
+              {
+                  "prepared": "prepared",
+                  "prepared_read": "prepared",
+                  "read": "prepared",
+                  "maximum_bytes": "maximum_bytes",
+                  "max_bytes": "maximum_bytes",
+              },
+              target="body",
+          )
+          raw_prepare_call = render_call(
+              "prepare_upload",
+              {
+                  "lease": "lease",
+                  "upload_id": "raw_upload_id",
+                  "artifact_kind": '"raw_artifact"',
+                  "expected_digest": "raw_digest",
+                  "expected_size_bytes": "len(raw_response)",
+                  "content_type": '"application/json"',
+                  "expires_in_seconds": "900",
+              },
+              target="raw_prepared",
+          )
+          observations_prepare_call = render_call(
+              "prepare_upload",
+              {
+                  "lease": "lease",
+                  "upload_id": "observations_upload_id",
+                  "artifact_kind": '"derived_artifact"',
+                  "expected_digest": "observations_digest",
+                  "expected_size_bytes": "len(observations)",
+                  "content_type": '"application/json"',
+                  "expires_in_seconds": "900",
+              },
+              target="observations_prepared",
+          )
+          raw_upload_call = render_call(
+              "upload",
+              {
+                  "prepared": "raw_prepared",
+                  "prepared_upload": "raw_prepared",
+                  "upload": "raw_prepared",
+                  "body": "raw_response",
+                  "content": "raw_response",
+                  "data": "raw_response",
+              },
+          )
+          observations_upload_call = render_call(
+              "upload",
+              {
+                  "prepared": "observations_prepared",
+                  "prepared_upload": "observations_prepared",
+                  "upload": "observations_prepared",
+                  "body": "observations",
+                  "content": "observations",
+                  "data": "observations",
+              },
+          )
+          raw_verify_call = render_call(
+              "verify_upload",
+              {
+                  "lease": "lease",
+                  "upload_id": "raw_upload_id",
+              },
+              target="raw_verified",
+          )
+          observations_verify_call = render_call(
+              "verify_upload",
+              {
+                  "lease": "lease",
+                  "upload_id": "observations_upload_id",
+              },
+              target="observations_verified",
+          )
+
+          complete_values = {
+              "lease": "lease",
+              "output_contract": '"osm-overpass-result/1"',
+              "expected_output_contract": '"osm-overpass-result/1"',
+              "contract": '"osm-overpass-result/1"',
+              "output_digest": "output_digest",
+              "result_digest": "output_digest",
+              binding_parameter: "bindings",
+              "output_artifacts": "bindings",
+              "output_bindings": "bindings",
+              "artifacts": "bindings",
+              "outputs": "bindings",
+          }
+          complete_call = render_call("complete", complete_values)
+          fail_call = render_call(
+              "fail",
+              {
+                  "lease": "lease",
+                  "failure_kind": "failure_kind",
+                  "error_code": "error_code",
+                  "message": "message",
+                  "retry_after_seconds": "retry_after_seconds",
+              },
+          )
+
+          gateway_source = f'''from __future__ import annotations
+
+          import json
+          from hashlib import sha256
+          from typing import cast
+          from uuid import uuid4
+
+          from source_connector_sdk import SourceWorkerGateway, WorkerLease
+          from {binding_type.__module__} import {binding_type.__name__}
+
+          from osm_worker.worker import WorkerFailureKind
+
+
+          class SdkOsmWorkerGateway:
+              def __init__(self, sdk: SourceWorkerGateway) -> None:
+                  self._sdk = sdk
+
+              def register(self, *, build_identity: str) -> None:
+          {register_call}
+
+              def acquire(
+                  self,
+                  *,
+                  lease_duration_seconds: int,
+                  heartbeat_interval_seconds: int,
+              ) -> WorkerLease | None:
+          {acquire_call}
+                  return cast(WorkerLease | None, result)
+
+              def heartbeat(
+                  self,
+                  lease: WorkerLease,
+                  *,
+                  lease_duration_seconds: int,
+                  heartbeat_interval_seconds: int,
+              ) -> WorkerLease:
+          {heartbeat_call}
+                  return cast(WorkerLease, result)
+
+              def read_artifact(
+                  self,
+                  lease: WorkerLease,
+                  *,
+                  role: str,
+                  maximum_bytes: int,
+              ) -> bytes:
+                  artifact = lease.artifact(role)
+          {prepare_read_call}
+          {download_call}
+                  return cast(bytes, body)
+
+              def publish_result(
+                  self,
+                  lease: WorkerLease,
+                  *,
+                  raw_response: bytes,
+                  observations: bytes,
+              ) -> None:
+                  if lease.expected_output_contract != "osm-overpass-result/1":
+                      raise ValueError("OSM lease output contract is unsupported")
+                  raw_digest = f"sha256:{{sha256(raw_response).hexdigest()}}"
+                  observations_digest = f"sha256:{{sha256(observations).hexdigest()}}"
+                  raw_upload_id = uuid4()
+                  observations_upload_id = uuid4()
+          {raw_prepare_call}
+          {raw_upload_call}
+          {raw_verify_call}
+          {observations_prepare_call}
+          {observations_upload_call}
+          {observations_verify_call}
+                  manifest = json.dumps(
+                      {{
+                          "contract": "osm-overpass-result/1",
+                          "observationsDigest": observations_digest,
+                          "rawResponseDigest": raw_digest,
+                      }},
+                      sort_keys=True,
+                      separators=(",", ":"),
+                  ).encode("utf-8")
+                  output_digest = f"sha256:{{sha256(manifest).hexdigest()}}"
+                  bindings = (
+                      {binding_expression("raw_verified", "overpass_raw_response", 0)},
+                      {binding_expression("observations_verified", "osm_observations", 1)},
+                  )
+          {complete_call}
+
+              def fail(
+                  self,
+                  lease: WorkerLease,
+                  *,
+                  failure_kind: WorkerFailureKind,
+                  error_code: str,
+                  message: str,
+                  retry_after_seconds: int | None = None,
+              ) -> None:
+          {fail_call}
+          '''
+          gateway_path = root / "apps/osm_worker/src/osm_worker/gateway.py"
+          gateway_path.write_text(gateway_source, encoding="utf-8")
+
+          manual_docker = root / "deploy/docker/manual-import-worker.Dockerfile"
+          osm_docker = root / "deploy/docker/osm-worker.Dockerfile"
+          docker_text = manual_docker.read_text(encoding="utf-8")
+          replacements = (
+              ("manual-import-worker", "osm-worker"),
+              ("manual_import_worker", "osm_worker"),
+              ("manual-import-connector", "osm-overpass-connector"),
+              ("connectors/manual_import", "connectors/osm_overpass"),
+              ("apps/manual_import_worker", "apps/osm_worker"),
+              ("manual_import_core", "osm_overpass"),
+              ("manual-import-core", "osm-overpass-connector"),
+          )
+          for old, new in replacements:
+              docker_text = docker_text.replace(old, new)
+          osm_docker.write_text(docker_text, encoding="utf-8")
+
+          ci_path = root / ".github/workflows/ci.yml"
+          ci = ci_path.read_text(encoding="utf-8")
+          if "deploy/docker/osm-worker.Dockerfile" not in ci:
+              next_job_positions = [
+                  position
+                  for marker in ("\n  migration:\n", "\n  object-store:\n")
+                  if (position := ci.find(marker)) >= 0
+              ]
+              if not next_job_positions:
+                  raise RuntimeError("verify job boundary not found")
+              insertion = min(next_job_positions)
+              steps = '''
+
+                - name: Build OSM worker image
+                  run: >-
+                    docker build
+                    -f deploy/docker/osm-worker.Dockerfile
+                    -t dcp-osm-worker:ci .
+
+                - name: Verify OSM worker image inventory
+                  run: |
+                    docker run --rm -i --entrypoint python dcp-osm-worker:ci - <<'PYIMAGE'
+                    import importlib.util
+                    required = (
+                        "httpx",
+                        "osm_overpass",
+                        "osm_worker",
+                        "source_connector_sdk",
+                    )
+                    forbidden = (
+                        "alembic",
+                        "boto3",
+                        "botocore",
+                        "playwright",
+                        "psycopg",
+                        "scrapy",
+                        "sqlalchemy",
+                    )
+                    missing = [name for name in required if importlib.util.find_spec(name) is None]
+                    present = [name for name in forbidden if importlib.util.find_spec(name) is not None]
+                    if missing or present:
+                        raise SystemExit(
+                            f"OSM image inventory mismatch: missing={missing}, forbidden={present}"
+                        )
+                    PYIMAGE
+          '''
+              ci = ci[:insertion] + steps + ci[insertion:]
+          ci_path.write_text(ci, encoding="utf-8")
+
+          module_path = root / ".codex/modules/osm-overpass.md"
+          module_path.write_text(
+              """# OSM Overpass owner
+
+          `connectors/osm_overpass` owns typed query construction, hardened HTTP acquisition, strict input/response contracts, and deterministic OSM observations.
+
+          `apps/osm_worker` is the capability-isolated deployable:
+
+          - acquires only `osm_query` work through Worker Gateway;
+          - receives one scoped `overpass_query_spec` artifact and no PostgreSQL or S3 credentials;
+          - maintains the lease heartbeat through input read, network acquisition, parsing, upload, and completion;
+          - persists the exact Overpass response as `raw_artifact` and the canonical observation batch as `derived_artifact`;
+          - completes only `osm-overpass-result/1` with ordered output roles;
+          - maps typed upstream failures without leaking response bodies or generated queries;
+          - contains no SQL, S3 SDK, browser, Scrapy, or Nominatim dependency.
+
+          Geography remains configuration-owned. No Berlin polygon or domain taxonomy is hard-coded in this owner.
+          """,
+              encoding="utf-8",
+          )
+
+          status_path = root / "docs/implementation-status.md"
+          status = status_path.read_text(encoding="utf-8")
+          if "| OSM Overpass worker |" not in status:
+              marker = "| OSM Overpass HTTP |"
+              index = status.find(marker)
+              if index < 0:
+                  raise RuntimeError("OSM HTTP status marker not found")
+              line_end = status.find("\n", index) + 1
+              row = (
+                  "| OSM Overpass worker | Isolated `osm_query` lease runtime, "
+                  "heartbeat, raw-response evidence, canonical observations, and "
+                  "Worker Gateway-only completion |\n"
+              )
+              status = status[:line_end] + row + status[line_end:]
+          status = status.replace(
+              "- OSM/Overpass worker, approved Berlin polygon, PostGIS coverage "
+              "evaluation, and real-source run remain incomplete;\n",
+              "- approved Berlin polygon, PostGIS coverage evaluation, and "
+              "real-source OSM run remain incomplete;\n",
+          )
+          status_path.write_text(status, encoding="utf-8")
+          PY
+
+      - name: Lock and restore the expanded workspace
+        run: |
+          uv lock
+          uv sync --frozen --all-packages --dev
+
+      - name: Remove temporary tooling and format
+        run: |
+          find .codex -maxdepth 1 -type f -name '*.py' -delete
+          find .codex -maxdepth 1 -type f -name 'ci-trigger-*' -delete
+          find .codex -maxdepth 1 -type f -name 'push-files-schema-probe*' -delete
+          find .github/workflows -maxdepth 1 -type f -name '*.yml' \
+            ! -name 'ci.yml' \
+            ! -name 'finalize-osm-worker.yml' \
+            -delete
+          uv run ruff format .
+          uv run ruff check --fix .
+
+      - name: Verify static, unit, and architecture gates
+        run: |
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -q -m 'not integration and not object_store_integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps packages connectors
+
+      - name: Verify the capability-minimal image
+        run: |
+          docker build \
+            -f deploy/docker/osm-worker.Dockerfile \
+            -t dcp-osm-worker:finalizer .
+          docker run --rm -i --entrypoint python dcp-osm-worker:finalizer - <<'PYIMAGE'
+          import importlib.util
+          required = ("httpx", "osm_overpass", "osm_worker", "source_connector_sdk")
+          forbidden = (
+              "alembic",
+              "boto3",
+              "botocore",
+              "playwright",
+              "psycopg",
+              "scrapy",
+              "sqlalchemy",
+          )
+          missing = [name for name in required if importlib.util.find_spec(name) is None]
+          present = [name for name in forbidden if importlib.util.find_spec(name) is not None]
+          if missing or present:
+              raise SystemExit(
+                  f"OSM image inventory mismatch: missing={missing}, forbidden={present}"
+              )
+          PYIMAGE
+
+      - name: Commit the verified worker owner
+        run: |
+          rm .github/workflows/finalize-osm-worker.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'Feature (OSM Worker): publish raw OSM observations'
+          git push origin HEAD:main
