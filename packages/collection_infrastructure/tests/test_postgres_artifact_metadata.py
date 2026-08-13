@@ -21,7 +21,10 @@ def test_artifact_metadata_has_exact_owner_tables_and_no_cascade_delete() -> Non
         "work.work_output_artifacts",
     )
     for table in ARTIFACT_TABLES:
-        assert all(foreign_key.ondelete is None for foreign_key in table.foreign_keys)
+        assert all(
+            foreign_key.ondelete in {None, "RESTRICT"}
+            for foreign_key in table.foreign_keys
+        )
         assert all(column.server_default is None for column in table.columns)
 
 

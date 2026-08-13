@@ -8,6 +8,7 @@ on:
       - .github/workflows/build-stage3-stage4-reconciliation.yml
       - .github/reconciliation/reconcile_stage3_stage4.py
       - .github/reconciliation/repair_stage3_stage4_part4.py
+      - packages/collection_infrastructure/tests/test_postgres_artifact_metadata.py
   workflow_dispatch:
 
 permissions:
