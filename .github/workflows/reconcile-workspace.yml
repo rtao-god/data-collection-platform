@@ -1,0 +1,128 @@
+name: Reconcile Workspace Ownership
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/reconcile-workspace.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-baseline
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Reconcile root workspace and static-analysis scopes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('pyproject.toml')
+          text = path.read_text(encoding='utf-8')
+          projects = sorted(
+              str(project.parent).replace('\\', '/')
+              for root in ('apps', 'connectors', 'packages')
+              for project in Path(root).glob('*/pyproject.toml')
+          )
+          if not projects:
+              raise RuntimeError('no production projects discovered')
+
+          members = '[\n' + ''.join(f'  "{project}",\n' for project in projects) + ']'
+          text, count = re.subn(
+              r'(?ms)(\[tool\.uv\.workspace\]\s*members\s*=\s*)\[(?:.|\n)*?\]',
+              lambda match: match.group(1) + members,
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise RuntimeError('workspace members block was not replaced exactly once')
+
+          for key in ('testpaths', 'src'):
+              pattern = rf'(?m)^{key}\s*=\s*\[(.*?)\]$'
+              match = re.search(pattern, text)
+              if match is None:
+                  raise RuntimeError(f'{key} list was not found')
+              values = [value.strip().strip('"') for value in match.group(1).split(',') if value.strip()]
+              if 'connectors' not in values:
+                  values.append('connectors')
+              replacement = f'{key} = [' + ', '.join(f'"{value}"' for value in values) + ']'
+              text = text[: match.start()] + replacement + text[match.end() :]
+
+          mypy_match = re.search(r'(?ms)(\[tool\.mypy\].*?\nfiles\s*=\s*)\[(.*?)\]', text)
+          if mypy_match is None:
+              raise RuntimeError('mypy files block was not found')
+          existing = re.findall(r'"([^"]+)"', mypy_match.group(2))
+          discovered_sources = []
+          for project in projects:
+              src = Path(project) / 'src'
+              if not src.is_dir():
+                  continue
+              roots = sorted(child for child in src.iterdir() if child.is_dir() and not child.name.endswith('.egg-info'))
+              if len(roots) != 1:
+                  raise RuntimeError(f'{project} must expose exactly one source root; found {[root.name for root in roots]}')
+              discovered_sources.append(str(roots[0]).replace('\\', '/'))
+          non_project_entries = [
+              value for value in existing
+              if not value.startswith(('apps/', 'connectors/', 'packages/'))
+          ]
+          mypy_values = sorted(set(discovered_sources)) + non_project_entries
+          mypy_block = '[\n' + ''.join(f'  "{value}",\n' for value in mypy_values) + ']'
+          text = text[: mypy_match.start(2) - 1] + mypy_block + text[mypy_match.end(2) + 1 :]
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Resolve exact workspace lock
+        run: uv lock
+
+      - name: Restore reconciled workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Verify workspace-owned gates
+        run: |
+          uv lock --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -q -m 'not integration'
+
+      - name: Commit workspace ownership and remove workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch .github/workflows/reconcile-workspace.yml
+          git diff --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Build (Workspace): register all production projects'
+          git push origin HEAD:main
