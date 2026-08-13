@@ -12,7 +12,7 @@ from collection_infrastructure.artifact_cleanup_object_store import (
     S3ArtifactCleanupObjectStore,
 )
 
-pytestmark = pytest.mark.object_store_integration
+pytestmark = (pytest.mark.integration, pytest.mark.object_store_integration)
 
 
 def test_seaweedfs_supports_platform_object_lifecycle() -> None:
