@@ -1,0 +1,451 @@
+name: Implement Pinned HTTP Transport
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/implement-http-pinned-transport.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: implement-http-pinned-transport
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check prerequisite
+        id: prerequisite
+        shell: bash
+        run: |
+          if [ -f docs/proofs/reconciled-baseline.md ] && [ -f connectors/http_web/src/http_web/fetcher.py ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install exact Python
+        if: steps.prerequisite.outputs.ready == 'true'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        if: steps.prerequisite.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Add pinned stdlib transport
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > connectors/http_web/src/http_web/stdlib_transport.py <<'PY'
+          from __future__ import annotations
+
+          import http.client
+          import socket
+          import ssl
+          import zlib
+          from collections.abc import Iterable, Mapping
+          from dataclasses import dataclass
+          from types import MappingProxyType
+          from urllib.parse import urlsplit
+
+          from http_web.contracts import HttpResponseEnvelope
+          from http_web.url_safety import ResolvedHttpTarget
+
+
+          class HttpTransportError(RuntimeError):
+              def __init__(self, code: str, message: str) -> None:
+                  self.code = code
+                  super().__init__(message)
+
+
+          @dataclass(frozen=True, slots=True)
+          class PinnedStdlibTransport:
+              chunk_size: int = 64 * 1024
+              ssl_context: ssl.SSLContext | None = None
+
+              def __post_init__(self) -> None:
+                  if self.chunk_size <= 0:
+                      raise ValueError("HTTP transport chunk size must be positive")
+
+              def send(
+                  self,
+                  *,
+                  target: ResolvedHttpTarget,
+                  headers: Mapping[str, str],
+                  timeout_seconds: float,
+              ) -> HttpResponseEnvelope:
+                  if not target.addresses:
+                      raise HttpTransportError(
+                          "HTTP_PINNED_ADDRESS_MISSING",
+                          "Pinned HTTP target has no validated address",
+                      )
+                  address = target.addresses[0]
+                  connection = _connection(
+                      target,
+                      address=address,
+                      timeout_seconds=timeout_seconds,
+                      ssl_context=self.ssl_context,
+                  )
+                  path = _request_target(target.normalized_url)
+                  request_headers = _request_headers(target, headers)
+                  try:
+                      connection.request("GET", path, headers=request_headers)
+                      response = connection.getresponse()
+                  except (OSError, http.client.HTTPException) as error:
+                      connection.close()
+                      raise HttpTransportError(
+                          "HTTP_CONNECTION_FAILED",
+                          "Pinned HTTP connection failed",
+                      ) from error
+                  response_headers = MappingProxyType(
+                      {name: value for name, value in response.getheaders()}
+                  )
+                  return HttpResponseEnvelope(
+                      status_code=response.status,
+                      headers=response_headers,
+                      body_chunks=_decoded_chunks(
+                          response,
+                          connection=connection,
+                          content_encoding=response.getheader("Content-Encoding"),
+                          chunk_size=self.chunk_size,
+                      ),
+                  )
+
+
+          class _PinnedHttpConnection(http.client.HTTPConnection):
+              def __init__(
+                  self,
+                  host: str,
+                  port: int,
+                  *,
+                  address: str,
+                  timeout: float,
+              ) -> None:
+                  self._pinned_address = address
+                  super().__init__(host=host, port=port, timeout=timeout)
+
+              def connect(self) -> None:
+                  self.sock = socket.create_connection(
+                      (self._pinned_address, self.port),
+                      self.timeout,
+                      self.source_address,
+                  )
+
+
+          class _PinnedHttpsConnection(http.client.HTTPSConnection):
+              def __init__(
+                  self,
+                  host: str,
+                  port: int,
+                  *,
+                  address: str,
+                  timeout: float,
+                  context: ssl.SSLContext,
+              ) -> None:
+                  self._pinned_address = address
+                  self._validated_host = host
+                  super().__init__(host=host, port=port, timeout=timeout, context=context)
+
+              def connect(self) -> None:
+                  raw_socket = socket.create_connection(
+                      (self._pinned_address, self.port),
+                      self.timeout,
+                      self.source_address,
+                  )
+                  try:
+                      self.sock = self._context.wrap_socket(
+                          raw_socket,
+                          server_hostname=self._validated_host,
+                      )
+                  except BaseException:
+                      raw_socket.close()
+                      raise
+
+
+          def _connection(
+              target: ResolvedHttpTarget,
+              *,
+              address: str,
+              timeout_seconds: float,
+              ssl_context: ssl.SSLContext | None,
+          ) -> http.client.HTTPConnection:
+              if target.scheme == "https":
+                  return _PinnedHttpsConnection(
+                      target.host,
+                      target.port,
+                      address=address,
+                      timeout=timeout_seconds,
+                      context=ssl_context or ssl.create_default_context(),
+                  )
+              return _PinnedHttpConnection(
+                  target.host,
+                  target.port,
+                  address=address,
+                  timeout=timeout_seconds,
+              )
+
+
+          def _request_target(url: str) -> str:
+              parsed = urlsplit(url)
+              return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+
+
+          def _request_headers(
+              target: ResolvedHttpTarget,
+              headers: Mapping[str, str],
+          ) -> Mapping[str, str]:
+              values = dict(headers)
+              default_port = 443 if target.scheme == "https" else 80
+              host = f"[{target.host}]" if ":" in target.host else target.host
+              values["Host"] = host if target.port == default_port else f"{host}:{target.port}"
+              values["Accept-Encoding"] = "gzip, deflate"
+              values["Connection"] = "close"
+              return MappingProxyType(values)
+
+
+          def _decoded_chunks(
+              response: http.client.HTTPResponse,
+              *,
+              connection: http.client.HTTPConnection,
+              content_encoding: str | None,
+              chunk_size: int,
+          ) -> Iterable[bytes]:
+              encoding = (content_encoding or "identity").strip().lower()
+              if "," in encoding:
+                  connection.close()
+                  raise HttpTransportError(
+                      "HTTP_CONTENT_ENCODING_UNSUPPORTED",
+                      "Stacked HTTP content encodings are not supported",
+                  )
+              decoder = _decoder(encoding)
+              try:
+                  while chunk := response.read(chunk_size):
+                      if decoder is None:
+                          yield chunk
+                      else:
+                          decoded = decoder.decompress(chunk)
+                          if decoded:
+                              yield decoded
+                  if decoder is not None:
+                      tail = decoder.flush()
+                      if tail:
+                          yield tail
+              except (OSError, http.client.HTTPException, zlib.error) as error:
+                  raise HttpTransportError(
+                      "HTTP_RESPONSE_STREAM_FAILED",
+                      "HTTP response stream could not be decoded",
+                  ) from error
+              finally:
+                  connection.close()
+
+
+          def _decoder(encoding: str) -> zlib.Decompress | None:
+              if encoding in {"", "identity"}:
+                  return None
+              if encoding == "gzip":
+                  return zlib.decompressobj(16 + zlib.MAX_WBITS)
+              if encoding == "deflate":
+                  return zlib.decompressobj()
+              raise HttpTransportError(
+                  "HTTP_CONTENT_ENCODING_UNSUPPORTED",
+                  f"Unsupported HTTP content encoding: {encoding}",
+              )
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('connectors/http_web/src/http_web/__init__.py')
+          text = path.read_text(encoding='utf-8')
+          line = 'from http_web.stdlib_transport import HttpTransportError, PinnedStdlibTransport\n'
+          if line not in text:
+              text = line + text
+          names = '    "HttpTransportError",\n    "PinnedStdlibTransport",\n'
+          if '    "PinnedStdlibTransport",' not in text:
+              text = text.replace('__all__ = [\n', '__all__ = [\n' + names, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          cat > connectors/http_web/tests/test_stdlib_transport.py <<'PY'
+          from __future__ import annotations
+
+          import gzip
+          from collections.abc import Mapping
+          from typing import cast
+
+          import pytest
+
+          from http_web import HttpTransportError, PinnedStdlibTransport, ResolvedHttpTarget
+          from http_web import stdlib_transport
+
+
+          class Response:
+              def __init__(
+                  self,
+                  body: bytes,
+                  *,
+                  status: int = 200,
+                  encoding: str | None = None,
+              ) -> None:
+                  self.status = status
+                  self._body = body
+                  self._offset = 0
+                  self._encoding = encoding
+
+              def getheaders(self) -> list[tuple[str, str]]:
+                  values = [("Content-Type", "text/html")]
+                  if self._encoding is not None:
+                      values.append(("Content-Encoding", self._encoding))
+                  return values
+
+              def getheader(self, name: str) -> str | None:
+                  return self._encoding if name.lower() == "content-encoding" else None
+
+              def read(self, amount: int) -> bytes:
+                  value = self._body[self._offset : self._offset + amount]
+                  self._offset += len(value)
+                  return value
+
+
+          class Connection:
+              def __init__(self, response: Response) -> None:
+                  self.response = response
+                  self.requested: tuple[str, str, Mapping[str, str]] | None = None
+                  self.closed = False
+
+              def request(
+                  self,
+                  method: str,
+                  path: str,
+                  *,
+                  headers: Mapping[str, str],
+              ) -> None:
+                  self.requested = method, path, headers
+
+              def getresponse(self) -> Response:
+                  return self.response
+
+              def close(self) -> None:
+                  self.closed = True
+
+
+          def target() -> ResolvedHttpTarget:
+              return ResolvedHttpTarget(
+                  normalized_url="https://example.com/path?q=1",
+                  scheme="https",
+                  host="example.com",
+                  port=443,
+                  addresses=("93.184.216.34",),
+              )
+
+
+          def test_transport_uses_validated_host_and_decodes_gzip(
+              monkeypatch: pytest.MonkeyPatch,
+          ) -> None:
+              connection = Connection(Response(gzip.compress(b"payload"), encoding="gzip"))
+              monkeypatch.setattr(
+                  stdlib_transport,
+                  "_connection",
+                  lambda *args, **kwargs: cast(object, connection),
+              )
+              envelope = PinnedStdlibTransport(chunk_size=3).send(
+                  target=target(),
+                  headers={"User-Agent": "Collector/1.0"},
+                  timeout_seconds=10,
+              )
+              assert b"".join(envelope.body_chunks) == b"payload"
+              assert connection.requested is not None
+              method, path, headers = connection.requested
+              assert method == "GET"
+              assert path == "/path?q=1"
+              assert headers["Host"] == "example.com"
+              assert headers["Accept-Encoding"] == "gzip, deflate"
+              assert connection.closed
+
+
+          def test_unsupported_encoding_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+              connection = Connection(Response(b"payload", encoding="br"))
+              monkeypatch.setattr(
+                  stdlib_transport,
+                  "_connection",
+                  lambda *args, **kwargs: cast(object, connection),
+              )
+              envelope = PinnedStdlibTransport().send(
+                  target=target(),
+                  headers={},
+                  timeout_seconds=10,
+              )
+              with pytest.raises(HttpTransportError) as error:
+                  b"".join(envelope.body_chunks)
+              assert error.value.code == "HTTP_CONTENT_ENCODING_UNSUPPORTED"
+              assert connection.closed
+          PY
+
+          cat > docs/http-pinned-transport.md <<'EOF'
+          # Pinned HTTP transport
+
+          `PinnedStdlibTransport` connects directly to an address already validated by `http_web`
+          while preserving the validated HTTP Host and HTTPS SNI/certificate identity. It never reads
+          proxy settings, never performs automatic redirects, advertises only gzip/deflate, and emits
+          decoded chunks so the acquisition core enforces limits against decompressed bytes.
+          EOF
+
+      - name: Verify transport owner
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          uv run ruff format connectors/http_web
+          uv run ruff check connectors/http_web
+          uv run mypy
+          uv run pytest -q connectors/http_web/tests
+          uv run pytest -q -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q connectors/http_web
+
+      - name: Commit transport owner
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git add connectors/http_web/src/http_web/stdlib_transport.py connectors/http_web/src/http_web/__init__.py
+          git diff --cached --check
+          git commit -m 'Feature (HTTP Acquisition): add pinned network transport'
+          git add connectors/http_web/tests/test_stdlib_transport.py
+          git commit -m 'New tests (HTTP Acquisition): prove pinned transport isolation'
+          git add docs/http-pinned-transport.md
+          git commit -m 'Docs (HTTP Acquisition): document Host and SNI preservation'
+
+      - name: Remove temporary workflow
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git pull --rebase origin main
+          git rm -f --ignore-unmatch .github/workflows/implement-http-pinned-transport.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Chore (Tooling): remove pinned transport workflow'
+          fi
+          git push origin HEAD:main
