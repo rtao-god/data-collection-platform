@@ -1,0 +1,59 @@
+name: Fix Baseline Formatting
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-baseline-format.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-baseline-format
+  cancel-in-progress: false
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Restore current workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Normalize owned Python source
+        run: uv run ruff format .
+
+      - name: Commit formatting and remove transient workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch .github/workflows/fix-baseline-format.yml
+          git rm -f --ignore-unmatch .github/workflows/export-dev-environment.yml
+          git diff --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          if git diff --quiet; then
+            exit 0
+          fi
+          git add -A
+          git commit -m 'Build (Formatting): normalize owned Python source'
+          git push origin HEAD:main
