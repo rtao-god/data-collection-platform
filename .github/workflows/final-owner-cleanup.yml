@@ -1,0 +1,44 @@
+name: Final Owner Cleanup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/final-owner-cleanup.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: final-owner-cleanup-main
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 3
+
+      - name: Remove transient automation only
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f ! -name ci.yml -print0 | xargs -0 -r git rm -f
+          if [ -d .codex/payloads ]; then
+            git rm -rf .codex/payloads
+          fi
+          find .codex -maxdepth 1 -type f \( -name '*.py' -o -name '*probe*' -o -name 'ci-trigger*' \) -print0 \
+            | xargs -0 -r git rm -f
+          git diff --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Chore (Automation): remove transient owner tooling'
+          git push origin HEAD:main
