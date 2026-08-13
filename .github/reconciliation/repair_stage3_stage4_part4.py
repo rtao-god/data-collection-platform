@@ -75,6 +75,101 @@ ENTRYPOINT ["osm-worker"]
         text = text.replace(anchor, addition, 1)
     ci.write_text(text, encoding="utf-8")
 
+    manual_worker = root / "apps/manual_import_worker/src/manual_import_worker/worker.py"
+    text = manual_worker.read_text(encoding="utf-8")
+    old_import = "from manual_import_core import build_manual_import_plan\n"
+    new_import = (
+        "from collection_contracts import ManualImportPlan\n"
+        "from manual_import_core import (\n"
+        "    build_manual_import_plan,\n"
+        "    canonical_manual_import_plan_json,\n"
+        ")\n"
+    )
+    if old_import not in text:
+        raise RuntimeError("ManualImportWorker: planner import anchor is missing")
+    text = text.replace(old_import, new_import, 1)
+    plan_view = (
+        "class _PlanView(Protocol):\n"
+        "    digest: str\n\n"
+        "    def to_bytes(self) -> bytes: ...\n\n\n"
+    )
+    if plan_view not in text:
+        raise RuntimeError("ManualImportWorker: obsolete plan view is missing")
+    text = text.replace(plan_view, "", 1)
+    old_serialization = (
+        "            payload = plan.to_bytes()\n"
+        "            plan_digest = _sha256_identity(payload)\n"
+        "            if plan.digest != plan_digest:\n"
+        "                raise ValueError(\"manual import plan digest does not match canonical bytes\")\n"
+    )
+    new_serialization = (
+        "            payload = canonical_manual_import_plan_json(plan).encode(\"utf-8\")\n"
+        "            artifact_digest = _sha256_identity(payload)\n"
+        "            plan_digest = plan.plan_digest\n"
+    )
+    if old_serialization not in text:
+        raise RuntimeError("ManualImportWorker: obsolete plan serialization is missing")
+    text = text.replace(old_serialization, new_serialization, 1)
+    old_builder_start = text.index(
+        "def _build_plan(body: bytes, source: ManualImportSource) -> _PlanView:\n"
+    )
+    old_builder_end = text.index("\n\ndef _sha256_identity", old_builder_start)
+    typed_builder = (
+        "def _build_plan(body: bytes, source: ManualImportSource) -> ManualImportPlan:\n"
+        "    return build_manual_import_plan(\n"
+        "        body,\n"
+        "        format=source.format,\n"
+        "        mode=source.mode,\n"
+        "    )"
+    )
+    text = text[:old_builder_start] + typed_builder + text[old_builder_end:]
+    if "                content_digest=plan_digest,\n" not in text:
+        raise RuntimeError("ManualImportWorker: upload digest anchor is missing")
+    text = text.replace(
+        "                content_digest=plan_digest,\n",
+        "                content_digest=artifact_digest,\n",
+        1,
+    )
+    manual_worker.write_text(text, encoding="utf-8")
+
+    manual_test = root / "apps/manual_import_worker/tests/test_worker.py"
+    _replace_once(
+        manual_test,
+        '        return b"name,active,count\\nStudio,true,2\\n"\n',
+        (
+            '        return (\n'
+            '            b"expected_entity_kind,display_name,website,osm_id,"\n'
+            '            b"reference_urls,note,provenance\\n"\n'
+            '            b"place,Studio,,,,,manual-test\\n"\n'
+            '        )\n'
+        ),
+    )
+
+    osm_gateway = root / "apps/osm_worker/src/osm_worker/gateway.py"
+    _replace_once(
+        osm_gateway,
+        '_OUTPUT_CONTRACTS = frozenset({"osm-overpass-result/1"})\n',
+        '_OUTPUT_CONTRACTS = frozenset({"osm-overpass-result@1"})\n',
+    )
+    osm_test = root / "apps/osm_worker/tests/test_worker.py"
+    _replace_once(
+        osm_test,
+        '        expected_output_contract="osm-overpass-result/1",\n',
+        '        expected_output_contract="osm-overpass-result@1",\n',
+    )
+
+    artifact_test = root / (
+        "packages/collection_infrastructure/tests/test_postgres_artifact_metadata.py"
+    )
+    _replace_once(
+        artifact_test,
+        '        "sources.artifact_uploads",\n'
+        '        "sources.artifact_objects",\n',
+        '        "sources.artifact_uploads",\n'
+        '        "sources.artifact_cleanup_tombstones",\n'
+        '        "sources.artifact_objects",\n',
+    )
+
     architecture = root / "tools/architecture_checks/check_dependencies.py"
 
     import subprocess

@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/build-stage3-stage4-reconciliation.yml
       - .github/reconciliation/reconcile_stage3_stage4.py
+      - .github/reconciliation/repair_stage3_stage4_part4.py
   workflow_dispatch:
 
 permissions:
@@ -74,6 +75,7 @@ jobs:
           uv run collector config validate berlin_recording_services
           docker build --file deploy/docker/collector-cli.Dockerfile .
           docker build --file deploy/docker/manual-import-worker.Dockerfile .
+          docker build --file deploy/docker/osm-worker.Dockerfile .
           docker build --file deploy/docker/migration.Dockerfile .
           docker build --file deploy/docker/worker-gateway.Dockerfile .
           git diff --check
@@ -83,6 +85,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git add --intent-to-add .
           git diff --name-only --diff-filter=ACMRT > reconciliation-files.txt
           tar -czf reconciliation-files.tar.gz --files-from reconciliation-files.txt
           git diff --binary > reconciliation.patch
