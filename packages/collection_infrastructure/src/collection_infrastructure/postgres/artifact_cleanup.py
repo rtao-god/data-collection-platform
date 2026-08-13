@@ -68,13 +68,11 @@ class PostgresArtifactCleanupStore(ArtifactCleanupStore):
                         sa.or_(
                             sa.and_(
                                 artifact_cleanup_tombstones.c.state == "pending",
-                                artifact_cleanup_tombstones.c.claim_expires_at_utc
-                                <= now_utc,
+                                artifact_cleanup_tombstones.c.claim_expires_at_utc <= now_utc,
                             ),
                             sa.and_(
                                 artifact_cleanup_tombstones.c.state == "retry_wait",
-                                artifact_cleanup_tombstones.c.retry_not_before_utc
-                                <= now_utc,
+                                artifact_cleanup_tombstones.c.retry_not_before_utc <= now_utc,
                             ),
                         )
                     )
@@ -93,10 +91,7 @@ class PostgresArtifactCleanupStore(ArtifactCleanupStore):
                 attempt_count = int(row["attempt_count"]) + 1
                 connection.execute(
                     sa.update(artifact_cleanup_tombstones)
-                    .where(
-                        artifact_cleanup_tombstones.c.tombstone_id
-                        == row["tombstone_id"]
-                    )
+                    .where(artifact_cleanup_tombstones.c.tombstone_id == row["tombstone_id"])
                     .values(
                         state="pending",
                         claimed_at_utc=now_utc,
@@ -114,14 +109,11 @@ class PostgresArtifactCleanupStore(ArtifactCleanupStore):
             if remaining > 0:
                 existing_tombstone = sa.exists(
                     sa.select(1).where(
-                        artifact_cleanup_tombstones.c.upload_id
-                        == _UPLOADS.c.upload_id
+                        artifact_cleanup_tombstones.c.upload_id == _UPLOADS.c.upload_id
                     )
                 )
                 existing_artifact = sa.exists(
-                    sa.select(1).where(
-                        _RAW_ARTIFACTS.c.upload_id == _UPLOADS.c.upload_id
-                    )
+                    sa.select(1).where(_RAW_ARTIFACTS.c.upload_id == _UPLOADS.c.upload_id)
                 )
                 candidates = (
                     connection.execute(

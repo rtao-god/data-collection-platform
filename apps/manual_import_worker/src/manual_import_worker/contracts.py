@@ -112,8 +112,7 @@ def parse_manual_import_source(lease: WorkerLease) -> ManualImportSource:
     match = _SOURCE_ROLE.fullmatch(artifact.role)
     if match is None:
         raise ValueError(
-            "manual import source role must be "
-            "manual_source:<csv|json|jsonl>:<atomic|partial>"
+            "manual import source role must be manual_source:<csv|json|jsonl>:<atomic|partial>"
         )
     format_value = {
         "csv": ManualImportFormat.CSV,
@@ -142,9 +141,7 @@ def _int_environment(name: str, *, default: int, minimum: int, maximum: int) -> 
     return value
 
 
-def _float_environment(
-    name: str, *, default: float, minimum: float, maximum: float
-) -> float:
+def _float_environment(name: str, *, default: float, minimum: float, maximum: float) -> float:
     raw = os.getenv(name)
     value = default if raw is None else float(raw)
     if not minimum <= value <= maximum:

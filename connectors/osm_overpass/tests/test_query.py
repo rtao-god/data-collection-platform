@@ -54,7 +54,7 @@ def test_tag_value_is_regex_escaped_instead_of_becoming_query_syntax() -> None:
     assert "recording|live.*" not in query
 
 
-@pytest.mark.parametrize("key", ['amenity\"] ; out;', "a\nkey", ""])
+@pytest.mark.parametrize("key", ['amenity"] ; out;', "a\nkey", ""])
 def test_tag_key_cannot_inject_overpass_ql(key: str) -> None:
     with pytest.raises(ValueError):
         OsmTagFilter(key=key, values=("value",))

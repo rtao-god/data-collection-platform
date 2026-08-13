@@ -114,9 +114,7 @@ class Gateway:
         retry_after_seconds: int | None = None,
     ) -> None:
         assert lease == self.acquired
-        self.failures.append(
-            (failure_kind, error_code, message, retry_after_seconds)
-        )
+        self.failures.append((failure_kind, error_code, message, retry_after_seconds))
 
 
 class Fetcher:

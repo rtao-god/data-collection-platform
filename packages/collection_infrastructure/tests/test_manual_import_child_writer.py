@@ -16,9 +16,7 @@ from collection_infrastructure.postgres.manual_import_child_writer import (
 
 
 def test_child_writer_resolves_the_canonical_work_engine_contract() -> None:
-    engine = create_engine(
-        "postgresql+psycopg://collection:collection@localhost:5432/collection"
-    )
+    engine = create_engine("postgresql+psycopg://collection:collection@localhost:5432/collection")
     writer = PostgresManualImportChildWorkWriter(engine)
     command = _command()
     child = _child()

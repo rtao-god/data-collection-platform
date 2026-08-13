@@ -63,7 +63,10 @@ class ArtifactCleanupRunResult:
         )
         if any(value < 0 for value in values):
             raise ValueError("artifact cleanup result counts cannot be negative")
-        if self.deleted_count + self.retry_scheduled_count + self.failed_count != self.claimed_count:
+        if (
+            self.deleted_count + self.retry_scheduled_count + self.failed_count
+            != self.claimed_count
+        ):
             raise ValueError("artifact cleanup result counts are inconsistent")
 
 

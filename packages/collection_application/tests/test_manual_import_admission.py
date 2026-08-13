@@ -71,7 +71,9 @@ def _record(position: int = 0) -> ManualImportRecord:
     )
 
 
-def _command(*, status: str = "ready", records: tuple[ManualImportRecord, ...] | None = None) -> AdmitManualImportPlan:
+def _command(
+    *, status: str = "ready", records: tuple[ManualImportRecord, ...] | None = None
+) -> AdmitManualImportPlan:
     selected = (_record(),) if records is None and status == "ready" else (records or ())
     plan = ManualImportPlanForAdmission(
         plan_artifact_id=_PLAN_ARTIFACT_ID,

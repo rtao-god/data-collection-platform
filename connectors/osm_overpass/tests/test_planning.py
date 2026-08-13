@@ -23,8 +23,7 @@ def polygon() -> OverpassPolygon:
 
 def filters() -> tuple[OsmTagFilter, ...]:
     return tuple(
-        OsmTagFilter(key=f"tag_{index:02d}", values=(f"value_{index:02d}",))
-        for index in range(5)
+        OsmTagFilter(key=f"tag_{index:02d}", values=(f"value_{index:02d}",)) for index in range(5)
     )
 
 
@@ -56,11 +55,7 @@ def test_plan_assigns_every_filter_exactly_once_in_sorted_order() -> None:
         tag_filters=filters(),
         filters_per_query=2,
     )
-    observed = tuple(
-        tag_filter
-        for query in plan.queries
-        for tag_filter in query.spec.tag_filters
-    )
+    observed = tuple(tag_filter for query in plan.queries for tag_filter in query.spec.tag_filters)
     assert observed == filters()
 
 
@@ -102,7 +97,4 @@ def test_boundary_change_changes_plan_identity() -> None:
         tag_filters=(OsmTagFilter(key="amenity", values=("studio",)),),
     )
     assert first.digest != changed.digest
-    assert (
-        first.queries[0].overpass_query_digest
-        != changed.queries[0].overpass_query_digest
-    )
+    assert first.queries[0].overpass_query_digest != changed.queries[0].overpass_query_digest

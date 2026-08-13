@@ -17,9 +17,7 @@ def square() -> bytes:
     return json.dumps(
         {
             "type": "Polygon",
-            "coordinates": [
-                [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]
-            ],
+            "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]],
         },
         separators=(",", ":"),
     ).encode()
@@ -28,8 +26,7 @@ def square() -> bytes:
 def test_boundary_geojson_is_canonical_and_digest_stable() -> None:
     first = decode_boundary_geojson(square())
     second = decode_boundary_geojson(
-        b'{ "coordinates" : [ [ [0,0], [10,0], [10,10], [0,10], [0,0] ] ],'
-        b' "type" : "Polygon" }'
+        b'{ "coordinates" : [ [ [0,0], [10,0], [10,10], [0,10], [0,0] ] ], "type" : "Polygon" }'
     )
     assert first.geometry_digest == second.geometry_digest
     assert first.canonical_geojson == second.canonical_geojson

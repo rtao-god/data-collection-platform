@@ -39,9 +39,7 @@ def policy(*, maximum_response_bytes: int = 1024) -> OverpassEndpointPolicy:
 
 def spec() -> OverpassQuerySpec:
     return OverpassQuerySpec(
-        polygon=OverpassPolygon(
-            points=(GeoPoint(1, 1), GeoPoint(1, 2), GeoPoint(2, 1))
-        ),
+        polygon=OverpassPolygon(points=(GeoPoint(1, 1), GeoPoint(1, 2), GeoPoint(2, 1))),
         element_types=("node",),
         tag_filters=(OsmTagFilter(key="amenity", values=("studio",)),),
     )

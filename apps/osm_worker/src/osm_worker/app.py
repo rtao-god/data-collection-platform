@@ -28,18 +28,21 @@ def main() -> int:
     )
     gateway = SdkOsmWorkerGateway(sdk)
     gateway.register(build_identity=_required("OSM_WORKER_BUILD_IDENTITY"))
-    with sdk, OverpassHttpClient(
-        OverpassEndpointPolicy(
-            endpoint_url=endpoint,
-            allowed_hosts=allowed_hosts,
-            user_agent=_required("OVERPASS_USER_AGENT"),
-            timeout_seconds=_float("OVERPASS_TIMEOUT_SECONDS", 90.0),
-            maximum_response_bytes=_integer(
-                "OVERPASS_MAXIMUM_RESPONSE_BYTES",
-                64 * 1024 * 1024,
-            ),
-        )
-    ) as fetcher:
+    with (
+        sdk,
+        OverpassHttpClient(
+            OverpassEndpointPolicy(
+                endpoint_url=endpoint,
+                allowed_hosts=allowed_hosts,
+                user_agent=_required("OVERPASS_USER_AGENT"),
+                timeout_seconds=_float("OVERPASS_TIMEOUT_SECONDS", 90.0),
+                maximum_response_bytes=_integer(
+                    "OVERPASS_MAXIMUM_RESPONSE_BYTES",
+                    64 * 1024 * 1024,
+                ),
+            )
+        ) as fetcher,
+    ):
         worker = OSMWorker(
             gateway,
             fetcher,

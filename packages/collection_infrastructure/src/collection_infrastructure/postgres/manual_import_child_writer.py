@@ -130,8 +130,7 @@ def _resolve_transactional_enqueue(
     if len(candidates) != 1:
         names = [name for name, _ in candidates]
         raise RuntimeError(
-            "Work Engine must expose exactly one transaction-local enqueue method; "
-            f"found {names}"
+            f"Work Engine must expose exactly one transaction-local enqueue method; found {names}"
         )
     method = candidates[0][1]
 

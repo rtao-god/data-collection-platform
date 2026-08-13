@@ -32,9 +32,7 @@ class _FakeGateway:
         del settings
         return self.lease
 
-    def heartbeat(
-        self, lease: WorkerLease, settings: ManualImportWorkerSettings
-    ) -> WorkerLease:
+    def heartbeat(self, lease: WorkerLease, settings: ManualImportWorkerSettings) -> WorkerLease:
         del settings
         return lease
 

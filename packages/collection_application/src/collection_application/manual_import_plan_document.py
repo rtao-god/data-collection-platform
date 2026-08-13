@@ -126,8 +126,7 @@ def decode_manual_import_plan(
             "The plan records field must be an array.",
         )
     records = tuple(
-        _decode_record(value, fallback_position=index)
-        for index, value in enumerate(records_value)
+        _decode_record(value, fallback_position=index) for index, value in enumerate(records_value)
     )
     accepted_count = _optional_integer(
         root,

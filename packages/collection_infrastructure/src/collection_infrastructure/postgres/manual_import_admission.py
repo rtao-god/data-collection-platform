@@ -150,9 +150,7 @@ class PostgresManualImportAdmissionStore:
         )
 
     @staticmethod
-    def _load_existing(
-        connection: Connection, command: AdmitManualImportPlan
-    ) -> RowMapping | None:
+    def _load_existing(connection: Connection, command: AdmitManualImportPlan) -> RowMapping | None:
         return (
             connection.execute(
                 sa.select(plan_admissions)
@@ -161,8 +159,7 @@ class PostgresManualImportAdmissionStore:
                         plan_admissions.c.admission_id == command.admission_id,
                         sa.and_(
                             plan_admissions.c.parent_work_id == command.parent_work_id,
-                            plan_admissions.c.plan_artifact_id
-                            == command.plan.plan_artifact_id,
+                            plan_admissions.c.plan_artifact_id == command.plan.plan_artifact_id,
                         ),
                     )
                 )
@@ -240,9 +237,13 @@ class PostgresManualImportAdmissionStore:
     def _require_parent_and_artifacts(
         connection: Connection, command: AdmitManualImportPlan
     ) -> None:
-        parent = connection.execute(
-            sa.select(work_units).where(work_units.c.work_id == command.parent_work_id)
-        ).mappings().one_or_none()
+        parent = (
+            connection.execute(
+                sa.select(work_units).where(work_units.c.work_id == command.parent_work_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
         if parent is None:
             raise _conflict(
                 code="MANUAL_IMPORT_PARENT_WORK_NOT_FOUND",

@@ -115,10 +115,7 @@ def _query_spec_bytes(spec: OverpassQuerySpec) -> bytes:
     document = {
         "elementTypes": list(spec.element_types),
         "maximumElements": spec.maximum_elements,
-        "polygon": [
-            [point.latitude, point.longitude]
-            for point in spec.polygon.points
-        ],
+        "polygon": [[point.latitude, point.longitude] for point in spec.polygon.points],
         "schemaRevision": _QUERY_SPEC_REVISION,
         "tagFilters": [
             {

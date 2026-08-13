@@ -116,8 +116,7 @@ class PostgresGeographyCoverage:
             raise GeographyEvaluationError(
                 code="GEOGRAPHY_BOUNDARY_TOPOLOGY_INVALID",
                 message=(
-                    "The geography boundary is empty, invalid, or not a polygonal "
-                    "WGS84 geometry."
+                    "The geography boundary is empty, invalid, or not a polygonal WGS84 geometry."
                 ),
             )
         results: list[GeographyCoverage] = []

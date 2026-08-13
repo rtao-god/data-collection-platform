@@ -134,8 +134,7 @@ class OsmObservationBatch:
             ):
                 raise ValueError("OSM base timestamp must be UTC")
         identities = tuple(
-            (observation.element_type, observation.osm_id)
-            for observation in self.observations
+            (observation.element_type, observation.osm_id) for observation in self.observations
         )
         if len(set(identities)) != len(identities):
             raise ValueError("OSM observation batch contains duplicate element identities")
@@ -167,9 +166,7 @@ class OsmObservationBatch:
                 for item in self.observations
             ],
             "osmBaseTimestampUtc": (
-                self.osm_base_timestamp_utc.astimezone(UTC)
-                .isoformat()
-                .replace("+00:00", "Z")
+                self.osm_base_timestamp_utc.astimezone(UTC).isoformat().replace("+00:00", "Z")
                 if self.osm_base_timestamp_utc is not None
                 else None
             ),

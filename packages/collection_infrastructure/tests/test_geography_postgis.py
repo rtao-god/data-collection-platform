@@ -40,9 +40,7 @@ def test_postgis_covers_includes_edges_and_vertices() -> None:
     engine = create_engine(database_url(), pool_pre_ping=True)
     try:
         service = GeographyCoverageService(PostgresGeographyCoverage(engine))
-        boundary = decode_boundary_geojson(
-            polygon([[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]])
-        )
+        boundary = decode_boundary_geojson(polygon([[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]))
         results = service.evaluate(
             boundary,
             (
@@ -66,9 +64,7 @@ def test_postgis_rejects_topologically_invalid_polygon() -> None:
     engine = create_engine(database_url(), pool_pre_ping=True)
     try:
         service = GeographyCoverageService(PostgresGeographyCoverage(engine))
-        bow_tie = decode_boundary_geojson(
-            polygon([[[0, 0], [10, 10], [0, 10], [10, 0], [0, 0]]])
-        )
+        bow_tie = decode_boundary_geojson(polygon([[[0, 0], [10, 10], [0, 10], [10, 0], [0, 0]]]))
         with pytest.raises(GeographyEvaluationError) as error:
             service.evaluate(bow_tie, (GeographyPoint("point", 5, 5),))
         assert error.value.code == "GEOGRAPHY_BOUNDARY_TOPOLOGY_INVALID"

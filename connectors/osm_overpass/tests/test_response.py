@@ -16,9 +16,7 @@ from osm_overpass import (
 
 def spec(*, maximum_elements: int = 100) -> OverpassQuerySpec:
     return OverpassQuerySpec(
-        polygon=OverpassPolygon(
-            points=(GeoPoint(1, 1), GeoPoint(1, 2), GeoPoint(2, 1))
-        ),
+        polygon=OverpassPolygon(points=(GeoPoint(1, 1), GeoPoint(1, 2), GeoPoint(2, 1))),
         element_types=("node", "relation", "way"),
         tag_filters=(OsmTagFilter(key="amenity", values=("studio",)),),
         maximum_elements=maximum_elements,

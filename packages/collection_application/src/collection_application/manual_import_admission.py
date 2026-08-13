@@ -154,8 +154,7 @@ def _child_work(
     command: AdmitManualImportPlan, record: ManualImportRecord
 ) -> ManualImportChildWork:
     semantic_key = (
-        f"manual-import:{command.plan.plan_digest}:"
-        f"{record.position}:{record.record_digest}"
+        f"manual-import:{command.plan.plan_digest}:{record.position}:{record.record_digest}"
     )
     work_id = uuid5(_CHILD_NAMESPACE, f"{command.run_id}:{semantic_key}")
     payload = _canonical_bytes(

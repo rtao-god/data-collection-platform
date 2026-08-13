@@ -53,9 +53,7 @@ class SourceWorkerGatewayAdapter:
         )
         return cast(WorkerLease | None, result)
 
-    def heartbeat(
-        self, lease: WorkerLease, settings: ManualImportWorkerSettings
-    ) -> WorkerLease:
+    def heartbeat(self, lease: WorkerLease, settings: ManualImportWorkerSettings) -> WorkerLease:
         result = self._invoke(
             "heartbeat",
             self._lease_values(
@@ -126,9 +124,7 @@ class SourceWorkerGatewayAdapter:
                 content=payload,
             )
         if not 200 <= response.status_code < 300:
-            raise RuntimeError(
-                f"scoped artifact upload failed with status {response.status_code}"
-            )
+            raise RuntimeError(f"scoped artifact upload failed with status {response.status_code}")
         return cast(
             VerifiedUpload,
             self._invoke(
@@ -137,9 +133,7 @@ class SourceWorkerGatewayAdapter:
             ),
         )
 
-    def complete(
-        self, lease: WorkerLease, *, plan_digest: str, upload: object
-    ) -> None:
+    def complete(self, lease: WorkerLease, *, plan_digest: str, upload: object) -> None:
         verified = cast(VerifiedUpload, upload)
         mapping = {_PLAN_OUTPUT_ROLE: verified.upload_id}
         bindings = (
