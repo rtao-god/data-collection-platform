@@ -1,0 +1,922 @@
+name: Implement HTTP Acquisition Safety Core
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/implement-http-safety.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: implement-http-safety-core
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check prerequisite
+        id: prerequisite
+        shell: bash
+        run: |
+          if [ -f docs/proofs/reconciled-baseline.md ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install exact Python
+        if: steps.prerequisite.outputs.ready == 'true'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        if: steps.prerequisite.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Create HTTP acquisition owner
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p connectors/http_web/src/http_web connectors/http_web/tests
+          cat > connectors/http_web/pyproject.toml <<'EOF'
+          [project]
+          name = "http-web-connector"
+          version = "0.1.0"
+          description = "SSRF-safe HTTP acquisition contracts for Data Collection Platform"
+          requires-python = ">=3.13,<3.14"
+          dependencies = []
+
+          [build-system]
+          requires = ["hatchling"]
+          build-backend = "hatchling.build"
+
+          [tool.hatch.build.targets.wheel]
+          packages = ["src/http_web"]
+          EOF
+
+          cat > connectors/http_web/src/http_web/contracts.py <<'PY'
+          from __future__ import annotations
+
+          from collections.abc import Iterable, Mapping
+          from dataclasses import dataclass, field
+          from enum import StrEnum
+          from types import MappingProxyType
+
+          _DEFAULT_RESPONSE_LIMIT = 8 * 1024 * 1024
+
+
+          class HttpFetchOutcome(StrEnum):
+              FETCHED = "fetched"
+              UNCHANGED = "unchanged"
+              POLICY_BLOCKED = "policy_blocked"
+
+
+          @dataclass(frozen=True, slots=True)
+          class ConditionalRequest:
+              etag: str | None = None
+              last_modified: str | None = None
+
+              def headers(self) -> Mapping[str, str]:
+                  values: dict[str, str] = {}
+                  if self.etag is not None:
+                      values["If-None-Match"] = self.etag
+                  if self.last_modified is not None:
+                      values["If-Modified-Since"] = self.last_modified
+                  return MappingProxyType(values)
+
+
+          @dataclass(frozen=True, slots=True)
+          class HttpRequestPolicy:
+              user_agent: str
+              timeout_seconds: float = 30.0
+              maximum_response_bytes: int = _DEFAULT_RESPONSE_LIMIT
+              maximum_redirects: int = 5
+              allowed_ports: frozenset[int] = field(
+                  default_factory=lambda: frozenset({80, 443})
+              )
+
+              def __post_init__(self) -> None:
+                  if not self.user_agent.strip():
+                      raise ValueError("HTTP user agent must not be empty")
+                  if self.timeout_seconds <= 0:
+                      raise ValueError("HTTP timeout must be positive")
+                  if self.maximum_response_bytes <= 0:
+                      raise ValueError("HTTP response limit must be positive")
+                  if not 0 <= self.maximum_redirects <= 10:
+                      raise ValueError("HTTP redirect limit must be between zero and ten")
+                  if not self.allowed_ports:
+                      raise ValueError("HTTP policy must allow at least one port")
+                  if any(not 1 <= port <= 65535 for port in self.allowed_ports):
+                      raise ValueError("HTTP allowed ports must be valid TCP ports")
+
+
+          @dataclass(frozen=True, slots=True)
+          class HttpFetchRequest:
+              url: str
+              policy: HttpRequestPolicy
+              conditional: ConditionalRequest = field(default_factory=ConditionalRequest)
+              accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.1"
+
+              def __post_init__(self) -> None:
+                  if not self.url.strip():
+                      raise ValueError("HTTP request URL must not be empty")
+                  if "\r" in self.accept or "\n" in self.accept:
+                      raise ValueError("HTTP Accept header must not contain control lines")
+
+
+          @dataclass(frozen=True, slots=True)
+          class HttpResponseEnvelope:
+              status_code: int
+              headers: Mapping[str, str]
+              body_chunks: Iterable[bytes]
+
+              def __post_init__(self) -> None:
+                  if not 100 <= self.status_code <= 599:
+                      raise ValueError("HTTP status code is invalid")
+
+
+          @dataclass(frozen=True, slots=True)
+          class HttpFetchResult:
+              outcome: HttpFetchOutcome
+              requested_url: str
+              final_url: str
+              status_code: int
+              redirect_chain: tuple[str, ...]
+              response_headers: Mapping[str, str]
+              body: bytes
+              body_digest: str | None
+              policy_reason: str | None = None
+
+              def __post_init__(self) -> None:
+                  if self.outcome is HttpFetchOutcome.FETCHED:
+                      if self.body_digest is None:
+                          raise ValueError("fetched response requires a body digest")
+                      if self.policy_reason is not None:
+                          raise ValueError("fetched response cannot have a policy reason")
+                  elif self.body or self.body_digest is not None:
+                      raise ValueError("non-fetched response cannot expose a body")
+                  if self.outcome is HttpFetchOutcome.POLICY_BLOCKED:
+                      if self.policy_reason is None:
+                          raise ValueError("policy-blocked response requires a reason")
+                  elif self.policy_reason is not None:
+                      raise ValueError("only policy-blocked response can have a reason")
+          PY
+
+          cat > connectors/http_web/src/http_web/url_safety.py <<'PY'
+          from __future__ import annotations
+
+          import ipaddress
+          from collections.abc import Sequence
+          from dataclasses import dataclass
+          from typing import Protocol
+          from urllib.parse import SplitResult, urlsplit, urlunsplit
+
+
+          class UrlSafetyError(ValueError):
+              def __init__(self, code: str, message: str) -> None:
+                  self.code = code
+                  super().__init__(message)
+
+
+          class HostResolver(Protocol):
+              def resolve(self, host: str, port: int) -> Sequence[str]: ...
+
+
+          @dataclass(frozen=True, slots=True)
+          class ResolvedHttpTarget:
+              normalized_url: str
+              scheme: str
+              host: str
+              port: int
+              addresses: tuple[str, ...]
+
+
+          def resolve_public_http_target(
+              url: str,
+              *,
+              resolver: HostResolver,
+              allowed_ports: frozenset[int],
+          ) -> ResolvedHttpTarget:
+              try:
+                  parsed = urlsplit(url)
+              except ValueError as error:
+                  raise UrlSafetyError("HTTP_URL_INVALID", "HTTP URL is invalid") from error
+              scheme = parsed.scheme.lower()
+              if scheme not in {"http", "https"}:
+                  raise UrlSafetyError(
+                      "HTTP_SCHEME_FORBIDDEN",
+                      "Only HTTP and HTTPS URLs are allowed",
+                  )
+              if parsed.username is not None or parsed.password is not None:
+                  raise UrlSafetyError(
+                      "HTTP_USERINFO_FORBIDDEN",
+                      "HTTP URL credentials are forbidden",
+                  )
+              host = parsed.hostname
+              if host is None:
+                  raise UrlSafetyError("HTTP_HOST_MISSING", "HTTP URL host is required")
+              host = host.rstrip(".").lower()
+              if not host:
+                  raise UrlSafetyError("HTTP_HOST_MISSING", "HTTP URL host is required")
+              try:
+                  port = parsed.port or (443 if scheme == "https" else 80)
+              except ValueError as error:
+                  raise UrlSafetyError("HTTP_PORT_INVALID", "HTTP URL port is invalid") from error
+              if port not in allowed_ports:
+                  raise UrlSafetyError(
+                      "HTTP_PORT_FORBIDDEN",
+                      "HTTP URL port is not allowed by source policy",
+                  )
+              addresses = _resolve_addresses(host, port, resolver)
+              normalized = _normalize(parsed, scheme=scheme, host=host, port=port)
+              return ResolvedHttpTarget(
+                  normalized_url=normalized,
+                  scheme=scheme,
+                  host=host,
+                  port=port,
+                  addresses=addresses,
+              )
+
+
+          def _resolve_addresses(
+              host: str,
+              port: int,
+              resolver: HostResolver,
+          ) -> tuple[str, ...]:
+              try:
+                  literal = ipaddress.ip_address(host)
+              except ValueError:
+                  values = tuple(dict.fromkeys(resolver.resolve(host, port)))
+                  if not values:
+                      raise UrlSafetyError(
+                          "HTTP_DNS_EMPTY",
+                          "HTTP host did not resolve to an address",
+                      )
+                  addresses = tuple(_public_address(value) for value in values)
+              else:
+                  addresses = (_public_ip(literal),)
+              return tuple(sorted(addresses))
+
+
+          def _public_address(value: str) -> str:
+              try:
+                  address = ipaddress.ip_address(value)
+              except ValueError as error:
+                  raise UrlSafetyError(
+                      "HTTP_DNS_ADDRESS_INVALID",
+                      "HTTP resolver returned an invalid address",
+                  ) from error
+              return _public_ip(address)
+
+
+          def _public_ip(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
+              if (
+                  not address.is_global
+                  or address.is_private
+                  or address.is_loopback
+                  or address.is_link_local
+                  or address.is_multicast
+                  or address.is_reserved
+                  or address.is_unspecified
+              ):
+                  raise UrlSafetyError(
+                      "HTTP_ADDRESS_FORBIDDEN",
+                      "HTTP target resolved to a non-public address",
+                  )
+              return address.compressed
+
+
+          def _normalize(parsed: SplitResult, *, scheme: str, host: str, port: int) -> str:
+              default_port = 443 if scheme == "https" else 80
+              display_host = f"[{host}]" if ":" in host else host
+              netloc = display_host if port == default_port else f"{display_host}:{port}"
+              path = parsed.path or "/"
+              return urlunsplit((scheme, netloc, path, parsed.query, ""))
+          PY
+
+          cat > connectors/http_web/src/http_web/fetcher.py <<'PY'
+          from __future__ import annotations
+
+          from collections.abc import Mapping
+          from hashlib import sha256
+          from types import MappingProxyType
+          from typing import Protocol
+          from urllib.parse import urljoin
+
+          from http_web.contracts import (
+              HttpFetchOutcome,
+              HttpFetchRequest,
+              HttpFetchResult,
+              HttpResponseEnvelope,
+          )
+          from http_web.url_safety import HostResolver, ResolvedHttpTarget, resolve_public_http_target
+
+          _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+          _POLICY_BLOCKED_STATUSES = frozenset({401, 403, 407, 429})
+          _RESPONSE_HEADERS = frozenset(
+              {
+                  "cache-control",
+                  "content-language",
+                  "content-type",
+                  "date",
+                  "etag",
+                  "expires",
+                  "last-modified",
+                  "location",
+                  "retry-after",
+              }
+          )
+
+
+          class PinnedHttpTransport(Protocol):
+              def send(
+                  self,
+                  *,
+                  target: ResolvedHttpTarget,
+                  headers: Mapping[str, str],
+                  timeout_seconds: float,
+              ) -> HttpResponseEnvelope: ...
+
+
+          class HttpAcquisitionError(RuntimeError):
+              def __init__(self, code: str, message: str) -> None:
+                  self.code = code
+                  super().__init__(message)
+
+
+          class SafeHttpFetcher:
+              def __init__(
+                  self,
+                  *,
+                  resolver: HostResolver,
+                  transport: PinnedHttpTransport,
+              ) -> None:
+                  self._resolver = resolver
+                  self._transport = transport
+
+              def fetch(self, request: HttpFetchRequest) -> HttpFetchResult:
+                  current_url = request.url
+                  redirect_chain: list[str] = []
+                  for redirect_number in range(request.policy.maximum_redirects + 1):
+                      target = resolve_public_http_target(
+                          current_url,
+                          resolver=self._resolver,
+                          allowed_ports=request.policy.allowed_ports,
+                      )
+                      response = self._transport.send(
+                          target=target,
+                          headers=_request_headers(request),
+                          timeout_seconds=request.policy.timeout_seconds,
+                      )
+                      headers = _response_headers(response.headers)
+                      if response.status_code in _REDIRECT_STATUSES:
+                          location = headers.get("location")
+                          if location is None:
+                              raise HttpAcquisitionError(
+                                  "HTTP_REDIRECT_LOCATION_MISSING",
+                                  "HTTP redirect response has no Location header",
+                              )
+                          if redirect_number >= request.policy.maximum_redirects:
+                              raise HttpAcquisitionError(
+                                  "HTTP_REDIRECT_LIMIT_EXCEEDED",
+                                  "HTTP redirect limit was exceeded",
+                              )
+                          redirect_chain.append(target.normalized_url)
+                          current_url = urljoin(target.normalized_url, location)
+                          continue
+                      if response.status_code == 304:
+                          return HttpFetchResult(
+                              outcome=HttpFetchOutcome.UNCHANGED,
+                              requested_url=request.url,
+                              final_url=target.normalized_url,
+                              status_code=response.status_code,
+                              redirect_chain=tuple(redirect_chain),
+                              response_headers=headers,
+                              body=b"",
+                              body_digest=None,
+                          )
+                      if response.status_code in _POLICY_BLOCKED_STATUSES:
+                          return HttpFetchResult(
+                              outcome=HttpFetchOutcome.POLICY_BLOCKED,
+                              requested_url=request.url,
+                              final_url=target.normalized_url,
+                              status_code=response.status_code,
+                              redirect_chain=tuple(redirect_chain),
+                              response_headers=headers,
+                              body=b"",
+                              body_digest=None,
+                              policy_reason=f"http_status_{response.status_code}",
+                          )
+                      body = _bounded_body(
+                          response,
+                          maximum_bytes=request.policy.maximum_response_bytes,
+                      )
+                      return HttpFetchResult(
+                          outcome=HttpFetchOutcome.FETCHED,
+                          requested_url=request.url,
+                          final_url=target.normalized_url,
+                          status_code=response.status_code,
+                          redirect_chain=tuple(redirect_chain),
+                          response_headers=headers,
+                          body=body,
+                          body_digest=f"sha256:{sha256(body).hexdigest()}",
+                      )
+                  raise AssertionError("redirect loop exhausted without a result")
+
+
+          def _request_headers(request: HttpFetchRequest) -> Mapping[str, str]:
+              values = {
+                  "Accept": request.accept,
+                  "User-Agent": request.policy.user_agent,
+                  **request.conditional.headers(),
+              }
+              return MappingProxyType(values)
+
+
+          def _response_headers(headers: Mapping[str, str]) -> Mapping[str, str]:
+              values = {
+                  key.lower(): value
+                  for key, value in headers.items()
+                  if key.lower() in _RESPONSE_HEADERS
+              }
+              return MappingProxyType(values)
+
+
+          def _bounded_body(response: HttpResponseEnvelope, *, maximum_bytes: int) -> bytes:
+              chunks: list[bytes] = []
+              length = 0
+              for chunk in response.body_chunks:
+                  length += len(chunk)
+                  if length > maximum_bytes:
+                      raise HttpAcquisitionError(
+                          "HTTP_RESPONSE_TOO_LARGE",
+                          "Decoded HTTP response exceeded the configured byte limit",
+                      )
+                  chunks.append(chunk)
+              return b"".join(chunks)
+          PY
+
+          cat > connectors/http_web/src/http_web/__init__.py <<'PY'
+          from http_web.contracts import (
+              ConditionalRequest,
+              HttpFetchOutcome,
+              HttpFetchRequest,
+              HttpFetchResult,
+              HttpRequestPolicy,
+              HttpResponseEnvelope,
+          )
+          from http_web.fetcher import HttpAcquisitionError, PinnedHttpTransport, SafeHttpFetcher
+          from http_web.url_safety import (
+              HostResolver,
+              ResolvedHttpTarget,
+              UrlSafetyError,
+              resolve_public_http_target,
+          )
+
+          __all__ = [
+              "ConditionalRequest",
+              "HostResolver",
+              "HttpAcquisitionError",
+              "HttpFetchOutcome",
+              "HttpFetchRequest",
+              "HttpFetchResult",
+              "HttpRequestPolicy",
+              "HttpResponseEnvelope",
+              "PinnedHttpTransport",
+              "ResolvedHttpTarget",
+              "SafeHttpFetcher",
+              "UrlSafetyError",
+              "resolve_public_http_target",
+          ]
+          PY
+
+          cat > connectors/http_web/tests/test_url_safety.py <<'PY'
+          from __future__ import annotations
+
+          import pytest
+
+          from http_web import UrlSafetyError, resolve_public_http_target
+
+
+          class Resolver:
+              def __init__(self, *addresses: str) -> None:
+                  self.addresses = addresses
+
+              def resolve(self, host: str, port: int) -> tuple[str, ...]:
+                  assert host
+                  assert port
+                  return self.addresses
+
+
+          def test_public_url_is_normalized_and_pinned() -> None:
+              target = resolve_public_http_target(
+                  "HTTPS://Example.COM/path?q=1#fragment",
+                  resolver=Resolver("93.184.216.34"),
+                  allowed_ports=frozenset({80, 443}),
+              )
+              assert target.normalized_url == "https://example.com/path?q=1"
+              assert target.addresses == ("93.184.216.34",)
+
+
+          @pytest.mark.parametrize(
+              ("url", "code"),
+              [
+                  ("file:///etc/passwd", "HTTP_SCHEME_FORBIDDEN"),
+                  ("http://user:pass@example.com/", "HTTP_USERINFO_FORBIDDEN"),
+                  ("http://example.com:22/", "HTTP_PORT_FORBIDDEN"),
+                  ("http://127.0.0.1/", "HTTP_ADDRESS_FORBIDDEN"),
+                  ("http://[::1]/", "HTTP_ADDRESS_FORBIDDEN"),
+              ],
+          )
+          def test_unsafe_url_is_rejected(url: str, code: str) -> None:
+              with pytest.raises(UrlSafetyError) as error:
+                  resolve_public_http_target(
+                      url,
+                      resolver=Resolver("93.184.216.34"),
+                      allowed_ports=frozenset({80, 443}),
+                  )
+              assert error.value.code == code
+
+
+          def test_mixed_public_and_private_dns_answer_is_rejected() -> None:
+              with pytest.raises(UrlSafetyError) as error:
+                  resolve_public_http_target(
+                      "https://example.com/",
+                      resolver=Resolver("93.184.216.34", "10.0.0.1"),
+                      allowed_ports=frozenset({443}),
+                  )
+              assert error.value.code == "HTTP_ADDRESS_FORBIDDEN"
+          PY
+
+          cat > connectors/http_web/tests/test_fetcher.py <<'PY'
+          from __future__ import annotations
+
+          from collections.abc import Mapping
+
+          import pytest
+
+          from http_web import (
+              ConditionalRequest,
+              HttpAcquisitionError,
+              HttpFetchOutcome,
+              HttpFetchRequest,
+              HttpRequestPolicy,
+              HttpResponseEnvelope,
+              SafeHttpFetcher,
+              UrlSafetyError,
+          )
+          from http_web.url_safety import ResolvedHttpTarget
+
+
+          class Resolver:
+              def __init__(self, answers: Mapping[str, tuple[str, ...]]) -> None:
+                  self.answers = answers
+
+              def resolve(self, host: str, port: int) -> tuple[str, ...]:
+                  del port
+                  return self.answers[host]
+
+
+          class Transport:
+              def __init__(self, *responses: HttpResponseEnvelope) -> None:
+                  self.responses = list(responses)
+                  self.calls: list[tuple[ResolvedHttpTarget, Mapping[str, str]]] = []
+
+              def send(
+                  self,
+                  *,
+                  target: ResolvedHttpTarget,
+                  headers: Mapping[str, str],
+                  timeout_seconds: float,
+              ) -> HttpResponseEnvelope:
+                  assert timeout_seconds > 0
+                  self.calls.append((target, headers))
+                  return self.responses.pop(0)
+
+
+          def policy(**changes: object) -> HttpRequestPolicy:
+              values: dict[str, object] = {"user_agent": "Collector/1.0"}
+              values.update(changes)
+              return HttpRequestPolicy(**values)  # type: ignore[arg-type]
+
+
+          def response(
+              status: int,
+              *,
+              headers: Mapping[str, str] | None = None,
+              chunks: tuple[bytes, ...] = (),
+          ) -> HttpResponseEnvelope:
+              return HttpResponseEnvelope(
+                  status_code=status,
+                  headers=headers or {},
+                  body_chunks=chunks,
+              )
+
+
+          def test_redirect_target_is_revalidated_before_second_request() -> None:
+              transport = Transport(
+                  response(302, headers={"Location": "http://internal.example/secret"}),
+              )
+              fetcher = SafeHttpFetcher(
+                  resolver=Resolver(
+                      {
+                          "public.example": ("93.184.216.34",),
+                          "internal.example": ("10.0.0.5",),
+                      }
+                  ),
+                  transport=transport,
+              )
+              with pytest.raises(UrlSafetyError) as error:
+                  fetcher.fetch(HttpFetchRequest("https://public.example/", policy()))
+              assert error.value.code == "HTTP_ADDRESS_FORBIDDEN"
+              assert len(transport.calls) == 1
+
+
+          def test_policy_status_does_not_trigger_browser_or_retry_path() -> None:
+              transport = Transport(response(403))
+              result = SafeHttpFetcher(
+                  resolver=Resolver({"example.com": ("93.184.216.34",)}),
+                  transport=transport,
+              ).fetch(HttpFetchRequest("https://example.com/", policy()))
+              assert result.outcome is HttpFetchOutcome.POLICY_BLOCKED
+              assert result.policy_reason == "http_status_403"
+              assert len(transport.calls) == 1
+
+
+          def test_conditional_request_and_unchanged_result() -> None:
+              transport = Transport(response(304, headers={"ETag": '"abc"'}))
+              result = SafeHttpFetcher(
+                  resolver=Resolver({"example.com": ("93.184.216.34",)}),
+                  transport=transport,
+              ).fetch(
+                  HttpFetchRequest(
+                      "https://example.com/",
+                      policy(),
+                      ConditionalRequest(etag='"abc"'),
+                  )
+              )
+              assert result.outcome is HttpFetchOutcome.UNCHANGED
+              assert transport.calls[0][1]["If-None-Match"] == '"abc"'
+
+
+          def test_decoded_response_limit_is_enforced() -> None:
+              transport = Transport(response(200, chunks=(b"abc", b"def")))
+              with pytest.raises(HttpAcquisitionError) as error:
+                  SafeHttpFetcher(
+                      resolver=Resolver({"example.com": ("93.184.216.34",)}),
+                      transport=transport,
+                  ).fetch(
+                      HttpFetchRequest(
+                          "https://example.com/",
+                          policy(maximum_response_bytes=5),
+                      )
+                  )
+              assert error.value.code == "HTTP_RESPONSE_TOO_LARGE"
+
+
+          def test_body_digest_and_pinned_target_are_deterministic() -> None:
+              transport = Transport(response(200, chunks=(b"hello", b" world")))
+              result = SafeHttpFetcher(
+                  resolver=Resolver({"example.com": ("93.184.216.34",)}),
+                  transport=transport,
+              ).fetch(HttpFetchRequest("https://example.com", policy()))
+              assert result.outcome is HttpFetchOutcome.FETCHED
+              assert result.body == b"hello world"
+              assert result.body_digest == (
+                  "sha256:b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+              )
+              assert transport.calls[0][0].addresses == ("93.184.216.34",)
+          PY
+
+          cat > docs/http-acquisition-safety.md <<'EOF'
+          # HTTP acquisition safety boundary
+
+          `http_web` owns request normalization, DNS result validation, address pinning contracts,
+          redirect revalidation, conditional request headers, decoded response limits, and typed
+          policy-blocked outcomes. The core never performs an unpinned network connection.
+
+          A production transport must connect only to an address contained in `ResolvedHttpTarget`
+          while preserving the validated Host/SNI identity. Every redirect is resolved and checked
+          again before transport invocation. `401`, `403`, `407`, and `429` are policy outcomes and
+          do not imply browser escalation or access-control bypass.
+          EOF
+
+      - name: Reconcile workspace and owner registry
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          import dataclasses
+          import importlib.util
+          import re
+          import sys
+          import tomllib
+          from pathlib import Path, PurePosixPath
+          from typing import Any
+
+          root = Path.cwd()
+          root_file = root / 'pyproject.toml'
+          text = root_file.read_text(encoding='utf-8')
+          data = tomllib.loads(text)
+
+          members = sorted(
+              project.parent.relative_to(root).as_posix()
+              for owner_root in ('apps', 'connectors', 'packages')
+              if (root / owner_root).is_dir()
+              for project in (root / owner_root).glob('*/pyproject.toml')
+          )
+          sources: list[str] = []
+          for member in members:
+              packages = [
+                  child
+                  for child in (root / member / 'src').iterdir()
+                  if child.is_dir() and (child / '__init__.py').is_file()
+              ]
+              if len(packages) != 1:
+                  raise RuntimeError(f'{member} must expose exactly one package')
+              sources.append(packages[0].relative_to(root).as_posix())
+
+          def replace_array(source: str, key: str, values: list[str]) -> str:
+              pattern = re.compile(rf'(?ms)^{re.escape(key)}\s*=\s*\[.*?^\]')
+              match = pattern.search(source)
+              if match is None:
+                  raise RuntimeError(f'array not found: {key}')
+              body = ''.join(f'  "{value}",\n' for value in values)
+              return source[:match.start()] + f'{key} = [\n{body}]' + source[match.end():]
+
+          text = replace_array(text, 'members', members)
+          roots = [name for name in ('apps', 'connectors', 'database', 'packages', 'tools') if (root / name).exists()]
+          text = replace_array(text, 'testpaths', roots)
+          text = replace_array(text, 'src', roots)
+          old_mypy = data['tool']['mypy']['files']
+          extras = [
+              value for value in old_mypy
+              if isinstance(value, str)
+              and not value.startswith(('apps/', 'connectors/', 'packages/'))
+          ]
+          text = replace_array(text, 'files', sorted(sources) + extras)
+          root_file.write_text(text, encoding='utf-8')
+
+          checker_path = root / 'tools/architecture_checks/check_dependencies.py'
+          module_name = '_dcp_http_owner_checker'
+          spec = importlib.util.spec_from_file_location(module_name, checker_path)
+          if spec is None or spec.loader is None:
+              raise RuntimeError('cannot load architecture checker')
+          module = importlib.util.module_from_spec(spec)
+          sys.modules[module_name] = module
+          spec.loader.exec_module(module)
+          registries = [
+              (name, value)
+              for name, value in vars(module).items()
+              if isinstance(value, dict)
+              and value
+              and 'owner' in name.lower()
+              and all(dataclasses.is_dataclass(item) for item in value.values())
+          ]
+          if not registries:
+              raise RuntimeError('owner registry not found')
+          registry_name, registry = max(registries, key=lambda item: len(item[1]))
+
+          def owner_path(owner: object) -> str | None:
+              for field in dataclasses.fields(owner):
+                  value = str(getattr(owner, field.name)).replace('\\', '/')
+                  if value.startswith(('apps/', 'connectors/', 'packages/')):
+                      return value.split('/src/', 1)[0]
+              return None
+
+          existing = {owner_path(owner): key for key, owner in registry.items()}
+          if 'connectors/http_web' not in existing:
+              template_key = existing.get('connectors/osm_overpass')
+              if template_key is None:
+                  raise RuntimeError('OSM connector owner template is missing')
+              template = registry[template_key]
+              updates: dict[str, object] = {}
+              for field in dataclasses.fields(template):
+                  name = field.name.lower()
+                  original = getattr(template, field.name)
+                  if ('project' in name or 'member' in name) and ('path' in name or 'root' in name):
+                      updates[field.name] = Path('connectors/http_web') if isinstance(original, Path) else 'connectors/http_web'
+                  elif 'source' in name and ('path' in name or 'root' in name):
+                      value = 'connectors/http_web/src/http_web'
+                      updates[field.name] = Path(value) if isinstance(original, Path) else value
+                  elif 'distribution' in name or name == 'project_name':
+                      updates[field.name] = 'http-web-connector'
+                  elif isinstance(original, str) and (
+                      ('import' in name and ('root' in name or 'name' in name))
+                      or ('module' in name and ('root' in name or 'name' in name))
+                      or ('package' in name and ('root' in name or 'name' in name))
+                  ):
+                      updates[field.name] = 'http_web'
+                  elif 'internal' in name and ('allow' in name or 'depend' in name or 'import' in name):
+                      updates[field.name] = type(original)() if not isinstance(original, tuple) else ()
+                  elif ('external' in name or 'capabilit' in name) and ('allow' in name or 'depend' in name or 'import' in name):
+                      updates[field.name] = type(original)() if not isinstance(original, tuple) else ()
+              if not updates:
+                  raise RuntimeError('HTTP owner fields could not be mapped')
+
+              source = checker_path.read_text(encoding='utf-8')
+              if 'import dataclasses as _dataclasses\n' not in source:
+                  anchor = 'from __future__ import annotations\n'
+                  source = source.replace(anchor, anchor + '\nimport dataclasses as _dataclasses\n', 1)
+              parsed = ast.parse(source)
+              assignment = None
+              for node in parsed.body:
+                  names: list[str] = []
+                  if isinstance(node, ast.Assign):
+                      names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+                  elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                      names = [node.target.id]
+                  if registry_name in names:
+                      assignment = node
+                      break
+              if assignment is None or assignment.end_lineno is None:
+                  raise RuntimeError('owner registry assignment not found')
+
+              def literal(value: object) -> str:
+                  if isinstance(value, Path):
+                      return f"Path({str(value)!r})"
+                  if isinstance(value, PurePosixPath):
+                      return f"PurePosixPath({str(value)!r})"
+                  if isinstance(value, frozenset):
+                      return f"frozenset({sorted(value)!r})"
+                  if isinstance(value, set):
+                      return f"set({sorted(value)!r})"
+                  return repr(value)
+
+              arguments = ''.join(
+                  f'            {name}={literal(value)},\n'
+                  for name, value in updates.items()
+              )
+              insertion = (
+                  '\n# Explicit registration for the HTTP acquisition connector.\n'
+                  f'{registry_name}.update({{\n'
+                  "    'http_web': _dataclasses.replace(\n"
+                  f'        {registry_name}[{template_key!r}],\n'
+                  f'{arguments}'
+                  '    ),\n'
+                  '})\n'
+              )
+              lines = source.splitlines(keepends=True)
+              lines[assignment.end_lineno:assignment.end_lineno] = [insertion]
+              checker_path.write_text(''.join(lines), encoding='utf-8')
+          PY
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run ruff format connectors/http_web tools/architecture_checks/check_dependencies.py
+          uv run ruff check connectors/http_web tools/architecture_checks/check_dependencies.py
+          uv run mypy
+          uv run pytest -q connectors/http_web/tests
+          uv run pytest -q -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q connectors/http_web tools/architecture_checks
+
+      - name: Commit HTTP safety owner
+        if: steps.prerequisite.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git add connectors/http_web pyproject.toml uv.lock tools/architecture_checks/check_dependencies.py
+          git diff --cached --check
+          git commit -m 'Feature (HTTP Acquisition): add SSRF-safe request core'
+          git add connectors/http_web/tests
+          if ! git diff --cached --quiet; then
+            git commit -m 'New tests (HTTP Acquisition): prove URL and redirect safety'
+          fi
+          git add docs/http-acquisition-safety.md
+          git commit -m 'Docs (HTTP Acquisition): document pinned transport boundary'
+
+      - name: Remove temporary workflow
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git pull --rebase origin main
+          git rm -f --ignore-unmatch .github/workflows/implement-http-safety.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Chore (Tooling): remove HTTP safety workflow'
+          fi
+          git push origin HEAD:main
