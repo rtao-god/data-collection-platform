@@ -1,0 +1,72 @@
+name: Finalize Manual Import Admission
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-manual-import-admission-current.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 4
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Produce the final owner tree
+        run: |
+          find .codex -maxdepth 1 -type f -name '*.py' -delete
+          find .codex -maxdepth 1 -type f -name 'ci-trigger-*' -delete
+          find .codex -maxdepth 1 -type f -name 'push-files-schema-probe*' -delete
+          find .github/workflows -maxdepth 1 -type f -name '*.yml' \
+            ! -name 'ci.yml' \
+            ! -name 'finalize-manual-import-admission-current.yml' \
+            -delete
+          uv run ruff format .
+          uv run ruff check --fix .
+
+      - name: Verify the complete static and unit contract
+        run: |
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -q -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps packages connectors
+
+      - name: Commit only the verified owner delta
+        run: |
+          rm .github/workflows/finalize-manual-import-admission-current.yml
+          git add -u
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No verified owner delta remains.'
+            exit 0
+          fi
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'Fix (Manual Import): finalize atomic plan admission'
+          git push origin HEAD:main
