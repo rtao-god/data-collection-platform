@@ -5,6 +5,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from repair_stage3_stage4_part1 import apply as repair_part1
+from repair_stage3_stage4_part2a import apply as repair_part2a
+from repair_stage3_stage4_part2b1 import apply as repair_part2b1
+from repair_stage3_stage4_part2b2 import apply as repair_part2b2
+from repair_stage3_stage4_part3 import apply as repair_part3
+from repair_stage3_stage4_part4 import apply as repair_part4
+
 
 def _replace_once(text: str, old: str, new: str, owner: str) -> str:
     if old not in text:
@@ -197,6 +204,13 @@ def main() -> int:
         '    """',
     )
     child_writer.write_text(text, encoding="utf-8")
+
+    repair_part1(root)
+    repair_part2a(root)
+    repair_part2b1(root)
+    repair_part2b2(root)
+    repair_part3(root)
+    repair_part4(root)
     return 0
 
 
