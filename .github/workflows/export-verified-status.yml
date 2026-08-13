@@ -1,0 +1,103 @@
+name: Export Verified Status
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/export-verified-status.yml
+
+permissions:
+  actions: read
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact reporting head
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Wait for permanent Verify on reporting head
+        env:
+          REPORT_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            run_json="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&per_page=30" \
+              --jq ".workflow_runs[] | select(.head_sha == \"${REPORT_HEAD}\") | {id,status,conclusion} | @json" \
+              | head -n 1 || true)"
+            if [ -n "$run_json" ]; then
+              status="$(printf '%s' "$run_json" | jq -r .status)"
+              if [ "$status" = completed ]; then
+                printf '%s' "$run_json" > /tmp/verify-run.json
+                break
+              fi
+            fi
+            sleep 5
+          done
+          test -s /tmp/verify-run.json
+
+      - name: Build exact status report
+        env:
+          REPORT_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifact/verified-status
+          run_id="$(jq -r .id /tmp/verify-run.json)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" > /tmp/jobs.json
+          tree_sha="$(git show -s --format=%T "$REPORT_HEAD")"
+          workflows="$(find .github/workflows -maxdepth 1 -type f -printf '%f\n' | sort | jq -R -s 'split("\n")[:-1]')"
+          proofs="$(find docs/proofs -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort | jq -R -s 'split("\n")[:-1]')"
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg branch main \
+            --arg head "$REPORT_HEAD" \
+            --arg tree "$tree_sha" \
+            --argjson verify "$(cat /tmp/verify-run.json)" \
+            --argjson jobs "$(jq '[.jobs[] | {name,status,conclusion,failedSteps:[.steps[] | select(.conclusion == "failure") | .name]}]' /tmp/jobs.json)" \
+            --argjson workflows "$workflows" \
+            --argjson proofs "$proofs" \
+            '{repository:$repository,branch:$branch,headSha:$head,treeSha:$tree,verify:$verify,jobs:$jobs,workflows:$workflows,proofs:$proofs}' \
+            > .artifact/verified-status/status.json
+          {
+            echo '# Data Collection Platform verified status'
+            echo
+            echo "- repository: \`$GITHUB_REPOSITORY\`"
+            echo "- branch: \`main\`"
+            echo "- head: \`$REPORT_HEAD\`"
+            echo "- tree: \`$tree_sha\`"
+            echo "- Verify run: \`$(jq -r .id /tmp/verify-run.json)\`"
+            echo "- Verify conclusion: \`$(jq -r .conclusion /tmp/verify-run.json)\`"
+            echo
+            echo '## Jobs'
+            jq -r '.jobs[] | "- `\(.name)`: `\(.status)` / `\(.conclusion)`"' /tmp/jobs.json
+            echo
+            echo '## Versioned workflows'
+            find .github/workflows -maxdepth 1 -type f -printf '%f\n' | sort | sed 's/^/- `/' | sed 's/$/`/'
+            echo
+            echo '## Proof files'
+            find docs/proofs -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort | sed 's/^/- `/' | sed 's/$/`/'
+          } > .artifact/verified-status/status.md
+
+      - name: Upload verified status
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-collection-platform-verified-status
+          path: .artifact/verified-status
+          retention-days: 2
+
+      - name: Remove reporting workflow
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/export-verified-status.yml
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'Build (Status): remove verified snapshot exporter'
+          git push origin HEAD:main
