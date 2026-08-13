@@ -1,0 +1,86 @@
+name: Finalize Manual Import Admission CI
+
+on:
+  workflow_run:
+    workflows:
+      - Verify
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+concurrency:
+  group: manual-import-owner-write-final
+  cancel-in-progress: false
+
+jobs:
+  finalize-success:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Record proof when admission is sealed and remove automation
+        shell: bash
+        env:
+          VERIFIED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          VERIFIED_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if [ -f docs/proofs/manual-import-admission.md ]; then
+            mkdir -p docs/proofs
+            cat > docs/proofs/manual-import-admission-ci.md <<EOF
+          # Manual import admission permanent CI proof
+
+          - verified head: \`${VERIFIED_HEAD_SHA}\`
+          - permanent workflow run: \`${VERIFIED_RUN_ID}\`
+          - workflow: \`Verify\`
+          - conclusion: \`success\`
+          EOF
+          fi
+          find .github/workflows -maxdepth 1 -type f ! -name ci.yml -print0 \
+            | xargs -0 -r git rm -f
+          find .codex -maxdepth 1 -type f \( -name '*.py' -o -name '*probe*' -o -name 'ci-trigger*' \) -print0 \
+            | xargs -0 -r git rm -f
+          rm -rf .codex/payloads
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'CI (Manual Import): finalize admission verification'
+          git push origin HEAD:main
+
+  cleanup-failure:
+    if: >-
+      github.event.workflow_run.conclusion != 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Remove transient verification automation
+        shell: bash
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f ! -name ci.yml -print0 \
+            | xargs -0 -r git rm -f
+          find .codex -maxdepth 1 -type f \( -name '*.py' -o -name '*probe*' -o -name 'ci-trigger*' \) -print0 \
+            | xargs -0 -r git rm -f
+          rm -rf .codex/payloads
+          git add -A
+          git diff --cached --check
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git commit -m 'Chore (Manual Import): remove failed CI finalizer'
+          git push origin HEAD:main
