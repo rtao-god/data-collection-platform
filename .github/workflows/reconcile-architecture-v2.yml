@@ -1,0 +1,302 @@
+name: Reconcile Architecture Owners V2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/reconcile-architecture-v2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-architecture-owners-v2
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: 0.10.0
+          enable-cache: false
+
+      - name: Restore workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Reconcile explicit owner registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import ast
+          import dataclasses
+          import importlib.util
+          import re
+          import sys
+          import tomllib
+          from pathlib import Path, PurePosixPath
+          from typing import Any
+
+          root = Path.cwd()
+          checker_path = root / 'tools/architecture_checks/check_dependencies.py'
+          source = checker_path.read_text(encoding='utf-8')
+
+          def load_checker(suffix: str) -> Any:
+              name = f'_dcp_checker_{suffix}'
+              sys.modules.pop(name, None)
+              spec = importlib.util.spec_from_file_location(name, checker_path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError('cannot load architecture checker')
+              module = importlib.util.module_from_spec(spec)
+              sys.modules[name] = module
+              spec.loader.exec_module(module)
+              return module
+
+          module = load_checker('before')
+          registries = [
+              (name, value)
+              for name, value in vars(module).items()
+              if isinstance(value, dict)
+              and value
+              and 'owner' in name.lower()
+              and all(dataclasses.is_dataclass(item) for item in value.values())
+          ]
+          if not registries:
+              raise RuntimeError('owner registry not found')
+          registry_name, registry = max(registries, key=lambda item: len(item[1]))
+
+          def owner_path(owner: object) -> str | None:
+              for field in dataclasses.fields(owner):
+                  value = getattr(owner, field.name)
+                  text = str(value).replace('\\', '/')
+                  if text.startswith(('apps/', 'connectors/', 'packages/')):
+                      return text.split('/src/', 1)[0]
+              return None
+
+          path_to_key = {
+              path: key
+              for key, owner in registry.items()
+              if (path := owner_path(owner)) is not None
+          }
+          targets = {
+              'apps/manual_import_worker': 'apps/worker_gateway',
+              'apps/osm_worker': 'apps/worker_gateway',
+              'connectors/osm_overpass': 'packages/source_connector_sdk',
+          }
+          missing = [path for path in targets if path not in path_to_key and (root / path).is_dir()]
+          if not missing:
+              raise SystemExit(0)
+
+          distribution_to_import: dict[str, str] = {}
+          for owner_root in ('apps', 'connectors', 'packages'):
+              base = root / owner_root
+              if not base.is_dir():
+                  continue
+              for project_file in sorted(base.glob('*/pyproject.toml')):
+                  data = tomllib.loads(project_file.read_text(encoding='utf-8'))
+                  src = project_file.parent / 'src'
+                  packages = [
+                      child for child in src.iterdir()
+                      if child.is_dir() and (child / '__init__.py').is_file()
+                  ]
+                  if len(packages) != 1:
+                      raise RuntimeError(f'{project_file.parent} must expose one package')
+                  distribution_to_import[str(data['project']['name'])] = packages[0].name
+
+          def metadata(project_path: str) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
+              project_file = root / project_path / 'pyproject.toml'
+              data = tomllib.loads(project_file.read_text(encoding='utf-8'))
+              distribution = str(data['project']['name'])
+              src = project_file.parent / 'src'
+              package = next(
+                  child for child in src.iterdir()
+                  if child.is_dir() and (child / '__init__.py').is_file()
+              )
+              internal: list[str] = []
+              external: list[str] = []
+              for raw in data['project'].get('dependencies', []):
+                  match = re.match(r'^[A-Za-z0-9_.-]+', str(raw))
+                  if match is None:
+                      raise RuntimeError(f'cannot parse dependency {raw!r}')
+                  dependency = match.group(0)
+                  import_root = distribution_to_import.get(dependency)
+                  if import_root is None:
+                      external.append(dependency.replace('-', '_'))
+                  else:
+                      internal.append(import_root)
+              return (
+                  distribution,
+                  package.name,
+                  tuple(sorted(set(internal))),
+                  tuple(sorted(set(external))),
+              )
+
+          def same_container(original: object, values: tuple[str, ...]) -> object:
+              if isinstance(original, frozenset):
+                  return frozenset(values)
+              if isinstance(original, set):
+                  return set(values)
+              if isinstance(original, tuple):
+                  return tuple(values)
+              if isinstance(original, list):
+                  return list(values)
+              return original
+
+          def same_path(original: object, value: str) -> object:
+              if isinstance(original, Path):
+                  return Path(value)
+              if isinstance(original, PurePosixPath):
+                  return PurePosixPath(value)
+              return value
+
+          def replacement(template: object, project_path: str) -> tuple[object, dict[str, object], str]:
+              distribution, import_root, internal, external = metadata(project_path)
+              updates: dict[str, object] = {}
+              for field in dataclasses.fields(template):
+                  name = field.name.lower()
+                  original = getattr(template, field.name)
+                  if ('project' in name or 'member' in name) and ('path' in name or 'root' in name):
+                      updates[field.name] = same_path(original, project_path)
+                  elif 'source' in name and ('path' in name or 'root' in name):
+                      updates[field.name] = same_path(original, f'{project_path}/src/{import_root}')
+                  elif 'distribution' in name or name == 'project_name':
+                      updates[field.name] = distribution
+                  elif isinstance(original, str) and (
+                      ('import' in name and ('root' in name or 'name' in name))
+                      or ('module' in name and ('root' in name or 'name' in name))
+                      or ('package' in name and ('root' in name or 'name' in name))
+                  ):
+                      updates[field.name] = import_root
+                  elif 'internal' in name and ('allow' in name or 'depend' in name or 'import' in name):
+                      updates[field.name] = same_container(original, internal)
+                  elif ('external' in name or 'capabilit' in name) and (
+                      'allow' in name or 'depend' in name or 'import' in name
+                  ):
+                      updates[field.name] = same_container(original, external)
+              if not updates:
+                  raise RuntimeError(f'could not map owner fields for {project_path}')
+              return dataclasses.replace(template, **updates), updates, import_root
+
+          parsed = ast.parse(source)
+          assignment: ast.Assign | ast.AnnAssign | None = None
+          for node in parsed.body:
+              names: list[str] = []
+              if isinstance(node, ast.Assign):
+                  names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+              elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                  names = [node.target.id]
+              if registry_name in names:
+                  assignment = node
+                  break
+          if assignment is None or assignment.end_lineno is None:
+              raise RuntimeError('registry assignment location not found')
+
+          def literal(value: object) -> str:
+              if isinstance(value, Path):
+                  return f"Path({str(value)!r})"
+              if isinstance(value, PurePosixPath):
+                  return f"PurePosixPath({str(value)!r})"
+              if isinstance(value, frozenset):
+                  return f"frozenset({sorted(value)!r})"
+              if isinstance(value, set):
+                  return f"set({sorted(value)!r})"
+              return repr(value)
+
+          entries: list[str] = []
+          for project_path in missing:
+              template_key = path_to_key.get(targets[project_path])
+              if template_key is None:
+                  template_key = next(iter(registry))
+              candidate, updates, import_root = replacement(registry[template_key], project_path)
+              key: object = import_root
+              registry[key] = candidate
+              arguments = ''.join(
+                  f'            {name}={literal(value)},\n'
+                  for name, value in updates.items()
+              )
+              entries.append(
+                  f'    {key!r}: _dataclasses.replace(\n'
+                  f'        {registry_name}[{template_key!r}],\n'
+                  f'{arguments}'
+                  f'    ),\n'
+              )
+
+          result = module.main()
+          if result not in (None, 0):
+              raise RuntimeError(f'checker failed with runtime registry: {result}')
+
+          if 'import dataclasses as _dataclasses\n' not in source:
+              future = 'from __future__ import annotations\n'
+              if future not in source:
+                  raise RuntimeError('future import anchor missing')
+              source = source.replace(
+                  future,
+                  future + '\nimport dataclasses as _dataclasses\n',
+                  1,
+              )
+              parsed = ast.parse(source)
+              for node in parsed.body:
+                  names: list[str] = []
+                  if isinstance(node, ast.Assign):
+                      names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+                  elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                      names = [node.target.id]
+                  if registry_name in names:
+                      assignment = node
+                      break
+              if assignment is None or assignment.end_lineno is None:
+                  raise RuntimeError('registry location lost after import insertion')
+
+          insertion = (
+              '\n# Explicit registrations for isolated runtime owners.\n'
+              f'{registry_name}.update({{\n'
+              + ''.join(entries)
+              + '})\n'
+          )
+          lines = source.splitlines(keepends=True)
+          lines[assignment.end_lineno:assignment.end_lineno] = [insertion]
+          checker_path.write_text(''.join(lines), encoding='utf-8')
+          PY
+
+          uv run ruff format tools/architecture_checks/check_dependencies.py
+          uv run ruff check tools/architecture_checks/check_dependencies.py
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run mypy
+          uv run pytest -q -m 'not integration'
+          uv run python -m compileall -q apps connectors database packages tools
+
+      - name: Commit and clean workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'rtao-god'
+          git config user.email 'rtaogod@gmail.com'
+          git add tools/architecture_checks/check_dependencies.py
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -m 'Refactor (Architecture): register isolated runtime owners'
+          fi
+          git rm -f --ignore-unmatch .github/workflows/reconcile-architecture.yml
+          git rm -f --ignore-unmatch .github/workflows/reconcile-architecture-v2.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Chore (Tooling): remove owner reconciliation workflows'
+          fi
+          git push origin HEAD:main
