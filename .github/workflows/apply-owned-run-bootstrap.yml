@@ -59,10 +59,8 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
           test "$(find .github/apply -maxdepth 1 -name 'owned-run-bootstrap.part-*' -type f | wc -l)" -eq 9
-          cat .github/apply/owned-run-bootstrap.part-* > /tmp/owned-run-bootstrap.patch.gz.b64
-          echo "8f9a50331edaa88171967ed8b002fb0c2c286755833f23cd67d61b754938d482  /tmp/owned-run-bootstrap.patch.gz.b64" \
-            | sha256sum --check
-          base64 --decode /tmp/owned-run-bootstrap.patch.gz.b64 \
+          cat .github/apply/owned-run-bootstrap.part-* \
+            | base64 --decode \
             | gzip --decompress > /tmp/owned-run-bootstrap.patch
           echo "6e697a91ddfeb3002d261dc338ce0d030c7bf684566ac2b4e44120c319900316  /tmp/owned-run-bootstrap.patch" \
             | sha256sum --check
