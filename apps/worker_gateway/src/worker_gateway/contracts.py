@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from collection_application import (
-    ArtifactKind,
     PreparedArtifactRead,
     PreparedArtifactUpload,
     VerifiedArtifactUpload,
@@ -28,6 +28,12 @@ _WIRE_IDENTITY_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$"
 _DIGEST_PATTERN = r"^sha256:[0-9a-f]{64}$"
 _CODE_PATTERN = r"^[A-Z][A-Z0-9_]{0,99}$"
 _ROLE_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,63}$"
+
+
+class ArtifactKind(StrEnum):
+    RAW_ARTIFACT = "raw_artifact"
+    DIAGNOSTIC_ARTIFACT = "diagnostic_artifact"
+    DERIVED_ARTIFACT = "derived_artifact"
 
 
 class WorkerWireModel(BaseModel):
@@ -229,7 +235,7 @@ class VerifiedArtifactUploadResponse(WorkerWireModel):
         return cls(
             upload_id=result.upload_id,
             work_id=result.work_id,
-            artifact_kind=result.artifact_kind,
+            artifact_kind=ArtifactKind(result.artifact_kind.value),
             content_digest=result.content_digest,
             size_bytes=result.size_bytes,
             content_type=result.content_type,

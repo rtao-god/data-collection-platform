@@ -135,8 +135,34 @@ config_bundle_blockers = sa.Table(
     comment="Ordered explicit blockers that keep a campaign snapshot from production use.",
 )
 
+config_bundle_artifacts = sa.Table(
+    "config_bundle_artifacts",
+    collector_metadata,
+    sa.Column("bundle_digest", sa.String(71), nullable=False),
+    sa.Column("artifact_id", sa.Uuid, nullable=False),
+    sa.Column("recorded_at_utc", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("correlation_id", sa.Text, nullable=False),
+    sa.PrimaryKeyConstraint("bundle_digest", name="pk_config_bundle_artifacts"),
+    sa.ForeignKeyConstraint(
+        ("bundle_digest",),
+        ("config.config_bundles.bundle_digest",),
+        name="fk_config_bundle_artifacts_bundle_digest_config_bundles",
+        deferrable=True,
+        initially="DEFERRED",
+    ),
+    sa.ForeignKeyConstraint(
+        ("artifact_id",),
+        ("sources.artifact_records.artifact_id",),
+        name="fk_config_bundle_artifacts_artifact_id_artifact_records",
+    ),
+    sa.UniqueConstraint("artifact_id", name="uq_config_bundle_artifacts_artifact_id"),
+    schema=CONFIG_SCHEMA,
+    comment="Exact immutable object-store artifact for one campaign snapshot.",
+)
+
 CONFIG_TABLES = (
     config_bundles,
+    config_bundle_artifacts,
     config_bundle_components,
     config_bundle_blockers,
 )

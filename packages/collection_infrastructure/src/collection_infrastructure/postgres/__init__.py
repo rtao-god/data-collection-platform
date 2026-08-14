@@ -8,6 +8,10 @@ from collection_infrastructure.postgres.artifact_metadata import (
     work_output_artifacts,
 )
 from collection_infrastructure.postgres.artifact_transfer import PostgresArtifactTransfer
+from collection_infrastructure.postgres.campaign_run_store import PostgresCampaignRunStore
+from collection_infrastructure.postgres.campaign_snapshot_store import (
+    PostgresCampaignSnapshotStore,
+)
 from collection_infrastructure.postgres.manual_import_metadata import (
     MANUAL_IMPORT_SCHEMA,
     MANUAL_IMPORT_TABLES,
@@ -18,11 +22,15 @@ from collection_infrastructure.postgres.metadata import (
     CONFIG_SCHEMA,
     CONFIG_TABLES,
     collector_metadata,
+    config_bundle_artifacts,
     config_bundle_blockers,
     config_bundle_components,
     config_bundles,
 )
 from collection_infrastructure.postgres.migrations import upgrade_database
+from collection_infrastructure.postgres.owned_artifact_publisher import (
+    PostgresOwnedArtifactPublisher,
+)
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import (
     RUN_TABLES,
@@ -62,6 +70,9 @@ __all__ = [
     "WORK_SCHEMA",
     "WORK_TABLES",
     "PostgresArtifactTransfer",
+    "PostgresCampaignRunStore",
+    "PostgresCampaignSnapshotStore",
+    "PostgresOwnedArtifactPublisher",
     "PostgresReviewRepository",
     "PostgresWorkEngine",
     "artifact_cleanup_tombstones",
@@ -70,6 +81,7 @@ __all__ = [
     "artifact_uploads",
     "collection_runs",
     "collector_metadata",
+    "config_bundle_artifacts",
     "config_bundle_blockers",
     "config_bundle_components",
     "config_bundles",

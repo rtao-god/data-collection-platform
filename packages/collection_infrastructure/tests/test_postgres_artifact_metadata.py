@@ -41,10 +41,16 @@ def test_artifact_metadata_compiles_content_and_binding_invariants() -> None:
     orphan_index_sql = str(CreateIndex(orphan_index).compile(dialect=dialect))
 
     assert (
-        "artifact_kind IN ('raw_artifact', 'diagnostic_artifact', 'derived_artifact')" in object_sql
+        "artifact_kind IN ('raw_artifact', 'diagnostic_artifact', 'derived_artifact', "
+        "'config_bundle', 'export_artifact')" in object_sql
+    )
+    assert (
+        "artifact_kind IN ('raw_artifact', 'diagnostic_artifact', 'derived_artifact')" in upload_sql
     )
     assert "UNIQUE (artifact_kind, content_digest)" in object_sql
     assert "uq_artifact_records_upload_id" in record_sql
+    assert "uq_artifact_records_owner_operation" in record_sql
+    assert "producer_kind IN ('worker', 'control_plane')" in record_sql
     assert "UNIQUE (work_id, artifact_id)" in input_sql
     assert "UNIQUE (work_id, role)" in input_sql
     assert "UNIQUE (work_id, role)" in output_sql

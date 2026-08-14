@@ -40,12 +40,12 @@ def component_digests(documents: Mapping[str, object]) -> tuple[ComponentDigest,
     )
 
 
-def bundle_digest(
+def canonical_bundle_document(
     campaign_key: str,
     components: tuple[ComponentDigest, ...],
     documents: Mapping[str, object],
-) -> str:
-    payload = {
+) -> dict[str, object]:
+    return {
         "campaignKey": campaign_key,
         "components": [
             {
@@ -56,15 +56,26 @@ def bundle_digest(
             for component in components
         ],
     }
-    return sha256_json(payload)
 
 
-def sha256_json(value: object) -> str:
-    canonical = json.dumps(
+def canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
         value,
         allow_nan=False,
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
     ).encode("utf-8")
-    return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+
+
+def bundle_digest(
+    campaign_key: str,
+    components: tuple[ComponentDigest, ...],
+    documents: Mapping[str, object],
+) -> str:
+    content = canonical_json_bytes(canonical_bundle_document(campaign_key, components, documents))
+    return f"sha256:{hashlib.sha256(content).hexdigest()}"
+
+
+def sha256_json(value: object) -> str:
+    return f"sha256:{hashlib.sha256(canonical_json_bytes(value)).hexdigest()}"

@@ -52,6 +52,7 @@ from collection_infrastructure.postgres.artifact_metadata import (
     work_output_artifacts,
 )
 from collection_infrastructure.postgres.metadata import (
+    config_bundle_artifacts,
     config_bundle_blockers,
     config_bundles,
 )
@@ -100,15 +101,26 @@ class PostgresWorkEngine:
             lambda connection, now_utc: self._configure_source(connection, now_utc, command)
         )
 
+    def configure_source_in_transaction(
+        self, connection: Connection, command: SourceCapacitySpec
+    ) -> None:
+        self._configure_source(connection, self._now_utc(), command)
+
     def create_run(self, command: CollectionRunSpec) -> None:
         self._transaction(
             lambda connection, now_utc: self._create_run(connection, now_utc, command)
         )
 
+    def create_run_in_transaction(self, connection: Connection, command: CollectionRunSpec) -> None:
+        self._create_run(connection, self._now_utc(), command)
+
     def create_stage(self, command: StageRunSpec) -> None:
         self._transaction(
             lambda connection, now_utc: self._create_stage(connection, now_utc, command)
         )
+
+    def create_stage_in_transaction(self, connection: Connection, command: StageRunSpec) -> None:
+        self._create_stage(connection, self._now_utc(), command)
 
     def enqueue_work(self, command: WorkUnitSpec) -> None:
         self._transaction(
@@ -400,6 +412,21 @@ class PostgresWorkEngine:
                     "configBundleDigest": command.config_bundle_digest,
                 },
                 required_action="Create the run with the campaign key owned by the snapshot.",
+            )
+        artifact_id = connection.execute(
+            sa.select(config_bundle_artifacts.c.artifact_id).where(
+                config_bundle_artifacts.c.bundle_digest == command.config_bundle_digest
+            )
+        ).scalar_one_or_none()
+        if artifact_id is None:
+            raise _conflict(
+                code="RUN_CONFIG_ARTIFACT_MISSING",
+                message="The published campaign snapshot has no verified object artifact.",
+                context={"configBundleDigest": command.config_bundle_digest},
+                required_action=(
+                    "Publish and bind the exact canonical campaign bundle artifact before "
+                    "creating the run."
+                ),
             )
         if bundle["readiness"] != "ready":
             blocker_codes = list(
@@ -1253,6 +1280,9 @@ class PostgresWorkEngine:
                     work_id=command.work_id,
                     attempt_id=attempt["attempt_id"],
                     worker_id=command.worker_id,
+                    producer_kind="worker",
+                    producer_identity=command.worker_id,
+                    owner_operation_id=None,
                     content_type=upload["content_type"],
                     source_policy_digest=work["source_policy_digest"],
                     recorded_at_utc=now_utc,

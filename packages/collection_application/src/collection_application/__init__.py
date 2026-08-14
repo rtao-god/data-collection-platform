@@ -10,7 +10,28 @@ from collection_application.artifacts import (
     VerifiedArtifactUpload,
     VerifyArtifactUpload,
 )
+from collection_application.campaign_publication import (
+    CampaignSnapshotPublicationService,
+    CampaignSnapshotStore,
+    PublishCampaignSnapshot,
+    PublishedCampaignSnapshot,
+)
+from collection_application.campaign_runs import (
+    CampaignRunBootstrapPlan,
+    CampaignRunCreated,
+    CampaignRunService,
+    CampaignRunStore,
+    CreateCampaignRun,
+)
 from collection_application.campaign_snapshot_service import CampaignSnapshotService
+from collection_application.compiled_campaign import CompiledCampaignBundle
+from collection_application.owned_artifacts import (
+    OwnedArtifactPublishConflict,
+    OwnedArtifactPublisherPort,
+    OwnedArtifactPublisherService,
+    PublishedOwnedArtifact,
+    PublishOwnedArtifact,
+)
 from collection_application.ports import CampaignBundleSource, RawCampaignBundle
 from collection_application.work_artifacts import WorkInputArtifact, WorkOutputArtifact
 from collection_application.work_engine import (
@@ -57,17 +78,32 @@ __all__ = [
     "ArtifactTransferPort",
     "ArtifactTransferService",
     "CampaignBundleSource",
+    "CampaignRunBootstrapPlan",
+    "CampaignRunCreated",
+    "CampaignRunService",
+    "CampaignRunStore",
+    "CampaignSnapshotPublicationService",
     "CampaignSnapshotService",
+    "CampaignSnapshotStore",
     "CollectionRunSpec",
     "CollectionRunState",
+    "CompiledCampaignBundle",
+    "CreateCampaignRun",
     "LeaseExpirySweep",
     "LeaseExpirySweepResult",
     "LeaseHeartbeat",
     "LeaseRequest",
+    "OwnedArtifactPublishConflict",
+    "OwnedArtifactPublisherPort",
+    "OwnedArtifactPublisherService",
     "PrepareArtifactRead",
     "PrepareArtifactUpload",
     "PreparedArtifactRead",
     "PreparedArtifactUpload",
+    "PublishCampaignSnapshot",
+    "PublishOwnedArtifact",
+    "PublishedCampaignSnapshot",
+    "PublishedOwnedArtifact",
     "RawCampaignBundle",
     "RetryPolicy",
     "SourceCapacitySpec",

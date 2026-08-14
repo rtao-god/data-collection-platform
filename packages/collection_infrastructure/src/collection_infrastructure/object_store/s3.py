@@ -38,6 +38,8 @@ class S3Client(Protocol):
 
     def head_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
+    def put_object(self, **kwargs: object) -> Mapping[str, object]: ...
+
     def copy_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
     def delete_object(self, **kwargs: object) -> Mapping[str, object]: ...
@@ -65,6 +67,15 @@ class VerifiedObject:
 class PreparedObjectRead:
     url: str
     expires_at_utc: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class StoredObject:
+    final_reference: str
+    content_digest: str
+    size_bytes: int
+    content_type: str
+    verified_at_utc: datetime
 
 
 class ArtifactObjectStoreError(Exception):
@@ -134,6 +145,67 @@ class S3ArtifactObjectStore:
                     "Restore the configured S3-compatible bucket and verify gateway credentials."
                 ),
             ) from exc
+
+    def store_bytes(
+        self,
+        *,
+        artifact_kind: ArtifactKind,
+        content: bytes,
+        content_type: str,
+        now_utc: datetime,
+    ) -> StoredObject:
+        if not content:
+            raise ValueError("owned artifact content cannot be empty")
+        content_digest = f"sha256:{sha256(content).hexdigest()}"
+        final_reference = _final_reference(artifact_kind, content_digest)
+        if not self._verified_final_exists(
+            final_reference=final_reference,
+            expected_digest=content_digest,
+            expected_size_bytes=len(content),
+            expected_content_type=content_type,
+        ):
+            try:
+                self._client.put_object(
+                    Bucket=self._bucket,
+                    Key=final_reference,
+                    Body=content,
+                    ContentType=content_type,
+                    Metadata={"sha256": content_digest.removeprefix("sha256:")},
+                )
+            except Exception as exc:
+                raise ArtifactObjectStoreError(
+                    code="OWNED_ARTIFACT_WRITE_FAILED",
+                    message="The owner-controlled artifact could not be written.",
+                    context={
+                        "artifactKind": artifact_kind.value,
+                        "finalReference": final_reference,
+                        "causeType": type(exc).__name__,
+                    },
+                    required_action=(
+                        "Restore the object store and retry the exact owner operation."
+                    ),
+                ) from exc
+            if not self._verified_final_exists(
+                final_reference=final_reference,
+                expected_digest=content_digest,
+                expected_size_bytes=len(content),
+                expected_content_type=content_type,
+            ):
+                raise ArtifactObjectStoreError(
+                    code="OWNED_ARTIFACT_WRITE_UNVERIFIED",
+                    message="The owner-controlled artifact failed content verification.",
+                    context={"finalReference": final_reference},
+                    required_action=(
+                        "Inspect the object store before retrying the exact owner operation."
+                    ),
+                )
+        return StoredObject(
+            final_reference=final_reference,
+            content_digest=content_digest,
+            size_bytes=len(content),
+            content_type=content_type,
+            verified_at_utc=now_utc,
+        )
 
     def prepare_upload(
         self,
@@ -376,6 +448,10 @@ def _namespace(artifact_kind: ArtifactKind) -> str:
         return "diagnostic-artifacts"
     if artifact_kind is ArtifactKind.DERIVED_ARTIFACT:
         return "derived-artifacts"
+    if artifact_kind is ArtifactKind.CONFIG_BUNDLE:
+        return "config-bundles"
+    if artifact_kind is ArtifactKind.EXPORT_ARTIFACT:
+        return "exports"
     raise ValueError(f"unsupported artifact kind: {artifact_kind}")
 
 

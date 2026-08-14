@@ -24,6 +24,17 @@ class ArtifactKind(StrEnum):
     RAW_ARTIFACT = "raw_artifact"
     DIAGNOSTIC_ARTIFACT = "diagnostic_artifact"
     DERIVED_ARTIFACT = "derived_artifact"
+    CONFIG_BUNDLE = "config_bundle"
+    EXPORT_ARTIFACT = "export_artifact"
+
+
+_WORKER_WRITABLE_ARTIFACT_KINDS = frozenset(
+    {
+        ArtifactKind.RAW_ARTIFACT,
+        ArtifactKind.DIAGNOSTIC_ARTIFACT,
+        ArtifactKind.DERIVED_ARTIFACT,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +55,8 @@ class PrepareArtifactUpload:
     def __post_init__(self) -> None:
         _require_token("worker_id", self.worker_id)
         _require_digest("input_digest", self.input_digest)
+        if self.artifact_kind not in _WORKER_WRITABLE_ARTIFACT_KINDS:
+            raise ValueError("worker cannot publish owner-controlled artifact kind")
         _require_digest("expected_digest", self.expected_digest)
         _require_size(self.expected_size_bytes)
         _require_content_type(self.content_type)

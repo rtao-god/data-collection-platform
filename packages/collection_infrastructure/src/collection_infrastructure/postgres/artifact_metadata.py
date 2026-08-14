@@ -9,6 +9,11 @@ SOURCES_SCHEMA = "sources"
 WORK_SCHEMA = "work"
 
 _ARTIFACT_KINDS = tuple(value.value for value in ArtifactKind)
+_WORKER_ARTIFACT_KINDS = (
+    ArtifactKind.RAW_ARTIFACT.value,
+    ArtifactKind.DIAGNOSTIC_ARTIFACT.value,
+    ArtifactKind.DERIVED_ARTIFACT.value,
+)
 _UPLOAD_STATES = ("prepared", "verified", "consumed")
 _ROLE_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,63}$"
 
@@ -60,7 +65,7 @@ artifact_uploads = sa.Table(
         name="ck_artifact_uploads_expected_digest_format",
     ),
     sa.CheckConstraint(
-        _in_values("artifact_kind", _ARTIFACT_KINDS),
+        _in_values("artifact_kind", _WORKER_ARTIFACT_KINDS),
         name="ck_artifact_uploads_kind",
     ),
     sa.CheckConstraint(
@@ -164,31 +169,56 @@ artifact_records = sa.Table(
         "upload_id",
         sa.Uuid,
         sa.ForeignKey("sources.artifact_uploads.upload_id"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column(
         "work_id",
         sa.Uuid,
         sa.ForeignKey("work.work_units.work_id"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column(
         "attempt_id",
         sa.Uuid,
         sa.ForeignKey("work.work_attempts.attempt_id"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column(
         "worker_id",
         sa.Text,
         sa.ForeignKey("work.worker_registrations.worker_id"),
-        nullable=False,
+        nullable=True,
     ),
+    sa.Column("producer_kind", sa.Text, nullable=False),
+    sa.Column("producer_identity", sa.Text, nullable=False),
+    sa.Column("owner_operation_id", sa.Uuid, nullable=True),
     sa.Column("content_type", sa.Text, nullable=False),
     sa.Column("source_policy_digest", sa.Text, nullable=True),
     sa.Column("recorded_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("correlation_id", sa.Text, nullable=False),
     sa.UniqueConstraint("upload_id", name="uq_artifact_records_upload_id"),
+    sa.UniqueConstraint(
+        "producer_kind",
+        "producer_identity",
+        "owner_operation_id",
+        name="uq_artifact_records_owner_operation",
+    ),
+    sa.CheckConstraint(
+        "producer_kind IN ('worker', 'control_plane')",
+        name="ck_artifact_records_producer_kind",
+    ),
+    sa.CheckConstraint(
+        "producer_identity ~ '^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$'",
+        name="ck_artifact_records_producer_identity",
+    ),
+    sa.CheckConstraint(
+        "(producer_kind = 'worker' AND upload_id IS NOT NULL AND work_id IS NOT NULL "
+        "AND attempt_id IS NOT NULL AND worker_id IS NOT NULL "
+        "AND producer_identity = worker_id AND owner_operation_id IS NULL) OR "
+        "(producer_kind = 'control_plane' AND upload_id IS NULL AND work_id IS NULL "
+        "AND attempt_id IS NULL AND worker_id IS NULL AND owner_operation_id IS NOT NULL)",
+        name="ck_artifact_records_producer_shape",
+    ),
     sa.CheckConstraint(
         "content_type ~ '^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,63}/"
         "[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,63}$'",
@@ -200,6 +230,7 @@ artifact_records = sa.Table(
     ),
     schema=SOURCES_SCHEMA,
 )
+
 
 work_input_artifacts = sa.Table(
     "work_input_artifacts",

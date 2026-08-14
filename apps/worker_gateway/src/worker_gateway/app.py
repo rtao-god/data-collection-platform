@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from collection_application import (
+    ArtifactKind,
     ArtifactTransferService,
     LeaseExpirySweep,
     LeaseHeartbeat,
@@ -418,7 +419,7 @@ def _worker_router() -> APIRouter:
                 lease_token=payload.lease_token,
                 worker_id=principal.worker_id,
                 input_digest=payload.input_digest,
-                artifact_kind=payload.artifact_kind,
+                artifact_kind=ArtifactKind(payload.artifact_kind),
                 expected_digest=payload.expected_digest,
                 expected_size_bytes=payload.expected_size_bytes,
                 content_type=payload.content_type,

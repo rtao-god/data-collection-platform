@@ -95,6 +95,17 @@ class FakeS3Client:
             "Metadata": dict(stored.metadata),
         }
 
+    def put_object(self, **kwargs: object) -> Mapping[str, object]:
+        key = str(kwargs["Key"])
+        body = bytes(cast(bytes, kwargs["Body"]))
+        metadata = cast(Mapping[str, str], kwargs["Metadata"])
+        self.objects[key] = StoredObject(
+            content=body,
+            content_type=str(kwargs["ContentType"]),
+            metadata=dict(metadata),
+        )
+        return {}
+
     def copy_object(self, **kwargs: object) -> Mapping[str, object]:
         key = str(kwargs["Key"])
         source = cast(Mapping[str, object], kwargs["CopySource"])
@@ -335,3 +346,18 @@ def test_derived_artifact_uses_its_own_content_addressed_namespace() -> None:
     )
 
     assert prepared.staging_reference == f"derived-artifacts/staging/{_UPLOAD_ID}"
+
+
+def test_owned_artifact_is_written_directly_to_content_addressed_namespace() -> None:
+    client = FakeS3Client()
+
+    stored = _store(client).store_bytes(
+        artifact_kind=ArtifactKind.CONFIG_BUNDLE,
+        content=b'{"campaign":"berlin"}',
+        content_type="application/json",
+        now_utc=_NOW,
+    )
+
+    assert stored.final_reference.startswith("config-bundles/sha256/")
+    assert stored.content_digest.startswith("sha256:")
+    assert client.objects[stored.final_reference].content == b'{"campaign":"berlin"}'

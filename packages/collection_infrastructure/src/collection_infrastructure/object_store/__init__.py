@@ -3,6 +3,7 @@ from collection_infrastructure.object_store.s3 import (
     PreparedObjectRead,
     PreparedObjectUpload,
     S3ArtifactObjectStore,
+    StoredObject,
     VerifiedObject,
 )
 
@@ -11,5 +12,6 @@ __all__ = [
     "PreparedObjectRead",
     "PreparedObjectUpload",
     "S3ArtifactObjectStore",
+    "StoredObject",
     "VerifiedObject",
 ]
