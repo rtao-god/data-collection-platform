@@ -27,15 +27,15 @@ jobs:
             --exclude=.pytest_cache \
             --exclude=.mypy_cache \
             --exclude=.ruff_cache \
-            -czf data-collection-platform-source.tar.gz .
-          git rev-parse HEAD > source-head.txt
+            -czf "${RUNNER_TEMP}/data-collection-platform-source.tar.gz" .
+          git rev-parse HEAD > "${RUNNER_TEMP}/source-head.txt"
 
       - name: Upload exact checkout
         uses: actions/upload-artifact@v7
         with:
           name: data-collection-platform-source
           path: |
-            data-collection-platform-source.tar.gz
-            source-head.txt
+            ${{ runner.temp }}/data-collection-platform-source.tar.gz
+            ${{ runner.temp }}/source-head.txt
           if-no-files-found: error
           retention-days: 1
