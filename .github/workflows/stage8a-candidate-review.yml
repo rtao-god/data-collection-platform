@@ -1,0 +1,111 @@
+name: Stage 8A Candidate Review Foundation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/stage8a-candidate-review.yml
+      - pyproject.toml
+      - uv.lock
+      - packages/review_contracts/**
+      - packages/review_core/**
+      - contracts/review/**
+      - tools/review_contract_generation/**
+      - tools/architecture_checks/**
+      - database/migrations/versions/20260814_0009_candidate_review_foundation.py
+      - database/tests/test_candidate_review_schema.py
+  pull_request:
+    paths:
+      - .github/workflows/stage8a-candidate-review.yml
+      - pyproject.toml
+      - uv.lock
+      - packages/review_contracts/**
+      - packages/review_core/**
+      - contracts/review/**
+      - tools/review_contract_generation/**
+      - tools/architecture_checks/**
+      - database/migrations/versions/20260814_0009_candidate_review_foundation.py
+      - database/tests/test_candidate_review_schema.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts-core:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Verify review contract drift
+        run: uv run python tools/review_contract_generation/generate.py --check
+
+      - name: Run review owner tests
+        run: >-
+          uv run pytest
+          packages/review_contracts/tests
+          packages/review_core/tests
+          tools/review_contract_generation/tests
+
+      - name: Verify dependency boundaries
+        run: uv run python tools/architecture_checks/check_dependencies.py
+
+  fresh-schema:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Apply fresh migration
+        run: uv run collection-migrate upgrade head
+
+      - name: Verify candidate and review schema
+        run: uv run pytest -m integration database/tests/test_candidate_review_schema.py
