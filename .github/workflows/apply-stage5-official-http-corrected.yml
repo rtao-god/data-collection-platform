@@ -46,6 +46,29 @@ jobs:
           git apply --check "$RUNNER_TEMP/stage5.patch"
           git apply "$RUNNER_TEMP/stage5.patch"
           python .github/tools/fix_stage5.py
+          python - <<'PY'
+          from pathlib import Path
+
+          planning = Path("connectors/official_http/src/official_http/planning.py")
+          text = planning.read_text(encoding="utf-8")
+          old = '    kind = "page" if root_name == "urlset" else "sitemap"\n'
+          new = (
+              '    kind: Literal["page", "sitemap"] = (\n'
+              '        "page" if root_name == "urlset" else "sitemap"\n'
+              '    )\n'
+          )
+          if old not in text:
+              raise RuntimeError("official_http.planning: sitemap kind anchor is missing")
+          planning.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          fetch = Path("connectors/official_http/src/official_http/fetch.py")
+          text = fetch.read_text(encoding="utf-8")
+          text = text.replace("from typing import Literal, cast\n", "from typing import Literal\n", 1)
+          old = "        return cast(FailureKind, value)\n"
+          if old not in text:
+              raise RuntimeError("official_http.fetch: failure-kind cast anchor is missing")
+          fetch.write_text(text.replace(old, "        return value\n", 1), encoding="utf-8")
+          PY
 
           uv lock
           uv sync --frozen --all-packages --dev
