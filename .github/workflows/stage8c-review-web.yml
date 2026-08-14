@@ -1,0 +1,79 @@
+name: Stage 8C Review Console
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/stage8c-review-web.yml
+      - apps/review_web/**
+      - contracts/control_api/**
+      - deploy/docker/review-web.Dockerfile
+      - deploy/nginx/review-web.conf
+  pull_request:
+    paths:
+      - .github/workflows/stage8c-review-web.yml
+      - apps/review_web/**
+      - contracts/control_api/**
+      - deploy/docker/review-web.Dockerfile
+      - deploy/nginx/review-web.conf
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-web:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/review_web/package-lock.json
+
+      - name: Restore exact frontend workspace
+        working-directory: apps/review_web
+        run: npm ci
+
+      - name: Verify generated Control API client drift
+        working-directory: apps/review_web
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run generate:api
+          git diff --exit-code -- src/shared/api/generated/schema.ts
+
+      - name: Type-check
+        working-directory: apps/review_web
+        run: npm run typecheck
+
+      - name: Test browser owners
+        working-directory: apps/review_web
+        run: npm run test
+
+      - name: Verify frontend architecture
+        working-directory: apps/review_web
+        run: npm run check:architecture
+
+      - name: Build production bundle
+        working-directory: apps/review_web
+        run: npm run build
+
+      - name: Audit runtime dependencies
+        working-directory: apps/review_web
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build unprivileged review-web image
+        run: docker build --tag data-collection-platform/review-web:ci --file deploy/docker/review-web.Dockerfile .
+
+      - name: Verify image identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/review-web:ci)" != "0"
+          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' data-collection-platform/review-web:ci)" != ""
