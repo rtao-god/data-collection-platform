@@ -68,7 +68,8 @@ jobs:
 
           uv lock
           uv sync --frozen --all-packages --dev
-          uv run ruff check . --fix
+          uv run ruff format .
+          uv run ruff check . --fix --unsafe-fixes
           uv run ruff format .
           uv run python tools/contract_generation/generate.py
 
