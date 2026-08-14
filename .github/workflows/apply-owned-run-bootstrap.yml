@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           git fetch origin main
           git reset --hard origin/main
-          test "$(find .github/apply -maxdepth 1 -name 'owned-run-bootstrap.part-*' -type f | wc -l)" -eq 9
+          test "$(find .github/apply -maxdepth 1 -name 'owned-run-bootstrap.part-*' -type f | wc -l)" -eq 10
           cat .github/apply/owned-run-bootstrap.part-* \
             | base64 --decode \
             | gzip --decompress > /tmp/owned-run-bootstrap.patch
