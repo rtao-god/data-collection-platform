@@ -63,6 +63,8 @@ jobs:
           test -f docs/proofs/stage7-resolution-quality-ci.md
           test -f tools/review_contract_generation/__init__.py
           test -f tools/review_contract_generation/generate.py
+          test -f database/migrations/versions/20260814_0009_derived_artifacts.py
+          test ! -e database/migrations/versions/20260814_0010_candidate_review_foundation.py
           mkdir -p .github/stage8a_apply_20260814
           for file in part1.py part2.py repair.py repair2.py; do
             git show "${STAGE8_SOURCE_COMMIT}:.github/stage8a_apply_20260814/${file}" \
@@ -100,12 +102,56 @@ jobs:
               contracts_text[:start] + replacement + contracts_text[end:],
               encoding="utf-8",
           )
+
+          old_migration = Path(
+              "database/migrations/versions/20260814_0009_candidate_review_foundation.py"
+          )
+          new_migration = Path(
+              "database/migrations/versions/20260814_0010_candidate_review_foundation.py"
+          )
+          if not old_migration.is_file():
+              raise RuntimeError("historical Stage 8A migration was not materialized")
+          if new_migration.exists():
+              raise RuntimeError("Stage 8A target migration already exists")
+          migration_text = old_migration.read_text(encoding="utf-8")
+          replacements = {
+              "Revision ID: 20260814_0009": "Revision ID: 20260814_0010",
+              "Revises: 20260813_0008": "Revises: 20260814_0009",
+              'revision: str = "20260814_0009"': 'revision: str = "20260814_0010"',
+              'down_revision: str | None = "20260813_0008"': (
+                  'down_revision: str | None = "20260814_0009"'
+              ),
+          }
+          for stale_value, current_value in replacements.items():
+              if migration_text.count(stale_value) != 1:
+                  raise RuntimeError(
+                      f"Stage 8A migration identity anchor is not unique: {stale_value}"
+                  )
+              migration_text = migration_text.replace(stale_value, current_value, 1)
+          new_migration.write_text(migration_text, encoding="utf-8")
+          old_migration.unlink()
+
+          for document_path in (
+              Path("docs/implementation-status.md"),
+              Path("docs/specifications/stage8a-candidate-review-foundation.md"),
+              Path(".codex/modules/candidate-review.md"),
+          ):
+              document = document_path.read_text(encoding="utf-8")
+              if "20260814_0009" not in document:
+                  raise RuntimeError(
+                      f"Stage 8A migration reference is missing from {document_path}"
+                  )
+              document_path.write_text(
+                  document.replace("20260814_0009", "20260814_0010"),
+                  encoding="utf-8",
+              )
           PY
           rm -rf .github/stage8a_apply_20260814
           python -m compileall -q \
             packages/review_contracts \
             packages/review_core \
-            tools/review_contract_generation
+            tools/review_contract_generation \
+            database/migrations/versions/20260814_0010_candidate_review_foundation.py
 
       - name: Prove Stage 8A owners
         shell: bash
@@ -113,7 +159,8 @@ jobs:
           set -euo pipefail
           test -f packages/review_contracts/src/review_contracts/contracts.py
           test -f packages/review_core/src/review_core/transitions.py
-          test -f database/migrations/versions/20260814_0009_candidate_review_foundation.py
+          test -f database/migrations/versions/20260814_0010_candidate_review_foundation.py
+          test ! -e database/migrations/versions/20260814_0009_candidate_review_foundation.py
           uv lock
           uv sync --frozen --all-packages --dev
           uv run python tools/review_contract_generation/generate.py
