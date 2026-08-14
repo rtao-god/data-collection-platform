@@ -10,6 +10,7 @@ by the normal architecture check.
 |---|---|---|---|
 | `collector_cli` | `apps/collector_cli` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `boto3`, `sqlalchemy` |
 | `http_worker` | `apps/http_worker` | `official_http`, `source_connector_sdk` | none |
+| `processing_worker` | `apps/processing_worker` | `collection_contracts`, `extraction_core`, `normalization_core`, `source_connector_sdk` | `pydantic` |
 | `worker_gateway` | `apps/worker_gateway` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
 | `collection_migration` | `apps/migration` | `collection_contracts`, `collection_infrastructure` | none |
 | `manual_import_worker` | `apps/manual_import_worker` | `collection_contracts`, `manual_import_core`, `source_connector_sdk` | `httpx` |
@@ -18,6 +19,8 @@ by the normal architecture check.
 | `osm_overpass` | `connectors/osm_overpass` | none | `httpx` |
 | `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
 | `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
+| `extraction_core` | `packages/extraction_core` | `collection_contracts` | `extruct`, `lxml` |
+| `normalization_core` | `packages/normalization_core` | `collection_contracts` | `phonenumbers`, `tldextract` |
 | `manual_import_core` | `packages/manual_import_core` | `collection_contracts` | `pydantic` |
 | `source_connector_sdk` | `packages/source_connector_sdk` | `collection_contracts` | `httpx` |
 | `collection_domain` | `packages/collection_domain` | none | none |

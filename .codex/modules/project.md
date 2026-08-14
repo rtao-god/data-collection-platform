@@ -21,3 +21,5 @@ not persist runtime runs or work leases, and it does not create a placeholder ob
 Not implemented: Control API, Worker Gateway, durable work queue, acquisition workers, object store,
 review console, entity resolution, quality engine, and export materialization. Do not create empty
 projects or placeholder services for these owners.
+
+- `.codex/modules/processing.md` — evidence-backed extraction and typed normalization.

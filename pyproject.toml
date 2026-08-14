@@ -15,6 +15,7 @@ members = [
   "apps/manual_import_worker",
   "apps/migration",
   "apps/osm_worker",
+  "apps/processing_worker",
   "apps/worker_gateway",
   "connectors/official_http",
   "connectors/osm_overpass",
@@ -22,7 +23,9 @@ members = [
   "packages/collection_contracts",
   "packages/collection_domain",
   "packages/collection_infrastructure",
+  "packages/extraction_core",
   "packages/manual_import_core",
+  "packages/normalization_core",
   "packages/source_connector_sdk",
 ]
 
@@ -74,6 +77,7 @@ files = [
   "apps/manual_import_worker/src/manual_import_worker",
   "apps/migration/src/collection_migration",
   "apps/osm_worker/src/osm_worker",
+  "apps/processing_worker/src/processing_worker",
   "apps/worker_gateway/src/worker_gateway",
   "connectors/official_http/src/official_http",
   "connectors/osm_overpass/src/osm_overpass",
@@ -81,7 +85,9 @@ files = [
   "packages/collection_contracts/src/collection_contracts",
   "packages/collection_domain/src/collection_domain",
   "packages/collection_infrastructure/src/collection_infrastructure",
+  "packages/extraction_core/src/extraction_core",
   "packages/manual_import_core/src/manual_import_core",
+  "packages/normalization_core/src/normalization_core",
   "packages/source_connector_sdk/src/source_connector_sdk",
   "database/migrations/env.py",
   "database/migrations/versions",
@@ -95,4 +101,8 @@ warn_required_dynamic_aliases = true
 
 [[tool.mypy.overrides]]
 module = "yaml"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["extruct", "lxml", "lxml.*", "phonenumbers", "tldextract"]
 ignore_missing_imports = true

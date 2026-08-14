@@ -23,6 +23,7 @@ _MAX_SINGLE_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024
 class ArtifactKind(StrEnum):
     RAW_ARTIFACT = "raw_artifact"
     DIAGNOSTIC_ARTIFACT = "diagnostic_artifact"
+    DERIVED_ARTIFACT = "derived_artifact"
 
 
 @dataclass(frozen=True, slots=True)

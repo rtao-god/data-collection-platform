@@ -15,6 +15,10 @@
 | Work commands and ports | `collection_application.work_engine` |
 | Worker-facing transport | `apps/worker_gateway` |
 | Source connector Worker Gateway client | `source_connector_sdk.SourceWorkerGateway` |
+| Extracted-record and field-observation wire contracts | `collection_contracts.observations` |
+| Embedded structured/HTML evidence extraction | `extraction_core` |
+| Typed evidence-preserving normalization | `normalization_core` |
+| Extraction/normalization runtime composition | `apps/processing_worker` |
 | Worker authentication scope | `worker_gateway.auth` and mounted worker token document |
 | Work persistence and queue claim | `collection_infrastructure.postgres.PostgresWorkEngine` |
 | Artifact transfer contract | `collection_application.artifacts` |

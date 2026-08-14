@@ -36,7 +36,7 @@ type WorkStage = Literal[
     "quality",
     "export",
 ]
-type ArtifactKind = Literal["raw_artifact", "diagnostic_artifact"]
+type ArtifactKind = Literal["raw_artifact", "diagnostic_artifact", "derived_artifact"]
 type WorkFailureKind = Literal[
     "transient",
     "permanent",
@@ -512,7 +512,11 @@ class SourceWorkerGateway:
             work_id=_require_uuid(payload, "workId"),
             artifact_kind=cast(
                 ArtifactKind,
-                _require_enum(payload, "artifactKind", {"raw_artifact", "diagnostic_artifact"}),
+                _require_enum(
+                    payload,
+                    "artifactKind",
+                    {"raw_artifact", "diagnostic_artifact", "derived_artifact"},
+                ),
             ),
             content_digest=_require_digest_value(payload, "contentDigest"),
             size_bytes=_require_int(payload, "sizeBytes", minimum=1, maximum=_MAX_OBJECT_BYTES),
@@ -1222,7 +1226,7 @@ def _require_capability(value: str) -> None:
 
 
 def _require_artifact_kind(value: str) -> None:
-    if value not in {"raw_artifact", "diagnostic_artifact"}:
+    if value not in {"raw_artifact", "diagnostic_artifact", "derived_artifact"}:
         raise ValueError("artifact kind is unsupported")
 
 

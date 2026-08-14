@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowedFields": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Allowedfields",
+      "type": "array"
+    },
+    "contentType": {
+      "enum": [
+        "text/html",
+        "application/xhtml+xml"
+      ],
+      "title": "Contenttype",
+      "type": "string"
+    },
+    "contract": {
+      "const": "collector-extraction-request",
+      "default": "collector-extraction-request",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "extraction-request@1",
+      "default": "extraction-request@1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "extractorRevision": {
+      "title": "Extractorrevision",
+      "type": "string"
+    },
+    "locale": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Locale"
+    },
+    "maximumDocumentBytes": {
+      "default": 8388608,
+      "maximum": 67108864,
+      "minimum": 1024,
+      "title": "Maximumdocumentbytes",
+      "type": "integer"
+    },
+    "maximumEvidenceChars": {
+      "default": 300,
+      "maximum": 300,
+      "minimum": 40,
+      "title": "Maximumevidencechars",
+      "type": "integer"
+    },
+    "observedAtUtc": {
+      "format": "date-time",
+      "title": "Observedatutc",
+      "type": "string"
+    },
+    "prohibitedFields": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Prohibitedfields",
+      "type": "array"
+    },
+    "rawArtifactDigest": {
+      "title": "Rawartifactdigest",
+      "type": "string"
+    },
+    "sourcePolicyDigest": {
+      "title": "Sourcepolicydigest",
+      "type": "string"
+    },
+    "sourceRecordId": {
+      "title": "Sourcerecordid",
+      "type": "string"
+    },
+    "sourceUrl": {
+      "maxLength": 8192,
+      "minLength": 1,
+      "title": "Sourceurl",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sourceRecordId",
+    "rawArtifactDigest",
+    "sourceUrl",
+    "contentType",
+    "sourcePolicyDigest",
+    "extractorRevision",
+    "observedAtUtc",
+    "allowedFields"
+  ],
+  "title": "ExtractionRequest",
+  "type": "object"
+}

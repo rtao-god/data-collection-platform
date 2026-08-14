@@ -44,6 +44,17 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         ),
         allowed_external_imports=frozenset(),
     ),
+    "processing_worker": OwnerPolicy(
+        project_path="apps/processing_worker",
+        distribution_name="processing-worker",
+        allowed_internal_imports=(
+            "collection_contracts",
+            "extraction_core",
+            "normalization_core",
+            "source_connector_sdk",
+        ),
+        allowed_external_imports=frozenset({"pydantic"}),
+    ),
     "worker_gateway": OwnerPolicy(
         project_path="apps/worker_gateway",
         distribution_name="worker-gateway",
@@ -114,6 +125,18 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
             "manual_import_core",
         ),
         allowed_external_imports=frozenset({"pydantic", "yaml"}),
+    ),
+    "extraction_core": OwnerPolicy(
+        project_path="packages/extraction_core",
+        distribution_name="extraction-core",
+        allowed_internal_imports=("collection_contracts",),
+        allowed_external_imports=frozenset({"extruct", "lxml"}),
+    ),
+    "normalization_core": OwnerPolicy(
+        project_path="packages/normalization_core",
+        distribution_name="normalization-core",
+        allowed_internal_imports=("collection_contracts",),
+        allowed_external_imports=frozenset({"phonenumbers", "tldextract"}),
     ),
     "manual_import_core": OwnerPolicy(
         project_path="packages/manual_import_core",

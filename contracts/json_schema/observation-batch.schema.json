@@ -1,0 +1,690 @@
+{
+  "$defs": {
+    "BooleanObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "boolean",
+          "default": "boolean",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "BooleanObservationValue",
+      "type": "object"
+    },
+    "EmailObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "email",
+          "default": "email",
+          "title": "Kind",
+          "type": "string"
+        },
+        "normalized": {
+          "maxLength": 320,
+          "minLength": 3,
+          "title": "Normalized",
+          "type": "string"
+        },
+        "original": {
+          "maxLength": 320,
+          "minLength": 3,
+          "title": "Original",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original",
+        "normalized"
+      ],
+      "title": "EmailObservationValue",
+      "type": "object"
+    },
+    "EvidenceLocatorKind": {
+      "enum": [
+        "json_pointer",
+        "xpath",
+        "css",
+        "html_attribute",
+        "text_offset"
+      ],
+      "title": "EvidenceLocatorKind",
+      "type": "string"
+    },
+    "EvidenceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceDigest": {
+          "title": "Evidencedigest",
+          "type": "string"
+        },
+        "evidenceSpan": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidencespan"
+        },
+        "extractorRevision": {
+          "title": "Extractorrevision",
+          "type": "string"
+        },
+        "locatorKind": {
+          "$ref": "#/$defs/EvidenceLocatorKind"
+        },
+        "locatorValue": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Locatorvalue",
+          "type": "string"
+        },
+        "observedAtUtc": {
+          "format": "date-time",
+          "title": "Observedatutc",
+          "type": "string"
+        },
+        "rawArtifactDigest": {
+          "title": "Rawartifactdigest",
+          "type": "string"
+        },
+        "sourceUrl": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Sourceurl",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rawArtifactDigest",
+        "sourceUrl",
+        "locatorKind",
+        "locatorValue",
+        "evidenceDigest",
+        "observedAtUtc",
+        "extractorRevision"
+      ],
+      "title": "EvidenceReference",
+      "type": "object"
+    },
+    "FieldObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,1}|(?=[\\d.]{1,6}0*$)\\d{0,1}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Confidence"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fieldKey": {
+          "title": "Fieldkey",
+          "type": "string"
+        },
+        "normalizerRevision": {
+          "title": "Normalizerrevision",
+          "type": "string"
+        },
+        "observationId": {
+          "title": "Observationid",
+          "type": "string"
+        },
+        "sourcePolicyDigest": {
+          "title": "Sourcepolicydigest",
+          "type": "string"
+        },
+        "sourceRecordId": {
+          "title": "Sourcerecordid",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ObservationState"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservationValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "sourceRecordId",
+        "fieldKey",
+        "state",
+        "sourcePolicyDigest",
+        "normalizerRevision",
+        "confidence",
+        "observationId"
+      ],
+      "title": "FieldObservation",
+      "type": "object"
+    },
+    "InvalidObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "invalid",
+          "default": "invalid",
+          "title": "Kind",
+          "type": "string"
+        },
+        "originalExcerpt": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Originalexcerpt",
+          "type": "string"
+        },
+        "reasonCode": {
+          "pattern": "^[A-Z][A-Z0-9_]{0,99}$",
+          "title": "Reasoncode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reasonCode",
+        "originalExcerpt"
+      ],
+      "title": "InvalidObservationValue",
+      "type": "object"
+    },
+    "MoneyObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,15}|(?=[\\d.]{1,20}0*$)\\d{0,15}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Amount"
+        },
+        "basis": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "kind": {
+          "const": "money",
+          "default": "money",
+          "title": "Kind",
+          "type": "string"
+        },
+        "observedText": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Observedtext",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "currency",
+        "basis",
+        "observedText"
+      ],
+      "title": "MoneyObservationValue",
+      "type": "object"
+    },
+    "ObservationIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z][A-Z0-9_]{0,99}$",
+          "title": "Code",
+          "type": "string"
+        },
+        "fieldKey": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fieldkey"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ObservationIssue",
+      "type": "object"
+    },
+    "ObservationState": {
+      "enum": [
+        "observed",
+        "not_observed",
+        "absent_in_source",
+        "unsupported",
+        "prohibited_by_policy",
+        "invalid",
+        "expired",
+        "disputed"
+      ],
+      "title": "ObservationState",
+      "type": "string"
+    },
+    "ObservationValue": {
+      "discriminator": {
+        "mapping": {
+          "boolean": "#/$defs/BooleanObservationValue",
+          "email": "#/$defs/EmailObservationValue",
+          "invalid": "#/$defs/InvalidObservationValue",
+          "money": "#/$defs/MoneyObservationValue",
+          "phone": "#/$defs/PhoneObservationValue",
+          "string_set": "#/$defs/StringSetObservationValue",
+          "structured_address": "#/$defs/StructuredAddressObservationValue",
+          "text": "#/$defs/TextObservationValue",
+          "url": "#/$defs/UrlObservationValue"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextObservationValue"
+        },
+        {
+          "$ref": "#/$defs/BooleanObservationValue"
+        },
+        {
+          "$ref": "#/$defs/UrlObservationValue"
+        },
+        {
+          "$ref": "#/$defs/EmailObservationValue"
+        },
+        {
+          "$ref": "#/$defs/PhoneObservationValue"
+        },
+        {
+          "$ref": "#/$defs/StringSetObservationValue"
+        },
+        {
+          "$ref": "#/$defs/StructuredAddressObservationValue"
+        },
+        {
+          "$ref": "#/$defs/MoneyObservationValue"
+        },
+        {
+          "$ref": "#/$defs/InvalidObservationValue"
+        }
+      ]
+    },
+    "PhoneObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "e164": {
+          "pattern": "^\\+[1-9][0-9]{5,14}$",
+          "title": "E164",
+          "type": "string"
+        },
+        "kind": {
+          "const": "phone",
+          "default": "phone",
+          "title": "Kind",
+          "type": "string"
+        },
+        "numberType": {
+          "maxLength": 50,
+          "minLength": 1,
+          "title": "Numbertype",
+          "type": "string"
+        },
+        "original": {
+          "maxLength": 100,
+          "minLength": 3,
+          "title": "Original",
+          "type": "string"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Region"
+        }
+      },
+      "required": [
+        "original",
+        "e164",
+        "numberType"
+      ],
+      "title": "PhoneObservationValue",
+      "type": "object"
+    },
+    "StringSetObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "string_set",
+          "default": "string_set",
+          "title": "Kind",
+          "type": "string"
+        },
+        "normalizedValues": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Normalizedvalues",
+          "type": "array"
+        },
+        "originalValues": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Originalvalues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "originalValues",
+        "normalizedValues"
+      ],
+      "title": "StringSetObservationValue",
+      "type": "object"
+    },
+    "StructuredAddressObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "countryCode": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Countrycode"
+        },
+        "freeForm": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Freeform"
+        },
+        "kind": {
+          "const": "structured_address",
+          "default": "structured_address",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locality": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locality"
+        },
+        "postalCode": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Postalcode"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Region"
+        },
+        "streetAddress": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Streetaddress"
+        }
+      },
+      "title": "StructuredAddressObservationValue",
+      "type": "object"
+    },
+    "TextObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "default": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locale": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locale"
+        },
+        "normalized": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Normalized",
+          "type": "string"
+        },
+        "original": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Original",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original",
+        "normalized"
+      ],
+      "title": "TextObservationValue",
+      "type": "object"
+    },
+    "UrlObservationValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "url",
+          "default": "url",
+          "title": "Kind",
+          "type": "string"
+        },
+        "normalized": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Normalized",
+          "type": "string"
+        },
+        "original": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Original",
+          "type": "string"
+        },
+        "registrableDomain": {
+          "maxLength": 253,
+          "minLength": 1,
+          "title": "Registrabledomain",
+          "type": "string"
+        }
+      },
+      "required": [
+        "original",
+        "normalized",
+        "registrableDomain"
+      ],
+      "title": "UrlObservationValue",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contentDigest": {
+      "title": "Contentdigest",
+      "type": "string"
+    },
+    "contract": {
+      "const": "collector-field-observation-batch",
+      "default": "collector-field-observation-batch",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "field-observation-batch@1",
+      "default": "field-observation-batch@1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "extractedRecordDigest": {
+      "title": "Extractedrecorddigest",
+      "type": "string"
+    },
+    "issues": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ObservationIssue"
+      },
+      "maxItems": 512,
+      "title": "Issues",
+      "type": "array"
+    },
+    "normalizerRevision": {
+      "title": "Normalizerrevision",
+      "type": "string"
+    },
+    "observations": {
+      "items": {
+        "$ref": "#/$defs/FieldObservation"
+      },
+      "maxItems": 2048,
+      "title": "Observations",
+      "type": "array"
+    },
+    "rawArtifactDigest": {
+      "title": "Rawartifactdigest",
+      "type": "string"
+    },
+    "sourcePolicyDigest": {
+      "title": "Sourcepolicydigest",
+      "type": "string"
+    },
+    "sourceRecordId": {
+      "title": "Sourcerecordid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sourceRecordId",
+    "extractedRecordDigest",
+    "rawArtifactDigest",
+    "sourcePolicyDigest",
+    "normalizerRevision",
+    "observations",
+    "contentDigest"
+  ],
+  "title": "ObservationBatch",
+  "type": "object"
+}

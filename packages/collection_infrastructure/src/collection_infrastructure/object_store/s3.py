@@ -374,6 +374,8 @@ def _namespace(artifact_kind: ArtifactKind) -> str:
         return "raw-artifacts"
     if artifact_kind is ArtifactKind.DIAGNOSTIC_ARTIFACT:
         return "diagnostic-artifacts"
+    if artifact_kind is ArtifactKind.DERIVED_ARTIFACT:
+        return "derived-artifacts"
     raise ValueError(f"unsupported artifact kind: {artifact_kind}")
 
 

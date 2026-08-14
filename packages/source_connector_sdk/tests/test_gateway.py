@@ -308,3 +308,63 @@ def test_read_limit_fails_with_typed_local_owner_error() -> None:
 
     assert captured.value.envelope.owner == "SourceConnectorSdk.ObjectTransfer"
     assert captured.value.envelope.code == "OBJECT_READ_TOO_LARGE"
+
+
+def test_derived_artifact_kind_is_accepted_by_the_typed_upload_contract() -> None:
+    body = b"derived observation batch"
+    digest = f"sha256:{sha256(body).hexdigest()}"
+
+    def gateway_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/worker/leases/acquire":
+            return httpx.Response(
+                200,
+                json={"state": "acquired", "lease": _lease_payload()},
+                request=request,
+            )
+        if request.url.path == "/worker/artifacts/prepare-upload":
+            payload = json.loads(request.content)
+            assert payload["artifactKind"] == "derived_artifact"
+            return httpx.Response(
+                200,
+                json={
+                    "uploadId": str(_UPLOAD_ID),
+                    "method": "PUT",
+                    "url": "http://objects.test/derived-upload",
+                    "requiredHeaders": {
+                        "content-length": str(len(body)),
+                        "content-type": "application/json",
+                        "x-amz-meta-sha256": digest.removeprefix("sha256:"),
+                    },
+                    "expiresAtUtc": (_NOW + timedelta(minutes=15)).isoformat(),
+                },
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            json={
+                "uploadId": str(_UPLOAD_ID),
+                "workId": str(_WORK_ID),
+                "artifactKind": "derived_artifact",
+                "contentDigest": digest,
+                "sizeBytes": len(body),
+                "contentType": "application/json",
+                "storageReference": "derived-artifacts/sha256/aa/bb/value",
+                "verifiedAtUtc": _NOW.isoformat(),
+            },
+            request=request,
+        )
+
+    with _gateway(
+        gateway_handler, object_handler=lambda request: httpx.Response(200, request=request)
+    ) as gateway:
+        lease = gateway.acquire_lease(capability="manual_import")
+        assert lease is not None
+        verified = gateway.upload_bytes(
+            lease,
+            content=body,
+            artifact_kind="derived_artifact",
+            content_type="application/json",
+            upload_id=_UPLOAD_ID,
+        )
+
+    assert verified.artifact_kind == "derived_artifact"

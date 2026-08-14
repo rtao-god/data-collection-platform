@@ -40,7 +40,9 @@ def test_artifact_metadata_compiles_content_and_binding_invariants() -> None:
     )
     orphan_index_sql = str(CreateIndex(orphan_index).compile(dialect=dialect))
 
-    assert "artifact_kind IN ('raw_artifact', 'diagnostic_artifact')" in object_sql
+    assert (
+        "artifact_kind IN ('raw_artifact', 'diagnostic_artifact', 'derived_artifact')" in object_sql
+    )
     assert "UNIQUE (artifact_kind, content_digest)" in object_sql
     assert "uq_artifact_records_upload_id" in record_sql
     assert "UNIQUE (work_id, artifact_id)" in input_sql

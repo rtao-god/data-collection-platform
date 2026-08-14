@@ -1,0 +1,661 @@
+{
+  "$defs": {
+    "EvidenceLocatorKind": {
+      "enum": [
+        "json_pointer",
+        "xpath",
+        "css",
+        "html_attribute",
+        "text_offset"
+      ],
+      "title": "EvidenceLocatorKind",
+      "type": "string"
+    },
+    "EvidenceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceDigest": {
+          "title": "Evidencedigest",
+          "type": "string"
+        },
+        "evidenceSpan": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidencespan"
+        },
+        "extractorRevision": {
+          "title": "Extractorrevision",
+          "type": "string"
+        },
+        "locatorKind": {
+          "$ref": "#/$defs/EvidenceLocatorKind"
+        },
+        "locatorValue": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Locatorvalue",
+          "type": "string"
+        },
+        "observedAtUtc": {
+          "format": "date-time",
+          "title": "Observedatutc",
+          "type": "string"
+        },
+        "rawArtifactDigest": {
+          "title": "Rawartifactdigest",
+          "type": "string"
+        },
+        "sourceUrl": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Sourceurl",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rawArtifactDigest",
+        "sourceUrl",
+        "locatorKind",
+        "locatorValue",
+        "evidenceDigest",
+        "observedAtUtc",
+        "extractorRevision"
+      ],
+      "title": "EvidenceReference",
+      "type": "object"
+    },
+    "EvidenceTextBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/EvidenceReference"
+        },
+        "locale": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locale"
+        },
+        "text": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "evidence"
+      ],
+      "title": "EvidenceTextBlock",
+      "type": "object"
+    },
+    "ExtractedAddressValue": {
+      "additionalProperties": false,
+      "properties": {
+        "countryCode": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Countrycode"
+        },
+        "freeForm": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Freeform"
+        },
+        "kind": {
+          "const": "structured_address",
+          "default": "structured_address",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locality": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locality"
+        },
+        "postalCode": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Postalcode"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Region"
+        },
+        "streetAddress": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Streetaddress"
+        }
+      },
+      "title": "ExtractedAddressValue",
+      "type": "object"
+    },
+    "ExtractedBooleanValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "boolean",
+          "default": "boolean",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ExtractedBooleanValue",
+      "type": "object"
+    },
+    "ExtractedEmailValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "email",
+          "default": "email",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 320,
+          "minLength": 3,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ExtractedEmailValue",
+      "type": "object"
+    },
+    "ExtractedField": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/EvidenceReference"
+        },
+        "fieldKey": {
+          "title": "Fieldkey",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/ExtractedValue"
+        }
+      },
+      "required": [
+        "fieldKey",
+        "value",
+        "evidence"
+      ],
+      "title": "ExtractedField",
+      "type": "object"
+    },
+    "ExtractedMoneyValue": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,15}|(?=[\\d.]{1,20}0*$)\\d{0,15}\\.\\d{0,4}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
+        },
+        "kind": {
+          "const": "money",
+          "default": "money",
+          "title": "Kind",
+          "type": "string"
+        },
+        "observedText": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Observedtext",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observedText"
+      ],
+      "title": "ExtractedMoneyValue",
+      "type": "object"
+    },
+    "ExtractedPhoneValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "phone",
+          "default": "phone",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 100,
+          "minLength": 3,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ExtractedPhoneValue",
+      "type": "object"
+    },
+    "ExtractedStringSetValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "string_set",
+          "default": "string_set",
+          "title": "Kind",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "title": "ExtractedStringSetValue",
+      "type": "object"
+    },
+    "ExtractedTextValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "default": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locale": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locale"
+        },
+        "value": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ExtractedTextValue",
+      "type": "object"
+    },
+    "ExtractedUrlValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "url",
+          "default": "url",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ExtractedUrlValue",
+      "type": "object"
+    },
+    "ExtractedValue": {
+      "discriminator": {
+        "mapping": {
+          "boolean": "#/$defs/ExtractedBooleanValue",
+          "email": "#/$defs/ExtractedEmailValue",
+          "money": "#/$defs/ExtractedMoneyValue",
+          "phone": "#/$defs/ExtractedPhoneValue",
+          "string_set": "#/$defs/ExtractedStringSetValue",
+          "structured_address": "#/$defs/ExtractedAddressValue",
+          "text": "#/$defs/ExtractedTextValue",
+          "url": "#/$defs/ExtractedUrlValue"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ExtractedTextValue"
+        },
+        {
+          "$ref": "#/$defs/ExtractedBooleanValue"
+        },
+        {
+          "$ref": "#/$defs/ExtractedUrlValue"
+        },
+        {
+          "$ref": "#/$defs/ExtractedEmailValue"
+        },
+        {
+          "$ref": "#/$defs/ExtractedPhoneValue"
+        },
+        {
+          "$ref": "#/$defs/ExtractedStringSetValue"
+        },
+        {
+          "$ref": "#/$defs/ExtractedAddressValue"
+        },
+        {
+          "$ref": "#/$defs/ExtractedMoneyValue"
+        }
+      ]
+    },
+    "ExtractionIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z][A-Z0-9_]{0,99}$",
+          "title": "Code",
+          "type": "string"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fieldKey": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fieldkey"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ExtractionIssue",
+      "type": "object"
+    },
+    "ProhibitedFieldEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/EvidenceReference"
+        },
+        "fieldKey": {
+          "title": "Fieldkey",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fieldKey",
+        "evidence"
+      ],
+      "title": "ProhibitedFieldEvidence",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contentDigest": {
+      "title": "Contentdigest",
+      "type": "string"
+    },
+    "contentType": {
+      "enum": [
+        "text/html",
+        "application/xhtml+xml"
+      ],
+      "title": "Contenttype",
+      "type": "string"
+    },
+    "contract": {
+      "const": "collector-extracted-record",
+      "default": "collector-extracted-record",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "extracted-record@1",
+      "default": "extracted-record@1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "entityKindCandidates": {
+      "default": [],
+      "items": {
+        "enum": [
+          "organization",
+          "place",
+          "provider"
+        ],
+        "type": "string"
+      },
+      "title": "Entitykindcandidates",
+      "type": "array"
+    },
+    "extractorRevision": {
+      "title": "Extractorrevision",
+      "type": "string"
+    },
+    "fields": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ExtractedField"
+      },
+      "maxItems": 1024,
+      "title": "Fields",
+      "type": "array"
+    },
+    "issues": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ExtractionIssue"
+      },
+      "maxItems": 512,
+      "title": "Issues",
+      "type": "array"
+    },
+    "observedAtUtc": {
+      "format": "date-time",
+      "title": "Observedatutc",
+      "type": "string"
+    },
+    "prohibitedFields": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ProhibitedFieldEvidence"
+      },
+      "maxItems": 256,
+      "title": "Prohibitedfields",
+      "type": "array"
+    },
+    "rawArtifactDigest": {
+      "title": "Rawartifactdigest",
+      "type": "string"
+    },
+    "sourceCategories": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Sourcecategories",
+      "type": "array"
+    },
+    "sourcePolicyDigest": {
+      "title": "Sourcepolicydigest",
+      "type": "string"
+    },
+    "sourceRecordId": {
+      "title": "Sourcerecordid",
+      "type": "string"
+    },
+    "sourceUrl": {
+      "maxLength": 8192,
+      "minLength": 1,
+      "title": "Sourceurl",
+      "type": "string"
+    },
+    "textBlocks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceTextBlock"
+      },
+      "maxItems": 512,
+      "title": "Textblocks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "sourceRecordId",
+    "rawArtifactDigest",
+    "sourceUrl",
+    "contentType",
+    "sourcePolicyDigest",
+    "extractorRevision",
+    "observedAtUtc",
+    "contentDigest"
+  ],
+  "title": "ExtractedRecord",
+  "type": "object"
+}

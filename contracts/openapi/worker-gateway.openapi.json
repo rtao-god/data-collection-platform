@@ -4,7 +4,8 @@
       "ArtifactKind": {
         "enum": [
           "raw_artifact",
-          "diagnostic_artifact"
+          "diagnostic_artifact",
+          "derived_artifact"
         ],
         "title": "ArtifactKind",
         "type": "string"

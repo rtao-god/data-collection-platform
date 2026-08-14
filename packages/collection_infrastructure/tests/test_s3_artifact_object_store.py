@@ -318,3 +318,20 @@ def _missing_key(key: str) -> ClientError:
         },
         "HeadObject",
     )
+
+
+def test_derived_artifact_uses_its_own_content_addressed_namespace() -> None:
+    client = FakeS3Client()
+    store = _store(client)
+
+    prepared = store.prepare_upload(
+        upload_id=_UPLOAD_ID,
+        artifact_kind=ArtifactKind.DERIVED_ARTIFACT,
+        expected_digest=_DIGEST,
+        expected_size_bytes=len(_BODY),
+        content_type="application/json",
+        expires_in_seconds=300,
+        now_utc=_NOW,
+    )
+
+    assert prepared.staging_reference == f"derived-artifacts/staging/{_UPLOAD_ID}"

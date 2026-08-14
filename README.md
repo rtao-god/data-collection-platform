@@ -9,27 +9,24 @@ platform packages.
 
 ## Current implementation slice
 
-The repository currently implements the foundation, immutable campaign configuration, and the
-runtime Work Engine boundary:
+The repository implements the durable collection foundation through official HTTP acquisition,
+evidence-backed extraction, and typed normalization:
 
-- strict declarative campaign contracts and one canonical CSV/JSON/JSONL manual import planner;
-- exact manual record locators, deterministic record/plan digests, complete issue ledgers, and explicit atomic/partial disposition;
-- deterministic canonical JSON, component digests, and campaign snapshot identity;
-- transactional publication of immutable campaign snapshots;
-- generated JSON Schemas and Worker Gateway OpenAPI with checked-in drift proof;
-- durable runs, stages, semantic work units, attempts, leases, retries, dead letters, and source permits;
-- authenticated Worker Gateway registration, claim, heartbeat, completion, failure, and release;
-- lease-scoped pre-signed artifact upload/read contracts;
-- streamed size, MIME, metadata, and SHA-256 verification before content-addressed promotion;
-- ordered role-bound artifact inputs and outputs;
-- one PostgreSQL transaction for verified artifact metadata and work completion;
-- separate migration and Worker Gateway images;
-- fail-closed architecture, contract, unit, PostgreSQL/PostGIS, and concurrency checks.
+- strict campaign, manual-import, HTTP acquisition, extraction, and observation contracts;
+- immutable config snapshots, runs, stages, semantic work, leases, retries, dead letters, and source permits;
+- authenticated Worker Gateway with scoped object reads/uploads and atomic artifact completion;
+- content-addressed raw, diagnostic, and derived artifacts with orphan cleanup tombstones;
+- isolated manual-import, OSM, HTTP, and processing workers without PostgreSQL credentials;
+- JSON-LD/microdata/RDFa plus HTML contact/address extraction with bounded evidence spans;
+- explicit observed/missing/prohibited/invalid observation states;
+- phone, URL/domain, email, address, money, set, and negative-aware boolean normalization;
+- PostgreSQL/PostGIS and SeaweedFS compatibility through the checked-in infrastructure Compose contract;
+- generated schemas, architecture checks, strict typing, unit/integration tests, and capability-specific images.
 
-This is not yet the complete platform. SeaweedFS Compose compatibility, orphan/retention ownership,
-manual-file artifact ingestion, source connectors, acquisition workers, processing, entity resolution,
-review, and sealed exports remain later stages. The Berlin boundary is intentionally not fabricated;
-the campaign remains explicitly blocked until an approved polygon artifact is added.
+This is not yet the complete platform. Candidate resolution, quality, review, browser acquisition,
+sealed export, full application Compose, and a real Berlin run remain later stages. The Berlin
+boundary is intentionally not fabricated; the campaign remains explicitly blocked until an approved
+polygon artifact is added.
 
 ## Requirements
 
