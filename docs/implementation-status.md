@@ -1,41 +1,32 @@
 # Implementation status
 
-This ledger separates production owners from planned scope. A directory, compile-only shell, skipped
-integration test, or synthetic fixture is not reported as implemented behavior.
+This ledger reports only production owners that are present in the registered workspace and covered by owner tests. Planning documents, generator scripts, placeholder directories, and isolated fixtures are not implementation evidence.
 
-## Implemented and checked in
+## Implemented production owners
 
-| Area | Current owner/result |
+| Stage/area | Current owner/result |
 |---|---|
-| Campaign authoring | Strict YAML/CSV/JSON/JSONL campaign bundle under `campaigns/` |
-| Campaign contracts | Pydantic owners in `collection_contracts` |
-| Manual import planning | One canonical CSV/JSON/JSONL parser, exact row/line locators, deterministic record and plan digests, complete issue ledger, and explicit atomic/partial disposition |
-| Snapshot compilation | Deterministic canonical JSON and SHA-256 identity |
-| Snapshot persistence | Transactional publication of immutable bundle metadata and blockers |
-| Generated contracts | Checked-in JSON Schemas and Worker Gateway OpenAPI with drift checks |
-| Typed failures | Owner-context error envelope |
-| Runs and work | Durable runs, stages, semantic work units, attempts, leases, retries, and dead letters |
-| Worker boundary | Authenticated Worker Gateway with worker identity, source permits, and no worker SQL path |
-| Artifact transfer | Lease-scoped pre-signed upload/read, streamed integrity verification, and content-addressed promotion |
-| Artifact completion | Verified output metadata and work success committed atomically in PostgreSQL |
-| Artifact lineage | Ordered role-bound work inputs/outputs; physical object reuse preserves distinct records |
-| Database ownership | Alembic migrations and SQLAlchemy metadata for `config`, `runs`, `work`, and current `sources` state |
-| Migration process | Separate `collection-migrate` composition root and image |
-| Architecture proof | Fail-closed owner registry, workspace/dependency checks, AST import graph, and capability allowlists |
-| CI proof | Lock, contracts, formatting, lint, type-check, unit tests, architecture checks, fresh migration, integration tests, and images |
+| Foundation | Python 3.13 `uv` workspace, exact lock, Ruff, strict mypy, pytest, architecture checks, generated-contract drift checks, Alembic, and capability-specific Docker images |
+| Campaign configuration | Strict campaign documents, cross-reference validation, canonical JSON, deterministic SHA-256 bundle identity, readiness blockers, and immutable snapshot publication |
+| Runs and work | Durable runs, stage runs, semantic work units, attempts, leases, heartbeat, expiry, typed retries, dead letters, worker registration, output compatibility, and source permits |
+| Worker boundary | Authenticated Worker Gateway is the only worker-facing state and artifact boundary; source workers have no PostgreSQL or S3 credentials |
+| Object transfer | Lease-scoped pre-signed upload/read, streamed size/digest verification, content-addressed object promotion, ordered artifact bindings, and atomic work completion |
+| Manual import | CSV/JSON/JSONL parsing, exact row/line locators, deterministic plan identity, complete issue ledger, explicit `reject_all`/`accept_valid` semantics, isolated worker, and transactional admission of one child work unit per accepted record |
+| Artifact cleanup | Grace-period orphan selection, persisted cleanup tombstones, bounded retry, terminal failure, and S3-compatible delete adapter |
+| OSM/Overpass | Query contract and allowlisted grammar, deterministic planning, bounded HTTP adapter, response parsing, provenance/attribution output, isolated worker, and campaign geography evaluation support |
+| Database | Fresh PostgreSQL/PostGIS migration through `20260813_0008`, SQLAlchemy metadata, constraints, indexes, and integration tests for the implemented owners |
+| Architecture enforcement | Fail-closed workspace/project registry, declared dependency graph, AST import checks, forbidden capability scans, and worker-image isolation checks |
 
 ## Explicitly incomplete
 
-- no owner command for staging/orphan cleanup, retention tombstones, or legal hold;
-- no SeaweedFS Compose profile or live compatibility proof against a real S3-compatible server;
-- manual plans are deterministic and snapshot validation consumes the same parser, but runtime intake still does not preserve the exact source as a raw artifact or schedule one work unit per accepted row;
-- no OSM, HTTP, browser, extraction, normalization, matching, quality, review, suppression, or export flow;
-- no Control API, Dagster composition, acquisition/processing workers, or review frontend;
-- no approved Berlin polygon or real-source production run.
+- no Docker Compose runtime that starts PostgreSQL, SeaweedFS, Worker Gateway, and workers from a clean machine;
+- the SeaweedFS compatibility test is opt-in infrastructure proof, not part of ordinary unit execution;
+- no approved Berlin boundary artifact and no real Berlin collection run or coverage report;
+- no production official-website HTTP connector or `http-worker`;
+- no extraction, normalization, candidate resolution, quality, review, suppression, browser, or export owner;
+- no Control API, Dagster composition, retention deployable, or review frontend;
+- the campaign does not yet bind and execute a complete manual/OSM/website acquisition flow.
 
 ## Next owner batch
 
-The next coherent batch is Stage 3 closure: a SeaweedFS-backed local runtime profile, object-store
-compatibility tests, owner-controlled staging/orphan cleanup with grace period and tombstones, and a
-manual connector that stores the exact source file before scheduling one atomic work unit per row.
-It must reuse the existing Worker Gateway artifact protocol and must not give workers SQL credentials.
+Stage 5 is next: implement the registered `official_http` connector and isolated `http_worker` around one DB-owned leased request. The batch must include robots and sitemap handling, deterministic URL normalization and page-interest planning, conditional requests with typed `304` reuse, bounded raw acquisition, explicit `403`/`429` behavior, an HTTP-worker image without browser/database/S3 dependencies, and permanent CI proof.
