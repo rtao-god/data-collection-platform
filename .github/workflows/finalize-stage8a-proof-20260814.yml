@@ -1,0 +1,125 @@
+name: Finalize Stage 8A Candidate Review Proof
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-stage8a-proof-20260814.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: data-collection-platform-stage8a-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 20
+
+      - name: Wait for materialization and permanent Verify
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+
+          recovery_id=""
+          for _ in $(seq 1 120); do
+            payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/apply-stage8a-recovery-20260814.yml/runs?branch=main&per_page=5")"
+            recovery_id="$(jq -r '.workflow_runs[0].id // empty' <<<"$payload")"
+            recovery_status="$(jq -r '.workflow_runs[0].status // empty' <<<"$payload")"
+            recovery_conclusion="$(jq -r '.workflow_runs[0].conclusion // empty' <<<"$payload")"
+            if [[ "$recovery_status" == "completed" ]]; then
+              if [[ "$recovery_conclusion" != "success" ]]; then
+                echo "Stage 8A materialization failed in run $recovery_id" >&2
+                exit 1
+              fi
+              break
+            fi
+            sleep 5
+          done
+          [[ -n "$recovery_id" ]] || { echo "Stage 8A recovery run was not found" >&2; exit 1; }
+
+          git fetch origin main
+          git reset --hard origin/main
+          subject_sha="$(git rev-parse HEAD)"
+          verify_id=""
+          for _ in $(seq 1 120); do
+            payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/ci.yml/runs?branch=main&per_page=30")"
+            verify_id="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .id' <<<"$payload" | head -1)"
+            verify_status="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .status' <<<"$payload" | head -1)"
+            verify_conclusion="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .conclusion' <<<"$payload" | head -1)"
+            if [[ -n "$verify_id" && "$verify_status" == "completed" ]]; then
+              if [[ "$verify_conclusion" != "success" ]]; then
+                echo "Permanent Verify failed for $subject_sha in run $verify_id" >&2
+                exit 1
+              fi
+              break
+            fi
+            sleep 5
+          done
+          [[ -n "$verify_id" ]] || { echo "Permanent Verify run was not found for $subject_sha" >&2; exit 1; }
+
+          test -f packages/review_contracts/src/review_contracts/contracts.py
+          test -f packages/review_core/src/review_core/transitions.py
+          test -f database/migrations/versions/20260814_0009_candidate_review.py
+
+          echo "subject_sha=$subject_sha" >> "$GITHUB_OUTPUT"
+          echo "verify_id=$verify_id" >> "$GITHUB_OUTPUT"
+          echo "recovery_id=$recovery_id" >> "$GITHUB_OUTPUT"
+
+      - name: Record exact-head proof
+        env:
+          SUBJECT_SHA: ${{ steps.proof.outputs.subject_sha }}
+          VERIFY_ID: ${{ steps.proof.outputs.verify_id }}
+          RECOVERY_ID: ${{ steps.proof.outputs.recovery_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage8a-candidate-review-ci.md <<EOF
+          # Stage 8A candidate review CI proof
+
+          - Status: `proven`
+          - Repository: `rtao-god/data-collection-platform`
+          - Branch: `main`
+          - Subject commit: `$SUBJECT_SHA`
+          - Materialization run: `$RECOVERY_ID`
+          - Permanent Verify run: `$VERIFY_ID`
+          - Verify conclusion: `success`
+
+          ## Proven owners
+
+          - `review_contracts`: immutable review-case, revision, decision and manual-observation contracts.
+          - `review_core`: deterministic state transitions, optimistic revision checks and superseding decision semantics.
+          - migration `20260814_0009`: append-only candidate-review persistence foundation.
+
+          ## Gates
+
+          The subject commit passed frozen workspace restoration, lock and generated-contract drift checks, Ruff, strict mypy, focused and full non-integration tests, dependency-boundary checks, Python compilation, fresh PostgreSQL/PostGIS migration and database integration tests.
+
+          This proof does not claim Stage 8B Control API or Stage 8C review frontend completion.
+          EOF
+          git add docs/proofs/stage8a-candidate-review-ci.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Docs (Review): prove Stage 8A candidate review foundation"
+          git push origin HEAD:main
