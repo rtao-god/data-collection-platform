@@ -1,0 +1,67 @@
+name: Stage 7 Resolution and Quality
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/stage7-resolution-quality.yml
+      - pyproject.toml
+      - uv.lock
+      - packages/resolution_contracts/**
+      - packages/entity_resolution_core/**
+      - packages/quality_core/**
+      - contracts/resolution/**
+      - tools/resolution_contract_generation/**
+      - tools/architecture_checks/**
+  pull_request:
+    paths:
+      - .github/workflows/stage7-resolution-quality.yml
+      - pyproject.toml
+      - uv.lock
+      - packages/resolution_contracts/**
+      - packages/entity_resolution_core/**
+      - packages/quality_core/**
+      - contracts/resolution/**
+      - tools/resolution_contract_generation/**
+      - tools/architecture_checks/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolution-quality:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Verify resolution contract drift
+        run: uv run python tools/resolution_contract_generation/generate.py --check
+
+      - name: Run Stage 7 owner tests
+        run: >-
+          uv run pytest
+          packages/resolution_contracts/tests
+          packages/entity_resolution_core/tests
+          packages/quality_core/tests
+          tools/resolution_contract_generation/tests
+
+      - name: Verify dependency boundaries
+        run: uv run python tools/architecture_checks/check_dependencies.py
