@@ -1,0 +1,94 @@
+name: Finalize Stage 8C Exact Head
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/stage8c-review-web-finalize-20260814.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-stage8c-review-web-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 320
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/review_web/package-lock.json
+
+      - name: Prove Stage 8C exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f apps/review_web/package-lock.json
+          test -f apps/review_web/src/shared/api/generated/schema.ts
+          test -f deploy/docker/review-web.Dockerfile
+          test -f docs/specifications/stage8c-review-console.md
+          cd apps/review_web
+          npm ci
+          npm run generate:api
+          git diff --exit-code -- src/shared/api/generated/schema.ts
+          npm run typecheck
+          npm run test
+          npm run check:architecture
+          npm run build
+          npm audit --omit=dev --audit-level=high
+          cd ../..
+          docker build --tag data-collection-platform/review-web:final --file deploy/docker/review-web.Dockerfile .
+          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/review-web:final)" != "0"
+
+      - name: Record Stage 8C exact-head evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage8c-review-web-ci.md <<EOF
+          # Stage 8C review web CI proof
+
+          - Status: proven
+          - Repository: rtao-god/data-collection-platform
+          - Branch: main
+          - Subject commit: \`$GITHUB_SHA\`
+          - Exact-head finalizer run: \`$GITHUB_RUN_ID\`
+          - Event: \`$GITHUB_EVENT_NAME\`
+
+          The exact subject passed committed npm lock restoration, generated Control API
+          type drift, strict TypeScript, browser tests, frontend architecture checks,
+          production bundle generation, runtime dependency audit, CSP configuration,
+          and construction of the unprivileged review-web image.
+
+          Proven boundaries:
+
+          - reviewer credentials are retained only in session storage and sent only in Authorization;
+          - command bodies contain no actor identity;
+          - rendered review data uses React text nodes and forbids raw HTML injection;
+          - queue cursors, quality state, match state, and export eligibility remain backend-owned;
+          - decision, manual-observation, and suppression commands use generated API types.
+
+          Full Compose integration and browser E2E remain later operational work.
+          EOF
+          git add docs/proofs/stage8c-review-web-ci.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Docs (Proofs): record Stage 8C review web CI"
+          git push origin HEAD:main
