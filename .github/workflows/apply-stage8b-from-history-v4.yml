@@ -146,6 +146,15 @@ jobs:
           The React review console and operator cookie/bootstrap boundary remain the
           next downstream Stage 8 owner.
           EOF
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/specifications/stage8b-control-api.md")
+          path.write_text(
+              path.read_text(encoding="utf-8").rstrip() + "\n",
+              encoding="utf-8",
+          )
+          PY
           git rm -f .github/workflows/apply-stage8b-from-history.yml
           git rm -f .github/workflows/apply-stage8b-from-history-v2.yml
           git rm -f .github/workflows/apply-stage8b-from-history-v3.yml
