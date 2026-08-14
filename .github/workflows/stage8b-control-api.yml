@@ -12,8 +12,8 @@ on:
       - packages/review_application/**
       - packages/review_contracts/**
       - packages/review_core/**
-      - packages/collection_infrastructure/src/collection_infrastructure/postgres/review_repository.py
-      - database/migrations/versions/20260814_0009_candidate_review_foundation.py
+      - packages/collection_infrastructure/**
+      - database/migrations/versions/20260814_0010_candidate_review_foundation.py
       - database/tests/test_postgres_review_repository.py
       - contracts/control_api/**
       - tools/control_api_contract_generation/**
@@ -28,8 +28,8 @@ on:
       - packages/review_application/**
       - packages/review_contracts/**
       - packages/review_core/**
-      - packages/collection_infrastructure/src/collection_infrastructure/postgres/review_repository.py
-      - database/migrations/versions/20260814_0009_candidate_review_foundation.py
+      - packages/collection_infrastructure/**
+      - database/migrations/versions/20260814_0010_candidate_review_foundation.py
       - database/tests/test_postgres_review_repository.py
       - contracts/control_api/**
       - tools/control_api_contract_generation/**
