@@ -1,0 +1,95 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "candidate_id": {
+      "format": "uuid",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_revision": {
+      "minimum": 0,
+      "title": "Candidate Revision",
+      "type": "integer"
+    },
+    "command_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Command Digest",
+      "type": "string"
+    },
+    "correlation_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "field_key": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Field Key",
+      "type": "string"
+    },
+    "observation_id": {
+      "format": "uuid",
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "reason_code": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "recorded_at_utc": {
+      "format": "date-time",
+      "title": "Recorded At Utc",
+      "type": "string"
+    },
+    "supersedes_observation_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Supersedes Observation Id"
+    },
+    "value_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Value Digest",
+      "type": "string"
+    },
+    "value_text": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Value Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "observation_id",
+    "candidate_id",
+    "candidate_revision",
+    "field_key",
+    "value_text",
+    "value_digest",
+    "actor_id",
+    "reason_code",
+    "supersedes_observation_id",
+    "command_digest",
+    "recorded_at_utc",
+    "correlation_id"
+  ],
+  "title": "ManualObservation",
+  "type": "object"
+}

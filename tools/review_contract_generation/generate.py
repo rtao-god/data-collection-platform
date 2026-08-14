@@ -6,6 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from pydantic import BaseModel
+
 from review_contracts import (
     CandidateRevision,
     ManualObservation,

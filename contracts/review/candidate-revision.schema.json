@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "CandidateEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Evidence Digest",
+          "type": "string"
+        },
+        "evidence_kind": {
+          "enum": [
+            "source_observation",
+            "manual_observation",
+            "artifact"
+          ],
+          "title": "Evidence Kind",
+          "type": "string"
+        },
+        "position": {
+          "minimum": 0,
+          "title": "Position",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "position",
+        "evidence_kind",
+        "evidence_digest"
+      ],
+      "title": "CandidateEvidence",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": {
+      "format": "uuid",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "cluster_id": {
+      "format": "uuid",
+      "title": "Cluster Id",
+      "type": "string"
+    },
+    "correlation_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "entity_kind": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "title": "Entity Kind",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/CandidateEvidence"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "normalized_payload": {
+      "additionalProperties": true,
+      "title": "Normalized Payload",
+      "type": "object"
+    },
+    "recorded_at_utc": {
+      "format": "date-time",
+      "title": "Recorded At Utc",
+      "type": "string"
+    },
+    "resolution_state": {
+      "enum": [
+        "resolved",
+        "review",
+        "blocked"
+      ],
+      "title": "Resolution State",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "snapshot_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Snapshot Digest",
+      "type": "string"
+    },
+    "source_lineage_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Source Lineage Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "revision",
+    "entity_kind",
+    "cluster_id",
+    "resolution_state",
+    "snapshot_digest",
+    "source_lineage_digest",
+    "normalized_payload",
+    "evidence",
+    "recorded_at_utc",
+    "correlation_id"
+  ],
+  "title": "CandidateRevision",
+  "type": "object"
+}

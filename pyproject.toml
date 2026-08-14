@@ -31,6 +31,8 @@ members = [
   "packages/quality_core",
   "packages/resolution_contracts",
   "packages/source_connector_sdk",
+  "packages/review_contracts",
+  "packages/review_core",
 ]
 
 [dependency-groups]
@@ -100,6 +102,9 @@ files = [
   "database/migrations/env.py",
   "database/migrations/versions",
   "tools/contract_generation/generate.py",
+  "packages/review_contracts/src/review_contracts",
+  "packages/review_core/src/review_core",
+  "tools/review_contract_generation/generate.py",
 ]
 
 [tool.pydantic-mypy]

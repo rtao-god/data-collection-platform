@@ -1,0 +1,13 @@
+{
+  "contract": "collector-review-contract-manifest",
+  "contractRevision": "review-contract-manifest-v1",
+  "files": {
+    "candidate-revision.schema.json": "sha256:7e6e903f8588d078f96546ba5d0c0efa3a254a89811372426e8924cbfa87175b",
+    "manual-observation.schema.json": "sha256:0e11366caa9a1c869a7f60f0ff6168560e6051ef3ea8cda3a081130734d8d3ff",
+    "review-case.schema.json": "sha256:afa0cf06bf7c6441695368355371ed9332777887030d2a9f4e08e0e3baaf6823",
+    "review-decision-command.schema.json": "sha256:3b3cd1a62a74d5f5c27e1d64481660a5cf6789b65c748aab6d33e76e0da99ee1",
+    "review-decision.schema.json": "sha256:489652d9e6babfd2c26f753ef3f058b2dc8c8c5ed64a36d90758bc9c987b7988",
+    "suppression-command.schema.json": "sha256:6d908bfc456c410450a8dd21c14d42a7b5f4376534a5e812ad25ab955ce17b6b",
+    "suppression-revision.schema.json": "sha256:7aa81b7abfb2fb3f70dabe95ddab36f06b4d597112c5d61d06fecd130ef016da"
+  }
+}

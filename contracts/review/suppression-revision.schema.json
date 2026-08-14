@@ -1,0 +1,127 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "command_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Command Digest",
+      "type": "string"
+    },
+    "correlation_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "evidence_reference": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Evidence Reference",
+      "type": "string"
+    },
+    "expires_at_utc": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Expires At Utc"
+    },
+    "reason_code": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "resolved_at_utc": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Resolved At Utc"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "scopes": {
+      "items": {
+        "enum": [
+          "discovery",
+          "normalization",
+          "export"
+        ],
+        "type": "string"
+      },
+      "title": "Scopes",
+      "type": "array"
+    },
+    "starts_at_utc": {
+      "format": "date-time",
+      "title": "Starts At Utc",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "active",
+        "resolved"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "suppression_id": {
+      "format": "uuid",
+      "title": "Suppression Id",
+      "type": "string"
+    },
+    "target_id": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Target Id",
+      "type": "string"
+    },
+    "target_kind": {
+      "enum": [
+        "candidate",
+        "source_observation",
+        "artifact",
+        "source"
+      ],
+      "title": "Target Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "suppression_id",
+    "revision",
+    "state",
+    "target_kind",
+    "target_id",
+    "scopes",
+    "reason_code",
+    "actor_id",
+    "evidence_reference",
+    "starts_at_utc",
+    "expires_at_utc",
+    "resolved_at_utc",
+    "command_digest",
+    "correlation_id"
+  ],
+  "title": "SuppressionRevision",
+  "type": "object"
+}

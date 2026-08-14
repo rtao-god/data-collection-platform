@@ -116,6 +116,18 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         allowed_internal_imports=(),
         allowed_external_imports=frozenset({"httpx"}),
     ),
+    "review_contracts": OwnerPolicy(
+        project_path="packages/review_contracts",
+        distribution_name="review-contracts",
+        allowed_internal_imports=(),
+        allowed_external_imports=frozenset({"pydantic"}),
+    ),
+    "review_core": OwnerPolicy(
+        project_path="packages/review_core",
+        distribution_name="review-core",
+        allowed_internal_imports=("review_contracts",),
+        allowed_external_imports=frozenset(),
+    ),
     "collection_infrastructure": OwnerPolicy(
         project_path="packages/collection_infrastructure",
         distribution_name="collection-infrastructure",

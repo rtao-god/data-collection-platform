@@ -1,0 +1,83 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "case_id": {
+      "format": "uuid",
+      "title": "Case Id",
+      "type": "string"
+    },
+    "command_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Command Digest",
+      "type": "string"
+    },
+    "correlation_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "evidence_references": {
+      "items": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "title": "Evidence References",
+      "type": "array"
+    },
+    "expected_case_revision": {
+      "minimum": 0,
+      "title": "Expected Case Revision",
+      "type": "integer"
+    },
+    "outcome": {
+      "enum": [
+        "accept_candidate",
+        "reject_candidate",
+        "approve_merge",
+        "reject_merge",
+        "request_recollection",
+        "block_export"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "rationale": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Rationale",
+      "type": "string"
+    },
+    "supersedes_decision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Supersedes Decision Id"
+    }
+  },
+  "required": [
+    "case_id",
+    "expected_case_revision",
+    "outcome",
+    "actor_id",
+    "rationale",
+    "evidence_references",
+    "command_digest",
+    "correlation_id"
+  ],
+  "title": "ReviewDecisionCommand",
+  "type": "object"
+}

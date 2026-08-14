@@ -18,6 +18,8 @@ by the normal architecture check.
 | `osm_worker` | `apps/osm_worker` | `osm_overpass`, `source_connector_sdk` | none |
 | `official_http` | `connectors/official_http` | `source_connector_sdk` | `defusedxml`, `pydantic`, `scrapy` |
 | `osm_overpass` | `connectors/osm_overpass` | none | `httpx` |
+| `review_contracts` | `packages/review_contracts` | none | `pydantic` |
+| `review_core` | `packages/review_core` | `review_contracts` | none |
 | `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
 | `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
 | `extraction_core` | `packages/extraction_core` | `collection_contracts` | `extruct`, `lxml` |

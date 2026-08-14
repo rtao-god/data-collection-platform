@@ -24,6 +24,8 @@ members = [
     "quality-core",
     "resolution-contracts",
     "resolution-worker",
+    "review-contracts",
+    "review-core",
     "source-connector-sdk",
     "worker-gateway",
 ]
@@ -1332,6 +1334,28 @@ requires-dist = [
     { name = "resolution-contracts", editable = "packages/resolution_contracts" },
     { name = "source-connector-sdk", editable = "packages/source_connector_sdk" },
 ]
+
+[[package]]
+name = "review-contracts"
+version = "0.1.0"
+source = { editable = "packages/review_contracts" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = "==2.13.4" }]
+
+[[package]]
+name = "review-core"
+version = "0.1.0"
+source = { editable = "packages/review_core" }
+dependencies = [
+    { name = "review-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "review-contracts", editable = "packages/review_contracts" }]
 
 [[package]]
 name = "ruff"

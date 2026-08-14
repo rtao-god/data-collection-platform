@@ -17,7 +17,7 @@ This ledger reports only production owners that are present in the registered wo
 | Official website HTTP | Strict request/manifest contracts, canonical URL and public-address enforcement, robots/sitemap/page-interest planning, one-request Scrapy execution, conditional `304` reuse, bounded raw acquisition, typed `403`/`429` behavior, isolated worker, generated schemas, and Docker image |
 | Extraction and normalization | Digest-bound extraction requests, JSON-LD/microdata/RDFa and HTML contact/address evidence, bounded evidence spans, typed extracted records, explicit observation states, phone/URL/email/address/money normalization, negative-aware attribute patterns, derived artifacts, and a capability-isolated processing worker |
 | Entity resolution and quality | Canonical candidate batches, bounded deterministic blocking, integer match features, strong-identifier/corroboration rules, name-only and fuzzy-Berlin review gates, immutable manual decisions, transitive separation protection, deterministic reversible clusters, fail-closed cluster quality, synthetic golden data, and a capability-isolated resolution worker |
-| Database | Fresh PostgreSQL/PostGIS migration through `20260814_0009`, SQLAlchemy metadata, constraints, indexes, and integration tests for the implemented owners |
+| Database | Fresh PostgreSQL/PostGIS migration through `20260814_0010`, SQLAlchemy metadata, constraints, indexes, and integration tests for the implemented owners |
 | Architecture enforcement | Fail-closed workspace/project registry, declared dependency graph, AST import checks, forbidden capability scans, and worker-image isolation checks |
 
 ## Permanent proofs
@@ -39,3 +39,14 @@ This ledger reports only production owners that are present in the registered wo
 ## Next owner batch
 
 Stage 8 is next: immutable review cases and decisions, exact-revision optimistic concurrency, manual observations, suppression, evidence-safe Control API responses, and the React FSD review console.
+
+## Stage 8A — candidate and review foundation
+
+Status: **contracts, pure transitions, and append-only schema implemented; runtime adapter and Control API remain**.
+
+- `review_contracts` owns candidate revisions, review commands/decisions, manual observations, and suppression revisions.
+- `review_core` owns optimistic-concurrency transitions and immutable supersession semantics.
+- Migration `20260814_0010` owns candidate, quality, and review history tables with insert-only enforcement.
+- Manual observations append evidence and never mutate source observations or candidate snapshots.
+- Suppression has explicit discovery, normalization, and export scopes.
+- PostgreSQL command adapter, Control API, authentication, and review UI are not claimed by this block.

@@ -1,0 +1,85 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": {
+      "format": "uuid",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_revision": {
+      "minimum": 0,
+      "title": "Candidate Revision",
+      "type": "integer"
+    },
+    "case_id": {
+      "format": "uuid",
+      "title": "Case Id",
+      "type": "string"
+    },
+    "correlation_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "current_decision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Current Decision Id"
+    },
+    "opened_at_utc": {
+      "format": "date-time",
+      "title": "Opened At Utc",
+      "type": "string"
+    },
+    "reason_codes": {
+      "items": {
+        "maxLength": 100,
+        "minLength": 1,
+        "pattern": "^[A-Z][A-Z0-9_]*$",
+        "type": "string"
+      },
+      "title": "Reason Codes",
+      "type": "array"
+    },
+    "recorded_at_utc": {
+      "format": "date-time",
+      "title": "Recorded At Utc",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "state": {
+      "enum": [
+        "open",
+        "decided"
+      ],
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "required": [
+    "case_id",
+    "candidate_id",
+    "candidate_revision",
+    "revision",
+    "state",
+    "reason_codes",
+    "current_decision_id",
+    "opened_at_utc",
+    "recorded_at_utc",
+    "correlation_id"
+  ],
+  "title": "ReviewCase",
+  "type": "object"
+}
