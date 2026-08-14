@@ -10,6 +10,7 @@ members = [
     "collection-infrastructure",
     "collection-migration",
     "collector-cli",
+    "control-api",
     "data-collection-platform-workspace",
     "entity-resolution-core",
     "extraction-core",
@@ -24,6 +25,7 @@ members = [
     "quality-core",
     "resolution-contracts",
     "resolution-worker",
+    "review-application",
     "review-contracts",
     "review-core",
     "source-connector-sdk",
@@ -325,6 +327,9 @@ dependencies = [
     { name = "collection-application" },
     { name = "collection-contracts" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "review-application" },
+    { name = "review-contracts" },
+    { name = "review-core" },
     { name = "sqlalchemy" },
 ]
 
@@ -336,6 +341,9 @@ requires-dist = [
     { name = "collection-application", editable = "packages/collection_application" },
     { name = "collection-contracts", editable = "packages/collection_contracts" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.4" },
+    { name = "review-application", editable = "packages/review_application" },
+    { name = "review-contracts", editable = "packages/review_contracts" },
+    { name = "review-core", editable = "packages/review_core" },
     { name = "sqlalchemy", specifier = "==2.0.51" },
 ]
 
@@ -391,6 +399,31 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4d/6f/cb2a94494ff74aa9528a36c5b1422756330a75a8367bf20bd63171fc324d/constantly-23.10.4.tar.gz", hash = "sha256:aa92b70a33e2ac0bb33cd745eb61776594dc48764b06c35e0efd050b7f1c7cbd", size = 13300, upload-time = "2023-10-28T23:18:24.316Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/40/c199d095151addf69efdb4b9ca3a4f20f70e20508d6222bffb9b76f58573/constantly-23.10.4-py3-none-any.whl", hash = "sha256:3fd9b4d1c3dc1ec9757f3c52aef7e53ad9323dbe39f51dfd4c43853b68dfa3f9", size = 13547, upload-time = "2023-10-28T23:18:23.038Z" },
+]
+
+[[package]]
+name = "control-api"
+version = "0.1.0"
+source = { editable = "apps/control_api" }
+dependencies = [
+    { name = "collection-infrastructure" },
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "review-application" },
+    { name = "review-contracts" },
+    { name = "sqlalchemy" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "collection-infrastructure", editable = "packages/collection_infrastructure" },
+    { name = "fastapi", specifier = "==0.141.1" },
+    { name = "pydantic", specifier = "==2.13.4" },
+    { name = "review-application", editable = "packages/review_application" },
+    { name = "review-contracts", editable = "packages/review_contracts" },
+    { name = "sqlalchemy", specifier = "==2.0.51" },
+    { name = "uvicorn", specifier = "==0.52.1" },
 ]
 
 [[package]]
@@ -1334,6 +1367,17 @@ requires-dist = [
     { name = "resolution-contracts", editable = "packages/resolution_contracts" },
     { name = "source-connector-sdk", editable = "packages/source_connector_sdk" },
 ]
+
+[[package]]
+name = "review-application"
+version = "0.1.0"
+source = { editable = "packages/review_application" }
+dependencies = [
+    { name = "review-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "review-contracts", editable = "packages/review_contracts" }]
 
 [[package]]
 name = "review-contracts"

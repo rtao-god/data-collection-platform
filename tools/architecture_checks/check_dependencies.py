@@ -25,6 +25,16 @@ class OwnerPolicy:
 
 
 _OWNER_POLICIES: dict[str, OwnerPolicy] = {
+    "control_api": OwnerPolicy(
+        project_path="apps/control_api",
+        distribution_name="control-api",
+        allowed_internal_imports=(
+            "collection_infrastructure",
+            "review_application",
+            "review_contracts",
+        ),
+        allowed_external_imports=frozenset({"fastapi", "pydantic", "sqlalchemy", "uvicorn"}),
+    ),
     "collector_cli": OwnerPolicy(
         project_path="apps/collector_cli",
         distribution_name="collector-cli",
@@ -116,6 +126,12 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         allowed_internal_imports=(),
         allowed_external_imports=frozenset({"httpx"}),
     ),
+    "review_application": OwnerPolicy(
+        project_path="packages/review_application",
+        distribution_name="review-application",
+        allowed_internal_imports=("review_contracts",),
+        allowed_external_imports=frozenset(),
+    ),
     "review_contracts": OwnerPolicy(
         project_path="packages/review_contracts",
         distribution_name="review-contracts",
@@ -134,6 +150,9 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         allowed_internal_imports=(
             "collection_application",
             "collection_contracts",
+            "review_application",
+            "review_contracts",
+            "review_core",
         ),
         allowed_external_imports=frozenset(
             {"alembic", "boto3", "botocore", "psycopg", "sqlalchemy"}

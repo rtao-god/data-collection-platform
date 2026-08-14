@@ -33,6 +33,8 @@ members = [
   "packages/source_connector_sdk",
   "packages/review_contracts",
   "packages/review_core",
+  "apps/control_api",
+  "packages/review_application",
 ]
 
 [dependency-groups]
@@ -105,6 +107,9 @@ files = [
   "packages/review_contracts/src/review_contracts",
   "packages/review_core/src/review_core",
   "tools/review_contract_generation/generate.py",
+  "apps/control_api/src/control_api",
+  "packages/review_application/src/review_application",
+  "tools/control_api_contract_generation/generate.py",
 ]
 
 [tool.pydantic-mypy]

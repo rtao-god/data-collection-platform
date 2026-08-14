@@ -50,3 +50,13 @@ Status: **contracts, pure transitions, and append-only schema implemented; runti
 - Manual observations append evidence and never mutate source observations or candidate snapshots.
 - Suppression has explicit discovery, normalization, and export scopes.
 - PostgreSQL command adapter, Control API, authentication, and review UI are not claimed by this block.
+
+## Stage 8B — review command adapter and Control API
+
+Status: **application, PostgreSQL adapter, authenticated API, generated OpenAPI, and image implemented; frontend remains**.
+
+- Actor identity is derived from the authenticated principal, not request data.
+- Decisions, observations, and suppressions use exact command digests and optimistic concurrency.
+- Review queue pagination uses opaque cursors.
+- Control API startup does not run migrations.
+- The React review console is the next Stage 8 owner.

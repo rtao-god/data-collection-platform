@@ -8,6 +8,7 @@ by the normal architecture check.
 <!-- dependency-policy:start -->
 | Production owner | Project | Allowed internal owners | Allowed external imports |
 |---|---|---|---|
+| `control_api` | `apps/control_api` | `collection_infrastructure`, `review_application`, `review_contracts` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
 | `collector_cli` | `apps/collector_cli` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `boto3`, `sqlalchemy` |
 | `http_worker` | `apps/http_worker` | `official_http`, `source_connector_sdk` | none |
 | `processing_worker` | `apps/processing_worker` | `collection_contracts`, `extraction_core`, `normalization_core`, `source_connector_sdk` | `pydantic` |
@@ -18,9 +19,10 @@ by the normal architecture check.
 | `osm_worker` | `apps/osm_worker` | `osm_overpass`, `source_connector_sdk` | none |
 | `official_http` | `connectors/official_http` | `source_connector_sdk` | `defusedxml`, `pydantic`, `scrapy` |
 | `osm_overpass` | `connectors/osm_overpass` | none | `httpx` |
+| `review_application` | `packages/review_application` | `review_contracts` | none |
 | `review_contracts` | `packages/review_contracts` | none | `pydantic` |
 | `review_core` | `packages/review_core` | `review_contracts` | none |
-| `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
+| `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts`, `review_application`, `review_contracts`, `review_core` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
 | `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
 | `extraction_core` | `packages/extraction_core` | `collection_contracts` | `extruct`, `lxml` |
 | `normalization_core` | `packages/normalization_core` | `collection_contracts` | `phonenumbers`, `tldextract` |

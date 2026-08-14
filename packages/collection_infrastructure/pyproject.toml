@@ -11,6 +11,9 @@ dependencies = [
   "collection-contracts",
   "psycopg[binary]==3.3.4",
   "sqlalchemy==2.0.51",
+  "review-application",
+  "review-contracts",
+  "review-core",
 ]
 
 [build-system]
@@ -23,3 +26,6 @@ packages = ["src/collection_infrastructure"]
 [tool.uv.sources]
 collection-application = { workspace = true }
 collection-contracts = { workspace = true }
+review-application = { workspace = true }
+review-contracts = { workspace = true }
+review-core = { workspace = true }

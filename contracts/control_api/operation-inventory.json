@@ -1,0 +1,47 @@
+{
+  "contract": "collector-control-api-operation-inventory",
+  "contractRevision": "control-api-operation-inventory-v1",
+  "openapiDigest": "sha256:69e0e3c7b6d3aa42a42872d27dc97635a9828f1d80a3c0dcb07710c56c7eb148",
+  "operations": [
+    {
+      "method": "GET",
+      "operationId": "control_api_liveness",
+      "path": "/health/live"
+    },
+    {
+      "method": "GET",
+      "operationId": "control_api_readiness",
+      "path": "/health/ready"
+    },
+    {
+      "method": "POST",
+      "operationId": "add_manual_observation",
+      "path": "/review/candidates/{candidate_id}/manual-observations"
+    },
+    {
+      "method": "GET",
+      "operationId": "list_review_cases",
+      "path": "/review/cases"
+    },
+    {
+      "method": "GET",
+      "operationId": "get_review_case",
+      "path": "/review/cases/{case_id}"
+    },
+    {
+      "method": "POST",
+      "operationId": "submit_review_decision",
+      "path": "/review/cases/{case_id}/decisions"
+    },
+    {
+      "method": "POST",
+      "operationId": "activate_review_suppression",
+      "path": "/review/suppressions"
+    },
+    {
+      "method": "POST",
+      "operationId": "resolve_review_suppression",
+      "path": "/review/suppressions/{suppression_id}/resolve"
+    }
+  ]
+}
