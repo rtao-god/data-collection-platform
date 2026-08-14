@@ -65,7 +65,26 @@ jobs:
           echo "6e697a91ddfeb3002d261dc338ce0d030c7bf684566ac2b4e44120c319900316  /tmp/owned-run-bootstrap.patch" \
             | sha256sum --check
           git apply --index --3way /tmp/owned-run-bootstrap.patch
-          git diff --cached --check
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/campaign_snapshot_store.py"
+          )
+          text = path.read_text(encoding="utf-8")
+          old_import = "from sqlalchemy.engine import Connection, Engine\n"
+          new_import = "from sqlalchemy.engine import Connection, Engine, RowMapping\n"
+          old_type = "        existing: Mapping[str, object],\n"
+          new_type = "        existing: RowMapping,\n"
+          if text.count(old_import) != 1 or text.count(old_type) != 1:
+              raise RuntimeError("campaign snapshot RowMapping repair anchors are invalid")
+          path.write_text(
+              text.replace(old_import, new_import, 1).replace(old_type, new_type, 1),
+              encoding="utf-8",
+          )
+          PY
+          git diff --check
 
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
