@@ -1,0 +1,62 @@
+name: data-collection-platform-infrastructure
+
+services:
+  collector-postgres:
+    image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+    environment:
+      POSTGRES_DB: ${COLLECTOR_POSTGRES_DB:?COLLECTOR_POSTGRES_DB is required}
+      POSTGRES_USER: ${COLLECTOR_POSTGRES_USER:?COLLECTOR_POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${COLLECTOR_POSTGRES_PASSWORD:?COLLECTOR_POSTGRES_PASSWORD is required}
+    ports:
+      - "${COLLECTOR_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - collector-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready
+          -U "$${POSTGRES_USER}"
+          -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - collection-infrastructure
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.40
+    command:
+      - mini
+      - -dir=/data
+      - -ip.bind=0.0.0.0
+    environment:
+      AWS_ACCESS_KEY_ID: ${COLLECTOR_TEST_S3_ACCESS_KEY_ID:?COLLECTOR_TEST_S3_ACCESS_KEY_ID is required}
+      AWS_SECRET_ACCESS_KEY: ${COLLECTOR_TEST_S3_SECRET_ACCESS_KEY:?COLLECTOR_TEST_S3_SECRET_ACCESS_KEY is required}
+      S3_BUCKET: ${COLLECTOR_TEST_S3_BUCKET:?COLLECTOR_TEST_S3_BUCKET is required}
+    ports:
+      - "${SEAWEEDFS_S3_PORT:-8333}:8333"
+      - "${SEAWEEDFS_MASTER_PORT:-9333}:9333"
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --quiet --output-document=/dev/null http://127.0.0.1:9333/cluster/status
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - collection-infrastructure
+
+networks:
+  collection-infrastructure:
+    driver: bridge
+
+volumes:
+  collector-postgres-data:
+  seaweedfs-data:
