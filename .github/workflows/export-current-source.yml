@@ -22,7 +22,7 @@ jobs:
         run: |
           set -euo pipefail
           git rev-parse HEAD > source-head.txt
-          tar --exclude=.git --exclude=current-source.tar.gz -czf current-source.tar.gz .
+          git archive --format=tar.gz --output=current-source.tar.gz HEAD
       - name: Upload exact source tree
         uses: actions/upload-artifact@v7
         with:
