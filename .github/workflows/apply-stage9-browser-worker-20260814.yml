@@ -1,0 +1,280 @@
+name: Apply Stage 9 Browser Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-stage9-browser-worker-20260814.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: data-collection-platform-stage9-browser-worker
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Wait for closed Stage 8 review workflow
+        env:
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 480); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' "https://api.github.com/repos/$REPOSITORY/contents/docs/proofs/stage8-review-workflow-ci.md?ref=main")"
+            [[ "$status" == "200" ]] && exit 0
+            sleep 5
+          done
+          echo "Stage 8 closure proof did not appear" >&2
+          exit 1
+
+      - name: Check out complete current history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: false
+
+      - name: Materialize historical browser capability
+        id: materialize
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --prune
+          git reset --hard origin/main
+          test -f docs/proofs/stage8-review-workflow-ci.md
+
+          revision="$(git log --all --format=%H -- apps/browser_worker/pyproject.toml | head -1)"
+          [[ -n "$revision" ]] || {
+            echo "No historical browser-worker owner exists; a new Stage 9 implementation is required" >&2
+            exit 1
+          }
+          git checkout "$revision" -- apps/browser_worker
+
+          while IFS= read -r path; do
+            case "$path" in
+              deploy/docker/browser-worker.Dockerfile|docs/specifications/stage9*|.codex/modules/*browser*)
+                latest="$(git log --all --format=%H -- "$path" | head -1)"
+                git checkout "$latest" -- "$path"
+                ;;
+              packages/source_connector_sdk/*|packages/collection_contracts/*)
+                if git diff-tree --no-commit-id --name-only -r "$revision" | grep -Fxq "$path"; then
+                  latest="$(git log --all --format=%H -- "$path" | head -1)"
+                  git checkout "$latest" -- "$path"
+                fi
+                ;;
+            esac
+          done < <(git ls-tree -r --name-only "$revision")
+
+          test -f deploy/docker/browser-worker.Dockerfile
+
+          python - <<'PY'
+          from __future__ import annotations
+
+          import re
+          import subprocess
+          from pathlib import Path
+
+          root_path = Path("pyproject.toml")
+          text = root_path.read_text(encoding="utf-8")
+
+          def add(source: str, section: str, key: str, value: str) -> str:
+              section_start = source.index(f"[{section}]")
+              start = source.index(f"{key} = [", section_start)
+              end = source.index("\n]", start)
+              literal = f'  "{value}",'
+              if literal in source[start:end]:
+                  return source
+              return source[:end] + f"\n{literal}" + source[end:]
+
+          for value in ("apps/browser_worker",):
+              text = add(text, "tool.uv.workspace", "members", value)
+          for value in ("apps/browser_worker/tests",):
+              text = add(text, "tool.pytest.ini_options", "testpaths", value)
+          for value in ("apps/browser_worker/src",):
+              text = add(text, "tool.ruff", "src", value)
+          for value in ("apps/browser_worker/src/browser_worker",):
+              text = add(text, "tool.mypy", "files", value)
+          root_path.write_text(text, encoding="utf-8")
+
+          checker_path = Path("tools/architecture_checks/check_dependencies.py")
+          checker = checker_path.read_text(encoding="utf-8")
+          history_revision = subprocess.check_output(
+              [
+                  "git",
+                  "log",
+                  "--all",
+                  "-S",
+                  '"browser_worker": OwnerPolicy',
+                  "--format=%H",
+                  "--",
+                  str(checker_path),
+              ],
+              text=True,
+          ).splitlines()
+          if not history_revision:
+              raise RuntimeError("browser-worker architecture owner is missing from history")
+          historical = subprocess.check_output(
+              ["git", "show", f"{history_revision[0]}:{checker_path}"],
+              text=True,
+          )
+          start = historical.index('    "browser_worker": OwnerPolicy(')
+          following = re.search(r'\n    "[^"]+": OwnerPolicy\(', historical[start + 1 :])
+          end = historical.index("\n}", start) if following is None else start + 1 + following.start()
+          owner_block = historical[start:end] + "\n"
+          map_start = checker.index("_OWNER_POLICIES: dict[str, OwnerPolicy] = {")
+          map_end = checker.index("\n}", map_start)
+          if '"browser_worker": OwnerPolicy(' not in checker[map_start:map_end]:
+              checker = checker[:map_end] + "\n" + owner_block + checker[map_end:]
+          checker_path.write_text(checker, encoding="utf-8")
+          PY
+
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run ruff format apps/browser_worker tools/architecture_checks/check_dependencies.py
+          uv run ruff check apps/browser_worker tools/architecture_checks/check_dependencies.py --fix
+          uv run python -m compileall -q apps/browser_worker
+          uv run mypy
+          uv run pytest -q apps/browser_worker
+          uv run pytest -m "not integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          docker build --tag data-collection-platform/browser-worker:stage9 --file deploy/docker/browser-worker.Dockerfile .
+          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/browser-worker:stage9)" = "10001:10001"
+          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' data-collection-platform/browser-worker:stage9)" = "browser-worker"
+          docker run --rm -i --entrypoint python data-collection-platform/browser-worker:stage9 - <<'PY'
+          from importlib import import_module
+          from importlib.util import find_spec
+
+          import_module("browser_worker")
+          import_module("playwright")
+          import_module("source_connector_sdk")
+          forbidden = {"alembic", "boto3", "botocore", "psycopg", "scrapy", "sqlalchemy"}
+          present = sorted(name for name in forbidden if find_spec(name) is not None)
+          if present:
+              raise SystemExit("forbidden browser-worker modules: " + ", ".join(present))
+          PY
+
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          policy = subprocess.check_output(["python", "tools/architecture_checks/check_dependencies.py", "--print-policy"], text=True).strip()
+          path = Path("docs/architecture/dependency-rules.md")
+          text = path.read_text(encoding="utf-8")
+          start_marker = "<!-- dependency-policy:start -->"
+          end_marker = "<!-- dependency-policy:end -->"
+          start = text.index(start_marker)
+          end = text.index(end_marker, start) + len(end_marker)
+          path.write_text(text[:start] + policy + text[end:], encoding="utf-8")
+          PY
+
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage9-browser-worker.md <<EOF
+          # Stage 9 browser worker
+
+          - Status: `locally-proven`
+          - Historical owner revision: `$revision`
+          - Boundary: separate Playwright capability, fresh work-unit execution context, no direct SQL or S3 SDK ownership.
+          - Gates: Ruff, strict mypy, focused/full tests, dependency boundaries, generated-contract drift, image build, non-root identity and forbidden-module inventory.
+          EOF
+
+          git add apps/browser_worker packages/source_connector_sdk packages/collection_contracts deploy/docker/browser-worker.Dockerfile docs/specifications docs/proofs/stage9-browser-worker.md docs/architecture/dependency-rules.md .codex/modules pyproject.toml tools/architecture_checks/check_dependencies.py uv.lock
+          git diff --cached --check
+          production_sha="$(git rev-parse HEAD)"
+          if ! git diff --cached --quiet; then
+            git config user.name "rtao-god"
+            git config user.email "rtaogod@gmail.com"
+            git commit -m "Feat (Browser): add isolated browser worker"
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+            production_sha="$(git rev-parse HEAD)"
+          fi
+          echo "production_sha=$production_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for permanent repository and image proof
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+          git fetch origin main
+          git reset --hard origin/main
+          subject_sha="$(git rev-parse HEAD)"
+          test -f apps/browser_worker/pyproject.toml
+
+          wait_for() {
+            local workflow="$1"
+            local label="$2"
+            for _ in $(seq 1 240); do
+              payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/$workflow/runs?branch=main&per_page=50")"
+              run_id="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .id' <<<"$payload" | head -1)"
+              status="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .status' <<<"$payload" | head -1)"
+              conclusion="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .conclusion' <<<"$payload" | head -1)"
+              if [[ -n "$run_id" && "$status" == "completed" ]]; then
+                [[ "$conclusion" == "success" ]] || { echo "$label failed in run $run_id" >&2; exit 1; }
+                printf '%s' "$run_id"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "$label was not completed for $subject_sha" >&2
+            exit 1
+          }
+
+          verify_id="$(wait_for ci.yml Verify)"
+          browser_id="$(wait_for browser-worker-isolation.yml 'Browser Worker Isolation')"
+          echo "subject_sha=$subject_sha" >> "$GITHUB_OUTPUT"
+          echo "verify_id=$verify_id" >> "$GITHUB_OUTPUT"
+          echo "browser_id=$browser_id" >> "$GITHUB_OUTPUT"
+
+      - name: Record Stage 9 exact-head proof
+        env:
+          SUBJECT_SHA: ${{ steps.proof.outputs.subject_sha }}
+          VERIFY_ID: ${{ steps.proof.outputs.verify_id }}
+          BROWSER_ID: ${{ steps.proof.outputs.browser_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > docs/proofs/stage9-browser-worker-ci.md <<EOF
+          # Stage 9 browser worker CI proof
+
+          - Status: `proven`
+          - Repository: `rtao-god/data-collection-platform`
+          - Branch: `main`
+          - Subject commit: `$SUBJECT_SHA`
+          - Permanent Verify run: `$VERIFY_ID`
+          - Permanent Browser Worker Isolation run: `$BROWSER_ID`
+          - Conclusions: `success`
+
+          The browser capability is isolated in a non-root Playwright image without PostgreSQL, migration, crawler or S3 SDK dependencies. It remains governed by typed Worker Gateway leases and source-policy escalation.
+          EOF
+          git add docs/proofs/stage9-browser-worker-ci.md
+          git diff --cached --check
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Docs (Browser): prove Stage 9 browser worker"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
