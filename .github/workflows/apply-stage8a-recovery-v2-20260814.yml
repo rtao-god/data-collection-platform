@@ -1,0 +1,343 @@
+name: Apply Stage 8A Candidate Review Recovery V2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-stage8a-recovery-v2-20260814.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: data-collection-platform-stage8a-recovery-v2
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - name: Wait for earlier Stage 8A writers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+          for _ in $(seq 1 120); do
+            payload="$(curl -fsSL "${headers[@]}" "$api/actions/runs?branch=main&per_page=50")"
+            active="$(jq -r --arg current "$CURRENT_RUN_ID" '[.workflow_runs[] | select((.name == "Apply Stage 8A Candidate Review Recovery" or .name == "Finalize Stage 8A Candidate Review Proof") and (.id | tostring) != $current and .status != "completed")] | length' <<<"$payload")"
+            [[ "$active" == "0" ]] && exit 0
+            sleep 5
+          done
+          echo "Earlier Stage 8A writer did not settle" >&2
+          exit 1
+
+      - name: Check out current main with history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: false
+
+      - name: Materialize and prove Stage 8A
+        id: materialize
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --prune
+          git reset --hard origin/main
+
+          python - <<'PY'
+          from __future__ import annotations
+
+          import re
+          import subprocess
+          from pathlib import Path
+
+          ROOT = Path.cwd()
+
+          def git(*args: str) -> str:
+              return subprocess.check_output(["git", *args], text=True).strip()
+
+          def latest_revision(path: str) -> str:
+              revisions = git("log", "--all", "--format=%H", "--", path).splitlines()
+              if not revisions:
+                  raise RuntimeError(f"no historical owner found for {path}")
+              return revisions[0]
+
+          migration = "database/migrations/versions/20260814_0009_candidate_review.py"
+          owner_paths = (
+              "packages/review_contracts",
+              "packages/review_core",
+              "tools/review_contract_generation",
+              migration,
+          )
+          for path in owner_paths:
+              subprocess.run(["git", "checkout", latest_revision(path), "--", path], check=True)
+
+          revision = latest_revision(migration)
+          for path in git("diff-tree", "--no-commit-id", "--name-only", "-r", revision).splitlines():
+              if path.startswith(("database/tests/", "docs/specifications/stage8", ".codex/modules/review")):
+                  subprocess.run(["git", "checkout", revision, "--", path], check=True)
+
+          contract_revision = latest_revision(
+              "packages/review_contracts/src/review_contracts/contracts.py"
+          )
+          for path in git("ls-tree", "-r", "--name-only", contract_revision).splitlines():
+              if path.startswith("contracts/") and "review" in path:
+                  subprocess.run(["git", "checkout", contract_revision, "--", path], check=True)
+
+          contracts = ROOT / "packages/review_contracts/src/review_contracts/contracts.py"
+          text = contracts.read_text(encoding="utf-8")
+          function = re.search(
+              r"(?ms)^def _require_plain_text\((.*?)\) -> str:\n.*?(?=^def |\Z)",
+              text,
+          )
+          if function is None:
+              raise RuntimeError("review plain-text validator is missing")
+          argument = re.match(r"\s*([A-Za-z_][A-Za-z0-9_]*)", function.group(1))
+          if argument is None:
+              raise RuntimeError("review plain-text validator has no value argument")
+          value = argument.group(1)
+          replacement = (
+              f"def _require_plain_text({function.group(1)}) -> str:\n"
+              f"    if not isinstance({value}, str):\n"
+              f"        raise TypeError(\"plain text value must be a string\")\n"
+              f"    normalized = {value}.strip()\n"
+              f"    if not normalized:\n"
+              f"        raise ValueError(\"plain text value must not be empty\")\n"
+              f"    if any(\n"
+              f"        ord(character) < 32 and character not in \"\\n\\r\\t\"\n"
+              f"        for character in normalized\n"
+              f"    ):\n"
+              f"        raise ValueError(\"plain text value contains a forbidden control character\")\n"
+              f"    return normalized\n\n"
+          )
+          contracts.write_text(
+              text[: function.start()] + replacement + text[function.end() :],
+              encoding="utf-8",
+          )
+
+          project = ROOT / "packages/review_core/pyproject.toml"
+          project.write_text(
+              project.read_text(encoding="utf-8").replace(
+                  '"collection-contracts",', '"review-contracts",'
+              ),
+              encoding="utf-8",
+          )
+
+          root_project = ROOT / "pyproject.toml"
+          root_text = root_project.read_text(encoding="utf-8")
+
+          def add_value(text: str, section: str, key: str, value: str) -> str:
+              section_start = text.index(f"[{section}]")
+              start = text.index(f"{key} = [", section_start)
+              end = text.index("\n]", start)
+              literal = f'  "{value}",'
+              if literal in text[start:end]:
+                  return text
+              return text[:end] + f"\n{literal}" + text[end:]
+
+          for value in ("packages/review_contracts", "packages/review_core"):
+              root_text = add_value(root_text, "tool.uv.workspace", "members", value)
+          for value in ("packages/review_contracts/tests", "packages/review_core/tests"):
+              root_text = add_value(root_text, "tool.pytest.ini_options", "testpaths", value)
+          for value in ("packages/review_contracts/src", "packages/review_core/src"):
+              root_text = add_value(root_text, "tool.ruff", "src", value)
+          for value in (
+              "packages/review_contracts/src/review_contracts",
+              "packages/review_core/src/review_core",
+              "tools/review_contract_generation/generate.py",
+          ):
+              root_text = add_value(root_text, "tool.mypy", "files", value)
+          root_project.write_text(root_text, encoding="utf-8")
+
+          checker_path = ROOT / "tools/architecture_checks/check_dependencies.py"
+          checker = checker_path.read_text(encoding="utf-8")
+          history_revision = git(
+              "log",
+              "--all",
+              "-S",
+              '"review_contracts": OwnerPolicy',
+              "--format=%H",
+              "--",
+              str(checker_path.relative_to(ROOT)),
+          ).splitlines()[0]
+          history = git("show", f"{history_revision}:{checker_path.relative_to(ROOT)}")
+
+          def block(source: str, owner: str) -> str:
+              start = source.index(f'    "{owner}": OwnerPolicy(')
+              following = re.search(r'\n    "[^"]+": OwnerPolicy\(', source[start + 1 :])
+              end = source.index("\n}", start) if following is None else start + 1 + following.start()
+              return source[start:end] + "\n"
+
+          map_start = checker.index("_OWNER_POLICIES: dict[str, OwnerPolicy] = {")
+          map_end = checker.index("\n}", map_start)
+          for owner in ("review_contracts", "review_core"):
+              if f'"{owner}": OwnerPolicy(' not in checker[map_start:map_end]:
+                  owner_block = block(history, owner)
+                  checker = checker[:map_end] + "\n" + owner_block + checker[map_end:]
+                  map_end += len(owner_block) + 1
+          checker_path.write_text(checker, encoding="utf-8")
+          PY
+
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run ruff format packages/review_contracts packages/review_core tools/review_contract_generation database/migrations/versions/20260814_0009_candidate_review.py tools/architecture_checks/check_dependencies.py
+          uv run ruff check packages/review_contracts packages/review_core tools/review_contract_generation database/migrations/versions/20260814_0009_candidate_review.py tools/architecture_checks/check_dependencies.py --fix
+          uv run python -m compileall -q packages/review_contracts packages/review_core tools/review_contract_generation
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run mypy
+          uv run pytest -q packages/review_contracts packages/review_core
+          uv run pytest -m "not integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+
+          source = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          path = Path("docs/proofs/stage8a-candidate-review.md")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(
+              "# Stage 8A candidate review foundation\n\n"
+              "- Status: `locally-proven`\n"
+              f"- Materialization source HEAD: `{source}`\n"
+              "- Owners: `review_contracts`, `review_core`\n"
+              "- Migration: `20260814_0009`\n"
+              "- Gates: Ruff, strict mypy, focused and full non-integration tests, "
+              "dependency boundaries, generated-contract drift, fresh PostgreSQL/PostGIS "
+              "migration and database integration tests.\n",
+              encoding="utf-8",
+          )
+          PY
+
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+
+          policy = subprocess.check_output(
+              ["python", "tools/architecture_checks/check_dependencies.py", "--print-policy"],
+              text=True,
+          ).strip()
+          path = Path("docs/architecture/dependency-rules.md")
+          text = path.read_text(encoding="utf-8")
+          start_marker = "<!-- dependency-policy:start -->"
+          end_marker = "<!-- dependency-policy:end -->"
+          start = text.index(start_marker)
+          end = text.index(end_marker, start) + len(end_marker)
+          path.write_text(text[:start] + policy + text[end:], encoding="utf-8")
+          PY
+
+          git add packages/review_contracts packages/review_core tools/review_contract_generation contracts database/migrations/versions/20260814_0009_candidate_review.py database/tests docs/specifications docs/proofs/stage8a-candidate-review.md docs/architecture/dependency-rules.md .codex/modules pyproject.toml tools/architecture_checks/check_dependencies.py uv.lock
+          git diff --cached --check
+          production_sha="$(git rev-parse HEAD)"
+          if ! git diff --cached --quiet; then
+            git config user.name "rtao-god"
+            git config user.email "rtaogod@gmail.com"
+            git commit -m "Feat (Review): add candidate review foundation"
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+            production_sha="$(git rev-parse HEAD)"
+          fi
+          echo "production_sha=$production_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for permanent Verify and record proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          INITIAL_SHA: ${{ steps.materialize.outputs.production_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+          git fetch origin main
+          git reset --hard origin/main
+          subject_sha="$(git rev-parse HEAD)"
+          if [[ "$subject_sha" != "$INITIAL_SHA" ]]; then
+            test -f packages/review_contracts/src/review_contracts/contracts.py
+            test -f packages/review_core/src/review_core/transitions.py
+          fi
+          verify_id=""
+          for _ in $(seq 1 120); do
+            payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/ci.yml/runs?branch=main&per_page=40")"
+            verify_id="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .id' <<<"$payload" | head -1)"
+            status="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .status' <<<"$payload" | head -1)"
+            conclusion="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .conclusion' <<<"$payload" | head -1)"
+            if [[ -n "$verify_id" && "$status" == "completed" ]]; then
+              [[ "$conclusion" == "success" ]] || { echo "Verify $verify_id failed for $subject_sha" >&2; exit 1; }
+              break
+            fi
+            sleep 5
+          done
+          [[ -n "$verify_id" ]] || { echo "Verify was not found for $subject_sha" >&2; exit 1; }
+
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage8a-candidate-review-ci.md <<EOF
+          # Stage 8A candidate review CI proof
+
+          - Status: `proven`
+          - Repository: `rtao-god/data-collection-platform`
+          - Branch: `main`
+          - Subject commit: `$subject_sha`
+          - Permanent Verify run: `$verify_id`
+          - Verify conclusion: `success`
+
+          ## Proven owners
+
+          - `review_contracts`: immutable candidate-review transport contracts.
+          - `review_core`: deterministic transitions, optimistic revision checks and superseding-decision semantics.
+          - migration `20260814_0009`: append-only review persistence foundation.
+
+          Stage 8B Control API and Stage 8C review web are not claimed by this proof.
+          EOF
+          git add docs/proofs/stage8a-candidate-review-ci.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Docs (Review): prove Stage 8A candidate review foundation"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
