@@ -34,4 +34,4 @@ jobs:
           name: stage5-owner-checkout
           path: ${{ runner.temp }}/repository.tar.gz
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 2
