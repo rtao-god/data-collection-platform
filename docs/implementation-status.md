@@ -14,9 +14,16 @@ This ledger reports only production owners that are present in the registered wo
 | Manual import | CSV/JSON/JSONL parsing, exact row/line locators, deterministic plan identity, complete issue ledger, explicit `reject_all`/`accept_valid` semantics, isolated worker, and transactional admission of one child work unit per accepted record |
 | Artifact cleanup | Grace-period orphan selection, persisted cleanup tombstones, bounded retry, terminal failure, and S3-compatible delete adapter |
 | OSM/Overpass | Query contract and allowlisted grammar, deterministic planning, bounded HTTP adapter, response parsing, provenance/attribution output, isolated worker, and campaign geography evaluation support |
-| Official website HTTP | Strict request/manifest contracts, canonical URL and public-address enforcement, robots/sitemap/page-interest planning, one-request Scrapy execution, conditional 304 reuse, bounded raw acquisition, typed 403/429 behavior, isolated worker, generated schemas, and Docker image |
+| Official website HTTP | Strict request/manifest contracts, canonical URL and public-address enforcement, robots/sitemap/page-interest planning, one-request Scrapy execution, conditional `304` reuse, bounded raw acquisition, typed `403`/`429` behavior, isolated worker, generated schemas, and Docker image |
 | Database | Fresh PostgreSQL/PostGIS migration through `20260813_0008`, SQLAlchemy metadata, constraints, indexes, and integration tests for the implemented owners |
 | Architecture enforcement | Fail-closed workspace/project registry, declared dependency graph, AST import checks, forbidden capability scans, and worker-image isolation checks |
+
+## Permanent proofs
+
+- `docs/proofs/reconciled-baseline-ci.md` — Stage 3/4 repository and migration baseline;
+- `docs/proofs/worker-image-isolation-ci.md` — manual-import and OSM worker image boundaries;
+- `docs/proofs/stage5-official-http-ci.md` — official HTTP contracts, worker behavior, full static/unit gate, migration, and image build;
+- `docs/proofs/http-worker-isolation-ci.md` — permanent negative inventory proof for the HTTP worker image.
 
 ## Explicitly incomplete
 
