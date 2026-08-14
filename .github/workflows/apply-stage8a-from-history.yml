@@ -67,6 +67,17 @@ jobs:
               > ".github/stage8a_apply_20260814/${file}"
           done
           python .github/stage8a_apply_20260814/repair2.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("packages/review_core/pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          stale = "collection-contracts = { workspace = true }"
+          current = "review-contracts = { workspace = true }"
+          if stale not in text and current not in text:
+              raise RuntimeError("review_core workspace source declaration is missing")
+          path.write_text(text.replace(stale, current), encoding="utf-8")
+          PY
           rm -rf .github/stage8a_apply_20260814
 
       - name: Prove Stage 8A owners
