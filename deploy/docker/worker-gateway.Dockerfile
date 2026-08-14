@@ -9,15 +9,9 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.0@sha256:78a7ff97cd27b7124a5f3c2aefe146170
 
 WORKDIR /workspace
 COPY pyproject.toml uv.lock ./
-COPY apps/worker_gateway/ apps/worker_gateway/
-COPY apps/collector_cli/pyproject.toml apps/collector_cli/pyproject.toml
-COPY apps/migration/pyproject.toml apps/migration/pyproject.toml
-COPY packages/collection_application/ packages/collection_application/
-COPY packages/collection_contracts/ packages/collection_contracts/
-COPY packages/collection_domain/ packages/collection_domain/
-COPY packages/collection_infrastructure/ packages/collection_infrastructure/
-COPY packages/manual_import_core/ packages/manual_import_core/
-COPY packages/source_connector_sdk/pyproject.toml packages/source_connector_sdk/pyproject.toml
+COPY apps/ apps/
+COPY connectors/ connectors/
+COPY packages/ packages/
 RUN uv sync --frozen --no-dev --package worker-gateway --no-editable
 
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS runtime
@@ -26,11 +20,11 @@ ENV PATH="/workspace/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN useradd --create-home --uid 10001 worker-gateway
+RUN groupadd --gid 10001 worker-gateway \
+    && useradd --uid 10001 --gid worker-gateway --create-home worker-gateway
 WORKDIR /workspace
-COPY --from=build /workspace/.venv /workspace/.venv
-RUN chown -R worker-gateway:worker-gateway /workspace
-USER worker-gateway
+COPY --from=build --chown=worker-gateway:worker-gateway /workspace/.venv /workspace/.venv
+USER 10001:10001
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
