@@ -67,6 +67,7 @@ jobs:
             | sha256sum --check --strict
           tar -xJf "${RUNNER_TEMP}/stage6-payload.tar.xz"
           python .github/stage6-type-repair.py
+          rm -f .github/stage6-type-repair.py
 
           uv lock
           uv sync --frozen --all-packages --dev
@@ -127,7 +128,6 @@ jobs:
           PY
 
           rm -rf .github/stage6-payload
-          rm -f .github/stage6-type-repair.py
           git add -A
           git diff --cached --check
           git config user.name "rtao-god"
