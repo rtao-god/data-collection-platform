@@ -54,13 +54,16 @@ jobs:
         run: uv run python tools/architecture_checks/check_dependencies.py
 
       - name: Compile owned Python
-        run: uv run python -m compileall -q apps database packages tools
+        run: uv run python -m compileall -q apps connectors database packages tools
 
       - name: Validate first campaign snapshot
         run: uv run collector config validate berlin_recording_services
 
       - name: Build collector CLI image
         run: docker build --file deploy/docker/collector-cli.Dockerfile .
+
+      - name: Build HTTP worker image
+        run: docker build --file deploy/docker/http-worker.Dockerfile .
 
       - name: Build migration image
         run: docker build --file deploy/docker/migration.Dockerfile .
