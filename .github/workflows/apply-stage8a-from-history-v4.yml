@@ -69,6 +69,7 @@ jobs:
               > ".github/stage8a_apply_20260814/${file}"
           done
           python .github/stage8a_apply_20260814/repair2.py
+          git restore --source=HEAD -- tools/review_contract_generation/generate.py
           python - <<'PY'
           from pathlib import Path
 
