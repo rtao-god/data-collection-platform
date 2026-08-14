@@ -1,0 +1,80 @@
+name: Review Web Verify
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/review-web-ci.yml
+      - apps/review_web/**
+  pull_request:
+    paths:
+      - .github/workflows/review-web-ci.yml
+      - apps/review_web/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Detect review web owner
+        id: owner
+        shell: bash
+        run: |
+          if test -f apps/review_web/package.json && test -f apps/review_web/package-lock.json; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install exact Node.js line
+        if: steps.owner.outputs.present == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Restore exact frontend dependencies
+        if: steps.owner.outputs.present == 'true'
+        working-directory: apps/review_web
+        run: npm ci
+
+      - name: Verify required scripts
+        if: steps.owner.outputs.present == 'true'
+        working-directory: apps/review_web
+        run: |
+          node - <<'NODE'
+          const manifest = require("./package.json");
+          const required = ["typecheck", "test", "build"];
+          const missing = required.filter((name) => !manifest.scripts?.[name]);
+          if (missing.length > 0) {
+            throw new Error(`missing review-web scripts: ${missing.join(", ")}`);
+          }
+          NODE
+
+      - name: Lint review web
+        if: steps.owner.outputs.present == 'true'
+        working-directory: apps/review_web
+        run: npm run lint --if-present
+
+      - name: Type-check review web
+        if: steps.owner.outputs.present == 'true'
+        working-directory: apps/review_web
+        run: npm run typecheck
+
+      - name: Test review web
+        if: steps.owner.outputs.present == 'true'
+        working-directory: apps/review_web
+        env:
+          CI: "1"
+        run: npm run test
+
+      - name: Build review web
+        if: steps.owner.outputs.present == 'true'
+        working-directory: apps/review_web
+        run: npm run build
