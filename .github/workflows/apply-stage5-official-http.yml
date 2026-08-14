@@ -46,8 +46,71 @@ jobs:
           git apply --check "$RUNNER_TEMP/stage5.patch"
           git apply "$RUNNER_TEMP/stage5.patch"
 
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              if old not in text:
+                  raise RuntimeError(f"{path}: expected Stage 5 source fragment is missing")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "connectors/official_http/pyproject.toml",
+              '  "pydantic==2.13.4",\n  "scrapy==2.17.0",\n',
+              '  "defusedxml==0.7.1",\n  "pydantic==2.13.4",\n  "scrapy==2.17.0",\n',
+          )
+          replace_once(
+              "connectors/official_http/src/official_http/planning.py",
+              "from xml.etree import ElementTree\n",
+              "from defusedxml.ElementTree import ParseError, fromstring\n",
+          )
+          replace_once(
+              "connectors/official_http/src/official_http/planning.py",
+              "        root = ElementTree.fromstring(body)\n    except ElementTree.ParseError as exc:\n",
+              "        root = fromstring(body)\n    except ParseError as exc:\n",
+          )
+
+          urls = Path("connectors/official_http/src/official_http/urls.py")
+          text = urls.read_text(encoding="utf-8")
+          old = (
+              "    split = urlsplit(normalize_http_url(url))\n"
+              "    assert split.hostname is not None\n"
+              "    port = split.port or (80 if split.scheme == \"http\" else 443)\n"
+          )
+          new = (
+              "    split = urlsplit(normalize_http_url(url))\n"
+              "    hostname = split.hostname\n"
+              "    if hostname is None:\n"
+              "        raise _url_error(\n"
+              "            \"OFFICIAL_HTTP_URL_HOST_MISSING\",\n"
+              "            \"The HTTP URL requires a host.\",\n"
+              "        )\n"
+              "    port = split.port or (80 if split.scheme == \"http\" else 443)\n"
+          )
+          if old not in text:
+              raise RuntimeError("official_http.urls: resolver ownership anchor is missing")
+          text = text.replace(old, new, 1)
+          text = text.replace("resolver(split.hostname, port", "resolver(hostname, port", 1)
+          text = text.replace('context={"host": split.hostname}', 'context={"host": hostname}')
+          urls.write_text(text, encoding="utf-8")
+
+          replace_once(
+              "tools/architecture_checks/check_dependencies.py",
+              'allowed_external_imports=frozenset({"pydantic", "scrapy"}),',
+              'allowed_external_imports=frozenset({"defusedxml", "pydantic", "scrapy"}),',
+          )
+          replace_once(
+              "docs/architecture/dependency-rules.md",
+              '| `official_http` | `connectors/official_http` | `source_connector_sdk` | `pydantic`, `scrapy` |',
+              '| `official_http` | `connectors/official_http` | `source_connector_sdk` | `defusedxml`, `pydantic`, `scrapy` |',
+          )
+          PY
+
           uv lock
           uv sync --frozen --all-packages --dev
+          uv run ruff format .
           uv run ruff check . --fix
           uv run ruff format .
           uv run ruff check .
