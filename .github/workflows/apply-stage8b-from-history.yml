@@ -1,0 +1,606 @@
+name: Materialize Stage 8B Control API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-stage8b-from-history.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-stage8b-materialize
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+      STAGE8_SOURCE_COMMIT: 52363096d793ad40255976fa644927ef1ef74e08
+    steps:
+      - name: Check out complete main history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: false
+
+      - name: Materialize and harden Stage 8B owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test -f docs/proofs/stage8a-candidate-review-ci.md
+          test -f database/migrations/versions/20260814_0010_candidate_review_foundation.py
+          test ! -e apps/control_api
+          test ! -e packages/review_application
+
+          mkdir -p .github/stage8b_apply_20260814
+          for file in part1.py part2.py part3a.py part3b.py part3c.py repair.py repair2.py repair3.py; do
+            git show "${STAGE8_SOURCE_COMMIT}:.github/stage8b_apply_20260814/${file}" \
+              > ".github/stage8b_apply_20260814/${file}"
+          done
+          python .github/stage8b_apply_20260814/repair3.py
+
+          python - <<'PY'
+          from __future__ import annotations
+
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          ROOT = Path.cwd()
+
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              if old not in text:
+                  raise RuntimeError(f"{path}: expected source fragment is missing")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
+          contracts_init = ROOT / "packages/review_contracts/src/review_contracts/__init__.py"
+          text = contracts_init.read_text(encoding="utf-8")
+          text = text.replace(
+              "    ReviewDecisionCommand,\n",
+              "    ReviewDecisionCommand,\n    ReviewOutcome,\n",
+              1,
+          )
+          text = text.replace(
+              "    SuppressionCommand,\n",
+              "    SuppressionCommand,\n    SuppressionScope,\n    SuppressionTargetKind,\n",
+              1,
+          )
+          text = text.replace(
+              '    "ReviewDecisionCommand",\n',
+              '    "ReviewDecisionCommand",\n    "ReviewOutcome",\n',
+              1,
+          )
+          text = text.replace(
+              '    "SuppressionCommand",\n',
+              '    "SuppressionCommand",\n    "SuppressionScope",\n    "SuppressionTargetKind",\n',
+              1,
+          )
+          contracts_init.write_text(text, encoding="utf-8")
+
+          application_init = ROOT / "packages/review_application/src/review_application/__init__.py"
+          text = application_init.read_text(encoding="utf-8")
+          text = text.replace(
+              "    ReviewCaseDetail,\n",
+              "    Permission,\n    ReviewCaseDetail,\n",
+              1,
+          )
+          text = text.replace(
+              '    "ReviewApplicationError",\n',
+              '    "Permission",\n    "ReviewApplicationError",\n',
+              1,
+          )
+          application_init.write_text(text, encoding="utf-8")
+
+          service = ROOT / "packages/review_application/src/review_application/service.py"
+          text = service.read_text(encoding="utf-8")
+          text = text.replace(
+              "    ReviewDecisionCommand,\n",
+              "    ReviewDecisionCommand,\n    ReviewOutcome,\n",
+              1,
+          )
+          text = text.replace(
+              "    SuppressionCommand,\n",
+              "    SuppressionCommand,\n    SuppressionScope,\n    SuppressionTargetKind,\n",
+              1,
+          )
+          text = text.replace("        outcome: str,\n", "        outcome: ReviewOutcome,\n", 1)
+          text = text.replace(
+              "            outcome=outcome,  # type: ignore[arg-type]\n",
+              "            outcome=outcome,\n",
+              1,
+          )
+          text = text.replace(
+              "        target_kind: str,\n",
+              "        target_kind: SuppressionTargetKind,\n",
+              1,
+          )
+          text = text.replace(
+              "        scopes: tuple[str, ...],\n",
+              "        scopes: tuple[SuppressionScope, ...],\n",
+              1,
+          )
+          text = text.replace(
+              "            target_kind=target_kind,  # type: ignore[arg-type]\n",
+              "            target_kind=target_kind,\n",
+              1,
+          )
+          text = text.replace(
+              "            scopes=scopes,  # type: ignore[arg-type]\n",
+              "            scopes=scopes,\n",
+              1,
+          )
+          service.write_text(text, encoding="utf-8")
+
+          auth = ROOT / "apps/control_api/src/control_api/auth.py"
+          text = auth.read_text(encoding="utf-8")
+          text = text.replace(
+              "from dataclasses import dataclass\n",
+              "from dataclasses import dataclass\nfrom typing import cast\n",
+              1,
+          )
+          text = text.replace(
+              "from review_application import ReviewerPrincipal\n",
+              "from review_application import Permission, ReviewerPrincipal\n",
+              1,
+          )
+          old_permissions = '''            if not isinstance(permissions, list) or not permissions:
+              raise ValueError("reviewer permissions must be a non-empty array")
+          allowed = {
+              "review:read",
+              "review:decide",
+              "review:observe",
+              "review:suppress",
+          }
+          if any(not isinstance(item, str) or item not in allowed for item in permissions):
+              raise ValueError("reviewer credential contains an unsupported permission")
+          if len(permissions) != len(set(permissions)):
+              raise ValueError("reviewer permissions must be unique")
+          credentials.append(
+              _Credential(
+                  token=token,
+                  principal=ReviewerPrincipal(
+                      actor_id=actor_id,
+                      permissions=frozenset(permissions),  # type: ignore[arg-type]
+                  ),
+              )
+          )'''
+          new_permissions = '''            if not isinstance(permissions, list) or not permissions:
+              raise ValueError("reviewer permissions must be a non-empty array")
+          allowed = {
+              "review:read",
+              "review:decide",
+              "review:observe",
+              "review:suppress",
+          }
+          parsed_permissions: list[Permission] = []
+          for permission in permissions:
+              if not isinstance(permission, str) or permission not in allowed:
+                  raise ValueError("reviewer credential contains an unsupported permission")
+              parsed_permissions.append(cast(Permission, permission))
+          if len(parsed_permissions) != len(set(parsed_permissions)):
+              raise ValueError("reviewer permissions must be unique")
+          credentials.append(
+              _Credential(
+                  token=token,
+                  principal=ReviewerPrincipal(
+                      actor_id=actor_id,
+                      permissions=frozenset(parsed_permissions),
+                  ),
+              )
+          )'''
+          if old_permissions not in text:
+              raise RuntimeError("Control API permission parser anchor is missing")
+          auth.write_text(text.replace(old_permissions, new_permissions, 1), encoding="utf-8")
+
+          repository = ROOT / (
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "review_repository.py"
+          )
+          text = repository.read_text(encoding="utf-8")
+          text = text.replace(
+              "    SuppressionRevision,\n",
+              "    SuppressionRevision,\n    SuppressionScope,\n",
+              1,
+          )
+          start = text.index("def _suppression(row: RowMapping) -> SuppressionRevision:\n")
+          end = text.index("\n\ndef _verify_decision_replay", start)
+          suppression_mapper = '''def _suppression(row: RowMapping) -> SuppressionRevision:
+              scopes: list[SuppressionScope] = []
+              if row["suppress_discovery"]:
+                  scopes.append("discovery")
+              if row["suppress_export"]:
+                  scopes.append("export")
+              if row["suppress_normalization"]:
+                  scopes.append("normalization")
+              return SuppressionRevision(
+                  suppression_id=row["suppression_id"],
+                  revision=row["revision"],
+                  state=row["state"],
+                  target_kind=row["target_kind"],
+                  target_id=row["target_id"],
+                  scopes=tuple(scopes),
+                  reason_code=row["reason_code"],
+                  actor_id=row["actor_id"],
+                  evidence_reference=row["evidence_reference"],
+                  starts_at_utc=row["starts_at_utc"],
+                  expires_at_utc=row["expires_at_utc"],
+                  resolved_at_utc=row["resolved_at_utc"],
+                  command_digest=row["command_digest"],
+                  correlation_id=row["correlation_id"],
+              )'''.replace("              ", "")
+          repository.write_text(
+              text[:start] + suppression_mapper + text[end:],
+              encoding="utf-8",
+          )
+
+          review_project = ROOT / "packages/review_application/pyproject.toml"
+          text = review_project.read_text(encoding="utf-8")
+          text = text.replace(
+              'description = "Deterministic manual import planning for the Data Collection Platform"',
+              'description = "Review use cases and permission boundaries for the Data Collection Platform"',
+              1,
+          )
+          text = text.replace('  "review-core",\n', "", 1)
+          source_start = text.index("[tool.uv.sources]")
+          text = text[:source_start] + (
+              "[tool.uv.sources]\nreview-contracts = { workspace = true }\n"
+          )
+          review_project.write_text(text, encoding="utf-8")
+
+          control_project = ROOT / "apps/control_api/pyproject.toml"
+          text = control_project.read_text(encoding="utf-8")
+          text = text.replace(
+              'description = "Authenticated worker-facing gateway for the Data Collection Platform"',
+              'description = "Authenticated operator Control API for the Data Collection Platform"',
+              1,
+          )
+          source_start = text.index("[tool.uv.sources]")
+          text = text[:source_start] + (
+              "[tool.uv.sources]\n"
+              "collection-infrastructure = { workspace = true }\n"
+              "review-application = { workspace = true }\n"
+              "review-contracts = { workspace = true }\n"
+          )
+          control_project.write_text(text, encoding="utf-8")
+
+          checker = ROOT / "tools/architecture_checks/check_dependencies.py"
+          text = checker.read_text(encoding="utf-8")
+          text = text.replace(
+              'allowed_internal_imports=("review_contracts", "review_core"),',
+              'allowed_internal_imports=("review_contracts",),',
+              1,
+          )
+          checker.write_text(text, encoding="utf-8")
+
+          app = ROOT / "apps/control_api/src/control_api/app.py"
+          text = app.read_text(encoding="utf-8")
+          text = text.replace(
+              "from collections.abc import Callable\n",
+              "from collections.abc import Callable\nimport re\n",
+              1,
+          )
+          text = text.replace(
+              "from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response\n",
+              "from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response\n"
+              "from fastapi.exceptions import RequestValidationError\n",
+              1,
+          )
+          text = text.replace('        version="review-control-api-v1",\n', '        version="1.0.0",\n', 1)
+          text = text.replace('        openapi_url="/openapi.json",\n', "        openapi_url=None,\n", 1)
+          helper_marker = "ReadinessProbe = Callable[[], bool]\n\n\n"
+          helper = '''ReadinessProbe = Callable[[], bool]
+          _CORRELATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+
+
+          def _correlation_id(value: str | None, *, reject_invalid: bool) -> str:
+              if value is None or not value.strip():
+                  return str(uuid4())
+              normalized = value.strip()
+              if _CORRELATION_ID.fullmatch(normalized) is None:
+                  if reject_invalid:
+                      raise HTTPException(
+                          status_code=400,
+                          detail="X-Correlation-ID is invalid",
+                      )
+                  return str(uuid4())
+              return normalized
+
+
+          '''.replace("          ", "")
+          if helper_marker not in text:
+              raise RuntimeError("Control API helper insertion point is missing")
+          text = text.replace(helper_marker, helper, 1)
+          old_correlation = '''    def correlation_dependency(
+              x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-ID")] = None,
+          ) -> str:
+              return x_correlation_id.strip() if x_correlation_id and x_correlation_id.strip() else str(uuid4())
+          '''.replace("          ", "")
+          new_correlation = '''    def correlation_dependency(
+              x_correlation_id: Annotated[str | None, Header(alias="X-Correlation-ID")] = None,
+          ) -> str:
+              return _correlation_id(x_correlation_id, reject_invalid=True)
+          '''.replace("          ", "")
+          if old_correlation not in text:
+              raise RuntimeError("Control API correlation dependency anchor is missing")
+          text = text.replace(old_correlation, new_correlation, 1)
+          handler_start = text.index("    @app.exception_handler(HTTPException)\n")
+          handler_end = text.index("    @app.exception_handler(ReviewApplicationError)\n", handler_start)
+          handlers = '''    @app.exception_handler(RequestValidationError)
+              async def request_validation_error_handler(
+                  request: Request,
+                  exc: RequestValidationError,
+              ) -> JSONResponse:
+                  correlation_id = _correlation_id(
+                      request.headers.get("X-Correlation-ID"),
+                      reject_invalid=False,
+                  )
+                  body = ErrorResponse(
+                      code="CONTROL_API_REQUEST_INVALID",
+                      owner="ControlApi.Transport",
+                      message="The request violates the Control API contract.",
+                      required_action="Correct the request using the generated Control API contract.",
+                      correlation_id=correlation_id,
+                  )
+                  return JSONResponse(
+                      status_code=422,
+                      content=body.model_dump(mode="json", by_alias=True),
+                      headers={"X-Correlation-ID": correlation_id},
+                  )
+
+              @app.exception_handler(HTTPException)
+              async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+                  correlation_id = _correlation_id(
+                      request.headers.get("X-Correlation-ID"),
+                      reject_invalid=False,
+                  )
+                  if exc.status_code == 400:
+                      code = "CONTROL_API_REQUEST_INVALID"
+                      owner = "ControlApi.Transport"
+                      action = "Provide a valid request and correlation identifier."
+                  elif exc.status_code == 401:
+                      code = "CONTROL_API_UNAUTHORIZED"
+                      owner = "ControlApi.Auth"
+                      action = "Provide a valid reviewer bearer credential."
+                  elif exc.status_code == 503:
+                      code = "CONTROL_API_UNAVAILABLE"
+                      owner = "ControlApi.Readiness"
+                      action = "Restore the Control API dependency and retry."
+                  else:
+                      code = "CONTROL_API_HTTP_ERROR"
+                      owner = "ControlApi.Transport"
+                      action = "Correct the request or inspect the owning route."
+                  body = ErrorResponse(
+                      code=code,
+                      owner=owner,
+                      message=str(exc.detail),
+                      required_action=action,
+                      correlation_id=correlation_id,
+                  )
+                  return JSONResponse(
+                      status_code=exc.status_code,
+                      content=body.model_dump(mode="json", by_alias=True),
+                      headers={"X-Correlation-ID": correlation_id},
+                  )
+
+          '''.replace("              ", "    ")
+          text = text[:handler_start] + handlers + text[handler_end:]
+          text = text.replace(
+              '        correlation_id = request.headers.get("X-Correlation-ID") or str(uuid4())\n',
+              '        correlation_id = _correlation_id(\n'
+              '            request.headers.get("X-Correlation-ID"),\n'
+              '            reject_invalid=False,\n'
+              '        )\n',
+              1,
+          )
+          app.write_text(text, encoding="utf-8")
+
+          main_path = ROOT / "apps/control_api/src/control_api/main.py"
+          text = main_path.read_text(encoding="utf-8")
+          old_readiness = '''        try:
+              with engine.connect() as connection:
+                  connection.execute(sa.text("SELECT 1"))
+              return True
+          except sa.exc.SQLAlchemyError:
+              return False
+          '''.replace("          ", "")
+          new_readiness = '''        try:
+              with engine.connect() as connection:
+                  ready = connection.execute(
+                      sa.text(
+                          """
+                          SELECT
+                              to_regclass('review.review_cases') IS NOT NULL
+                              AND to_regclass('review.review_case_revisions') IS NOT NULL
+                              AND to_regclass('review.review_decisions') IS NOT NULL
+                              AND to_regclass('review.manual_observations') IS NOT NULL
+                              AND to_regclass('review.suppression_revisions') IS NOT NULL
+                          """
+                      )
+                  ).scalar_one()
+              return bool(ready)
+          except sa.exc.SQLAlchemyError:
+              return False
+          '''.replace("          ", "")
+          if old_readiness not in text:
+              raise RuntimeError("Control API readiness anchor is missing")
+          main_path.write_text(text.replace(old_readiness, new_readiness, 1), encoding="utf-8")
+
+          generator_init = ROOT / "tools/control_api_contract_generation/__init__.py"
+          generator_init.write_text(
+              '"""Deterministic Control API contract generation tooling."""\n',
+              encoding="utf-8",
+          )
+
+          app_test = ROOT / "apps/control_api/tests/test_app.py"
+          text = app_test.read_text(encoding="utf-8")
+          text += '''
+
+          def test_request_validation_returns_typed_error() -> None:
+              service = Service()
+              response = client(service).post(
+                  f"/review/cases/{service.case_id}/decisions",
+                  json={
+                      "expectedRevision": 0,
+                      "outcome": "accept_candidate",
+                      "rationale": "Verified.",
+                      "evidenceReferences": [DIGEST],
+                      "actorId": "attacker",
+                  },
+                  headers={"Authorization": f"Bearer {TOKEN}"},
+              )
+              assert response.status_code == 422
+              assert response.json()["code"] == "CONTROL_API_REQUEST_INVALID"
+              assert response.json()["owner"] == "ControlApi.Transport"
+
+
+          def test_invalid_correlation_id_is_rejected_without_echo() -> None:
+              response = client(Service()).get(
+                  "/review/cases",
+                  headers={
+                      "Authorization": f"Bearer {TOKEN}",
+                      "X-Correlation-ID": "<invalid>",
+                  },
+              )
+              assert response.status_code == 400
+              assert response.json()["code"] == "CONTROL_API_REQUEST_INVALID"
+              assert response.headers["X-Correlation-ID"] != "<invalid>"
+
+
+          def test_runtime_openapi_route_is_not_exposed() -> None:
+              response = client(Service()).get("/openapi.json")
+              assert response.status_code == 404
+          '''.replace("          ", "")
+          app_test.write_text(text, encoding="utf-8")
+
+          specification = ROOT / "docs/specifications/stage8b-control-api.md"
+          text = specification.read_text(encoding="utf-8").rstrip()
+          text += '''
+
+          ## Authentication boundary
+
+          The bearer credential is an internal reverse-proxy-to-Control-API capability.
+          It is injected at runtime, never returned to or stored by the browser, and is
+          not a replacement for the Stage 8C operator cookie/bootstrap boundary. Runtime
+          OpenAPI is disabled; consumers use the checked-in generated contract.
+          '''.replace("          ", "")
+          specification.write_text(text + "\n", encoding="utf-8")
+
+          policy = subprocess.check_output(
+              [sys.executable, str(checker), "--print-policy"],
+              text=True,
+          ).strip()
+          policy_path = ROOT / "docs/architecture/dependency-rules.md"
+          text = policy_path.read_text(encoding="utf-8")
+          start_marker = "<!-- dependency-policy:start -->"
+          end_marker = "<!-- dependency-policy:end -->"
+          start = text.index(start_marker)
+          end = text.index(end_marker, start) + len(end_marker)
+          policy_path.write_text(text[:start] + policy + text[end:], encoding="utf-8")
+          PY
+
+          rm -rf .github/stage8b_apply_20260814
+          python -m compileall -q \
+            apps/control_api \
+            packages/review_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/review_repository.py \
+            tools/control_api_contract_generation
+
+      - name: Prove Stage 8B owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f apps/control_api/src/control_api/app.py
+          test -f packages/review_application/src/review_application/service.py
+          test -f packages/collection_infrastructure/src/collection_infrastructure/postgres/review_repository.py
+          test -f deploy/docker/control-api.Dockerfile
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run ruff check . --fix
+          uv run ruff format .
+          uv run python tools/control_api_contract_generation/generate.py
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest \
+            packages/review_application/tests \
+            apps/control_api/tests \
+            tools/control_api_contract_generation/tests
+          uv run pytest -m "not integration and not object_store_integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run python -m compileall -q apps connectors database packages tools
+          docker build --tag data-collection-platform/control-api:ci --file deploy/docker/control-api.Dockerfile .
+          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/control-api:ci)" = "10001:10001"
+          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' data-collection-platform/control-api:ci)" = "uvicorn"
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests/test_postgres_review_repository.py
+          uv run pytest -m integration database/tests
+          git diff --check
+
+      - name: Commit proven Stage 8B production artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/stage8b_apply_20260814
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage8b-control-api-owner.md <<EOF
+          # Stage 8B Control API owner proof
+
+          - Status: owner gates passed
+          - Materialization subject: \`${GITHUB_SHA}\`
+          - Materialization workflow run: \`${GITHUB_RUN_ID}\`
+
+          Review application permissions and commands, transactional PostgreSQL
+          persistence, authenticated Control API transport, deterministic OpenAPI,
+          strict static checks, the complete non-integration suite, fresh migration,
+          all database integration tests, and the non-root Control API image passed
+          before this production commit.
+
+          The React review console and operator cookie/bootstrap boundary remain the
+          next downstream Stage 8 owner.
+          EOF
+          git rm -f .github/workflows/apply-stage8b-from-history.yml
+          git add -A
+          git diff --cached --check
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Feat (Control API): add transactional review boundary"
+          git push origin HEAD:main
