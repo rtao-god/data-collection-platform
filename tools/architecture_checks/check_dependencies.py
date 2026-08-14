@@ -55,6 +55,17 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         ),
         allowed_external_imports=frozenset({"pydantic"}),
     ),
+    "resolution_worker": OwnerPolicy(
+        project_path="apps/resolution_worker",
+        distribution_name="resolution-worker",
+        allowed_internal_imports=(
+            "entity_resolution_core",
+            "quality_core",
+            "resolution_contracts",
+            "source_connector_sdk",
+        ),
+        allowed_external_imports=frozenset(),
+    ),
     "worker_gateway": OwnerPolicy(
         project_path="apps/worker_gateway",
         distribution_name="worker-gateway",
@@ -137,6 +148,24 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         distribution_name="normalization-core",
         allowed_internal_imports=("collection_contracts",),
         allowed_external_imports=frozenset({"phonenumbers", "tldextract"}),
+    ),
+    "entity_resolution_core": OwnerPolicy(
+        project_path="packages/entity_resolution_core",
+        distribution_name="entity-resolution-core",
+        allowed_internal_imports=("resolution_contracts",),
+        allowed_external_imports=frozenset(),
+    ),
+    "quality_core": OwnerPolicy(
+        project_path="packages/quality_core",
+        distribution_name="quality-core",
+        allowed_internal_imports=("resolution_contracts",),
+        allowed_external_imports=frozenset(),
+    ),
+    "resolution_contracts": OwnerPolicy(
+        project_path="packages/resolution_contracts",
+        distribution_name="resolution-contracts",
+        allowed_internal_imports=(),
+        allowed_external_imports=frozenset({"pydantic"}),
     ),
     "manual_import_core": OwnerPolicy(
         project_path="packages/manual_import_core",

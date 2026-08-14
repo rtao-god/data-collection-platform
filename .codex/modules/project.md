@@ -11,15 +11,15 @@ review.
 
 ## Current state
 
-Implemented owners: campaign contracts, filesystem bundle adapter, snapshot service, typed errors,
-work-unit transition vocabulary, CLI composition, PostgreSQL config-bundle metadata, Alembic
-migration composition, generated JSON Schema drift checks, architecture checks, and CI.
+Implemented owners include campaign snapshots, durable runs/work/leases, Worker Gateway and object
+transfer, manual import, orphan cleanup, OSM/Overpass, official HTTP acquisition, extraction,
+normalization, deterministic entity resolution, reversible clusters, fail-closed quality, generated
+contracts, capability-specific images, PostgreSQL/PostGIS migrations, and permanent CI gates.
 
-The database slice is intentionally limited to meanings already owned by `CampaignSnapshot`. It does
-not persist runtime runs or work leases, and it does not create a placeholder object-store reference.
-
-Not implemented: Control API, Worker Gateway, durable work queue, acquisition workers, object store,
-review console, entity resolution, quality engine, and export materialization. Do not create empty
-projects or placeholder services for these owners.
+Still incomplete: clean-machine full Compose, real Berlin boundary/run coverage, human review and
+suppression, browser acquisition, deterministic export, Control API/Dagster, retention deployable,
+and review frontend. Do not create placeholders; add each owner with its first complete production
+path and proof.
 
 - `.codex/modules/processing.md` — evidence-backed extraction and typed normalization.
+- `.codex/modules/entity-resolution.md` — deterministic matching, clustering, and quality.

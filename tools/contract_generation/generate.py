@@ -45,6 +45,7 @@ def contract_targets() -> tuple[ContractTarget, ...]:
         TaxonomyDocument,
     )
     from official_http import HttpAcquisitionManifest, OfficialHttpRequest
+    from resolution_contracts import ResolutionBatch, ResolutionSnapshot
 
     return (
         ContractTarget("attributes.schema.json", AttributesDocument),
@@ -59,6 +60,8 @@ def contract_targets() -> tuple[ContractTarget, ...]:
         ContractTarget("observation-batch.schema.json", ObservationBatch),
         ContractTarget("official-http-acquisition.schema.json", HttpAcquisitionManifest),
         ContractTarget("official-http-request.schema.json", OfficialHttpRequest),
+        ContractTarget("resolution-batch.schema.json", ResolutionBatch),
+        ContractTarget("resolution-snapshot.schema.json", ResolutionSnapshot),
         ContractTarget("manual-seed-row.schema.json", ManualSeedRow),
         ContractTarget("source-bindings.schema.json", SourceBindingsDocument),
         ContractTarget("source-policy.schema.json", SourcePolicy),

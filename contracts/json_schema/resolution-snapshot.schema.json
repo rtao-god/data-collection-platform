@@ -1,0 +1,450 @@
+{
+  "$defs": {
+    "BlockedMatchEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "attemptedPairId": {
+          "title": "Attemptedpairid",
+          "type": "string"
+        },
+        "blockedEdgeId": {
+          "title": "Blockededgeid",
+          "type": "string"
+        },
+        "reasonCode": {
+          "const": "EXPLICIT_SEPARATION_TRANSITIVE_BLOCK",
+          "title": "Reasoncode",
+          "type": "string"
+        },
+        "separationPairId": {
+          "title": "Separationpairid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blockedEdgeId",
+        "attemptedPairId",
+        "separationPairId",
+        "reasonCode"
+      ],
+      "title": "BlockedMatchEdge",
+      "type": "object"
+    },
+    "CandidateField": {
+      "enum": [
+        "names",
+        "phones",
+        "emails",
+        "website_urls",
+        "addresses"
+      ],
+      "title": "CandidateField",
+      "type": "string"
+    },
+    "ClusterLineageKind": {
+      "enum": [
+        "new",
+        "unchanged",
+        "split",
+        "merge",
+        "recombined"
+      ],
+      "title": "ClusterLineageKind",
+      "type": "string"
+    },
+    "ClusterQualityAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "clusterId": {
+          "format": "uuid",
+          "title": "Clusterid",
+          "type": "string"
+        },
+        "exportEligible": {
+          "title": "Exporteligible",
+          "type": "boolean"
+        },
+        "issues": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ClusterQualityIssue"
+          },
+          "maxItems": 256,
+          "title": "Issues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "clusterId",
+        "exportEligible"
+      ],
+      "title": "ClusterQualityAssessment",
+      "type": "object"
+    },
+    "ClusterQualityIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CandidateField"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relatedBlockedEdgeId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relatedblockededgeid"
+        },
+        "relatedPairId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relatedpairid"
+        },
+        "severity": {
+          "$ref": "#/$defs/QualitySeverity"
+        }
+      },
+      "required": [
+        "code",
+        "severity"
+      ],
+      "title": "ClusterQualityIssue",
+      "type": "object"
+    },
+    "MatchDisposition": {
+      "enum": [
+        "auto_match",
+        "manual_match",
+        "review_required",
+        "no_match",
+        "manual_separate"
+      ],
+      "title": "MatchDisposition",
+      "type": "string"
+    },
+    "PairFeatures": {
+      "additionalProperties": false,
+      "properties": {
+        "addressSimilarityBps": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Addresssimilaritybps",
+          "type": "integer"
+        },
+        "entityKindCompatible": {
+          "title": "Entitykindcompatible",
+          "type": "boolean"
+        },
+        "exactEmailOverlap": {
+          "title": "Exactemailoverlap",
+          "type": "boolean"
+        },
+        "exactPhoneOverlap": {
+          "title": "Exactphoneoverlap",
+          "type": "boolean"
+        },
+        "exactWebsiteHostOverlap": {
+          "title": "Exactwebsitehostoverlap",
+          "type": "boolean"
+        },
+        "geographyCompatible": {
+          "title": "Geographycompatible",
+          "type": "boolean"
+        },
+        "leftCandidateId": {
+          "format": "uuid",
+          "title": "Leftcandidateid",
+          "type": "string"
+        },
+        "nameOnly": {
+          "title": "Nameonly",
+          "type": "boolean"
+        },
+        "nameSimilarityBps": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Namesimilaritybps",
+          "type": "integer"
+        },
+        "pairId": {
+          "title": "Pairid",
+          "type": "string"
+        },
+        "rightCandidateId": {
+          "format": "uuid",
+          "title": "Rightcandidateid",
+          "type": "string"
+        },
+        "sourceOverlapCount": {
+          "maximum": 64,
+          "minimum": 0,
+          "title": "Sourceoverlapcount",
+          "type": "integer"
+        },
+        "strongNonNameFeatureCount": {
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Strongnonnamefeaturecount",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pairId",
+        "leftCandidateId",
+        "rightCandidateId",
+        "exactPhoneOverlap",
+        "exactEmailOverlap",
+        "exactWebsiteHostOverlap",
+        "nameSimilarityBps",
+        "addressSimilarityBps",
+        "entityKindCompatible",
+        "geographyCompatible",
+        "sourceOverlapCount",
+        "strongNonNameFeatureCount",
+        "nameOnly"
+      ],
+      "title": "PairFeatures",
+      "type": "object"
+    },
+    "PairResolution": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "$ref": "#/$defs/MatchDisposition"
+        },
+        "evidenceStrength": {
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Evidencestrength",
+          "type": "integer"
+        },
+        "features": {
+          "$ref": "#/$defs/PairFeatures"
+        },
+        "reasonCodes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Reasoncodes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "features",
+        "disposition",
+        "reasonCodes",
+        "evidenceStrength"
+      ],
+      "title": "PairResolution",
+      "type": "object"
+    },
+    "QualitySeverity": {
+      "enum": [
+        "blocking",
+        "warning",
+        "information"
+      ],
+      "title": "QualitySeverity",
+      "type": "string"
+    },
+    "ResolutionDiagnostic": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "code",
+        "count"
+      ],
+      "title": "ResolutionDiagnostic",
+      "type": "object"
+    },
+    "ResolvedCluster": {
+      "additionalProperties": false,
+      "properties": {
+        "blockedMatchEdgeIds": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1000000,
+          "title": "Blockedmatchedgeids",
+          "type": "array"
+        },
+        "clusterId": {
+          "format": "uuid",
+          "title": "Clusterid",
+          "type": "string"
+        },
+        "lineageKind": {
+          "$ref": "#/$defs/ClusterLineageKind"
+        },
+        "memberCandidateIds": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Membercandidateids",
+          "type": "array"
+        },
+        "parentClusterIds": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "title": "Parentclusterids",
+          "type": "array"
+        },
+        "parentMembershipDigest": {
+          "title": "Parentmembershipdigest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clusterId",
+        "memberCandidateIds",
+        "lineageKind",
+        "parentMembershipDigest"
+      ],
+      "title": "ResolvedCluster",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "batchDigest": {
+      "title": "Batchdigest",
+      "type": "string"
+    },
+    "batchId": {
+      "format": "uuid",
+      "title": "Batchid",
+      "type": "string"
+    },
+    "blockedMatchEdges": {
+      "items": {
+        "$ref": "#/$defs/BlockedMatchEdge"
+      },
+      "maxItems": 1000000,
+      "title": "Blockedmatchedges",
+      "type": "array"
+    },
+    "clusters": {
+      "items": {
+        "$ref": "#/$defs/ResolvedCluster"
+      },
+      "maxItems": 10000,
+      "title": "Clusters",
+      "type": "array"
+    },
+    "contract": {
+      "const": "collector-entity-resolution-snapshot",
+      "default": "collector-entity-resolution-snapshot",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "entity-resolution-snapshot-v1",
+      "default": "entity-resolution-snapshot-v1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "diagnostics": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ResolutionDiagnostic"
+      },
+      "maxItems": 32,
+      "title": "Diagnostics",
+      "type": "array"
+    },
+    "marketAreaDigest": {
+      "title": "Marketareadigest",
+      "type": "string"
+    },
+    "marketAreaRevision": {
+      "title": "Marketarearevision",
+      "type": "string"
+    },
+    "pairResolutions": {
+      "items": {
+        "$ref": "#/$defs/PairResolution"
+      },
+      "maxItems": 1000000,
+      "title": "Pairresolutions",
+      "type": "array"
+    },
+    "pendingReviewPairIds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 1000000,
+      "title": "Pendingreviewpairids",
+      "type": "array"
+    },
+    "qualityAssessments": {
+      "items": {
+        "$ref": "#/$defs/ClusterQualityAssessment"
+      },
+      "maxItems": 10000,
+      "title": "Qualityassessments",
+      "type": "array"
+    },
+    "snapshotDigest": {
+      "title": "Snapshotdigest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "batchId",
+    "batchDigest",
+    "marketAreaRevision",
+    "marketAreaDigest",
+    "pairResolutions",
+    "blockedMatchEdges",
+    "clusters",
+    "qualityAssessments",
+    "pendingReviewPairIds",
+    "snapshotDigest"
+  ],
+  "title": "ResolutionSnapshot",
+  "type": "object"
+}

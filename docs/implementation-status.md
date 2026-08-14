@@ -16,6 +16,7 @@ This ledger reports only production owners that are present in the registered wo
 | OSM/Overpass | Query contract and allowlisted grammar, deterministic planning, bounded HTTP adapter, response parsing, provenance/attribution output, isolated worker, and campaign geography evaluation support |
 | Official website HTTP | Strict request/manifest contracts, canonical URL and public-address enforcement, robots/sitemap/page-interest planning, one-request Scrapy execution, conditional `304` reuse, bounded raw acquisition, typed `403`/`429` behavior, isolated worker, generated schemas, and Docker image |
 | Extraction and normalization | Digest-bound extraction requests, JSON-LD/microdata/RDFa and HTML contact/address evidence, bounded evidence spans, typed extracted records, explicit observation states, phone/URL/email/address/money normalization, negative-aware attribute patterns, derived artifacts, and a capability-isolated processing worker |
+| Entity resolution and quality | Canonical candidate batches, bounded deterministic blocking, integer match features, strong-identifier/corroboration rules, name-only and fuzzy-Berlin review gates, immutable manual decisions, transitive separation protection, deterministic reversible clusters, fail-closed cluster quality, synthetic golden data, and a capability-isolated resolution worker |
 | Database | Fresh PostgreSQL/PostGIS migration through `20260814_0009`, SQLAlchemy metadata, constraints, indexes, and integration tests for the implemented owners |
 | Architecture enforcement | Fail-closed workspace/project registry, declared dependency graph, AST import checks, forbidden capability scans, and worker-image isolation checks |
 
@@ -31,10 +32,10 @@ This ledger reports only production owners that are present in the registered wo
 - the infrastructure Compose contract currently starts PostgreSQL/PostGIS and SeaweedFS only; Worker Gateway and workers are not yet composed into one clean-machine runtime;
 - SeaweedFS compatibility is a permanent dedicated infrastructure proof and remains excluded from ordinary unit execution;
 - no approved Berlin boundary artifact and no real Berlin collection run or coverage report;
-- no candidate resolution, quality, review, suppression, browser, or export owner;
+- no human review persistence/UI, suppression, browser, or export owner;
 - no Control API, Dagster composition, retention deployable, or review frontend;
 - the campaign does not yet bind and execute a complete manual/OSM/website acquisition flow.
 
 ## Next owner batch
 
-Stage 7 is next: candidate revisions, blocking/match proposals, reversible clusters, geography evaluation, deterministic quality rules, and a golden non-match/match dataset. Name-only merge must remain structurally impossible and fuzzy Berlin proposals must require review.
+Stage 8 is next: immutable review cases and decisions, exact-revision optimistic concurrency, manual observations, suppression, evidence-safe Control API responses, and the React FSD review console.

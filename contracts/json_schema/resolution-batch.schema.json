@@ -1,0 +1,496 @@
+{
+  "$defs": {
+    "CandidateField": {
+      "enum": [
+        "names",
+        "phones",
+        "emails",
+        "website_urls",
+        "addresses"
+      ],
+      "title": "CandidateField",
+      "type": "string"
+    },
+    "ClusterQualityRule": {
+      "additionalProperties": false,
+      "properties": {
+        "allowedGeography": {
+          "items": {
+            "$ref": "#/$defs/GeographyCoverage"
+          },
+          "minItems": 1,
+          "title": "Allowedgeography",
+          "type": "array"
+        },
+        "boundaryRequiresReview": {
+          "title": "Boundaryrequiresreview",
+          "type": "boolean"
+        },
+        "entityKind": {
+          "$ref": "#/$defs/EntityKind"
+        },
+        "minimumDistinctSourceCount": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Minimumdistinctsourcecount",
+          "type": "integer"
+        },
+        "pendingReviewBlocksExport": {
+          "title": "Pendingreviewblocksexport",
+          "type": "boolean"
+        },
+        "requiredFields": {
+          "items": {
+            "$ref": "#/$defs/CandidateField"
+          },
+          "title": "Requiredfields",
+          "type": "array"
+        },
+        "singleValueFields": {
+          "items": {
+            "$ref": "#/$defs/CandidateField"
+          },
+          "title": "Singlevaluefields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entityKind",
+        "requiredFields",
+        "singleValueFields",
+        "minimumDistinctSourceCount",
+        "allowedGeography",
+        "boundaryRequiresReview",
+        "pendingReviewBlocksExport"
+      ],
+      "title": "ClusterQualityRule",
+      "type": "object"
+    },
+    "EntityKind": {
+      "enum": [
+        "organization",
+        "place",
+        "provider"
+      ],
+      "title": "EntityKind",
+      "type": "string"
+    },
+    "GeographyCoverage": {
+      "enum": [
+        "inside",
+        "boundary",
+        "outside",
+        "unknown"
+      ],
+      "title": "GeographyCoverage",
+      "type": "string"
+    },
+    "GeographyReference": {
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "$ref": "#/$defs/GeographyCoverage"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "maximum": 90.0,
+              "minimum": -90.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latitude"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Longitude"
+        },
+        "marketAreaDigest": {
+          "title": "Marketareadigest",
+          "type": "string"
+        },
+        "marketAreaRevision": {
+          "title": "Marketarearevision",
+          "type": "string"
+        },
+        "observationIds": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 512,
+          "title": "Observationids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "coverage",
+        "marketAreaRevision",
+        "marketAreaDigest"
+      ],
+      "title": "GeographyReference",
+      "type": "object"
+    },
+    "ManualDecisionAction": {
+      "enum": [
+        "match",
+        "separate"
+      ],
+      "title": "ManualDecisionAction",
+      "type": "string"
+    },
+    "ManualResolutionDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ManualDecisionAction"
+        },
+        "actorReference": {
+          "title": "Actorreference",
+          "type": "string"
+        },
+        "decisionDigest": {
+          "title": "Decisiondigest",
+          "type": "string"
+        },
+        "decisionId": {
+          "format": "uuid",
+          "title": "Decisionid",
+          "type": "string"
+        },
+        "leftCandidateId": {
+          "format": "uuid",
+          "title": "Leftcandidateid",
+          "type": "string"
+        },
+        "reasonCode": {
+          "title": "Reasoncode",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "rightCandidateId": {
+          "format": "uuid",
+          "title": "Rightcandidateid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decisionId",
+        "leftCandidateId",
+        "rightCandidateId",
+        "action",
+        "revision",
+        "actorReference",
+        "reasonCode",
+        "decisionDigest"
+      ],
+      "title": "ManualResolutionDecision",
+      "type": "object"
+    },
+    "MarketAreaReadiness": {
+      "enum": [
+        "ready",
+        "blocked"
+      ],
+      "title": "MarketAreaReadiness",
+      "type": "string"
+    },
+    "PriorCluster": {
+      "additionalProperties": false,
+      "properties": {
+        "clusterId": {
+          "format": "uuid",
+          "title": "Clusterid",
+          "type": "string"
+        },
+        "contentDigest": {
+          "title": "Contentdigest",
+          "type": "string"
+        },
+        "memberCandidateIds": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Membercandidateids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "clusterId",
+        "memberCandidateIds",
+        "contentDigest"
+      ],
+      "title": "PriorCluster",
+      "type": "object"
+    },
+    "ResolutionCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "addresses": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Addresses",
+          "type": "array"
+        },
+        "candidateId": {
+          "format": "uuid",
+          "title": "Candidateid",
+          "type": "string"
+        },
+        "emails": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Emails",
+          "type": "array"
+        },
+        "entityKind": {
+          "$ref": "#/$defs/EntityKind"
+        },
+        "geography": {
+          "$ref": "#/$defs/GeographyReference"
+        },
+        "names": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Names",
+          "type": "array"
+        },
+        "observationIds": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 512,
+          "title": "Observationids",
+          "type": "array"
+        },
+        "phones": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Phones",
+          "type": "array"
+        },
+        "sourceArtifactIds": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 512,
+          "title": "Sourceartifactids",
+          "type": "array"
+        },
+        "sourceKeys": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Sourcekeys",
+          "type": "array"
+        },
+        "websiteUrls": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Websiteurls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidateId",
+        "entityKind",
+        "geography"
+      ],
+      "title": "ResolutionCandidate",
+      "type": "object"
+    },
+    "ResolutionThresholds": {
+      "additionalProperties": false,
+      "properties": {
+        "addressAutoMatchMinimumStrongFeatures": {
+          "maximum": 4,
+          "minimum": 2,
+          "title": "Addressautomatchminimumstrongfeatures",
+          "type": "integer"
+        },
+        "addressReviewMinimumBps": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Addressreviewminimumbps",
+          "type": "integer"
+        },
+        "candidateLimit": {
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Candidatelimit",
+          "type": "integer"
+        },
+        "fuzzyPrimaryAreaReviewReasonCode": {
+          "title": "Fuzzyprimaryareareviewreasoncode",
+          "type": "string"
+        },
+        "nameReviewMinimumBps": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Namereviewminimumbps",
+          "type": "integer"
+        },
+        "pairLimit": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Pairlimit",
+          "type": "integer"
+        },
+        "websiteAutoMatchMinimumStrongFeatures": {
+          "maximum": 4,
+          "minimum": 2,
+          "title": "Websiteautomatchminimumstrongfeatures",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidateLimit",
+        "pairLimit",
+        "nameReviewMinimumBps",
+        "addressReviewMinimumBps",
+        "websiteAutoMatchMinimumStrongFeatures",
+        "addressAutoMatchMinimumStrongFeatures",
+        "fuzzyPrimaryAreaReviewReasonCode"
+      ],
+      "title": "ResolutionThresholds",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "batchDigest": {
+      "title": "Batchdigest",
+      "type": "string"
+    },
+    "batchId": {
+      "format": "uuid",
+      "title": "Batchid",
+      "type": "string"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/ResolutionCandidate"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Candidates",
+      "type": "array"
+    },
+    "contract": {
+      "const": "collector-entity-resolution-batch",
+      "default": "collector-entity-resolution-batch",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "entity-resolution-batch-v1",
+      "default": "entity-resolution-batch-v1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "manualDecisions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ManualResolutionDecision"
+      },
+      "maxItems": 1000000,
+      "title": "Manualdecisions",
+      "type": "array"
+    },
+    "marketAreaDigest": {
+      "title": "Marketareadigest",
+      "type": "string"
+    },
+    "marketAreaReadiness": {
+      "$ref": "#/$defs/MarketAreaReadiness"
+    },
+    "marketAreaRevision": {
+      "title": "Marketarearevision",
+      "type": "string"
+    },
+    "priorClusters": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PriorCluster"
+      },
+      "maxItems": 10000,
+      "title": "Priorclusters",
+      "type": "array"
+    },
+    "qualityRules": {
+      "items": {
+        "$ref": "#/$defs/ClusterQualityRule"
+      },
+      "maxItems": 3,
+      "title": "Qualityrules",
+      "type": "array"
+    },
+    "thresholds": {
+      "$ref": "#/$defs/ResolutionThresholds"
+    }
+  },
+  "required": [
+    "batchId",
+    "marketAreaRevision",
+    "marketAreaDigest",
+    "marketAreaReadiness",
+    "candidates",
+    "thresholds",
+    "qualityRules",
+    "batchDigest"
+  ],
+  "title": "ResolutionBatch",
+  "type": "object"
+}

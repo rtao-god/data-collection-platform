@@ -11,6 +11,7 @@ members = [
     "collection-migration",
     "collector-cli",
     "data-collection-platform-workspace",
+    "entity-resolution-core",
     "extraction-core",
     "http-worker",
     "manual-import-core",
@@ -20,6 +21,9 @@ members = [
     "osm-overpass-connector",
     "osm-worker",
     "processing-worker",
+    "quality-core",
+    "resolution-contracts",
+    "resolution-worker",
     "source-connector-sdk",
     "worker-gateway",
 ]
@@ -468,6 +472,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
 ]
+
+[[package]]
+name = "entity-resolution-core"
+version = "0.1.0"
+source = { editable = "packages/entity_resolution_core" }
+dependencies = [
+    { name = "resolution-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "resolution-contracts", editable = "packages/resolution_contracts" }]
 
 [[package]]
 name = "extraction-core"
@@ -1230,6 +1245,17 @@ wheels = [
 ]
 
 [[package]]
+name = "quality-core"
+version = "0.1.0"
+source = { editable = "packages/quality_core" }
+dependencies = [
+    { name = "resolution-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "resolution-contracts", editable = "packages/resolution_contracts" }]
+
+[[package]]
 name = "queuelib"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1275,6 +1301,36 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3c/f8/5dc70102e4d337063452c82e1f0d95e39abfe67aa222ed8a5ddeb9df8de8/requests_file-3.0.1.tar.gz", hash = "sha256:f14243d7796c588f3521bd423c5dea2ee4cc730e54a3cac9574d78aca1272576", size = 6967, upload-time = "2025-10-20T18:56:42.279Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/d5/de8f089119205a09da657ed4784c584ede8381a0ce6821212a6d4ca47054/requests_file-3.0.1-py2.py3-none-any.whl", hash = "sha256:d0f5eb94353986d998f80ac63c7f146a307728be051d4d1cd390dbdb59c10fa2", size = 4514, upload-time = "2025-10-20T18:56:41.184Z" },
+]
+
+[[package]]
+name = "resolution-contracts"
+version = "0.1.0"
+source = { editable = "packages/resolution_contracts" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = "==2.13.4" }]
+
+[[package]]
+name = "resolution-worker"
+version = "0.1.0"
+source = { editable = "apps/resolution_worker" }
+dependencies = [
+    { name = "entity-resolution-core" },
+    { name = "quality-core" },
+    { name = "resolution-contracts" },
+    { name = "source-connector-sdk" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "entity-resolution-core", editable = "packages/entity_resolution_core" },
+    { name = "quality-core", editable = "packages/quality_core" },
+    { name = "resolution-contracts", editable = "packages/resolution_contracts" },
+    { name = "source-connector-sdk", editable = "packages/source_connector_sdk" },
 ]
 
 [[package]]

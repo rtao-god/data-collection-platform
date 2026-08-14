@@ -69,6 +69,16 @@
       "sha256": "sha256:579063e4dbd6a3bb94eaab07cc584b9d3afada81ada1bebda2c6e63f84a65eed"
     },
     {
+      "file": "resolution-batch.schema.json",
+      "model": "resolution_contracts.models.ResolutionBatch",
+      "sha256": "sha256:ea5e34fefb698df17710a3d07cfa59f29fdc3478b39433dab4522303ae96e058"
+    },
+    {
+      "file": "resolution-snapshot.schema.json",
+      "model": "resolution_contracts.models.ResolutionSnapshot",
+      "sha256": "sha256:ce0fad41a67ace801c8dcb07668878b992252afb10a90c742d20f55be57e8f1c"
+    },
+    {
       "file": "source-bindings.schema.json",
       "model": "collection_contracts.campaign_config.SourceBindingsDocument",
       "sha256": "sha256:3f95b9d955b0f1baee5ffd55f064ac33b8dfcf8ad9dfc5c87c6124fadfe2d733"
