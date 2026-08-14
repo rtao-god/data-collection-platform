@@ -1,0 +1,78 @@
+name: Apply Stage 7 Resolution and Quality
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/stage7-resolution-quality-apply-20260814.yml
+      - .github/stage7_apply_20260814/apply.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-stage7-resolution-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 40
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: false
+
+      - name: Materialize Stage 7 core owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          python .github/stage7_apply_20260814/apply.py
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run python tools/resolution_contract_generation/generate.py
+          uv run ruff check . --fix
+          uv run ruff format .
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest packages/resolution_contracts/tests packages/entity_resolution_core/tests packages/quality_core/tests tools/resolution_contract_generation/tests
+          uv run pytest -m "not integration and not object_store_integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/resolution_contract_generation/generate.py --check
+          uv run python -m compileall -q apps connectors database packages tools
+          git diff --check
+
+      - name: Commit proven production diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -r .github/stage7_apply_20260814
+          git add -A
+          git reset .github/workflows/stage7-resolution-quality-apply-20260814.yml
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Feat (Resolution): add deterministic resolution and quality core"
+          git push origin HEAD:main
