@@ -1,0 +1,126 @@
+name: Infrastructure Compatibility
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/infrastructure-compatibility.yml
+      - .python-version
+      - pyproject.toml
+      - uv.lock
+      - deploy/compose/infrastructure.yaml
+      - deploy/compose/.env.example
+      - database/**
+      - apps/migration/**
+      - packages/collection_infrastructure/**
+  pull_request:
+    paths:
+      - .github/workflows/infrastructure-compatibility.yml
+      - .python-version
+      - pyproject.toml
+      - uv.lock
+      - deploy/compose/infrastructure.yaml
+      - deploy/compose/.env.example
+      - database/**
+      - apps/migration/**
+      - packages/collection_infrastructure/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_local@127.0.0.1:5432/collector_core
+      COLLECTOR_TEST_S3_ENDPOINT_URL: http://127.0.0.1:8333
+      COLLECTOR_TEST_S3_BUCKET: collector-artifacts-test
+      COLLECTOR_TEST_S3_ACCESS_KEY_ID: collector-local
+      COLLECTOR_TEST_S3_SECRET_ACCESS_KEY: collector-local-secret
+      COLLECTOR_TEST_S3_REGION: us-east-1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Validate Compose contract
+        run: >-
+          docker compose
+          --env-file deploy/compose/.env.example
+          --file deploy/compose/infrastructure.yaml
+          config
+
+      - name: Start PostgreSQL/PostGIS and SeaweedFS
+        run: >-
+          docker compose
+          --env-file deploy/compose/.env.example
+          --file deploy/compose/infrastructure.yaml
+          up --detach
+
+      - name: Wait for infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if docker compose \
+              --env-file deploy/compose/.env.example \
+              --file deploy/compose/infrastructure.yaml \
+              exec -T collector-postgres \
+              pg_isready -U collector_migrator -d collector_core >/dev/null 2>&1 \
+              && curl --silent --show-error --fail \
+                http://127.0.0.1:9333/cluster/status >/dev/null 2>&1 \
+              && curl --silent --show-error \
+                http://127.0.0.1:8333/ >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose \
+            --env-file deploy/compose/.env.example \
+            --file deploy/compose/infrastructure.yaml logs
+          exit 1
+
+      - name: Apply fresh migration
+        run: uv run collection-migrate upgrade head
+
+      - name: Verify PostgreSQL/PostGIS contract
+        run: uv run pytest -q -m integration database/tests
+
+      - name: Verify SeaweedFS S3 compatibility
+        run: >-
+          uv run pytest -q
+          -m object_store_integration
+          packages/collection_infrastructure/tests/test_seaweedfs_s3_compatibility.py
+
+      - name: Show infrastructure logs on failure
+        if: failure()
+        run: >-
+          docker compose
+          --env-file deploy/compose/.env.example
+          --file deploy/compose/infrastructure.yaml
+          logs
+
+      - name: Stop infrastructure
+        if: always()
+        run: >-
+          docker compose
+          --env-file deploy/compose/.env.example
+          --file deploy/compose/infrastructure.yaml
+          down --volumes --remove-orphans
