@@ -1,0 +1,155 @@
+name: Materialize Stage 8B Control API V4
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-stage8b-from-history-v4.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-stage8b-materialize
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+      STAGE8_SOURCE_COMMIT: 52363096d793ad40255976fa644927ef1ef74e08
+    steps:
+      - name: Check out complete main history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: false
+
+      - name: Materialize Stage 8B production owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test -f docs/proofs/stage8a-candidate-review-ci.md
+          test -f database/migrations/versions/20260814_0010_candidate_review_foundation.py
+          test -f .github/stage8b_materializer.py
+          test -f .github/stage8b_generator_fix.py
+          test -f .github/stage8b_workspace_fix.py
+          test ! -e apps/control_api
+          test ! -e packages/review_application
+
+          mkdir -p .github/stage8b_apply_20260814
+          for file in part1.py part2.py part3a.py part3b.py part3c.py repair.py repair2.py repair3.py; do
+            git show "${STAGE8_SOURCE_COMMIT}:.github/stage8b_apply_20260814/${file}" \
+              > ".github/stage8b_apply_20260814/${file}"
+          done
+          python .github/stage8b_apply_20260814/repair3.py
+          python .github/stage8b_materializer.py
+          python .github/stage8b_generator_fix.py
+          python .github/stage8b_workspace_fix.py
+          rm -rf .github/stage8b_apply_20260814
+          python -m compileall -q \
+            apps/control_api \
+            packages/review_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/review_repository.py \
+            tools/control_api_contract_generation
+
+      - name: Prove Stage 8B owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f apps/control_api/src/control_api/app.py
+          test -f packages/review_application/src/review_application/service.py
+          test -f packages/collection_infrastructure/src/collection_infrastructure/postgres/review_repository.py
+          test -f deploy/docker/control-api.Dockerfile
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run ruff check . --fix
+          uv run ruff format .
+          uv run python tools/control_api_contract_generation/generate.py
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest \
+            packages/review_application/tests \
+            apps/control_api/tests \
+            tools/control_api_contract_generation/tests
+          uv run pytest -m "not integration and not object_store_integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run python -m compileall -q apps connectors database packages tools
+          docker build --tag data-collection-platform/control-api:ci --file deploy/docker/control-api.Dockerfile .
+          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/control-api:ci)" = "10001:10001"
+          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' data-collection-platform/control-api:ci)" = "uvicorn"
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests/test_postgres_review_repository.py
+          uv run pytest -m integration database/tests
+          git diff --check
+
+      - name: Commit proven Stage 8B production artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/stage8b_apply_20260814
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage8b-control-api-owner.md <<EOF
+          # Stage 8B Control API owner proof
+
+          - Status: owner gates passed
+          - Materialization subject: \`${GITHUB_SHA}\`
+          - Materialization workflow run: \`${GITHUB_RUN_ID}\`
+
+          Review application permissions and commands, transactional PostgreSQL
+          persistence, authenticated Control API transport, deterministic OpenAPI,
+          strict static checks, the complete non-integration suite, fresh migration,
+          all database integration tests, and the non-root Control API image passed
+          before this production commit.
+
+          The React review console and operator cookie/bootstrap boundary remain the
+          next downstream Stage 8 owner.
+          EOF
+          git rm -f .github/workflows/apply-stage8b-from-history.yml
+          git rm -f .github/workflows/apply-stage8b-from-history-v2.yml
+          git rm -f .github/workflows/apply-stage8b-from-history-v3.yml
+          git rm -f .github/workflows/apply-stage8b-from-history-v4.yml
+          git rm -f .github/stage8b_materializer.py
+          git rm -f .github/stage8b_generator_fix.py
+          git rm -f .github/stage8b_workspace_fix.py
+          git add -A
+          git diff --cached --check
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Feat (Control API): add transactional review boundary"
+          git push origin HEAD:main
