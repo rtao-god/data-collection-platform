@@ -39,6 +39,16 @@
       "sha256": "sha256:831fde8ab9db5f568d5d84976924cf87e635362b04ea8e5452eaffe662ef91a1"
     },
     {
+      "file": "official-http-acquisition.schema.json",
+      "model": "official_http.contracts.HttpAcquisitionManifest",
+      "sha256": "sha256:35a01a7abc62b516e2b16d9c4d3a711c0167d111400562e20f8318ee2c80a59e"
+    },
+    {
+      "file": "official-http-request.schema.json",
+      "model": "official_http.contracts.OfficialHttpRequest",
+      "sha256": "sha256:579063e4dbd6a3bb94eaab07cc584b9d3afada81ada1bebda2c6e63f84a65eed"
+    },
+    {
       "file": "source-bindings.schema.json",
       "model": "collection_contracts.campaign_config.SourceBindingsDocument",
       "sha256": "sha256:3f95b9d955b0f1baee5ffd55f064ac33b8dfcf8ad9dfc5c87c6124fadfe2d733"

@@ -1,0 +1,249 @@
+{
+  "$defs": {
+    "PageInterestRule": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "priority": {
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "tokens": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Tokens",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "tokens",
+        "priority"
+      ],
+      "title": "PageInterestRule",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowedOrigin": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Allowedorigin",
+      "type": "string"
+    },
+    "contract": {
+      "const": "official-http-request",
+      "default": "official-http-request",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "official-http-request-v1",
+      "default": "official-http-request-v1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "depth": {
+      "default": 0,
+      "maximum": 10,
+      "minimum": 0,
+      "title": "Depth",
+      "type": "integer"
+    },
+    "ifModifiedSince": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ifmodifiedsince"
+    },
+    "ifNoneMatch": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ifnonematch"
+    },
+    "maximumDecodedBytes": {
+      "maximum": 134217728,
+      "minimum": 1024,
+      "title": "Maximumdecodedbytes",
+      "type": "integer"
+    },
+    "maximumDiscoveredUrls": {
+      "default": 100,
+      "maximum": 2000,
+      "minimum": 0,
+      "title": "Maximumdiscoveredurls",
+      "type": "integer"
+    },
+    "maximumEncodedBytes": {
+      "maximum": 67108864,
+      "minimum": 1024,
+      "title": "Maximumencodedbytes",
+      "type": "integer"
+    },
+    "pageInterests": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PageInterestRule"
+      },
+      "title": "Pageinterests",
+      "type": "array"
+    },
+    "priorArtifactId": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Priorartifactid"
+    },
+    "priorContentDigest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Priorcontentdigest"
+    },
+    "requestId": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+      "title": "Requestid",
+      "type": "string"
+    },
+    "requestKind": {
+      "enum": [
+        "robots",
+        "sitemap",
+        "page"
+      ],
+      "title": "Requestkind",
+      "type": "string"
+    },
+    "robotsAllowed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotsallowed"
+    },
+    "robotsArtifactId": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotsartifactid"
+    },
+    "robotsDecisionDigest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotsdecisiondigest"
+    },
+    "sourceKey": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+      "title": "Sourcekey",
+      "type": "string"
+    },
+    "sourcePolicyDigest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Sourcepolicydigest",
+      "type": "string"
+    },
+    "timeoutSeconds": {
+      "maximum": 180,
+      "minimum": 1,
+      "title": "Timeoutseconds",
+      "type": "integer"
+    },
+    "trackingQueryParameters": {
+      "default": [],
+      "items": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+        "type": "string"
+      },
+      "title": "Trackingqueryparameters",
+      "type": "array"
+    },
+    "url": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Url",
+      "type": "string"
+    },
+    "userAgent": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Useragent",
+      "type": "string"
+    }
+  },
+  "required": [
+    "requestId",
+    "sourceKey",
+    "sourcePolicyDigest",
+    "requestKind",
+    "url",
+    "allowedOrigin",
+    "userAgent",
+    "timeoutSeconds",
+    "maximumEncodedBytes",
+    "maximumDecodedBytes"
+  ],
+  "title": "OfficialHttpRequest",
+  "type": "object"
+}

@@ -1,0 +1,275 @@
+{
+  "$defs": {
+    "DiscoveredResource": {
+      "additionalProperties": false,
+      "properties": {
+        "interestKey": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interestkey"
+        },
+        "resourceKind": {
+          "enum": [
+            "sitemap",
+            "page"
+          ],
+          "title": "Resourcekind",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Score",
+          "type": "integer"
+        },
+        "url": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "resourceKind",
+        "score"
+      ],
+      "title": "DiscoveredResource",
+      "type": "object"
+    },
+    "ResponseHeader": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 4096,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "title": "ResponseHeader",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "official-http-acquisition",
+      "default": "official-http-acquisition",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "official-http-acquisition-v1",
+      "default": "official-http-acquisition-v1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "decodedSizeBytes": {
+      "minimum": 0,
+      "title": "Decodedsizebytes",
+      "type": "integer"
+    },
+    "discoveredResources": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DiscoveredResource"
+      },
+      "title": "Discoveredresources",
+      "type": "array"
+    },
+    "encodedSizeBytes": {
+      "minimum": 0,
+      "title": "Encodedsizebytes",
+      "type": "integer"
+    },
+    "finalUrl": {
+      "title": "Finalurl",
+      "type": "string"
+    },
+    "observedAtUtc": {
+      "format": "date-time",
+      "title": "Observedatutc",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "fetched",
+        "empty",
+        "unchanged",
+        "redirect",
+        "not_found"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "rawArtifactDigest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rawartifactdigest"
+    },
+    "redirectLocation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Redirectlocation"
+    },
+    "remoteIpAddress": {
+      "title": "Remoteipaddress",
+      "type": "string"
+    },
+    "requestId": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+      "title": "Requestid",
+      "type": "string"
+    },
+    "requestKind": {
+      "enum": [
+        "robots",
+        "sitemap",
+        "page"
+      ],
+      "title": "Requestkind",
+      "type": "string"
+    },
+    "requestedUrl": {
+      "title": "Requestedurl",
+      "type": "string"
+    },
+    "responseHeaders": {
+      "items": {
+        "$ref": "#/$defs/ResponseHeader"
+      },
+      "title": "Responseheaders",
+      "type": "array"
+    },
+    "reusedArtifactId": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reusedartifactid"
+    },
+    "reusedContentDigest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reusedcontentdigest"
+    },
+    "robotsAllowed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotsallowed"
+    },
+    "robotsArtifactId": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotsartifactid"
+    },
+    "robotsDecisionDigest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotsdecisiondigest"
+    },
+    "sourceKey": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
+      "title": "Sourcekey",
+      "type": "string"
+    },
+    "sourcePolicyDigest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Sourcepolicydigest",
+      "type": "string"
+    },
+    "statusCode": {
+      "maximum": 599,
+      "minimum": 100,
+      "title": "Statuscode",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "requestId",
+    "sourceKey",
+    "sourcePolicyDigest",
+    "requestKind",
+    "requestedUrl",
+    "finalUrl",
+    "outcome",
+    "statusCode",
+    "responseHeaders",
+    "remoteIpAddress",
+    "encodedSizeBytes",
+    "decodedSizeBytes",
+    "observedAtUtc"
+  ],
+  "title": "HttpAcquisitionManifest",
+  "type": "object"
+}

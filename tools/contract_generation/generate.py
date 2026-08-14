@@ -40,6 +40,7 @@ def contract_targets() -> tuple[ContractTarget, ...]:
         SourcePolicy,
         TaxonomyDocument,
     )
+    from official_http import HttpAcquisitionManifest, OfficialHttpRequest
 
     return (
         ContractTarget("attributes.schema.json", AttributesDocument),
@@ -48,6 +49,8 @@ def contract_targets() -> tuple[ContractTarget, ...]:
         ContractTarget("entity-kinds.schema.json", EntityKindsDocument),
         ContractTarget("error-envelope.schema.json", ErrorEnvelope),
         ContractTarget("manual-import-plan.schema.json", ManualImportPlan),
+        ContractTarget("official-http-acquisition.schema.json", HttpAcquisitionManifest),
+        ContractTarget("official-http-request.schema.json", OfficialHttpRequest),
         ContractTarget("manual-seed-row.schema.json", ManualSeedRow),
         ContractTarget("source-bindings.schema.json", SourceBindingsDocument),
         ContractTarget("source-policy.schema.json", SourcePolicy),
