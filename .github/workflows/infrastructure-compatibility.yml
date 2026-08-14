@@ -11,9 +11,14 @@ on:
       - uv.lock
       - deploy/compose/infrastructure.yaml
       - deploy/compose/.env.example
+      - deploy/docker/processing-worker.Dockerfile
       - database/**
       - apps/migration/**
+      - apps/processing_worker/**
+      - packages/collection_contracts/**
       - packages/collection_infrastructure/**
+      - packages/extraction_core/**
+      - packages/normalization_core/**
   pull_request:
     paths:
       - .github/workflows/infrastructure-compatibility.yml
@@ -22,9 +27,14 @@ on:
       - uv.lock
       - deploy/compose/infrastructure.yaml
       - deploy/compose/.env.example
+      - deploy/docker/processing-worker.Dockerfile
       - database/**
       - apps/migration/**
+      - apps/processing_worker/**
+      - packages/collection_contracts/**
       - packages/collection_infrastructure/**
+      - packages/extraction_core/**
+      - packages/normalization_core/**
   workflow_dispatch:
 
 permissions:
