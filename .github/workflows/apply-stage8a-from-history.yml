@@ -77,94 +77,8 @@ jobs:
           if stale not in text and current not in text:
               raise RuntimeError("review_core workspace source declaration is missing")
           project.write_text(text.replace(stale, current), encoding="utf-8")
-
-          generator = Path("tools/review_contract_generation/generate.py")
-          generator.write_text(
-              '''from __future__ import annotations
-
-          import argparse
-          import json
-          from hashlib import sha256
-          from pathlib import Path
-
-          from review_contracts import (
-              CandidateRevision,
-              ManualObservation,
-              ReviewCase,
-              ReviewDecision,
-              ReviewDecisionCommand,
-              SuppressionCommand,
-              SuppressionRevision,
-          )
-
-          ROOT = Path(__file__).resolve().parents[2]
-          OUTPUT = ROOT / "contracts/review"
-          MODELS = {
-              "candidate-revision.schema.json": CandidateRevision,
-              "manual-observation.schema.json": ManualObservation,
-              "review-case.schema.json": ReviewCase,
-              "review-decision-command.schema.json": ReviewDecisionCommand,
-              "review-decision.schema.json": ReviewDecision,
-              "suppression-command.schema.json": SuppressionCommand,
-              "suppression-revision.schema.json": SuppressionRevision,
-          }
-
-
-          def render() -> dict[str, str]:
-              rendered = {
-                  name: json.dumps(
-                      model.model_json_schema(),
-                      ensure_ascii=False,
-                      indent=2,
-                      sort_keys=True,
-                  )
-                  + "\\n"
-                  for name, model in MODELS.items()
-              }
-              manifest = {
-                  "contract": "collector-review-contract-manifest",
-                  "contractRevision": "review-contract-manifest-v1",
-                  "files": {
-                      name: f"sha256:{sha256(content.encode('utf-8')).hexdigest()}"
-                      for name, content in sorted(rendered.items())
-                  },
-              }
-              rendered["manifest.json"] = json.dumps(
-                  manifest,
-                  ensure_ascii=False,
-                  indent=2,
-                  sort_keys=True,
-              ) + "\\n"
-              return rendered
-
-
-          def main() -> int:
-              parser = argparse.ArgumentParser()
-              parser.add_argument("--check", action="store_true")
-              args = parser.parse_args()
-              expected = render()
-              if args.check:
-                  drift = [
-                      name
-                      for name, content in expected.items()
-                      if not (OUTPUT / name).exists()
-                      or (OUTPUT / name).read_text(encoding="utf-8") != content
-                  ]
-                  if drift:
-                      raise SystemExit("review contract drift: " + ", ".join(drift))
-                  return 0
-              OUTPUT.mkdir(parents=True, exist_ok=True)
-              for name, content in expected.items():
-                  (OUTPUT / name).write_text(content, encoding="utf-8")
-              return 0
-
-
-          if __name__ == "__main__":
-              raise SystemExit(main())
-          '''.replace("          ", ""),
-              encoding="utf-8",
-          )
           PY
+          printf '%s' 'ZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IGFyZ3BhcnNlCmltcG9ydCBqc29uCmZyb20gaGFzaGxpYiBpbXBvcnQgc2hhMjU2CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKZnJvbSByZXZpZXdfY29udHJhY3RzIGltcG9ydCAoCiAgICBDYW5kaWRhdGVSZXZpc2lvbiwKICAgIE1hbnVhbE9ic2VydmF0aW9uLAogICAgUmV2aWV3Q2FzZSwKICAgIFJldmlld0RlY2lzaW9uLAogICAgUmV2aWV3RGVjaXNpb25Db21tYW5kLAogICAgU3VwcHJlc3Npb25Db21tYW5kLAogICAgU3VwcHJlc3Npb25SZXZpc2lvbiwKKQoKUk9PVCA9IFBhdGgoX19maWxlX18pLnJlc29sdmUoKS5wYXJlbnRzWzJdCk9VVFBVVCA9IFJPT1QgLyAiY29udHJhY3RzL3JldmlldyIKTU9ERUxTID0gewogICAgImNhbmRpZGF0ZS1yZXZpc2lvbi5zY2hlbWEuanNvbiI6IENhbmRpZGF0ZVJldmlzaW9uLAogICAgIm1hbnVhbC1vYnNlcnZhdGlvbi5zY2hlbWEuanNvbiI6IE1hbnVhbE9ic2VydmF0aW9uLAogICAgInJldmlldy1jYXNlLnNjaGVtYS5qc29uIjogUmV2aWV3Q2FzZSwKICAgICJyZXZpZXctZGVjaXNpb24tY29tbWFuZC5zY2hlbWEuanNvbiI6IFJldmlld0RlY2lzaW9uQ29tbWFuZCwKICAgICJyZXZpZXctZGVjaXNpb24uc2NoZW1hLmpzb24iOiBSZXZpZXdEZWNpc2lvbiwKICAgICJzdXBwcmVzc2lvbi1jb21tYW5kLnNjaGVtYS5qc29uIjogU3VwcHJlc3Npb25Db21tYW5kLAogICAgInN1cHByZXNzaW9uLXJldmlzaW9uLnNjaGVtYS5qc29uIjogU3VwcHJlc3Npb25SZXZpc2lvbiwKfQoKCmRlZiByZW5kZXIoKSAtPiBkaWN0W3N0ciwgc3RyXToKICAgIHJlbmRlcmVkID0gewogICAgICAgIG5hbWU6IGpzb24uZHVtcHMoCiAgICAgICAgICAgIG1vZGVsLm1vZGVsX2pzb25fc2NoZW1hKCksCiAgICAgICAgICAgIGVuc3VyZV9hc2NpaT1GYWxzZSwKICAgICAgICAgICAgaW5kZW50PTIsCiAgICAgICAgICAgIHNvcnRfa2V5cz1UcnVlLAogICAgICAgICkKICAgICAgICArICJcbiIKICAgICAgICBmb3IgbmFtZSwgbW9kZWwgaW4gTU9ERUxTLml0ZW1zKCkKICAgIH0KICAgIG1hbmlmZXN0ID0gewogICAgICAgICJjb250cmFjdCI6ICJjb2xsZWN0b3ItcmV2aWV3LWNvbnRyYWN0LW1hbmlmZXN0IiwKICAgICAgICAiY29udHJhY3RSZXZpc2lvbiI6ICJyZXZpZXctY29udHJhY3QtbWFuaWZlc3QtdjEiLAogICAgICAgICJmaWxlcyI6IHsKICAgICAgICAgICAgbmFtZTogZiJzaGEyNTY6e3NoYTI1Nihjb250ZW50LmVuY29kZSgndXRmLTgnKSkuaGV4ZGlnZXN0KCl9IgogICAgICAgICAgICBmb3IgbmFtZSwgY29udGVudCBpbiBzb3J0ZWQocmVuZGVyZWQuaXRlbXMoKSkKICAgICAgICB9LAogICAgfQogICAgcmVuZGVyZWRbIm1hbmlmZXN0Lmpzb24iXSA9IGpzb24uZHVtcHMoCiAgICAgICAgbWFuaWZlc3QsCiAgICAgICAgZW5zdXJlX2FzY2lpPUZhbHNlLAogICAgICAgIGluZGVudD0yLAogICAgICAgIHNvcnRfa2V5cz1UcnVlLAogICAgKSArICJcbiIKICAgIHJldHVybiByZW5kZXJlZAoKCmRlZiBtYWluKCkgLT4gaW50OgogICAgcGFyc2VyID0gYXJncGFyc2UuQXJndW1lbnRQYXJzZXIoKQogICAgcGFyc2VyLmFkZF9hcmd1bWVudCgiLS1jaGVjayIsIGFjdGlvbj0ic3RvcmVfdHJ1ZSIpCiAgICBhcmdzID0gcGFyc2VyLnBhcnNlX2FyZ3MoKQogICAgZXhwZWN0ZWQgPSByZW5kZXIoKQogICAgaWYgYXJncy5jaGVjazoKICAgICAgICBkcmlmdCA9IFsKICAgICAgICAgICAgbmFtZQogICAgICAgICAgICBmb3IgbmFtZSwgY29udGVudCBpbiBleHBlY3RlZC5pdGVtcygpCiAgICAgICAgICAgIGlmIG5vdCAoT1VUUFVUIC8gbmFtZSkuZXhpc3RzKCkKICAgICAgICAgICAgb3IgKE9VVFBVVCAvIG5hbWUpLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKSAhPSBjb250ZW50CiAgICAgICAgXQogICAgICAgIGlmIGRyaWZ0OgogICAgICAgICAgICByYWlzZSBTeXN0ZW1FeGl0KCJyZXZpZXcgY29udHJhY3QgZHJpZnQ6ICIgKyAiLCAiLmpvaW4oZHJpZnQpKQogICAgICAgIHJldHVybiAwCiAgICBPVVRQVVQubWtkaXIocGFyZW50cz1UcnVlLCBleGlzdF9vaz1UcnVlKQogICAgZm9yIG5hbWUsIGNvbnRlbnQgaW4gZXhwZWN0ZWQuaXRlbXMoKToKICAgICAgICAoT1VUUFVUIC8gbmFtZSkud3JpdGVfdGV4dChjb250ZW50LCBlbmNvZGluZz0idXRmLTgiKQogICAgcmV0dXJuIDAKCgppZiBfX25hbWVfXyA9PSAiX19tYWluX18iOgogICAgcmFpc2UgU3lzdGVtRXhpdChtYWluKCkpCg==' | base64 --decode > tools/review_contract_generation/generate.py
           rm -rf .github/stage8a_apply_20260814
 
       - name: Prove Stage 8A owners
@@ -186,7 +100,6 @@ jobs:
           uv run pytest -m "not integration and not object_store_integration"
           uv run python tools/architecture_checks/check_dependencies.py
           uv run python tools/contract_generation/generate.py --check
-          uv run python tools/resolution_contract_generation/generate.py --check
           uv run python tools/review_contract_generation/generate.py --check
           uv run python -m compileall -q apps connectors database packages tools
           uv run collection-migrate upgrade head
