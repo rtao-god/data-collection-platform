@@ -11,12 +11,16 @@ on:
       - uv.lock
       - apps/manual_import_worker/**
       - apps/osm_worker/**
+      - apps/processing_worker/**
       - connectors/osm_overpass/**
       - packages/collection_contracts/**
+      - packages/extraction_core/**
       - packages/manual_import_core/**
+      - packages/normalization_core/**
       - packages/source_connector_sdk/**
       - deploy/docker/manual-import-worker.Dockerfile
       - deploy/docker/osm-worker.Dockerfile
+      - deploy/docker/processing-worker.Dockerfile
   pull_request:
     paths:
       - .github/workflows/worker-image-isolation.yml
@@ -25,12 +29,16 @@ on:
       - uv.lock
       - apps/manual_import_worker/**
       - apps/osm_worker/**
+      - apps/processing_worker/**
       - connectors/osm_overpass/**
       - packages/collection_contracts/**
+      - packages/extraction_core/**
       - packages/manual_import_core/**
+      - packages/normalization_core/**
       - packages/source_connector_sdk/**
       - deploy/docker/manual-import-worker.Dockerfile
       - deploy/docker/osm-worker.Dockerfile
+      - deploy/docker/processing-worker.Dockerfile
   workflow_dispatch:
 
 permissions:
@@ -46,11 +54,15 @@ jobs:
           - worker: manual-import-worker
             dockerfile: deploy/docker/manual-import-worker.Dockerfile
             image: data-collection-platform/manual-import-worker:ci
-            required_module: manual_import_worker
+            required_modules: manual_import_worker,manual_import_core,source_connector_sdk
           - worker: osm-worker
             dockerfile: deploy/docker/osm-worker.Dockerfile
             image: data-collection-platform/osm-worker:ci
-            required_module: osm_worker
+            required_modules: osm_worker,osm_overpass,source_connector_sdk
+          - worker: processing-worker
+            dockerfile: deploy/docker/processing-worker.Dockerfile
+            image: data-collection-platform/processing-worker:ci
+            required_modules: processing_worker,extraction_core,normalization_core,source_connector_sdk
     name: ${{ matrix.worker }}
     steps:
       - name: Check out repository
@@ -69,24 +81,24 @@ jobs:
           test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "10001:10001"
           test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' "$IMAGE")" = "$EXPECTED_ENTRYPOINT"
 
-      - name: Verify required module and forbidden dependency inventory
+      - name: Verify required modules and forbidden dependency inventory
         env:
           IMAGE: ${{ matrix.image }}
-          REQUIRED_MODULE: ${{ matrix.required_module }}
+          REQUIRED_MODULES: ${{ matrix.required_modules }}
         shell: bash
         run: |
           set -euo pipefail
           docker run --rm -i \
             --entrypoint python \
-            --env "REQUIRED_MODULE=$REQUIRED_MODULE" \
+            --env "REQUIRED_MODULES=$REQUIRED_MODULES" \
             "$IMAGE" \
             - <<'PY'
           from importlib import import_module
           from importlib.util import find_spec
           import os
 
-          import_module(os.environ["REQUIRED_MODULE"])
-          import_module("source_connector_sdk")
+          for module in os.environ["REQUIRED_MODULES"].split(","):
+              import_module(module)
 
           forbidden = {
               "alembic",

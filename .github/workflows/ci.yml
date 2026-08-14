@@ -65,6 +65,15 @@ jobs:
       - name: Build HTTP worker image
         run: docker build --file deploy/docker/http-worker.Dockerfile .
 
+      - name: Build manual import worker image
+        run: docker build --file deploy/docker/manual-import-worker.Dockerfile .
+
+      - name: Build OSM worker image
+        run: docker build --file deploy/docker/osm-worker.Dockerfile .
+
+      - name: Build processing worker image
+        run: docker build --file deploy/docker/processing-worker.Dockerfile .
+
       - name: Build migration image
         run: docker build --file deploy/docker/migration.Dockerfile .
 
