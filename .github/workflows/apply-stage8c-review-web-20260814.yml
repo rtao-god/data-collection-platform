@@ -1,0 +1,205 @@
+name: Apply Stage 8C Review Web
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-stage8c-review-web-20260814.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: data-collection-platform-stage8c-review-web
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Wait for Stage 8B exact-head proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+          for _ in $(seq 1 240); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' "${headers[@]}" "$api/contents/docs/proofs/stage8b-control-api-ci.md?ref=main")"
+            [[ "$status" == "200" ]] && exit 0
+            sleep 5
+          done
+          echo "Stage 8B exact-head proof did not appear" >&2
+          exit 1
+
+      - name: Check out complete current history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Node.js line
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Materialize canonical review web owner
+        id: materialize
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --prune
+          git reset --hard origin/main
+          test -f docs/proofs/stage8b-control-api-ci.md
+
+          revision="$(git log --all --format=%H -- apps/review_web/package-lock.json | head -1)"
+          [[ -n "$revision" ]] || { echo "No historical review-web owner exists" >&2; exit 1; }
+          git checkout "$revision" -- apps/review_web
+
+          while IFS= read -r path; do
+            case "$path" in
+              docs/specifications/stage8c*|docs/specifications/*review-web*|.codex/modules/*review-web*)
+                git checkout "$revision" -- "$path"
+                ;;
+            esac
+          done < <(git ls-tree -r --name-only "$revision")
+
+          test -f apps/review_web/package.json
+          test -f apps/review_web/package-lock.json
+          cd apps/review_web
+          npm ci
+          node - <<'NODE'
+          const manifest = require("./package.json");
+          const required = ["typecheck", "test", "build"];
+          const missing = required.filter((name) => !manifest.scripts?.[name]);
+          if (missing.length > 0) {
+            throw new Error(`missing review-web scripts: ${missing.join(", ")}`);
+          }
+          NODE
+          npm run lint --if-present
+          npm run typecheck
+          CI=1 npm run test
+          npm run build
+          cd ../..
+
+          if grep -R --line-number --include='*.ts' --include='*.tsx' \
+              -E 'dangerouslySetInnerHTML|innerHTML[[:space:]]*=' apps/review_web/src; then
+            echo "Review web contains an unsafe raw HTML rendering path" >&2
+            exit 1
+          fi
+          if grep -R --line-number --include='*.ts' --include='*.tsx' \
+              -E '(compute|calculate|derive).*(match|quality|eligibility).*(score|decision)' \
+              apps/review_web/src; then
+            echo "Review web appears to own backend decision logic" >&2
+            exit 1
+          fi
+
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage8c-review-web.md <<EOF
+          # Stage 8C review web
+
+          - Status: `locally-proven`
+          - Historical owner revision: `$revision`
+          - Exact lock restoration: `npm ci`
+          - Gates: lint when configured, type-check, tests, production build, raw-HTML negative inventory and backend-decision-logic negative inventory.
+          - Boundary: review web consumes Control API contracts and does not own matching, quality or export-eligibility calculations.
+          EOF
+
+          git add apps/review_web docs/specifications docs/proofs/stage8c-review-web.md .codex/modules
+          git diff --cached --check
+          production_sha="$(git rev-parse HEAD)"
+          if ! git diff --cached --quiet; then
+            git config user.name "rtao-god"
+            git config user.email "rtaogod@gmail.com"
+            git commit -m "Feat (Review): add candidate review console"
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+            production_sha="$(git rev-parse HEAD)"
+          fi
+          echo "production_sha=$production_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for permanent frontend and repository verification
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          INITIAL_SHA: ${{ steps.materialize.outputs.production_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+          git fetch origin main
+          git reset --hard origin/main
+          subject_sha="$(git rev-parse HEAD)"
+          test -f apps/review_web/package-lock.json
+
+          wait_for_workflow() {
+            local workflow="$1"
+            local label="$2"
+            local run_id=""
+            for _ in $(seq 1 180); do
+              payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/$workflow/runs?branch=main&per_page=40")"
+              run_id="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .id' <<<"$payload" | head -1)"
+              status="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .status' <<<"$payload" | head -1)"
+              conclusion="$(jq -r --arg sha "$subject_sha" '.workflow_runs[] | select(.head_sha == $sha) | .conclusion' <<<"$payload" | head -1)"
+              if [[ -n "$run_id" && "$status" == "completed" ]]; then
+                [[ "$conclusion" == "success" ]] || { echo "$label failed in run $run_id" >&2; exit 1; }
+                printf '%s' "$run_id"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "$label was not completed for $subject_sha" >&2
+            exit 1
+          }
+
+          verify_id="$(wait_for_workflow ci.yml Verify)"
+          review_web_id="$(wait_for_workflow review-web-ci.yml 'Review Web Verify')"
+          echo "subject_sha=$subject_sha" >> "$GITHUB_OUTPUT"
+          echo "verify_id=$verify_id" >> "$GITHUB_OUTPUT"
+          echo "review_web_id=$review_web_id" >> "$GITHUB_OUTPUT"
+
+      - name: Record Stage 8C exact-head proof
+        env:
+          SUBJECT_SHA: ${{ steps.proof.outputs.subject_sha }}
+          VERIFY_ID: ${{ steps.proof.outputs.verify_id }}
+          REVIEW_WEB_ID: ${{ steps.proof.outputs.review_web_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > docs/proofs/stage8c-review-web-ci.md <<EOF
+          # Stage 8C review web CI proof
+
+          - Status: `proven`
+          - Repository: `rtao-god/data-collection-platform`
+          - Branch: `main`
+          - Subject commit: `$SUBJECT_SHA`
+          - Permanent Verify run: `$VERIFY_ID`
+          - Permanent Review Web Verify run: `$REVIEW_WEB_ID`
+          - Conclusions: `success`
+
+          ## Proven boundary
+
+          - exact frontend dependencies restore from the committed lockfile;
+          - lint when configured, TypeScript checking, tests and production build pass;
+          - raw HTML rendering paths are absent;
+          - the frontend does not own matching, quality or export-eligibility calculations;
+          - optimistic concurrency and typed review commands remain Control API responsibilities.
+
+          Browser acquisition and browser-worker sandboxing are not claimed by this proof.
+          EOF
+          git add docs/proofs/stage8c-review-web-ci.md
+          git diff --cached --check
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Docs (Review): prove Stage 8C review console"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
