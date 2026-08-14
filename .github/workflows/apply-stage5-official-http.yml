@@ -97,6 +97,22 @@ jobs:
           urls.write_text(text, encoding="utf-8")
 
           replace_once(
+              "apps/http_worker/src/http_worker/gateway.py",
+              '    return "Correct the official HTTP request or connector contract before scheduling replacement work."\n',
+              '    return (\n'
+              '        "Correct the official HTTP request or connector contract before scheduling "\n'
+              '        "replacement work."\n'
+              '    )\n',
+          )
+          replace_once(
+              "connectors/official_http/src/official_http/scrapy_child.py",
+              '                "Accept": "text/html,application/xhtml+xml,application/xml,text/xml,application/json,text/plain,*/*;q=0.1",\n',
+              '                "Accept": (\n'
+              '                    "text/html,application/xhtml+xml,application/xml,text/xml,"\n'
+              '                    "application/json,text/plain,*/*;q=0.1"\n'
+              '                ),\n',
+          )
+          replace_once(
               "tools/architecture_checks/check_dependencies.py",
               'allowed_external_imports=frozenset({"pydantic", "scrapy"}),',
               'allowed_external_imports=frozenset({"defusedxml", "pydantic", "scrapy"}),',
