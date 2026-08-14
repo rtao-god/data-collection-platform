@@ -1,0 +1,125 @@
+name: Materialize Stage 8A Review Foundation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-stage8a-from-history.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-stage8a-materialize
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+      STAGE8_SOURCE_COMMIT: 52363096d793ad40255976fa644927ef1ef74e08
+    steps:
+      - name: Check out complete main history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: false
+
+      - name: Materialize historical Stage 8A source in runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test -f docs/proofs/stage7-resolution-quality-ci.md
+          mkdir -p .github/stage8a_apply_20260814
+          for file in part1.py part2.py repair.py repair2.py; do
+            git show "${STAGE8_SOURCE_COMMIT}:.github/stage8a_apply_20260814/${file}" \
+              > ".github/stage8a_apply_20260814/${file}"
+          done
+          python .github/stage8a_apply_20260814/repair2.py
+          rm -rf .github/stage8a_apply_20260814
+
+      - name: Prove Stage 8A owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f packages/review_contracts/src/review_contracts/contracts.py
+          test -f packages/review_core/src/review_core/transitions.py
+          test -f database/migrations/versions/20260814_0009_candidate_review_foundation.py
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run python tools/review_contract_generation/generate.py
+          uv run ruff check . --fix
+          uv run ruff format .
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest packages/review_contracts/tests packages/review_core/tests tools/review_contract_generation/tests
+          uv run pytest -m "not integration and not object_store_integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/resolution_contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+          git diff --check
+
+      - name: Commit only proven Stage 8A production artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/stage8a_apply_20260814
+          mkdir -p docs/proofs
+          cat > docs/proofs/stage8a-candidate-review-owner.md <<EOF
+          # Stage 8A candidate and review owner proof
+
+          - Status: owner gates passed
+          - Materialization subject: \`${GITHUB_SHA}\`
+          - Materialization workflow run: \`${GITHUB_RUN_ID}\`
+
+          Versioned review contracts, pure optimistic-concurrency transitions,
+          generated schemas, append-only candidate/review migration, the complete
+          non-integration suite, dependency boundaries, fresh PostgreSQL/PostGIS
+          migration, and all database integration tests passed before this commit.
+
+          Runtime PostgreSQL commands, authenticated Control API, and the review UI
+          remain separate downstream owners.
+          EOF
+          git rm .github/workflows/apply-stage8a-from-history.yml
+          git add -A
+          git diff --cached --check
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Feat (Review): add candidate and review foundation"
+          git push origin HEAD:main
