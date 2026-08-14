@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/stage8b-control-api.yml
+      - .github/workflows/ci.yml
       - pyproject.toml
       - uv.lock
       - apps/control_api/**
@@ -22,6 +23,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/stage8b-control-api.yml
+      - .github/workflows/ci.yml
       - pyproject.toml
       - uv.lock
       - apps/control_api/**
