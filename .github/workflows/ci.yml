@@ -74,6 +74,9 @@ jobs:
       - name: Build processing worker image
         run: docker build --file deploy/docker/processing-worker.Dockerfile .
 
+      - name: Build resolution worker image
+        run: docker build --file deploy/docker/resolution-worker.Dockerfile .
+
       - name: Build migration image
         run: docker build --file deploy/docker/migration.Dockerfile .
 

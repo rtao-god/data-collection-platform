@@ -12,15 +12,20 @@ on:
       - apps/manual_import_worker/**
       - apps/osm_worker/**
       - apps/processing_worker/**
+      - apps/resolution_worker/**
       - connectors/osm_overpass/**
       - packages/collection_contracts/**
       - packages/extraction_core/**
       - packages/manual_import_core/**
       - packages/normalization_core/**
+      - packages/entity_resolution_core/**
+      - packages/quality_core/**
+      - packages/resolution_contracts/**
       - packages/source_connector_sdk/**
       - deploy/docker/manual-import-worker.Dockerfile
       - deploy/docker/osm-worker.Dockerfile
       - deploy/docker/processing-worker.Dockerfile
+      - deploy/docker/resolution-worker.Dockerfile
   pull_request:
     paths:
       - .github/workflows/worker-image-isolation.yml
@@ -30,15 +35,20 @@ on:
       - apps/manual_import_worker/**
       - apps/osm_worker/**
       - apps/processing_worker/**
+      - apps/resolution_worker/**
       - connectors/osm_overpass/**
       - packages/collection_contracts/**
       - packages/extraction_core/**
       - packages/manual_import_core/**
       - packages/normalization_core/**
+      - packages/entity_resolution_core/**
+      - packages/quality_core/**
+      - packages/resolution_contracts/**
       - packages/source_connector_sdk/**
       - deploy/docker/manual-import-worker.Dockerfile
       - deploy/docker/osm-worker.Dockerfile
       - deploy/docker/processing-worker.Dockerfile
+      - deploy/docker/resolution-worker.Dockerfile
   workflow_dispatch:
 
 permissions:
@@ -63,6 +73,10 @@ jobs:
             dockerfile: deploy/docker/processing-worker.Dockerfile
             image: data-collection-platform/processing-worker:ci
             required_modules: processing_worker,extraction_core,normalization_core,source_connector_sdk
+          - worker: resolution-worker
+            dockerfile: deploy/docker/resolution-worker.Dockerfile
+            image: data-collection-platform/resolution-worker:ci
+            required_modules: resolution_worker,entity_resolution_core,quality_core,resolution_contracts,source_connector_sdk
     name: ${{ matrix.worker }}
     steps:
       - name: Check out repository
