@@ -1,0 +1,213 @@
+name: Materialize Operations After Export
+
+on:
+  workflow_run:
+    workflows: ["Materialize Sealed Export After Browser"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: data-collection-platform-operations-after-export
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Wait for exact-head repository and export proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          subject="$(git rev-parse HEAD)"
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
+          for workflow in ci.yml export-ci.yml; do
+            matched=''
+            for _ in $(seq 1 360); do
+              payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/$workflow/runs?branch=main&per_page=50")"
+              status="$(jq -r --arg sha "$subject" '.workflow_runs[] | select(.head_sha == $sha) | .status' <<<"$payload" | head -1)"
+              conclusion="$(jq -r --arg sha "$subject" '.workflow_runs[] | select(.head_sha == $sha) | .conclusion' <<<"$payload" | head -1)"
+              run_id="$(jq -r --arg sha "$subject" '.workflow_runs[] | select(.head_sha == $sha) | .id' <<<"$payload" | head -1)"
+              if [[ "$status" == completed ]]; then
+                [[ "$conclusion" == success ]] || { echo "$workflow failed in $run_id" >&2; exit 1; }
+                matched="$run_id"
+                break
+              fi
+              sleep 5
+            done
+            test -n "$matched" || exit 1
+          done
+
+      - name: Restore bounded operations owners from history
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            apps/retention_job/pyproject.toml
+            apps/orchestrator/pyproject.toml
+            tools/operations/backup_restore.py
+            deploy/compose/application.yaml
+          )
+          for marker in "${required[@]}"; do
+            commit="$(git log --all --format=%H -- "$marker" | head -1)"
+            test -n "$commit" || { echo "required operations owner is absent: $marker" >&2; exit 1; }
+            case "$marker" in
+              apps/retention_job/*) git checkout "$commit" -- apps/retention_job ;;
+              apps/orchestrator/*) git checkout "$commit" -- apps/orchestrator ;;
+              tools/operations/*) git checkout "$commit" -- tools/operations ;;
+              deploy/compose/*) git checkout "$commit" -- deploy/compose/application.yaml ;;
+            esac
+          done
+          optional=(
+            deploy/docker/retention-job.Dockerfile
+            deploy/docker/orchestrator.Dockerfile
+            .github/workflows/application-compose-ci.yml
+            .github/workflows/vertical-data-flow-e2e.yml
+            .github/workflows/operations-ci.yml
+            .github/workflows/backup-restore-ci.yml
+          )
+          for path in "${optional[@]}"; do
+            commit="$(git log --all --format=%H -- "$path" | head -1)"
+            if [[ -n "$commit" ]] && git cat-file -e "$commit:$path" 2>/dev/null; then
+              git checkout "$commit" -- "$path"
+            fi
+          done
+
+      - name: Register operations workspace owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("pyproject.toml")
+          text = root.read_text(encoding="utf-8")
+          members = ["apps/retention_job", "apps/orchestrator"]
+          sources = []
+          for member in members:
+              src = Path(member) / "src"
+              for child in sorted(src.iterdir() if src.is_dir() else ()): 
+                  if child.is_dir() and (child / "__init__.py").exists():
+                      sources.append(child.as_posix())
+          workspace = re.search(r'(?ms)(\[tool\.uv\.workspace\]\s*members\s*=\s*\[)(.*?)(\])', text)
+          if workspace is None:
+              raise RuntimeError("workspace registry missing")
+          body = workspace.group(2)
+          for member in members:
+              if f'"{member}"' not in body:
+                  body = body.rstrip() + f'\n  "{member}",\n'
+          text = text[:workspace.start(2)] + body + text[workspace.end(2):]
+          mypy = re.search(r'(?ms)(\[tool\.mypy\].*?\nfiles\s*=\s*\[)(.*?)(\])', text)
+          if mypy is None:
+              raise RuntimeError("mypy registry missing")
+          body = mypy.group(2)
+          for source in sources:
+              if source not in body:
+                  body = body.rstrip() + f'\n  "{source}",\n'
+          if 'tools/operations/backup_restore.py' not in body:
+              body = body.rstrip() + '\n  "tools/operations/backup_restore.py",\n'
+          text = text[:mypy.start(2)] + body + text[mypy.end(2):]
+          root.write_text(text, encoding="utf-8")
+          PY
+          uv lock
+          uv sync --all-packages --dev --locked
+
+      - name: Prove retention, orchestration, Compose and restore tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format apps/retention_job apps/orchestrator tools/operations
+          uv run ruff check --fix apps/retention_job apps/orchestrator tools/operations
+          uv run ruff format --check apps/retention_job apps/orchestrator tools/operations
+          uv run ruff check apps/retention_job apps/orchestrator tools/operations
+          uv run mypy \
+            apps/retention_job/src \
+            apps/orchestrator/src \
+            tools/operations/backup_restore.py
+          uv run pytest -q apps/retention_job/tests apps/orchestrator/tests tools/operations/tests
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps/retention_job apps/orchestrator tools/operations
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+          docker compose -f deploy/compose/application.yaml config > /tmp/application-compose.yaml
+          if grep -nE 'image:.*:latest([[:space:]]|$)' /tmp/application-compose.yaml; then
+            echo 'mutable latest image tag is forbidden' >&2
+            exit 1
+          fi
+          if grep -nEi '(password|secret|access[_-]?key):[[:space:]]+[^$<{]' /tmp/application-compose.yaml; then
+            echo 'literal credentials are forbidden in resolved Compose' >&2
+            exit 1
+          fi
+          if test -f deploy/docker/retention-job.Dockerfile; then
+            docker build --file deploy/docker/retention-job.Dockerfile \
+              --tag data-collection-platform/retention-job:ci .
+          fi
+          if test -f deploy/docker/orchestrator.Dockerfile; then
+            docker build --file deploy/docker/orchestrator.Dockerfile \
+              --tag data-collection-platform/orchestrator:ci .
+          fi
+          uv run python tools/operations/backup_restore.py --help >/dev/null
+
+      - name: Commit operations owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch .github/workflows/materialize-operations-after-export.yml
+          git add \
+            apps/retention_job apps/orchestrator tools/operations \
+            deploy/compose/application.yaml pyproject.toml uv.lock
+          for path in \
+            deploy/docker/retention-job.Dockerfile \
+            deploy/docker/orchestrator.Dockerfile \
+            .github/workflows/application-compose-ci.yml \
+            .github/workflows/vertical-data-flow-e2e.yml \
+            .github/workflows/operations-ci.yml \
+            .github/workflows/backup-restore-ci.yml; do
+            test ! -f "$path" || git add "$path"
+          done
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Feature (Operations): materialize executable runtime topology'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
