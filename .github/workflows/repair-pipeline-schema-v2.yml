@@ -1,0 +1,114 @@
+name: Repair Pipeline Schema V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair-pipeline-schema-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-schema-v2
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Patch canonical schema identity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          migration = Path("database/migrations/versions/20260815_0013_pipeline_advancement.py")
+          text = migration.read_text(encoding="utf-8").replace(
+              '("work.work_units.work_unit_id",)',
+              '("work.work_units.work_id",)',
+          )
+          migration.write_text(text, encoding="utf-8")
+
+          metadata = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "pipeline_advancement_metadata.py"
+          )
+          text = metadata.read_text(encoding="utf-8")
+          text = text.replace(
+              'sa.Column("work_unit_id", sa.Uuid(), primary_key=True)',
+              'sa.Column("work_id", sa.Uuid(), primary_key=True)',
+          ).replace("_work_units.c.work_unit_id", "_work_units.c.work_id")
+          metadata.write_text(text, encoding="utf-8")
+
+          test = Path("database/tests/test_pipeline_advancement_schema.py")
+          text = test.read_text(encoding="utf-8").replace(
+              'assert "ON DELETE RESTRICT" in source',
+              'assert \'ondelete="RESTRICT"\' in source',
+          )
+          test.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Restore workspace and verify migration owner
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          uv run ruff format \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+          uv run ruff check \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+          uv run pytest -q \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py
+          uv run collection-migrate upgrade head
+
+      - name: Commit canonical schema repair
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/repair-pipeline-schema-direct.yml \
+            .github/workflows/repair-pipeline-schema-v2.yml
+          git add \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Fix (Pipeline): align advancement schema with work identity'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
