@@ -1,0 +1,172 @@
+name: Restore Operational E2E Fallback
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/proofs/pipeline-advancement-ci.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-operational-e2e-restoration
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Require pipeline proof and inspect current inventory
+        id: inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f docs/proofs/pipeline-advancement-ci.md
+          complete=true
+          for path in \
+            apps/review_web/package-lock.json \
+            apps/browser_worker/pyproject.toml \
+            packages/export_core/src/export_core/service.py \
+            apps/retention_job/pyproject.toml \
+            apps/orchestrator/pyproject.toml \
+            tools/operations/backup_restore.py \
+            deploy/compose/application.yaml; do
+            test -f "$path" || complete=false
+          done
+          echo "complete=$complete" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        if: steps.inventory.outputs.complete != 'true'
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        if: steps.inventory.outputs.complete != 'true'
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Assemble minimal compatible candidate
+        if: steps.inventory.outputs.complete != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_sha="$(git rev-parse HEAD)"
+          base_sha="9bec95589ee0592a873edbc0548be27707f53af6"
+          candidate="$RUNNER_TEMP/operational-fallback"
+          git worktree add --detach "$candidate" "$base_sha"
+
+          overlay=(
+            database/migrations/versions/20260815_0011_owned_artifacts.py
+            database/migrations/versions/20260815_0012_run_control.py
+            database/migrations/versions/20260815_0013_pipeline_advancement.py
+            database/tests/test_pipeline_advancement_schema.py
+            packages/collection_application/src/collection_application/artifacts.py
+            packages/collection_application/src/collection_application/owned_artifacts.py
+            packages/collection_application/src/collection_application/campaign_publication.py
+            packages/collection_application/src/collection_application/campaign_runs.py
+            packages/collection_application/src/collection_application/run_control.py
+            packages/collection_application/src/collection_application/pipeline_advancement.py
+            packages/collection_application/src/collection_application/pipeline_supervision.py
+            packages/collection_application/tests/test_run_control.py
+            packages/collection_application/tests/test_pipeline_advancement.py
+            packages/collection_application/tests/test_pipeline_supervision.py
+            packages/collection_infrastructure/src/collection_infrastructure/object_store.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_metadata.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/metadata.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/owned_artifact_publisher.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/campaign_snapshot_store.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/campaign_run_store.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/run_control.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          )
+          for path in "${overlay[@]}"; do
+            if git cat-file -e "$current_sha:$path" 2>/dev/null; then
+              mkdir -p "$candidate/$(dirname "$path")"
+              git show "$current_sha:$path" > "$candidate/$path"
+            fi
+          done
+
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/workflows/' \
+            --exclude='.github/apply/' \
+            --exclude='.github/repair_pipeline_owner_v2.py' \
+            "$candidate/" "$GITHUB_WORKSPACE/"
+          rm -rf .github/apply
+          rm -f .github/repair_pipeline_owner_v2.py
+          uv lock
+          uv sync --frozen --all-packages --dev
+
+      - name: Prove fallback production tree
+        if: steps.inventory.outputs.complete != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m "not integration and not object_store_integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          if test -f tools/review_contract_generation/generate.py; then
+            uv run python tools/review_contract_generation/generate.py --check
+          fi
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collector config validate berlin_recording_services
+          uv run collection-migrate upgrade head
+          uv run pytest -q -m integration database/tests
+          docker compose -f deploy/compose/application.yaml config --quiet
+
+      - name: Commit fallback tree
+        if: steps.inventory.outputs.complete != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- . \
+            ':(exclude).github/workflows/**' \
+            ':(exclude).github/apply/**'
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Recovery): restore operational E2E fallback"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
