@@ -1,0 +1,656 @@
+name: Owner-Aware Operational Reconciliation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/reconcile-operational-v5.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: data-collection-platform-owner-aware-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+      OPERATIONAL_BASE_SHA: 9bec95589ee0592a873edbc0548be27707f53af6
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Wait for older mutating workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          for _ in $(seq 1 240); do
+            active="$(
+              curl -fsSL \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H 'Accept: application/vnd.github+json' \
+                "$api/actions/runs?branch=main&per_page=100" \
+              | jq --argjson self "$GITHUB_RUN_ID" '[
+                  .workflow_runs[]
+                  | select(.id != $self)
+                  | select(.status != "completed")
+                  | select(.name == "Final Self-Contained Operational Reconciliation"
+                        or .name == "Reconcile Complete Operational Production Tree"
+                        or .name == "Reconcile All Missing Operational Owners"
+                        or .name == "Repair Pipeline Advancement Owner"
+                        or .name == "Repair Pipeline Advancement Owner V2")
+                ] | length'
+            )"
+            if test "$active" = 0; then
+              break
+            fi
+            sleep 5
+          done
+          git fetch origin main
+          git reset --hard origin/main
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.14.0"
+
+      - name: Restore only missing production owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$OPERATIONAL_BASE_SHA^{commit}"
+
+          for top in apps connectors packages; do
+            while IFS= read -r project; do
+              test -n "$project" || continue
+              if test ! -e "$project"; then
+                git checkout "$OPERATIONAL_BASE_SHA" -- "$project"
+              fi
+            done < <(git ls-tree -d --name-only "$OPERATIONAL_BASE_SHA" "$top/*")
+          done
+
+          for top in deploy tools/operations tests/e2e tests/operations docs/runbooks; do
+            while IFS= read -r path; do
+              test -n "$path" || continue
+              if test ! -e "$path"; then
+                git checkout "$OPERATIONAL_BASE_SHA" -- "$path"
+              fi
+            done < <(git ls-tree -r --name-only "$OPERATIONAL_BASE_SHA" -- "$top")
+          done
+
+          while IFS= read -r path; do
+            test -n "$path" || continue
+            if test ! -e "$path"; then
+              git checkout "$OPERATIONAL_BASE_SHA" -- "$path"
+            fi
+          done < <(
+            git ls-tree -r --name-only "$OPERATIONAL_BASE_SHA" -- \
+              database/migrations/versions database/tests
+          )
+
+      - name: Align canonical pipeline storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          metadata = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/pipeline_advancement_metadata.py"
+          )
+          if metadata.exists():
+              text = metadata.read_text(encoding="utf-8")
+              text = text.replace(
+                  'sa.Column("work_unit_id", sa.Uuid(), primary_key=True)',
+                  'sa.Column("work_id", sa.Uuid(), primary_key=True)',
+              ).replace("_work_units.c.work_unit_id", "_work_units.c.work_id")
+              metadata.write_text(text, encoding="utf-8")
+
+          migration = Path(
+              "database/migrations/versions/20260815_0013_pipeline_advancement.py"
+          )
+          if migration.exists():
+              text = migration.read_text(encoding="utf-8").replace(
+                  '"work.work_units.work_unit_id"',
+                  '"work.work_units.work_id"',
+              )
+              migration.write_text(text, encoding="utf-8")
+
+          supervision = Path(
+              "packages/collection_application/tests/test_pipeline_supervision.py"
+          )
+          if supervision.exists():
+              text = supervision.read_text(encoding="utf-8")
+              anchor = (
+                  "        expires_at_utc=_NOW + timedelta(minutes=5),\n"
+                  "    )\n\n\n"
+                  "def _status(\n"
+              )
+              replacement = (
+                  "        expires_at_utc=_NOW + timedelta(minutes=5),\n"
+                  "    )\n\n\n"
+                  "_DEFAULT_SOURCES = (_source(),)\n"
+                  "_DEFAULT_LEASE = _lease()\n\n\n"
+                  "def _status(\n"
+              )
+              if "_DEFAULT_SOURCES = (_source(),)" not in text and anchor in text:
+                  text = text.replace(anchor, replacement, 1)
+              text = text.replace(
+                  "class Discovery:\n"
+                  "    def __init__(self, sources=(_source(),)) -> None:\n"
+                  "        self.sources = sources\n",
+                  "class Discovery:\n"
+                  "    def __init__(\n"
+                  "        self,\n"
+                  "        sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES,\n"
+                  "    ) -> None:\n"
+                  "        self.sources = sources\n",
+              )
+              text = text.replace(
+                  "class Port:\n"
+                  "    def __init__(self, *, lease=_lease()) -> None:\n"
+                  "        self.lease = lease\n",
+                  "class Port:\n"
+                  "    def __init__(\n"
+                  "        self,\n"
+                  "        *,\n"
+                  "        lease: PipelineAdvancementLease | None = _DEFAULT_LEASE,\n"
+                  "    ) -> None:\n"
+                  "        self.lease = lease\n",
+              )
+              supervision.write_text(text, encoding="utf-8")
+
+          inventory = Path("database/tests/test_work_engine_schema.py")
+          if inventory.exists():
+              text = inventory.read_text(encoding="utf-8")
+              if '"pipeline_advancements"' not in text:
+                  text = text.replace(
+                      '        "dead_letters",\n',
+                      '        "dead_letters",\n'
+                      '        "pipeline_advancement_attempts",\n'
+                      '        "pipeline_advancements",\n',
+                      1,
+                  )
+              inventory.write_text(text, encoding="utf-8")
+          PY
+
+          cat > packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py <<'PYFILE'
+          from __future__ import annotations
+
+          from dataclasses import dataclass
+          from typing import Any
+          from uuid import UUID
+
+          import sqlalchemy as sa
+          from collection_application.pipeline_advancement import (
+              ArtifactIdentity,
+              PipelineAdvancementConflict,
+              SucceededWorkOutput,
+          )
+          from collection_domain import WorkStage
+          from sqlalchemy.engine import Connection, Engine, RowMapping
+          from sqlalchemy.exc import SQLAlchemyError
+
+          from collection_infrastructure.postgres.artifact_metadata import (
+              artifact_objects,
+              artifact_records,
+              work_input_artifacts,
+              work_output_artifacts,
+          )
+          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+              pipeline_advancements,
+          )
+          from collection_infrastructure.postgres.work_metadata import stage_runs, work_units
+
+
+          @dataclass(frozen=True, slots=True)
+          class _BoundArtifact:
+              position: int
+              artifact: ArtifactIdentity
+
+
+          class PostgresSucceededWorkCatalog:
+              """Read successful work through explicit canonical physical owners."""
+
+              def __init__(self, engine: Engine) -> None:
+                  self._engine = engine
+
+              def __call__(
+                  self,
+                  connection: Connection,
+                  source_work_unit_id: UUID,
+              ) -> SucceededWorkOutput:
+                  return self.read(connection, source_work_unit_id)
+
+              def read(
+                  self,
+                  connection: Connection,
+                  source_work_unit_id: UUID,
+              ) -> SucceededWorkOutput:
+                  work = (
+                      connection.execute(
+                          sa.select(work_units)
+                          .where(work_units.c.work_id == source_work_unit_id)
+                          .with_for_update(read=True)
+                      )
+                      .mappings()
+                      .one_or_none()
+                  )
+                  if work is None:
+                      raise _conflict(
+                          "PIPELINE_SOURCE_WORK_NOT_FOUND",
+                          "The source work unit does not exist.",
+                          source_work_unit_id,
+                          "Select an existing successful work unit.",
+                      )
+                  if _text(work, "state") != "succeeded":
+                      raise _conflict(
+                          "PIPELINE_SOURCE_WORK_NOT_SUCCEEDED",
+                          "Pipeline advancement accepts only successful work.",
+                          source_work_unit_id,
+                          "Wait for canonical completion before advancement.",
+                      )
+
+                  run_id = _uuid(work["run_id"])
+                  stage_run_id = _uuid(work["stage_run_id"])
+                  stage_row = (
+                      connection.execute(
+                          sa.select(stage_runs).where(
+                              stage_runs.c.stage_run_id == stage_run_id
+                          )
+                      )
+                      .mappings()
+                      .one_or_none()
+                  )
+                  if stage_row is None:
+                      raise _conflict(
+                          "PIPELINE_STAGE_OWNER_NOT_FOUND",
+                          "The successful work has no canonical stage owner.",
+                          source_work_unit_id,
+                          "Repair stage ownership before advancement.",
+                      )
+                  if _uuid(stage_row["run_id"]) != run_id:
+                      raise _conflict(
+                          "PIPELINE_STAGE_RUN_CONFLICT",
+                          "Work and stage owners belong to different runs.",
+                          source_work_unit_id,
+                          "Repair run/stage ownership before advancement.",
+                      )
+
+                  inputs = _load(connection, work_input_artifacts, source_work_unit_id)
+                  outputs = _load(connection, work_output_artifacts, source_work_unit_id)
+                  if len(outputs) != 1:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_OUTPUT_ARTIFACT_CARDINALITY",
+                          message="Successful work must have one canonical output artifact.",
+                          context={
+                              "sourceWorkUnitId": str(source_work_unit_id),
+                              "outputArtifactCount": len(outputs),
+                          },
+                          required_action="Repair immutable output bindings.",
+                      )
+                  identities = tuple(item.artifact.artifact_id for item in (*inputs, *outputs))
+                  if len(identities) != len(set(identities)):
+                      raise _conflict(
+                          "PIPELINE_ARTIFACT_BINDING_DUPLICATE",
+                          "Artifact bindings contain duplicate identities.",
+                          source_work_unit_id,
+                          "Repair immutable input/output bindings.",
+                      )
+
+                  output_digest = _text(work, "output_digest")
+                  if output_digest != outputs[0].artifact.content_digest:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_OUTPUT_DIGEST_CONFLICT",
+                          message="Work and artifact output digests differ.",
+                          context={
+                              "sourceWorkUnitId": str(source_work_unit_id),
+                              "workOutputDigest": output_digest,
+                              "artifactDigest": outputs[0].artifact.content_digest,
+                          },
+                          required_action="Repair the corrupted completion or binding.",
+                      )
+                  try:
+                      stage = WorkStage(_text(stage_row, "stage"))
+                  except ValueError as exc:
+                      raise _conflict(
+                          "PIPELINE_STAGE_VALUE_INVALID",
+                          "The canonical stage value is unsupported.",
+                          source_work_unit_id,
+                          "Migrate the stage value before advancement.",
+                      ) from exc
+
+                  return SucceededWorkOutput(
+                      source_work_unit_id=source_work_unit_id,
+                      run_id=run_id,
+                      stage_run_id=stage_run_id,
+                      stage=stage,
+                      capability=_text(work, "capability"),
+                      output_contract=_text(work, "output_contract"),
+                      output_digest=output_digest,
+                      output_artifact=outputs[0].artifact,
+                      input_artifacts=tuple(item.artifact for item in inputs),
+                  )
+
+              def list_unregistered_succeeded(
+                  self,
+                  *,
+                  limit: int,
+                  correlation_id: str,
+              ) -> tuple[SucceededWorkOutput, ...]:
+                  del correlation_id
+                  if not 1 <= limit <= 1_000:
+                      raise ValueError("discovery limit must be between 1 and 1000")
+                  try:
+                      with self._engine.connect() as connection:
+                          statement = (
+                              sa.select(work_units.c.work_id)
+                              .where(
+                                  work_units.c.state == "succeeded",
+                                  ~sa.exists(
+                                      sa.select(sa.literal(1)).where(
+                                          pipeline_advancements.c.source_work_unit_id
+                                          == work_units.c.work_id
+                                      )
+                                  ),
+                              )
+                              .order_by(work_units.c.updated_at_utc, work_units.c.work_id)
+                              .limit(limit)
+                          )
+                          work_ids = tuple(
+                              _uuid(value)
+                              for value in connection.execute(statement).scalars()
+                          )
+                          return tuple(self.read(connection, work_id) for work_id in work_ids)
+                  except PipelineAdvancementConflict:
+                      raise
+                  except SQLAlchemyError as exc:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_DISCOVERY_STORAGE_FAILED",
+                          message="Successful work discovery did not complete.",
+                          context={"causeType": type(exc).__name__},
+                          required_action="Inspect PostgreSQL and retry exact discovery.",
+                      ) from exc
+
+
+          def _binding_statement(
+              binding: sa.Table,
+              source_work_unit_id: UUID,
+          ) -> sa.Select[Any]:
+              return (
+                  sa.select(
+                      binding.c.position.label("binding_position"),
+                      binding.c.role.label("binding_role"),
+                      artifact_records.c.artifact_id.label("artifact_id"),
+                      artifact_objects.c.content_digest.label("content_digest"),
+                      artifact_objects.c.size_bytes.label("size_bytes"),
+                      artifact_records.c.content_type.label("content_type"),
+                  )
+                  .select_from(
+                      binding.join(
+                          artifact_records,
+                          binding.c.artifact_id == artifact_records.c.artifact_id,
+                      ).join(
+                          artifact_objects,
+                          artifact_records.c.object_id == artifact_objects.c.object_id,
+                      )
+                  )
+                  .where(binding.c.work_id == source_work_unit_id)
+                  .order_by(binding.c.position, artifact_records.c.artifact_id)
+              )
+
+
+          def _load(
+              connection: Connection,
+              binding: sa.Table,
+              source_work_unit_id: UUID,
+          ) -> tuple[_BoundArtifact, ...]:
+              rows = (
+                  connection.execute(_binding_statement(binding, source_work_unit_id))
+                  .mappings()
+                  .all()
+              )
+              return tuple(_bound(row) for row in rows)
+
+
+          def _bound(row: RowMapping) -> _BoundArtifact:
+              return _BoundArtifact(
+                  position=_integer(row["binding_position"], "binding position", minimum=0),
+                  artifact=ArtifactIdentity(
+                      artifact_id=_uuid(row["artifact_id"]),
+                      role=_string(row["binding_role"], "artifact role"),
+                      content_digest=_string(row["content_digest"], "artifact digest"),
+                      size_bytes=_integer(row["size_bytes"], "artifact size", minimum=1),
+                      content_type=_string(row["content_type"], "content type"),
+                  ),
+              )
+
+
+          def _conflict(
+              code: str,
+              message: str,
+              source_work_unit_id: UUID,
+              required_action: str,
+          ) -> PipelineAdvancementConflict:
+              return PipelineAdvancementConflict(
+                  code=code,
+                  message=message,
+                  context={"sourceWorkUnitId": str(source_work_unit_id)},
+                  required_action=required_action,
+              )
+
+
+          def _uuid(value: object) -> UUID:
+              if value is None:
+                  raise TypeError("persisted UUID value is null")
+              return value if isinstance(value, UUID) else UUID(str(value))
+
+
+          def _text(row: RowMapping, key: str) -> str:
+              return _string(row[key], key)
+
+
+          def _string(value: object, meaning: str) -> str:
+              if not isinstance(value, str) or not value:
+                  raise TypeError(f"persisted {meaning} is not non-empty text")
+              return value
+
+
+          def _integer(value: object, meaning: str, *, minimum: int) -> int:
+              if not isinstance(value, int) or value < minimum:
+                  raise TypeError(f"persisted {meaning} is below {minimum}")
+              return value
+          PYFILE
+
+      - name: Reconcile workspace from physical project roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import re
+          import tomllib
+          from pathlib import Path
+
+          root = Path(".")
+          path = root / "pyproject.toml"
+          text = path.read_text(encoding="utf-8")
+          data = tomllib.loads(text)
+          tool = data.get("tool", {})
+          projects = sorted(
+              project.parent.as_posix()
+              for top in ("apps", "connectors", "packages")
+              for project in (root / top).glob("*/pyproject.toml")
+          )
+          testpaths = sorted(
+              {
+                  *tool.get("pytest", {}).get("ini_options", {}).get("testpaths", []),
+                  "database/tests",
+                  *(
+                      f"{project}/tests"
+                      for project in projects
+                      if (root / project / "tests").is_dir()
+                  ),
+                  *(
+                      directory.as_posix()
+                      for directory in (root / "tests").glob("*")
+                      if directory.is_dir()
+                  ),
+              }
+          )
+          sources = sorted(
+              {
+                  *tool.get("ruff", {}).get("src", []),
+                  *(
+                      f"{project}/src"
+                      for project in projects
+                      if (root / project / "src").is_dir()
+                  ),
+              }
+          )
+          mypy_files = sorted(
+              {
+                  *tool.get("mypy", {}).get("files", []),
+                  *sources,
+                  "database",
+                  "tools",
+              }
+          )
+
+          def replace_array(source: str, section: str, key: str, values: list[str]) -> str:
+              header = f"[{section}]"
+              start = source.index(header)
+              next_section = source.find("\n[", start + len(header))
+              end = len(source) if next_section < 0 else next_section
+              block = source[start:end]
+              pattern = re.compile(rf"(?ms)^{re.escape(key)}\s*=\s*\[.*?^\]")
+              rendered = key + " = [\n" + "".join(
+                  f'  "{value}",\n' for value in values
+              ) + "]"
+              if not pattern.search(block):
+                  raise RuntimeError(f"missing {section}.{key}")
+              block = pattern.sub(rendered, block, count=1)
+              return source[:start] + block + source[end:]
+
+          text = replace_array(text, "tool.uv.workspace", "members", projects)
+          text = replace_array(text, "tool.pytest.ini_options", "testpaths", testpaths)
+          text = replace_array(text, "tool.ruff", "src", sources)
+          text = replace_array(text, "tool.mypy", "files", mypy_files)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Reconcile generated and formatted sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock
+          uv sync --frozen --all-packages --dev
+          while IFS= read -r generator; do
+            uv run python "$generator"
+          done < <(find tools -path '*/contract_generation/generate.py' -type f | sort)
+          uv run ruff format .
+          uv run ruff check --fix --unsafe-fixes .
+          uv run ruff format .
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Synchronize dependency policy when supported
+        shell: bash
+        run: |
+          set -euo pipefail
+          checker=tools/architecture_checks/check_dependencies.py
+          if uv run python "$checker" --print-policy >/tmp/dependency-policy.md 2>/dev/null; then
+            python - <<'PY'
+          from pathlib import Path
+
+          policy = Path("/tmp/dependency-policy.md").read_text(encoding="utf-8").strip()
+          path = Path("docs/architecture/dependency-rules.md")
+          text = path.read_text(encoding="utf-8")
+          start_marker = "<!-- dependency-policy:start -->"
+          end_marker = "<!-- dependency-policy:end -->"
+          if start_marker in text and end_marker in text:
+              start = text.index(start_marker)
+              end = text.index(end_marker, start) + len(end_marker)
+              path.write_text(text[:start] + policy + text[end:], encoding="utf-8")
+          PY
+          fi
+
+      - name: Prove complete backend and database
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run mypy
+          uv run pytest -m 'not integration and not object_store_integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collector config validate berlin_recording_services
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+
+      - name: Prove frontend and Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f apps/review_web/package-lock.json; then
+            npm --prefix apps/review_web ci
+            npm --prefix apps/review_web run lint
+            npm --prefix apps/review_web run typecheck --if-present
+            npm --prefix apps/review_web test -- --run
+            npm --prefix apps/review_web run build
+          fi
+          docker compose -f deploy/compose/application.yaml config >/tmp/application-compose.yaml
+          test -s /tmp/application-compose.yaml
+
+      - name: Commit proven owner graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- . ':(exclude).github/workflows/**'
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Owner graph already matches the proven tree."
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git commit -m "Fix (Recovery): reconcile complete operational owner graph"
+          git push origin HEAD:main
