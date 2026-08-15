@@ -18,6 +18,8 @@ def test_pipeline_advancement_migration_is_linear_and_owner_scoped() -> None:
     assert '"pipeline_advancements"' in source
     assert '"pipeline_advancement_attempts"' in source
     assert 'schema="work"' in source
+    assert '"work.work_units.work_id"' in source
+    assert '"work.work_units.work_unit_id"' not in source
     assert "CASCADE" not in source
 
 
