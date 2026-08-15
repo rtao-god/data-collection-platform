@@ -1,0 +1,41 @@
+name: Cleanup Transport Noise
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cleanup-transport-noise.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/package-e2e-payload.yml \
+            .github/workflows/cleanup-transport-noise.yml \
+            docs/diagnostics/.transport-status \
+            docs/diagnostics/.transport-status-2 \
+            docs/diagnostics/.transport-status-3 \
+            docs/diagnostics/.transport-status-4 \
+            docs/diagnostics/.transport-status-5
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Build (Tooling): remove temporary transport probes"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
