@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -13,7 +12,7 @@ from collection_application.run_control import (
     RunCoverageReport,
     TransitionCollectionRun,
 )
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, RowMapping
 from sqlalchemy.exc import SQLAlchemyError
 
 from collection_domain import WorkStage
@@ -94,10 +93,10 @@ class PipelineAwareRunControlRepository:
         )
 
 
-def _coverage_blocker(row: Mapping[str, object]) -> RunCoverageBlocker:
+def _coverage_blocker(row: RowMapping) -> RunCoverageBlocker:
     stage = WorkStage(str(row["source_stage"]))
     state = PipelineAdvancementState(str(row["state"]))
-    count = int(row["count"])
+    count = _required_non_negative_int(row, "count")
     if state is PipelineAdvancementState.PENDING:
         return RunCoverageBlocker(
             code="PIPELINE_ADVANCEMENT_PENDING",
@@ -134,8 +133,15 @@ def _coverage_blocker(row: Mapping[str, object]) -> RunCoverageBlocker:
     )
 
 
-def _required_text(row: Mapping[str, object], key: str) -> str:
+def _required_text(row: RowMapping, key: str) -> str:
     value = row[key]
     if not isinstance(value, str) or not value:
         raise TypeError(f"persisted {key} is not non-empty text")
+    return value
+
+
+def _required_non_negative_int(row: RowMapping, key: str) -> int:
+    value = row[key]
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise TypeError(f"persisted {key} is not a non-negative integer")
     return value
