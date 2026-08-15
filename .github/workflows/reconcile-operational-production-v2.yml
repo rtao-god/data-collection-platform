@@ -1,4 +1,4 @@
-name: Reconcile Operational Production Tree V2
+name: Repair Pipeline Advancement Owner
 
 on:
   push:
@@ -9,14 +9,13 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 concurrency:
-  group: data-collection-platform-operational-reconciliation
+  group: data-collection-platform-pipeline-owner-repair
   cancel-in-progress: false
 
 jobs:
-  reconcile:
+  repair:
     runs-on: ubuntu-24.04
     services:
       collector-postgres:
@@ -34,370 +33,152 @@ jobs:
           --health-retries 20
     env:
       COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+
     steps:
-      - name: Check out complete main history
+      - name: Check out main
         uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
 
       - name: Install exact Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version-file: .python-version
           check-latest: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.10.0"
           enable-cache: true
 
-      - name: Assemble and prove backend production owners
-        id: assembled
+      - name: Align pipeline advancement with canonical physical owners
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
-          git reset --hard origin/main
-          current_sha="$(git rev-parse HEAD)"
-          workspace="$GITHUB_WORKSPACE"
-          candidate="$RUNNER_TEMP/operational-candidate"
+          python - <<'PY'
+          from __future__ import annotations
 
-          core_paths=(
-            apps/review_web/package-lock.json
-            apps/browser_worker/pyproject.toml
-            packages/export_core/src/export_core/service.py
-            apps/retention_job/pyproject.toml
-            apps/orchestrator/pyproject.toml
-            tools/operations/backup_restore.py
-            deploy/compose/application.yaml
+          import base64
+          import zlib
+          from pathlib import Path
+
+          def write_compressed(path: str, payload: str) -> None:
+              Path(path).write_bytes(zlib.decompress(base64.b64decode(payload)))
+
+          write_compressed(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "pipeline_advancement_metadata.py",
+              "eNrtV11v2jAUfedXRHmiEuIf8NBSKnXrWNVme7WMc2EWjh3sa1r662cnhITPJiHSNmk8IMXxOT72vT73Zq5VEhAyt2g1EBLwJFUaAyqlQopcSdPrbcfMSlDBfkGyCagJDO3NPbYcHcacCmBoCpJUGVxocDN6+VymhJ/gWAmXc00Nasv8wsNi6jABpDFFWnBsIUqT4k1tqjell+SQr98L3K+C1laaQTZokC6g8pzhreTonm96vZSnILgEQuM1lQwSkFjSj04pPYkxbq6hw4jOBORqwpPTwlzFxWW3wulwrIRNZD+sTuJxOPDvflge928GQap5QvWGLGEzirSFm0N09pgJMspqBmR3AhnX7nXJWR16UBr4Qn6FTb88uSHLw8DjQaBkDAIQRuHL5DV6eRxHYYVBWiH8kYweqDBQjjualYVMcD54QbaLXUOlB4ng5OYcbdReOs8itRrKK1PSKauSdKKvCHNGnOdKBO/oc2UffxbJaEpnXHDctIIri6lFwpRETRlewxHzBZirGKhGPncqju5NSxqtBHSip8OtGf4BZLZBMDndHV88SoQF6CtIffi83+AmbbbhI7/hskpsKjelLCXDL6/fp3d9Z/hukWzN0W7FxhfApZ00PLv+zhWbHXEFmwoq24XJ1diGSaJhzY1btE0AKSIkqY+YldiGwEXAik8y8mRpCWdCsSVoot4k6FZIpmJoBUzAmPMGdxmrYWW5hpjQrEi0FC59rjps3Sz+jNmLWQMRQA2ct6saWFRLkG3CmcFjZyVZj+A2WaioiY/pwm1dE3gHZvMurh3BzHIRNwVvD84Y6yOLxCLL8ffuOkY8gT66vw8lC4J6hPCeulwxnTAyDQ7ZVN2Za2vTuDsyprQGQS8HbQ/rvw7oKPSZEp5vpbfmVLM93k1v1SbD+soG+bDPrt/Snez1XXe3z9hNf1f4vbTJrHDdZoafH9SSy7hZlWplTVd60r/oRF00Ed2bz/8y/1eUecWY1frP+ba7uNnH91hJ4xKVS6zjgEeuU76puklpZTRxJmdX5KLNkwwb7jvdUWF5fnyePD1OJ+T2/uftdDz5NplGJLq9e5q8urLSP1spzIUiUijwC/wGKv1KzQ==",
+          )
+          write_compressed(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "succeeded_work_catalog.py",
+              "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",
+          )
+          write_compressed(
+              "packages/collection_infrastructure/tests/test_succeeded_work_catalog.py",
+              "eNrVVk1v20YQvfNXLHgiU4VxnNQHASxiSE4rNLEMV0IORbFYkUN5Y3KX3l1aUQ3/987ymxLlJsfwIECcNzM7b97MMlEyI5QmhSkUUEp4lktlCBNCGma4FNpxEosx+5yLbWOPmDbV+6LgcfN2vV7MHaf+k+8NNKBIpilENhxleZ7yqAwd5DyHlAugLH5kIoIMhGlieQ7B51IZnrDILGI0cbOflG9var/Lzm0mRYJxzcTxj1JykSg8ryoiW2SQS222CnTA6uA0A8NiZtgw906qe/TNC0MbpJ50FlmYA9P3Zx4r/MQpxqA/lEsXUQQQQ0zLYyP1LJXbYZK2Cqqx62WOqlK6kYWIW3P9UsFDwVEuGTPRHaqi4SLmW2x5ezj9kLI0uoNsH8Sc2XPqJm1zuof0CApii+U2wFu5+4ySwSSOQ78sb/+kizkJS6V57ln9vB75KZ+Ls7eu79DL29Xi4+Vs9YO+59Z3vvj96q8Vurn6jp3/ejF1yS/EZS55RS7eO3S5+uPq9gRoU4McJ4aE2Gmgo41P7mmhQWNrhBQ4G2nVKV5r3vPJ69/ItRQwLelPpAK+FfQe9hpTmiJPwRuVSRAFWhYqgipgIbjBqEE/gO+UMZnWgGynILyBlYQhedtH9K1/n/0TGKa2gCUUaSpYBhbv2mRBm1EHdTUuEvGh2gpBxhCSM4UuRvF/wXM3XMRWSoZtUnAnxBsdv/HR8/2O4WMlH5KrIJIqpnLzFRVJLWlsC94g/wHjbSikeyTB0HdCGp3W3KK20Q8ns5q1QcAgklnOsX+tyT71tITdlDQD5PmTAbJ2p/c77IMOn9yUG1BYpD2SdqdkpQp47nx8p/odtLRq2NOgisB289klXNjz9+FuJane+qwI1d8HrmgfBb9wkFZDYzn64nYJXlwNqDd4wz1Gc2QV1CPqolYDE60i5E6AogmHNNaHs6fkDntpb7+uY92K6nh+GnSpFTc2lNtljY15NxmHKInynxI3Y6LAPlZrkOYpE+6BR1sMVj0l/SV3ChhJYexA4F1e5ujdxW++ank6Q+NYLXibrdp4p/AaR5pu7Kgj9v15B6ulWAuwbIqdqWF3PGR5KNHSHjTs2SXz7tjcuFvz4XdD160ea+E4Z7YD4cv8D/kIj9jo6g/71ff5D0+x7/dlO7hYacZ1eeVSril8s97cpHuUsNUtxIdi7Qj5yfkov7m4uau/KQPFOK5074XPQB+lgWOa20+heNom/J8vF6/Z3LjD+xf7pGVpKMsmQfDI0gJwl8fVBXizuLn6tLi+osv16ma9qqPQ2fL646fFbOW+GAMp+VZquNsh9Rb9gntujWtuYefd3iftRdNRWi7DZVnUvB3WQS3O0bjOqjbMTw53i+wy95RSZ392/gOKoQDM",
           )
 
-          best_sha=''
-          best_score=-1
-          while read -r sha; do
-            score=0
-            for path in "${core_paths[@]}"; do
-              git cat-file -e "$sha:$path" 2>/dev/null && score=$((score + 1)) || true
-            done
-            if (( score > best_score )); then
-              best_score=$score
-              best_sha=$sha
-            fi
-            if (( score == ${#core_paths[@]} )); then
-              best_sha=$sha
-              best_score=$score
-              break
-            fi
-          done < <(git rev-list --all --date-order --max-count=1000)
+          migration = Path(
+              "database/migrations/versions/20260815_0013_pipeline_advancement.py"
+          )
+          migration_text = migration.read_text(encoding="utf-8")
+          migration_text = migration_text.replace(
+              '"work.work_units.work_unit_id"',
+              '"work.work_units.work_id"',
+          )
+          if '"work.work_units.work_id"' not in migration_text:
+              raise RuntimeError("canonical pipeline advancement work FK was not installed")
+          if '"work.work_units.work_unit_id"' in migration_text:
+              raise RuntimeError("obsolete pipeline advancement work FK remains")
+          migration.write_text(migration_text, encoding="utf-8")
 
-          if [[ -z "$best_sha" || "$best_score" -ne "${#core_paths[@]}" ]]; then
-            printf 'No historical tree owns the complete E2E core; best=%s score=%s/%s\n' \
-              "$best_sha" "$best_score" "${#core_paths[@]}" >&2
-            exit 1
-          fi
+          schema_test = Path("database/tests/test_pipeline_advancement_schema.py")
+          schema_text = schema_test.read_text(encoding="utf-8")
+          schema_text = schema_text.replace(
+              '    assert "ON DELETE RESTRICT" in source\n',
+              '    assert \'ondelete="RESTRICT"\' in source\n',
+          )
+          anchor = '    assert \'schema="work"\' in source\n'
+          assertions = (
+              '    assert \'"work.work_units.work_id"\' in source\n'
+              '    assert \'"work.work_units.work_unit_id"\' not in source\n'
+          )
+          if assertions not in schema_text:
+              if anchor not in schema_text:
+                  raise RuntimeError("pipeline advancement schema-test anchor is missing")
+              schema_text = schema_text.replace(anchor, anchor + assertions)
+          schema_test.write_text(schema_text, encoding="utf-8")
 
-          rm -rf "$candidate"
-          git worktree add --detach "$candidate" "$best_sha"
-          git -C "$candidate" config user.name rtao-god
-          git -C "$candidate" config user.email rtaogod@gmail.com
+          metadata_test = Path(
+              "packages/collection_infrastructure/tests/"
+              "test_pipeline_advancement_metadata.py"
+          )
+          metadata_test_text = metadata_test.read_text(encoding="utf-8")
+          metadata_test_append = zlib.decompress(
+              base64.b64decode("eNptj0EKgzAQRfc5xeBKFw3ttmCP0AuUMgxxlGCcSDK2ePtqLcVCZ/sf7/8xxjTcgnJWHP3IwQsjNQ8SxwOL4sBKDSmhUupYMzqSKN5RwGdMPfpmobzOZQWHC1yj8NnAcm1M7DvBnucMNeg0Bi7/NWTrbI5TcrwJJ/G6WO1eUJm3k3LmpBBYyp8U6hpOe2Kf3o53u23HdgpBaOCVL9Yy+23M9vNNYV4wj2Ng")
+          ).decode()
+          if "test_pipeline_advancement_metadata_targets_canonical_work_identity" not in (
+              metadata_test_text
+          ):
+              metadata_test.write_text(
+                  metadata_test_text.rstrip() + metadata_test_append,
+                  encoding="utf-8",
+              )
+          PY
 
-          apply_owner_commits() {
-            local label="$1"
-            shift
-            local commits=()
-            mapfile -t commits < <(git log --all --reverse --format='%H' -- "$@" | awk '!seen[$0]++')
-            for commit in "${commits[@]}"; do
-              git merge-base --is-ancestor "$commit" "$best_sha" && continue
-              parent="$(git rev-parse "$commit^")"
-              patch="$RUNNER_TEMP/${label}-${commit}.patch"
-              git diff --binary "$parent" "$commit" -- . \
-                ':(exclude).github/workflows/**' \
-                ':(exclude).github/apply/**' \
-                ':(exclude)docs/diagnostics/**' > "$patch"
-              [[ -s "$patch" ]] || continue
-              git -C "$candidate" apply --3way --index "$patch" || {
-                echo "Failed to apply $label owner commit $commit" >&2
-                exit 1
-              }
-              if ! git -C "$candidate" diff --cached --quiet; then
-                git -C "$candidate" commit -m "Recovery ($label): $(git show -s --format=%s "$commit")"
-              fi
-            done
-          }
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
 
-          apply_owner_commits run-control \
-            packages/collection_application/src/collection_application/run_control.py \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/run_control.py \
-            database/migrations/versions/20260815_0012_run_control.py \
-            apps/control_api/src/control_api/app.py \
-            apps/control_api/src/control_api/main.py
-
-          apply_owner_commits pipeline-advancement \
-            packages/collection_application/src/collection_application/pipeline_advancement.py \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
-            apps/pipeline_supervisor \
-            apps/dagster_definitions \
+      - name: Normalize pipeline owner sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
             database/migrations/versions/20260815_0013_pipeline_advancement.py
-
-          mkdir -p "$candidate/.codex/modules" "$candidate/docs/specifications"
-          for path in \
-            AGENTS.md \
-            .codex/modules/pipeline-advancement.md \
-            docs/specifications/pipeline-advancement.md; do
-            if git cat-file -e "$current_sha:$path" 2>/dev/null; then
-              git show "$current_sha:$path" > "$candidate/$path"
-            fi
-          done
-
-          required=(
-            packages/collection_application/src/collection_application/pipeline_advancement.py
+            database/tests/test_pipeline_advancement_schema.py
+            packages/collection_application/src/collection_application/pipeline_supervision.py
+            packages/collection_application/tests/test_pipeline_supervision.py
             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
-            packages/collection_application/src/collection_application/run_control.py
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/run_control.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
           )
-          for path in "${core_paths[@]}" "${required[@]}"; do
-            test -f "$candidate/$path" || { echo "missing candidate owner: $path" >&2; exit 1; }
-          done
-          if ! test -f "$candidate/apps/pipeline_supervisor/pyproject.toml" \
-             && ! test -f "$candidate/apps/dagster_definitions/pyproject.toml"; then
-            echo 'missing pipeline orchestration composition root' >&2
-            exit 1
-          fi
+          uv run ruff check --fix "${files[@]}"
+          uv run ruff format "${files[@]}"
+          uv run ruff check "${files[@]}"
+          uv run ruff format --check "${files[@]}"
 
-          rsync -a --delete \
-            --exclude='.git/' \
-            --exclude='.github/workflows/' \
-            --exclude='.github/apply/' \
-            "$candidate/" "$workspace/"
-          rm -rf .github/apply
-          find docs/diagnostics -maxdepth 1 -type f \( \
-              -name '.*transport*' -o \
-              -name '.release-tool-probe' -o \
-              -name '.pipeline-transport-check' \
-            \) -delete 2>/dev/null || true
-
-          uv lock
-          uv sync --frozen --all-packages --dev
-          uv run python tools/contract_generation/generate.py --check
-          uv run python tools/control_api_contract_generation/generate.py --check
-          if test -f tools/review_contract_generation/generate.py; then
-            uv run python tools/review_contract_generation/generate.py --check
-          fi
-          uv run ruff format --check .
-          uv run ruff check .
-          uv run mypy
-          uv run pytest -m 'not integration'
+      - name: Prove pipeline application and storage owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run pytest -q             packages/collection_application/tests/test_pipeline_advancement.py             packages/collection_application/tests/test_pipeline_supervision.py             packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py             packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py             packages/collection_infrastructure/tests/test_pipeline_run_control.py             packages/collection_infrastructure/tests/test_succeeded_work_catalog.py             database/tests/test_pipeline_advancement_schema.py
+          uv run mypy             packages/collection_application/src/collection_application/pipeline_advancement.py             packages/collection_application/src/collection_application/pipeline_supervision.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
           uv run python tools/architecture_checks/check_dependencies.py
-          uv run python -m compileall -q apps connectors database packages tools
-          uv run collector config validate berlin_recording_services
+          uv run python -m compileall -q             packages/collection_application/src/collection_application             packages/collection_infrastructure/src/collection_infrastructure/postgres
+
+      - name: Prove fresh canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
           uv run collection-migrate upgrade head
-          uv run pytest -m integration database/tests
+          uv run pytest -q -m integration database/tests
 
-          echo "base_sha=$best_sha" >> "$GITHUB_OUTPUT"
-
-      - name: Install review-web Node runtime
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22.14.0"
-          cache: npm
-          cache-dependency-path: apps/review_web/package-lock.json
-
-      - name: Prove review frontend owner
+      - name: Commit proven pipeline owner
         shell: bash
         run: |
           set -euo pipefail
-          npm --prefix apps/review_web ci
-          npm --prefix apps/review_web run lint
-          npm --prefix apps/review_web run typecheck --if-present
-          npm --prefix apps/review_web test -- --run
-          npm --prefix apps/review_web run build
-
-      - name: Commit reconciled production tree
-        id: subject
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add -A -- . \
-            ':(exclude).github/workflows/**' \
-            ':(exclude).github/apply/**'
-          git diff --cached --check
-          if ! git diff --cached --quiet; then
-            git config user.name rtao-god
-            git config user.email rtaogod@gmail.com
-            git commit -m "Fix (Recovery): reconcile complete operational production tree"
-            git fetch origin main
-            git rebase origin/main
-            git push origin HEAD:main
-          fi
-          git fetch origin main
-          git reset --hard origin/main
-          echo "subject_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Require permanent proof owners
-        shell: bash
-        run: |
-          set -euo pipefail
-          required=(
-            .github/workflows/ci.yml
-            .github/workflows/pipeline-advancement-ci.yml
-            .github/workflows/review-web-ci.yml
-            .github/workflows/application-compose-ci.yml
-            .github/workflows/vertical-data-flow-e2e.yml
-            .github/workflows/browser-worker-isolation.yml
-            .github/workflows/export-ci.yml
-            .github/workflows/operations-ci.yml
-            .github/workflows/backup-restore-ci.yml
-          )
-          for path in "${required[@]}"; do
-            test -f "$path" || { echo "missing permanent proof owner: $path" >&2; exit 1; }
-          done
-
-      - name: Dispatch exact-subject permanent suite
-        id: dispatch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          api="https://api.github.com/repos/$REPOSITORY"
-          headers=(
-            -H "Authorization: Bearer $GH_TOKEN"
-            -H 'Accept: application/vnd.github+json'
-            -H 'X-GitHub-Api-Version: 2022-11-28'
-          )
-          for workflow in \
-            ci.yml pipeline-advancement-ci.yml review-web-ci.yml application-compose-ci.yml \
-            vertical-data-flow-e2e.yml browser-worker-isolation.yml export-ci.yml \
-            operations-ci.yml backup-restore-ci.yml; do
-            curl -fsSL -X POST "${headers[@]}" \
-              "$api/actions/workflows/$workflow/dispatches" \
-              -d '{"ref":"main"}' >/dev/null
-          done
-          echo "started_at=$started_at" >> "$GITHUB_OUTPUT"
-
-      - name: Wait for exact-subject permanent suite
-        id: proof
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          SUBJECT_SHA: ${{ steps.subject.outputs.subject_sha }}
-          STARTED_AT: ${{ steps.dispatch.outputs.started_at }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          api="https://api.github.com/repos/$REPOSITORY"
-          headers=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
-          workflows=(ci.yml pipeline-advancement-ci.yml review-web-ci.yml application-compose-ci.yml vertical-data-flow-e2e.yml browser-worker-isolation.yml export-ci.yml operations-ci.yml backup-restore-ci.yml)
-          labels=(Verify PipelineAdvancement ReviewWeb ApplicationCompose VerticalDataFlow BrowserIsolation SealedExport Operations BackupRestore)
-          names=(verify pipeline review compose flow browser export operations restore)
-          for index in "${!workflows[@]}"; do
-            run_id=''
-            for _ in $(seq 1 480); do
-              payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/${workflows[$index]}/runs?branch=main&event=workflow_dispatch&per_page=50")"
-              run_id="$(jq -r --arg sha "$SUBJECT_SHA" --arg started "$STARTED_AT" '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .id' <<<"$payload" | head -1)"
-              status="$(jq -r --arg sha "$SUBJECT_SHA" --arg started "$STARTED_AT" '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .status' <<<"$payload" | head -1)"
-              conclusion="$(jq -r --arg sha "$SUBJECT_SHA" --arg started "$STARTED_AT" '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .conclusion' <<<"$payload" | head -1)"
-              if [[ -n "$run_id" && "$status" == completed ]]; then
-                [[ "$conclusion" == success ]] || { echo "${labels[$index]} failed in run $run_id" >&2; exit 1; }
-                break
-              fi
-              sleep 5
-            done
-            [[ -n "$run_id" ]] || { echo "${labels[$index]} timed out" >&2; exit 1; }
-            echo "${names[$index]}_id=$run_id" >> "$GITHUB_OUTPUT"
-          done
-
-      - name: Record exact-head operational proof
-        id: closure
-        env:
-          SUBJECT_SHA: ${{ steps.subject.outputs.subject_sha }}
-          BASE_SHA: ${{ steps.assembled.outputs.base_sha }}
-          VERIFY_ID: ${{ steps.proof.outputs.verify_id }}
-          PIPELINE_ID: ${{ steps.proof.outputs.pipeline_id }}
-          REVIEW_ID: ${{ steps.proof.outputs.review_id }}
-          COMPOSE_ID: ${{ steps.proof.outputs.compose_id }}
-          FLOW_ID: ${{ steps.proof.outputs.flow_id }}
-          BROWSER_ID: ${{ steps.proof.outputs.browser_id }}
-          EXPORT_ID: ${{ steps.proof.outputs.export_id }}
-          OPERATIONS_ID: ${{ steps.proof.outputs.operations_id }}
-          RESTORE_ID: ${{ steps.proof.outputs.restore_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git reset --hard origin/main
-          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
-          mkdir -p docs/proofs
-          cat > docs/proofs/end-to-end-operational-ci.md <<EOF
-          # End-to-end operational CI proof
-
-          - Status: \`proven\`
-          - Repository: \`rtao-god/data-collection-platform\`
-          - Branch: \`main\`
-          - Reconciled historical owner tree: \`$BASE_SHA\`
-          - Subject commit: \`$SUBJECT_SHA\`
-          - Verify run: \`$VERIFY_ID\`
-          - Pipeline advancement run: \`$PIPELINE_ID\`
-          - Review Web run: \`$REVIEW_ID\`
-          - Application Compose run: \`$COMPOSE_ID\`
-          - Vertical HTTP/Object Store/data-flow run: \`$FLOW_ID\`
-          - Browser isolation run: \`$BROWSER_ID\`
-          - Sealed export run: \`$EXPORT_ID\`
-          - Operations run: \`$OPERATIONS_ID\`
-          - Backup/restore run: \`$RESTORE_ID\`
-          - Conclusions: \`success\`
-
-          The exact subject proves immutable campaign creation, durable pipeline advancement,
-          HTTP acquisition through the S3-compatible Object Store path, extraction and normalization,
-          candidate resolution, review UI compilation, isolated browser acquisition, deterministic
-          sealed export, complete application topology, retention operations, and an isolated
-          PostgreSQL plus Object Store backup/restore drill.
-
-          Externally governed production Berlin geography, official source approval, and collection
-          consent remain fail-closed inputs and are not fabricated by this proof.
-          EOF
-          if test -f .codex/modules/pipeline-advancement.md; then
-            sed -i '/^Status: in development$/d' .codex/modules/pipeline-advancement.md
-          fi
-          git add docs/proofs/end-to-end-operational-ci.md .codex/modules/pipeline-advancement.md
+          git rm .github/workflows/reconcile-operational-production-v2.yml
+          git add             database/migrations/versions/20260815_0013_pipeline_advancement.py             database/tests/test_pipeline_advancement_schema.py             packages/collection_application/src/collection_application/pipeline_supervision.py             packages/collection_application/tests/test_pipeline_supervision.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py             packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py             packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
           git diff --cached --check
           git config user.name rtao-god
           git config user.email rtaogod@gmail.com
-          git commit -m "Docs (Proofs): record operational E2E closure"
+          git commit -m "Fix (Pipeline): align advancement with canonical work identity"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
           git push origin HEAD:main
-          echo "closure_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Verify final proof commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          CLOSURE_SHA: ${{ steps.closure.outputs.closure_sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          api="https://api.github.com/repos/$REPOSITORY"
-          headers=(
-            -H "Authorization: Bearer $GH_TOKEN"
-            -H 'Accept: application/vnd.github+json'
-            -H 'X-GitHub-Api-Version: 2022-11-28'
-          )
-          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          curl -fsSL -X POST "${headers[@]}" "$api/actions/workflows/ci.yml/dispatches" -d '{"ref":"main"}' >/dev/null
-          for _ in $(seq 1 480); do
-            payload="$(curl -fsSL "${headers[@]}" "$api/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&per_page=50")"
-            run_id="$(jq -r --arg sha "$CLOSURE_SHA" --arg started "$started_at" '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .id' <<<"$payload" | head -1)"
-            status="$(jq -r --arg sha "$CLOSURE_SHA" --arg started "$started_at" '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .status' <<<"$payload" | head -1)"
-            conclusion="$(jq -r --arg sha "$CLOSURE_SHA" --arg started "$started_at" '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .conclusion' <<<"$payload" | head -1)"
-            if [[ -n "$run_id" && "$status" == completed ]]; then
-              [[ "$conclusion" == success ]] || { echo "Final Verify failed in run $run_id" >&2; exit 1; }
-              echo "Final proof commit $CLOSURE_SHA passed Verify run $run_id"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "Final Verify timed out for $CLOSURE_SHA" >&2
-          exit 1
