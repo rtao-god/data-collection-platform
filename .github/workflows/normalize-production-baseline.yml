@@ -1,0 +1,102 @@
+name: Normalize Production Baseline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/normalize-production-baseline.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-owner-repair-v2
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Normalize owned Python deterministically
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          uv run ruff format \
+            apps connectors database packages tools
+          uv run ruff check --fix --unsafe-fixes \
+            apps connectors database packages tools
+          uv run ruff format \
+            apps connectors database packages tools
+          uv run ruff check \
+            apps connectors database packages tools
+          uv run ruff format --check \
+            apps connectors database packages tools
+
+      - name: Prove complete repository baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run mypy
+          uv run pytest -m "not integration and not object_store_integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          if test -f tools/review_contract_generation/generate.py; then
+            uv run python tools/review_contract_generation/generate.py --check
+          fi
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collector config validate berlin_recording_services
+          uv run collection-migrate upgrade head
+          uv run pytest -q -m integration database/tests
+
+      - name: Commit normalized production baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- \
+            apps connectors database packages tools \
+            pyproject.toml uv.lock
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Build (Baseline): normalize owned production source"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
