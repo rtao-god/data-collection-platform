@@ -1,0 +1,62 @@
+name: Capture Pipeline Foundation V8 Failure
+
+on:
+  workflow_run:
+    workflows: ["Reconcile Pipeline Foundation V8"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  capture:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Download V8 diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
+          artifact="$(curl -fsSL "${headers[@]}" "$api/actions/runs/$RUN_ID/artifacts" \
+            | jq -r '.artifacts[] | select(.name == "pipeline-foundation-v8-diagnostics") | .id' | head -1)"
+          test -n "$artifact"
+          curl -fsSL -L "${headers[@]}" "$api/actions/artifacts/$artifact/zip" -o diagnostic.zip
+          unzip -q diagnostic.zip
+      - name: Commit concise V8 evidence
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/diagnostics
+          {
+            echo '# Pipeline foundation V8 failure'
+            echo
+            echo "- Run: \`$RUN_ID\`"
+            echo "- Head: \`$HEAD_SHA\`"
+            echo
+            echo '```text'
+            tail -n 320 pipeline-foundation-v8.log
+            echo '```'
+          } > docs/diagnostics/pipeline-foundation-v8.md
+          git rm -f --ignore-unmatch .github/workflows/capture-pipeline-foundation-v8-failure.yml
+          git add docs/diagnostics/pipeline-foundation-v8.md
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Docs (Diagnostics): record proven pipeline recovery failure'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
