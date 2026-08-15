@@ -1,0 +1,206 @@
+name: Materialize Pipeline Supervisor Directly
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/materialize-pipeline-supervisor-direct.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-supervisor-direct
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact supervisor owner from repository history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          commit="$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$api/commits?path=apps/pipeline_supervisor/pyproject.toml&per_page=1" \
+            | jq -r '.[0].sha // empty')"
+          test -n "$commit" || { echo 'No pipeline supervisor owner exists in history.' >&2; exit 1; }
+          git fetch origin "$commit"
+          for path in \
+            apps/pipeline_supervisor \
+            deploy/docker/pipeline-supervisor.Dockerfile \
+            .github/workflows/pipeline-advancement-ci.yml; do
+            if git cat-file -e "FETCH_HEAD:$path" 2>/dev/null; then
+              git checkout FETCH_HEAD -- "$path"
+            fi
+          done
+          test -f apps/pipeline_supervisor/pyproject.toml
+          test -f deploy/docker/pipeline-supervisor.Dockerfile
+
+      - name: Reconcile exact workspace and canonical schema
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          migration = Path("database/migrations/versions/20260815_0013_pipeline_advancement.py")
+          text = migration.read_text(encoding="utf-8").replace(
+              '("work.work_units.work_unit_id",)',
+              '("work.work_units.work_id",)',
+          )
+          migration.write_text(text, encoding="utf-8")
+
+          metadata = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "pipeline_advancement_metadata.py"
+          )
+          text = metadata.read_text(encoding="utf-8")
+          text = text.replace(
+              'sa.Column("work_unit_id", sa.Uuid(), primary_key=True)',
+              'sa.Column("work_id", sa.Uuid(), primary_key=True)',
+          ).replace("_work_units.c.work_unit_id", "_work_units.c.work_id")
+          metadata.write_text(text, encoding="utf-8")
+
+          catalog = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "succeeded_work_catalog.py"
+          )
+          text = catalog.read_text(encoding="utf-8")
+          text = text.replace("schema.work_units.c.work_unit_id", "schema.work_units.c.work_id")
+          text = text.replace(
+              '("work_unit_id", "run_id", "stage_run_id", "state")',
+              '("work_id", "run_id", "stage_run_id", "state")',
+          )
+          text = text.replace(
+              'work_unit_id = table.c.get("work_unit_id")',
+              'work_unit_id = table.c.get("work_id")',
+          )
+          text = text.replace(
+              'for schema_name in ("artifacts", "work"):',
+              'for schema_name in ("sources", "work"):',
+          )
+          catalog.write_text(text, encoding="utf-8")
+
+          root = Path("pyproject.toml")
+          text = root.read_text(encoding="utf-8")
+          member = '  "apps/pipeline_supervisor",\n'
+          workspace = re.search(
+              r'(?ms)(\[tool\.uv\.workspace\]\s*members\s*=\s*\[)(.*?)(\])',
+              text,
+          )
+          if workspace is None:
+              raise RuntimeError("workspace owner registry is missing")
+          body = workspace.group(2)
+          if '"apps/pipeline_supervisor"' not in body:
+              body = body.rstrip() + "\n" + member
+              text = text[: workspace.start(2)] + body + text[workspace.end(2) :]
+
+          mypy = re.search(r'(?ms)(\[tool\.mypy\].*?\nfiles\s*=\s*\[)(.*?)(\])', text)
+          if mypy is None:
+              raise RuntimeError("mypy owner registry is missing")
+          body = mypy.group(2)
+          source = '  "apps/pipeline_supervisor/src/pipeline_supervisor",\n'
+          if 'apps/pipeline_supervisor/src/pipeline_supervisor' not in body:
+              body = body.rstrip() + "\n" + source
+              text = text[: mypy.start(2)] + body + text[mypy.end(2) :]
+          root.write_text(text, encoding="utf-8")
+          PY
+          uv lock
+          uv sync --all-packages --dev --locked
+
+      - name: Prove supervisor and database owner
+        run: |
+          set -euo pipefail
+          uv run ruff format \
+            apps/pipeline_supervisor \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          uv run ruff check --fix \
+            apps/pipeline_supervisor \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            packages/collection_application/src/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres
+          uv run ruff format --check .
+          uv run ruff check .
+          uv lock --check
+          uv run mypy
+          uv run pytest -m "not integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+          docker build \
+            --file deploy/docker/pipeline-supervisor.Dockerfile \
+            --tag data-collection-platform/pipeline-supervisor:ci \
+            .
+          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/pipeline-supervisor:ci)" = "10001:10001"
+
+      - name: Commit supervisor production owner
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/repair-pipeline-schema-direct.yml \
+            .github/workflows/repair-pipeline-schema-v2.yml \
+            .github/workflows/repair-pipeline-code-v3.yml \
+            .github/workflows/materialize-pipeline-supervisor-direct.yml
+          git add \
+            apps/pipeline_supervisor \
+            deploy/docker/pipeline-supervisor.Dockerfile \
+            .github/workflows/pipeline-advancement-ci.yml \
+            pyproject.toml uv.lock \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application \
+            packages/collection_infrastructure
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Feature (Pipeline): materialize durable supervisor owner'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
