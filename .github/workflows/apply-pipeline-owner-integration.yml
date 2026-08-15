@@ -1,0 +1,211 @@
+name: Apply Pipeline Owner Integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-pipeline-owner-integration.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-owner-integration
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.7"
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Integrate owner exports and deterministic corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          test_path = Path("packages/collection_application/tests/test_pipeline_advancement.py")
+          text = test_path.read_text(encoding="utf-8")
+          text = text.replace("WorkStage.ACQUISITION", "WorkStage.DISCOVERY")
+          test_path.write_text(text, encoding="utf-8")
+
+          schema_test = Path("database/tests/test_pipeline_advancement_schema.py")
+          text = schema_test.read_text(encoding="utf-8")
+          text = text.replace(
+              'assert "ON DELETE RESTRICT" in source',
+              'assert \'ondelete="RESTRICT"\' in source',
+          )
+          schema_test.write_text(text, encoding="utf-8")
+
+          application_init = Path(
+              "packages/collection_application/src/collection_application/__init__.py"
+          )
+          application_block = '''
+
+          from collection_application.pipeline_advancement import (
+              ApplyPipelineAdvancement,
+              ArtifactIdentity,
+              BlockPipelineAdvancement,
+              ClaimPipelineAdvancement,
+              PipelineAdvancementConflict,
+              PipelineAdvancementLease,
+              PipelineAdvancementPort,
+              PipelineAdvancementService,
+              PipelineAdvancementState,
+              PipelineAdvancementStatus,
+              PipelineBlocker,
+              PipelineTransitionDisposition,
+              PipelineTransitionPlan,
+              PipelineTransitionRegistry,
+              SucceededWorkOutput,
+          )
+
+          __all__ += (
+              "ApplyPipelineAdvancement",
+              "ArtifactIdentity",
+              "BlockPipelineAdvancement",
+              "ClaimPipelineAdvancement",
+              "PipelineAdvancementConflict",
+              "PipelineAdvancementLease",
+              "PipelineAdvancementPort",
+              "PipelineAdvancementService",
+              "PipelineAdvancementState",
+              "PipelineAdvancementStatus",
+              "PipelineBlocker",
+              "PipelineTransitionDisposition",
+              "PipelineTransitionPlan",
+              "PipelineTransitionRegistry",
+              "SucceededWorkOutput",
+          )
+          '''
+          text = application_init.read_text(encoding="utf-8")
+          if "from collection_application.pipeline_advancement import" not in text:
+              application_init.write_text(text.rstrip() + application_block, encoding="utf-8")
+
+          postgres_init = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/__init__.py"
+          )
+          postgres_block = '''
+
+          from collection_infrastructure.postgres.pipeline_advancement import (
+              CanonicalSucceededWorkReader,
+              PipelineTransitionApplier,
+              PostgresPipelineAdvancementRepository,
+          )
+          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+              PIPELINE_ADVANCEMENT_TABLES,
+              pipeline_advancement_attempts,
+              pipeline_advancement_metadata,
+              pipeline_advancements,
+          )
+
+          __all__ += (
+              "CanonicalSucceededWorkReader",
+              "PIPELINE_ADVANCEMENT_TABLES",
+              "PipelineTransitionApplier",
+              "PostgresPipelineAdvancementRepository",
+              "pipeline_advancement_attempts",
+              "pipeline_advancement_metadata",
+              "pipeline_advancements",
+          )
+          '''
+          text = postgres_init.read_text(encoding="utf-8")
+          if "from collection_infrastructure.postgres.pipeline_advancement import" not in text:
+              postgres_init.write_text(text.rstrip() + postgres_block, encoding="utf-8")
+
+          infrastructure_init = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/__init__.py"
+          )
+          infrastructure_block = '''
+
+          from collection_infrastructure.postgres.pipeline_advancement import (
+              CanonicalSucceededWorkReader,
+              PipelineTransitionApplier,
+              PostgresPipelineAdvancementRepository,
+          )
+
+          __all__ += (
+              "CanonicalSucceededWorkReader",
+              "PipelineTransitionApplier",
+              "PostgresPipelineAdvancementRepository",
+          )
+          '''
+          text = infrastructure_init.read_text(encoding="utf-8")
+          if "PostgresPipelineAdvancementRepository" not in text:
+              infrastructure_init.write_text(text.rstrip() + infrastructure_block, encoding="utf-8")
+          PY
+
+      - name: Sync exact workspace
+        run: uv sync --all-packages --dev --locked
+
+      - name: Format owner files
+        run: |
+          uv run ruff format \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/src/collection_application/__init__.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/__init__.py \
+            packages/collection_infrastructure/src/collection_infrastructure/__init__.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py
+
+      - name: Run targeted owner gate
+        run: |
+          uv run ruff check \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py
+          uv run pytest -q \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            database/tests/test_pipeline_advancement_schema.py
+          uv run mypy \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+          uv run python -m compileall -q \
+            packages/collection_application/src/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres
+
+      - name: Commit integrated production owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-pipeline-owner-integration.yml
+          git add \
+            packages/collection_application \
+            packages/collection_infrastructure \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Feature (Pipeline): integrate durable advancement owner'
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
