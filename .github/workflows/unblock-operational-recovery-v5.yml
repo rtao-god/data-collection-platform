@@ -1,0 +1,62 @@
+name: Unblock Operational Recovery V5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/unblock-operational-recovery-v5.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-operational-recovery-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  unblock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove pre-recovery dependency-cache assumption
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/reconcile-operational-production-v4.yml")
+          text = path.read_text(encoding="utf-8")
+          old = '''      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/review_web/package-lock.json
+'''
+          new = '''      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+'''
+          if old not in text:
+              raise SystemExit("Expected setup-node cache block was not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          git diff --check
+
+      - name: Commit recovery bootstrap fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add .github/workflows/reconcile-operational-production-v4.yml
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Recovery): defer review cache until owner exists"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
