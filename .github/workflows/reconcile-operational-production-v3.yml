@@ -1,0 +1,267 @@
+name: Reconcile Complete Operational Production Tree
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/reconcile-operational-production-v3.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-complete-production-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+      OPERATIONAL_BASE_SHA: 9bec95589ee0592a873edbc0548be27707f53af6
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Wait for canonical pipeline checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=database/migrations/versions/20260815_0013_pipeline_advancement.py
+          ready=false
+          for _ in $(seq 1 120); do
+            git fetch --no-tags origin main
+            if git cat-file -e "origin/main:$migration" 2>/dev/null \
+               && git show "origin/main:$migration" | grep -q 'work.work_units.work_id' \
+               && ! git show "origin/main:$migration" | grep -q 'work.work_units.work_unit_id'; then
+              git reset --hard origin/main
+              ready=true
+              break
+            fi
+            sleep 5
+          done
+          test "$ready" = true
+
+      - name: Restore missing operational owners from proven base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$OPERATIONAL_BASE_SHA^{commit}"
+
+          roots=(
+            apps/browser_worker
+            apps/dagster_definitions
+            apps/orchestrator
+            apps/pipeline_supervisor
+            apps/retention_job
+            apps/review_web
+            packages/export_contracts
+            packages/export_core
+            tools/operations
+            tests/e2e
+            tests/operations
+            deploy/compose
+            deploy/nginx
+          )
+
+          while IFS= read -r path; do
+            test -n "$path" || continue
+            if test ! -e "$path"; then
+              git checkout "$OPERATIONAL_BASE_SHA" -- "$path"
+            fi
+          done < <(git ls-tree -r --name-only "$OPERATIONAL_BASE_SHA" -- "${roots[@]}")
+
+          while IFS= read -r path; do
+            test -n "$path" || continue
+            if test ! -e "$path"; then
+              git checkout "$OPERATIONAL_BASE_SHA" -- "$path"
+            fi
+          done < <(
+            git ls-tree -r --name-only "$OPERATIONAL_BASE_SHA" -- deploy/docker \
+              | grep -E '(browser|review|retention|orchestrator|pipeline|dagster|export)'
+          )
+
+          while IFS= read -r path; do
+            test -n "$path" || continue
+            if test ! -e "$path"; then
+              git checkout "$OPERATIONAL_BASE_SHA" -- "$path"
+            fi
+          done < <(
+            git ls-tree -r --name-only "$OPERATIONAL_BASE_SHA" -- \
+              database/migrations/versions database/tests \
+              | grep -E '(export|retention|browser|operational|backup|restore|vertical|review)'
+          )
+
+          git checkout "$OPERATIONAL_BASE_SHA" -- \
+            pyproject.toml \
+            tools/architecture_checks/check_dependencies.py \
+            docs/architecture/dependency-rules.md
+
+          python - <<'PY'
+          from __future__ import annotations
+
+          import re
+          import tomllib
+          from pathlib import Path
+
+          root = Path(".")
+          pyproject = root / "pyproject.toml"
+          text = pyproject.read_text(encoding="utf-8")
+          data = tomllib.loads(text)
+
+          projects = sorted(
+              str(path.parent).replace("\\", "/")
+              for top in ("apps", "connectors", "packages")
+              for path in (root / top).glob("*/pyproject.toml")
+          )
+          testpaths = sorted(
+              {
+                  *data.get("tool", {}).get("pytest", {}).get("ini_options", {}).get(
+                      "testpaths", []
+                  ),
+                  "database/tests",
+                  *(
+                      f"{project}/tests"
+                      for project in projects
+                      if (root / project / "tests").is_dir()
+                  ),
+                  *(
+                      str(path).replace("\\", "/")
+                      for path in (root / "tests").glob("*")
+                      if path.is_dir()
+                  ),
+              }
+          )
+          source_roots = sorted(
+              {
+                  *data.get("tool", {}).get("ruff", {}).get("src", []),
+                  *(
+                      f"{project}/src"
+                      for project in projects
+                      if (root / project / "src").is_dir()
+                  ),
+              }
+          )
+          mypy_files = sorted(
+              {
+                  *data.get("tool", {}).get("mypy", {}).get("files", []),
+                  *source_roots,
+                  "database",
+                  "tools",
+              }
+          )
+
+          def replace_array(source: str, section: str, key: str, values: list[str]) -> str:
+              header = f"[{section}]"
+              start = source.index(header)
+              next_section = source.find("\n[", start + len(header))
+              end = len(source) if next_section < 0 else next_section
+              block = source[start:end]
+              pattern = re.compile(
+                  rf"(?ms)^{re.escape(key)}\s*=\s*\[.*?^\]"
+              )
+              rendered = key + " = [\n" + "".join(
+                  f'  "{value}",\n' for value in values
+              ) + "]"
+              if not pattern.search(block):
+                  raise RuntimeError(f"missing {section}.{key} array")
+              block = pattern.sub(rendered, block, count=1)
+              return source[:start] + block + source[end:]
+
+          text = replace_array(text, "tool.uv.workspace", "members", projects)
+          text = replace_array(
+              text,
+              "tool.pytest.ini_options",
+              "testpaths",
+              testpaths,
+          )
+          text = replace_array(text, "tool.ruff", "src", source_roots)
+          text = replace_array(text, "tool.mypy", "files", mypy_files)
+          pyproject.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Restore exact Python workspace and generated contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock
+          uv sync --frozen --all-packages --dev
+          while IFS= read -r generator; do
+            uv run python "$generator"
+          done < <(find tools -path '*/contract_generation/generate.py' -type f | sort)
+
+      - name: Prove complete Python production tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format .
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest -m 'not integration and not object_store_integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collector config validate berlin_recording_services
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+
+      - name: Prove review frontend and Compose contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f apps/review_web/package-lock.json; then
+            npm --prefix apps/review_web ci
+            npm --prefix apps/review_web run lint
+            npm --prefix apps/review_web run typecheck --if-present
+            npm --prefix apps/review_web test -- --run
+            npm --prefix apps/review_web run build
+          fi
+          docker compose -f deploy/compose/application.yaml config >/tmp/application-compose.yaml
+          test -s /tmp/application-compose.yaml
+
+      - name: Commit reconciled production tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- . ':(exclude).github/workflows/**'
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Complete operational production tree is already materialized."
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git commit -m "Fix (Recovery): restore complete operational production tree"
+          git push origin HEAD:main
