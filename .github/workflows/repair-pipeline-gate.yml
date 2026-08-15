@@ -1,0 +1,134 @@
+name: Repair Pipeline Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair-pipeline-gate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-gate-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Correct deterministic repair gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          target = Path(".github/workflows/reconcile-operational-production-v2.yml")
+          text = target.read_text(encoding="utf-8")
+
+          old_order = '''          uv run ruff check --fix "${files[@]}"
+          uv run ruff format "${files[@]}"
+          '''
+          new_order = '''          uv run ruff format "${files[@]}"
+          uv run ruff check --fix "${files[@]}"
+          '''
+          if old_order not in text:
+              raise RuntimeError("pipeline repair normalization order anchor is missing")
+          text = text.replace(old_order, new_order, 1)
+
+          anchor = '''          metadata_test = Path(
+          '''
+          test_repair = '''          supervision_test = Path(
+              "packages/collection_application/tests/test_pipeline_supervision.py"
+          )
+          supervision_text = supervision_test.read_text(encoding="utf-8")
+          helper_anchor = ''' + '"""' + '''        expires_at_utc=_NOW + timedelta(minutes=5),
+              )
+
+
+          def _status(
+          ''' + '"""' + '''
+          helper_replacement = ''' + '"""' + '''        expires_at_utc=_NOW + timedelta(minutes=5),
+              )
+
+
+          _DEFAULT_SOURCES = (_source(),)
+          _DEFAULT_LEASE = _lease()
+
+
+          def _status(
+          ''' + '"""' + '''
+          if "_DEFAULT_SOURCES = (_source(),)" not in supervision_text:
+              if helper_anchor not in supervision_text:
+                  raise RuntimeError("pipeline supervision helper anchor is missing")
+              supervision_text = supervision_text.replace(
+                  helper_anchor,
+                  helper_replacement,
+                  1,
+              )
+          discovery_old = ''' + '"""' + '''          class Discovery:
+              def __init__(self, sources=(_source(),)) -> None:
+                  self.sources = sources
+          ''' + '"""' + '''
+          discovery_new = ''' + '"""' + '''          class Discovery:
+              def __init__(
+                  self,
+                  sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES,
+              ) -> None:
+                  self.sources = sources
+          ''' + '"""' + '''
+          if discovery_old in supervision_text:
+              supervision_text = supervision_text.replace(
+                  discovery_old,
+                  discovery_new,
+                  1,
+              )
+          elif "sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES" not in supervision_text:
+              raise RuntimeError("pipeline supervision discovery signature anchor is missing")
+          port_old = ''' + '"""' + '''          class Port:
+              def __init__(self, *, lease=_lease()) -> None:
+                  self.lease = lease
+          ''' + '"""' + '''
+          port_new = ''' + '"""' + '''          class Port:
+              def __init__(
+                  self,
+                  *,
+                  lease: PipelineAdvancementLease | None = _DEFAULT_LEASE,
+              ) -> None:
+                  self.lease = lease
+          ''' + '"""' + '''
+          if port_old in supervision_text:
+              supervision_text = supervision_text.replace(port_old, port_new, 1)
+          elif "lease: PipelineAdvancementLease | None = _DEFAULT_LEASE" not in supervision_text:
+              raise RuntimeError("pipeline supervision port signature anchor is missing")
+          supervision_test.write_text(supervision_text, encoding="utf-8")
+
+          '''
+          if "supervision_test = Path(" not in text:
+              if anchor not in text:
+                  raise RuntimeError("pipeline repair insertion anchor is missing")
+              text = text.replace(anchor, test_repair + anchor, 1)
+
+          target.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Commit corrected gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/repair-pipeline-gate.yml
+          git add .github/workflows/reconcile-operational-production-v2.yml
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Pipeline): correct advancement repair gate"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
