@@ -1,0 +1,226 @@
+name: Harden Pipeline Metadata Parity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/harden-pipeline-metadata.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-owner-repair-v2
+  cancel-in-progress: false
+
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Mirror migration constraints in runtime metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/pipeline_advancement_metadata.py"
+          )
+          text = path.read_text(encoding="utf-8")
+
+          advancement_anchor = '    sa.Column("correlation_id", sa.Text(), nullable=False),\n    schema="work",\n)'
+          advancement_constraints = '''    sa.Column("correlation_id", sa.Text(), nullable=False),
+    sa.CheckConstraint(
+        "source_output_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_output_digest",
+    ),
+    sa.CheckConstraint(
+        "source_output_artifact_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_artifact_digest",
+    ),
+    sa.CheckConstraint(
+        "transition_plan_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_plan_digest",
+    ),
+    sa.CheckConstraint(
+        "result_digest IS NULL OR result_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_result_digest",
+    ),
+    sa.CheckConstraint(
+        "source_output_artifact_size_bytes >= 0",
+        name="ck_pipeline_advancements_artifact_size",
+    ),
+    sa.CheckConstraint(
+        "jsonb_typeof(source_input_artifacts) = 'array'",
+        name="ck_pipeline_advancements_input_artifacts",
+    ),
+    sa.CheckConstraint(
+        "state IN ('pending', 'leased', 'applied', 'blocked')",
+        name="ck_pipeline_advancements_state",
+    ),
+    sa.CheckConstraint(
+        "revision >= 0 AND attempt_count >= 0",
+        name="ck_pipeline_advancements_revisions",
+    ),
+    sa.CheckConstraint(
+        "(state = 'leased') = (active_lease_id IS NOT NULL)",
+        name="ck_pipeline_advancements_lease_state",
+    ),
+    sa.CheckConstraint(
+        "(active_lease_id IS NULL AND active_lease_token_digest IS NULL "
+        "AND leased_by_worker_id IS NULL AND dagster_execution_id IS NULL "
+        "AND dagster_build_id IS NULL AND lease_issued_at_utc IS NULL "
+        "AND lease_expires_at_utc IS NULL) OR "
+        "(active_lease_id IS NOT NULL AND active_lease_token_digest IS NOT NULL "
+        "AND leased_by_worker_id IS NOT NULL AND dagster_execution_id IS NOT NULL "
+        "AND dagster_build_id IS NOT NULL AND lease_issued_at_utc IS NOT NULL "
+        "AND lease_expires_at_utc IS NOT NULL "
+        "AND lease_expires_at_utc > lease_issued_at_utc)",
+        name="ck_pipeline_advancements_lease_payload",
+    ),
+    sa.CheckConstraint(
+        "(blocker_owner IS NULL AND blocker_code IS NULL AND blocker_message IS NULL "
+        "AND blocker_required_action IS NULL AND blocker_context IS NULL) OR "
+        "(blocker_owner IS NOT NULL AND blocker_code IS NOT NULL "
+        "AND blocker_message IS NOT NULL AND blocker_required_action IS NOT NULL "
+        "AND blocker_context IS NOT NULL)",
+        name="ck_pipeline_advancements_blocker_payload",
+    ),
+    sa.CheckConstraint(
+        "(state = 'applied' AND result_digest IS NOT NULL AND blocker_code IS NULL) OR "
+        "(state = 'blocked' AND result_digest IS NULL AND blocker_code IS NOT NULL) OR "
+        "(state IN ('pending', 'leased') AND result_digest IS NULL "
+        "AND blocker_code IS NULL)",
+        name="ck_pipeline_advancements_terminal_payload",
+    ),
+    schema="work",
+)'''
+          if "ck_pipeline_advancements_lease_payload" not in text:
+              if advancement_anchor not in text:
+                  raise RuntimeError("advancement constraint anchor is missing")
+              text = text.replace(
+                  advancement_anchor,
+                  advancement_constraints,
+                  1,
+              )
+
+          attempts_anchor = '''    sa.UniqueConstraint(
+        "advancement_id",
+        "attempt_number",
+        "event_kind",
+        name="uq_pipeline_advancement_attempts_event",
+    ),
+    schema="work",
+)'''
+          attempts_constraints = '''    sa.CheckConstraint(
+        "attempt_number >= 0",
+        name="ck_pipeline_advancement_attempts_number",
+    ),
+    sa.CheckConstraint(
+        "event_kind IN ('registered_block', 'leased', 'expired', 'applied', 'blocked')",
+        name="ck_pipeline_advancement_attempts_kind",
+    ),
+    sa.CheckConstraint(
+        "transition_plan_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancement_attempts_plan_digest",
+    ),
+    sa.CheckConstraint(
+        "lease_token_digest IS NULL OR lease_token_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancement_attempts_lease_digest",
+    ),
+    sa.CheckConstraint(
+        "result_digest IS NULL OR result_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancement_attempts_result_digest",
+    ),
+    sa.CheckConstraint(
+        "(blocker_owner IS NULL AND blocker_code IS NULL AND blocker_message IS NULL "
+        "AND blocker_required_action IS NULL AND blocker_context IS NULL) OR "
+        "(blocker_owner IS NOT NULL AND blocker_code IS NOT NULL "
+        "AND blocker_message IS NOT NULL AND blocker_required_action IS NOT NULL "
+        "AND blocker_context IS NOT NULL)",
+        name="ck_pipeline_advancement_attempts_blocker_payload",
+    ),
+    sa.CheckConstraint(
+        "(event_kind = 'registered_block' AND attempt_number = 0 "
+        "AND lease_id IS NULL AND blocker_code IS NOT NULL) OR "
+        "(event_kind = 'leased' AND attempt_number > 0 AND lease_id IS NOT NULL "
+        "AND lease_token_digest IS NOT NULL AND worker_id IS NOT NULL "
+        "AND dagster_execution_id IS NOT NULL AND dagster_build_id IS NOT NULL "
+        "AND lease_expires_at_utc IS NOT NULL AND result_digest IS NULL "
+        "AND blocker_code IS NULL) OR "
+        "(event_kind = 'expired' AND attempt_number > 0 AND lease_id IS NOT NULL "
+        "AND result_digest IS NULL AND blocker_code IS NULL) OR "
+        "(event_kind = 'applied' AND attempt_number > 0 AND lease_id IS NOT NULL "
+        "AND result_digest IS NOT NULL AND blocker_code IS NULL) OR "
+        "(event_kind = 'blocked' AND attempt_number > 0 AND lease_id IS NOT NULL "
+        "AND result_digest IS NULL AND blocker_code IS NOT NULL)",
+        name="ck_pipeline_advancement_attempts_event_payload",
+    ),
+    sa.UniqueConstraint(
+        "advancement_id",
+        "attempt_number",
+        "event_kind",
+        name="uq_pipeline_advancement_attempts_event",
+    ),
+    schema="work",
+)'''
+          if "ck_pipeline_advancement_attempts_event_payload" not in text:
+              if attempts_anchor not in text:
+                  raise RuntimeError("attempt constraint anchor is missing")
+              text = text.replace(
+                  attempts_anchor,
+                  attempts_constraints,
+                  1,
+              )
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Prove metadata parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          path="packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py"
+          uv run ruff format "$path"
+          uv run ruff check "$path"
+          uv run mypy "$path"
+          uv run pytest -q \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            database/tests/test_pipeline_advancement_schema.py
+
+      - name: Commit metadata parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          path="packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py"
+          git add "$path"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Pipeline): mirror migration constraints"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
