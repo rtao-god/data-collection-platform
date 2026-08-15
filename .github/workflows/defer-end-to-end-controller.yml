@@ -1,0 +1,75 @@
+name: Defer End-to-End Controller Until Idle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/defer-end-to-end-controller.yml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: data-collection-platform-deferred-controller
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Wait for all mutating owner workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          THIS_RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(
+            -H "Authorization: Bearer $GH_TOKEN"
+            -H 'Accept: application/vnd.github+json'
+            -H 'X-GitHub-Api-Version: 2022-11-28'
+          )
+          mutators='[
+            "Repair Pipeline Advancement Owner V3",
+            "Commit Pipeline Advancement Owner",
+            "Commit Pipeline Advancement Schema",
+            "Commit Pipeline Owner Production Patch",
+            "Fix Pipeline Catalog Types",
+            "Export Pipeline Owner API",
+            "Fix Pipeline Metadata Composition",
+            "Finalize Pipeline Advancement Owner",
+            "Restore Operational E2E",
+            "Restore Operational E2E Fallback",
+            "Download and Persistence E2E V2",
+            "Pipeline Production Closure Controller",
+            "End-to-End Closure Controller V2"
+          ]'
+          for _ in $(seq 1 720); do
+            payload="$(curl -fsSL "${headers[@]}" \
+              "$api/actions/runs?branch=main&per_page=100")"
+            active="$(jq --argjson names "$mutators" --argjson current "$THIS_RUN_ID" \
+              '[.workflow_runs[] |
+                select((.id | tostring) != $current) |
+                select(.name as $name | $names | index($name)) |
+                select(.status != "completed")] | length' <<<"$payload")"
+            [[ "$active" == 0 ]] && break
+            sleep 10
+          done
+
+      - name: Dispatch final dependency controller
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/$REPOSITORY/actions/workflows/end-to-end-controller-v2.yml/dispatches" \
+            -d '{"ref":"main"}' >/dev/null
