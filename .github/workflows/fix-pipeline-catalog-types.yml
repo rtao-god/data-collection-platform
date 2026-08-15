@@ -1,0 +1,88 @@
+name: Fix Pipeline Catalog Types
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-pipeline-catalog-types.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-owner-repair-v2
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Normalize SQLAlchemy statement typing
+        shell: bash
+        run: |
+          set -euo pipefail
+          path="packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py"
+          test -f "$path"
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/succeeded_work_catalog.py"
+          )
+          text = path.read_text(encoding="utf-8")
+          if "from typing import Any" not in text:
+              text = text.replace(
+                  "from dataclasses import dataclass\n",
+                  "from dataclasses import dataclass\nfrom typing import Any\n",
+                  1,
+              )
+          text = text.replace(
+              "Select[tuple[object, ...]]",
+              "Select[Any]",
+          )
+          text = text.replace(
+              "Select[tuple[UUID]]",
+              "Select[Any]",
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          uv sync --frozen --all-packages --dev
+          uv run ruff format "$path"
+          uv run ruff check "$path"
+          uv run mypy "$path"
+          uv run pytest -q \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+
+      - name: Commit typing repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          path="packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py"
+          git add "$path"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Pipeline): type catalog statements explicitly"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
