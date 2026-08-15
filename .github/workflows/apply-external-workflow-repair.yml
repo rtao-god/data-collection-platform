@@ -1,0 +1,148 @@
+name: Apply External Workflow Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-external-workflow-repair.yml
+      - .github/apply/external-workflow-repair.patch
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-external-workflow-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply reviewed repair patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test -s .github/apply/external-workflow-repair.patch
+          git apply --index --3way .github/apply/external-workflow-repair.patch
+          git diff --cached --check
+
+      - name: Restore exact Python workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Verify Python contracts and architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format --check .
+          uv run ruff check .
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run mypy
+          uv run pytest -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          if test -f tools/export_architecture_check.py; then
+            uv run python tools/export_architecture_check.py
+          fi
+          uv run python -m compileall -q apps connectors database packages tools tests
+          uv run collector config validate berlin_recording_services
+
+      - name: Verify fresh PostgreSQL contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+
+      - name: Verify repaired workflow contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          workflow_paths = (
+              Path('.github/workflows/vertical-data-flow-e2e.yml'),
+              Path('.github/workflows/backup-restore-ci.yml'),
+          )
+          for path in workflow_paths:
+              payload = yaml.safe_load(path.read_text(encoding='utf-8'))
+              if not isinstance(payload, dict) or 'jobs' not in payload:
+                  raise SystemExit(f'invalid workflow contract: {path}')
+
+          source = Path('tools/operations/backup_restore.py').read_text(encoding='utf-8')
+          if 'asdict(' not in source:
+              raise SystemExit('backup/restore manifest serialization is not dataclass-safe')
+          PY
+          docker compose \
+            --env-file deploy/compose/.env.example \
+            -f deploy/compose/infrastructure.yaml \
+            -f deploy/compose/application.yaml \
+            config >/tmp/application-compose.yaml
+
+      - name: Commit production repair and remove transport automation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/apply-external-workflow-repair.yml \
+            .github/apply/external-workflow-repair.patch
+          find .github/workflows -maxdepth 1 -type f \( \
+              -name 'close-operational-e2e*.yml' -o \
+              -name 'final-e2e-*.yml' -o \
+              -name 'final-production-cleanup.yml' -o \
+              -name 'repair-operational-e2e-owner.yml' -o \
+              -name 'apply-maintenance-repair.yml' \
+            \) -print0 | xargs -0 -r git rm -f
+          if test -d .github/apply; then
+            find .github/apply -maxdepth 1 -type f -print0 | xargs -0 -r git rm -f
+          fi
+          git add -A
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (E2E): make external storage proofs topology-aware"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
