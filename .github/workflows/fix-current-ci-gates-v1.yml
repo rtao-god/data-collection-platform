@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/fix-current-ci-gates-v1.yml
+      - packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py
   workflow_dispatch:
 
 permissions:
