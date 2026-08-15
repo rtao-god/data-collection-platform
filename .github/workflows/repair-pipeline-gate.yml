@@ -29,42 +29,39 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          from textwrap import indent
 
           target = Path(".github/workflows/reconcile-operational-production-v2.yml")
           text = target.read_text(encoding="utf-8")
 
-          old_order = '''          uv run ruff check --fix "${files[@]}"
-          uv run ruff format "${files[@]}"
-          '''
-          new_order = '''          uv run ruff format "${files[@]}"
-          uv run ruff check --fix "${files[@]}"
-          '''
+          old_order = (
+              '          uv run ruff check --fix "${files[@]}"\n'
+              '          uv run ruff format "${files[@]}"\n'
+          )
+          new_order = (
+              '          uv run ruff format "${files[@]}"\n'
+              '          uv run ruff check --fix "${files[@]}"\n'
+          )
           if old_order not in text:
               raise RuntimeError("pipeline repair normalization order anchor is missing")
           text = text.replace(old_order, new_order, 1)
 
-          anchor = '''          metadata_test = Path(
-          '''
-          test_repair = '''          supervision_test = Path(
+          repair_source = r'''supervision_test = Path(
               "packages/collection_application/tests/test_pipeline_supervision.py"
           )
           supervision_text = supervision_test.read_text(encoding="utf-8")
-          helper_anchor = ''' + '"""' + '''        expires_at_utc=_NOW + timedelta(minutes=5),
-              )
-
-
-          def _status(
-          ''' + '"""' + '''
-          helper_replacement = ''' + '"""' + '''        expires_at_utc=_NOW + timedelta(minutes=5),
-              )
-
-
-          _DEFAULT_SOURCES = (_source(),)
-          _DEFAULT_LEASE = _lease()
-
-
-          def _status(
-          ''' + '"""' + '''
+          helper_anchor = (
+              "        expires_at_utc=_NOW + timedelta(minutes=5),\n"
+              "    )\n\n\n"
+              "def _status(\n"
+          )
+          helper_replacement = (
+              "        expires_at_utc=_NOW + timedelta(minutes=5),\n"
+              "    )\n\n\n"
+              "_DEFAULT_SOURCES = (_source(),)\n"
+              "_DEFAULT_LEASE = _lease()\n\n\n"
+              "def _status(\n"
+          )
           if "_DEFAULT_SOURCES = (_source(),)" not in supervision_text:
               if helper_anchor not in supervision_text:
                   raise RuntimeError("pipeline supervision helper anchor is missing")
@@ -73,17 +70,19 @@ jobs:
                   helper_replacement,
                   1,
               )
-          discovery_old = ''' + '"""' + '''          class Discovery:
-              def __init__(self, sources=(_source(),)) -> None:
-                  self.sources = sources
-          ''' + '"""' + '''
-          discovery_new = ''' + '"""' + '''          class Discovery:
-              def __init__(
-                  self,
-                  sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES,
-              ) -> None:
-                  self.sources = sources
-          ''' + '"""' + '''
+          discovery_old = (
+              "class Discovery:\n"
+              "    def __init__(self, sources=(_source(),)) -> None:\n"
+              "        self.sources = sources\n"
+          )
+          discovery_new = (
+              "class Discovery:\n"
+              "    def __init__(\n"
+              "        self,\n"
+              "        sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES,\n"
+              "    ) -> None:\n"
+              "        self.sources = sources\n"
+          )
           if discovery_old in supervision_text:
               supervision_text = supervision_text.replace(
                   discovery_old,
@@ -92,18 +91,20 @@ jobs:
               )
           elif "sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES" not in supervision_text:
               raise RuntimeError("pipeline supervision discovery signature anchor is missing")
-          port_old = ''' + '"""' + '''          class Port:
-              def __init__(self, *, lease=_lease()) -> None:
-                  self.lease = lease
-          ''' + '"""' + '''
-          port_new = ''' + '"""' + '''          class Port:
-              def __init__(
-                  self,
-                  *,
-                  lease: PipelineAdvancementLease | None = _DEFAULT_LEASE,
-              ) -> None:
-                  self.lease = lease
-          ''' + '"""' + '''
+          port_old = (
+              "class Port:\n"
+              "    def __init__(self, *, lease=_lease()) -> None:\n"
+              "        self.lease = lease\n"
+          )
+          port_new = (
+              "class Port:\n"
+              "    def __init__(\n"
+              "        self,\n"
+              "        *,\n"
+              "        lease: PipelineAdvancementLease | None = _DEFAULT_LEASE,\n"
+              "    ) -> None:\n"
+              "        self.lease = lease\n"
+          )
           if port_old in supervision_text:
               supervision_text = supervision_text.replace(port_old, port_new, 1)
           elif "lease: PipelineAdvancementLease | None = _DEFAULT_LEASE" not in supervision_text:
@@ -111,10 +112,12 @@ jobs:
           supervision_test.write_text(supervision_text, encoding="utf-8")
 
           '''
-          if "supervision_test = Path(" not in text:
+          marker = "supervision_test = Path("
+          if marker not in text:
+              anchor = "          metadata_test = Path(\n"
               if anchor not in text:
                   raise RuntimeError("pipeline repair insertion anchor is missing")
-              text = text.replace(anchor, test_repair + anchor, 1)
+              text = text.replace(anchor, indent(repair_source, "          ") + anchor, 1)
 
           target.write_text(text, encoding="utf-8")
           PY
