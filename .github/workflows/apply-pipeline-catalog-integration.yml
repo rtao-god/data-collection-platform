@@ -1,0 +1,424 @@
+name: Apply Pipeline Catalog Integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-pipeline-catalog-integration.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-owner-integration
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.7"
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Normalize catalog and run coverage owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/apply-pipeline-owner-integration.yml \
+            .github/workflows/apply-pipeline-supervision-integration.yml
+          python - <<'PY'
+          from pathlib import Path
+
+          catalog = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py"
+          )
+          text = catalog.read_text(encoding="utf-8")
+          if "from typing import Any, Protocol" not in text:
+              text = text.replace("from typing import Protocol", "from typing import Any, Protocol")
+          text = text.replace("sa.Column[object]", "sa.Column[Any]")
+          old = '''    candidates = tuple(
+              binding
+              for table in tables
+              if table is not artifact_table
+              if (binding := _binding_table(table)) is not None
+          )
+          '''
+          new = '''    resolved: list[_BindingTable] = []
+              for table in tables:
+                  if table is artifact_table:
+                      continue
+                  binding = _binding_table(table)
+                  if binding is not None:
+                      resolved.append(binding)
+              candidates = tuple(resolved)
+          '''
+          if old in text:
+              text = text.replace(old, new)
+          catalog.write_text(text, encoding="utf-8")
+
+          coverage = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py"
+          )
+          coverage.write_text(
+              '''from __future__ import annotations
+
+          from collections.abc import Mapping
+          from dataclasses import dataclass
+          from uuid import UUID
+
+          import sqlalchemy as sa
+          from collection_application.pipeline_advancement import PipelineAdvancementState
+          from collection_application.run_control import (
+              CollectionRunStatus,
+              RunControlConflict,
+              RunControlPort,
+              RunCoverageBlocker,
+              RunCoverageReport,
+              TransitionCollectionRun,
+          )
+          from collection_domain import WorkStage
+          from sqlalchemy.engine import Engine
+          from sqlalchemy.exc import SQLAlchemyError
+
+          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+              pipeline_advancements,
+          )
+
+
+          @dataclass(frozen=True, slots=True)
+          class _CoverageBlockerValue:
+              code: str
+              stage: WorkStage
+              message: str
+              required_action: str
+              count: int
+
+
+          class PipelineAwareRunControlRepository:
+              """Run Control decorator that exposes durable pipeline advancement blockers."""
+
+              def __init__(self, delegate: RunControlPort, engine: Engine) -> None:
+                  self._delegate = delegate
+                  self._engine = engine
+
+              def get(self, run_id: UUID) -> CollectionRunStatus:
+                  return self._delegate.get(run_id)
+
+              def transition(self, command: TransitionCollectionRun) -> CollectionRunStatus:
+                  return self._delegate.transition(command)
+
+              def coverage(self, run_id: UUID) -> RunCoverageReport:
+                  base = self._delegate.coverage(run_id)
+                  try:
+                      with self._engine.connect() as connection:
+                          rows = (
+                              connection.execute(
+                                  sa.select(
+                                      pipeline_advancements.c.source_stage,
+                                      pipeline_advancements.c.state,
+                                      pipeline_advancements.c.blocker_code,
+                                      pipeline_advancements.c.blocker_message,
+                                      pipeline_advancements.c.blocker_required_action,
+                                      sa.func.count().label("count"),
+                                  )
+                                  .where(
+                                      pipeline_advancements.c.run_id == run_id,
+                                      pipeline_advancements.c.state.in_(
+                                          (
+                                              PipelineAdvancementState.PENDING.value,
+                                              PipelineAdvancementState.LEASED.value,
+                                              PipelineAdvancementState.BLOCKED.value,
+                                          )
+                                      ),
+                                  )
+                                  .group_by(
+                                      pipeline_advancements.c.source_stage,
+                                      pipeline_advancements.c.state,
+                                      pipeline_advancements.c.blocker_code,
+                                      pipeline_advancements.c.blocker_message,
+                                      pipeline_advancements.c.blocker_required_action,
+                                  )
+                                  .order_by(
+                                      pipeline_advancements.c.source_stage,
+                                      pipeline_advancements.c.state,
+                                      pipeline_advancements.c.blocker_code,
+                                  )
+                              )
+                              .mappings()
+                              .all()
+                          )
+                  except SQLAlchemyError as exc:
+                      raise RunControlConflict(
+                          code="RUN_COVERAGE_STORAGE_FAILED",
+                          message="Pipeline advancement coverage could not be read.",
+                          context={"runId": str(run_id), "causeType": type(exc).__name__},
+                          required_action="Inspect PostgreSQL pipeline owner state and retry coverage.",
+                      ) from exc
+                  values = _consolidate(rows, run_id=run_id)
+                  pipeline_blockers = tuple(
+                      RunCoverageBlocker(
+                          code=value.code,
+                          stage=value.stage,
+                          count=value.count,
+                          message=value.message,
+                          required_action=value.required_action,
+                      )
+                      for value in values
+                  )
+                  return RunCoverageReport(
+                      run_id=base.run_id,
+                      state=base.state,
+                      revision=base.revision,
+                      stages=base.stages,
+                      blockers=base.blockers + pipeline_blockers,
+                  )
+
+
+          def _consolidate(
+              rows: list[Mapping[str, object]],
+              *,
+              run_id: UUID,
+          ) -> tuple[_CoverageBlockerValue, ...]:
+              consolidated: dict[tuple[str, WorkStage], _CoverageBlockerValue] = {}
+              for row in rows:
+                  value = _coverage_value(row)
+                  key = (value.code, value.stage)
+                  existing = consolidated.get(key)
+                  if existing is None:
+                      consolidated[key] = value
+                      continue
+                  if (
+                      existing.message != value.message
+                      or existing.required_action != value.required_action
+                  ):
+                      raise RunControlConflict(
+                          code="RUN_COVERAGE_BLOCKER_CONFLICT",
+                          message="One pipeline blocker code has conflicting operator semantics.",
+                          context={
+                              "runId": str(run_id),
+                              "stage": value.stage.value,
+                              "blockerCode": value.code,
+                          },
+                          required_action=(
+                              "Repair blocker ownership so one code and stage have one message and action."
+                          ),
+                      )
+                  consolidated[key] = _CoverageBlockerValue(
+                      code=existing.code,
+                      stage=existing.stage,
+                      message=existing.message,
+                      required_action=existing.required_action,
+                      count=existing.count + value.count,
+                  )
+              return tuple(
+                  consolidated[key]
+                  for key in sorted(
+                      consolidated,
+                      key=lambda item: (item[1].value, item[0]),
+                  )
+              )
+
+
+          def _coverage_value(row: Mapping[str, object]) -> _CoverageBlockerValue:
+              stage = WorkStage(str(row["source_stage"]))
+              state = PipelineAdvancementState(str(row["state"]))
+              count = int(row["count"])
+              if state is PipelineAdvancementState.PENDING:
+                  return _CoverageBlockerValue(
+                      code="PIPELINE_ADVANCEMENT_PENDING",
+                      stage=stage,
+                      count=count,
+                      message="Successful work is waiting for durable pipeline advancement.",
+                      required_action="Run the pipeline supervisor until the pending queue is empty.",
+                  )
+              if state is PipelineAdvancementState.LEASED:
+                  return _CoverageBlockerValue(
+                      code="PIPELINE_ADVANCEMENT_LEASED",
+                      stage=stage,
+                      count=count,
+                      message="Successful work is held by active pipeline advancement leases.",
+                      required_action=(
+                          "Wait for the owning execution or reclaim the work after lease expiry."
+                      ),
+                  )
+              if state is PipelineAdvancementState.BLOCKED:
+                  return _CoverageBlockerValue(
+                      code=_required_text(row, "blocker_code"),
+                      stage=stage,
+                      count=count,
+                      message=_required_text(row, "blocker_message"),
+                      required_action=_required_text(row, "blocker_required_action"),
+                  )
+              raise RunControlConflict(
+                  code="RUN_COVERAGE_PIPELINE_STATE_INVALID",
+                  message="A non-blocking pipeline state entered the blocker query.",
+                  context={"stage": stage.value, "state": state.value},
+                  required_action="Repair the pipeline coverage state filter.",
+              )
+
+
+          def _required_text(row: Mapping[str, object], key: str) -> str:
+              value = row[key]
+              if not isinstance(value, str) or not value:
+                  raise TypeError(f"persisted {key} is not non-empty text")
+              return value
+          ''',
+              encoding="utf-8",
+          )
+
+          postgres_init = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/__init__.py"
+          )
+          text = postgres_init.read_text(encoding="utf-8")
+          catalog_block = '''
+
+          from collection_infrastructure.postgres.succeeded_work_catalog import (  # noqa: E402
+              PostgresSucceededWorkCatalog,
+          )
+
+          __all__ += ("PostgresSucceededWorkCatalog",)
+          '''
+          if "from collection_infrastructure.postgres.succeeded_work_catalog import" not in text:
+              text = text.rstrip() + catalog_block
+          postgres_init.write_text(text, encoding="utf-8")
+
+          infrastructure_init = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/__init__.py"
+          )
+          text = infrastructure_init.read_text(encoding="utf-8")
+          root_block = '''
+
+          from collection_infrastructure.postgres.succeeded_work_catalog import (  # noqa: E402
+              PostgresSucceededWorkCatalog,
+          )
+
+          __all__ += ("PostgresSucceededWorkCatalog",)
+          '''
+          if "from collection_infrastructure.postgres.succeeded_work_catalog import" not in text:
+              text = text.rstrip() + root_block
+          infrastructure_init.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Extend coverage contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >> packages/collection_infrastructure/tests/test_pipeline_run_control.py <<'PY'
+
+
+          def test_equivalent_blocker_rows_are_consolidated_without_duplicate_contract_keys() -> None:
+              from collection_infrastructure.postgres.pipeline_run_control import _consolidate
+
+              rows = [
+                  {
+                      "source_stage": WorkStage.DISCOVERY.value,
+                      "state": "blocked",
+                      "blocker_code": "PIPELINE_TRANSITION_UNSUPPORTED",
+                      "blocker_message": "No transition owns the output.",
+                      "blocker_required_action": "Install the exact owner transition.",
+                      "count": 2,
+                  },
+                  {
+                      "source_stage": WorkStage.DISCOVERY.value,
+                      "state": "blocked",
+                      "blocker_code": "PIPELINE_TRANSITION_UNSUPPORTED",
+                      "blocker_message": "No transition owns the output.",
+                      "blocker_required_action": "Install the exact owner transition.",
+                      "count": 3,
+                  },
+              ]
+
+              values = _consolidate(rows, run_id=_RUN_ID)
+
+              assert len(values) == 1
+              assert values[0].count == 5
+          PY
+
+      - name: Sync exact workspace
+        run: uv sync --all-packages --dev --locked
+
+      - name: Format owner files
+        run: |
+          uv run ruff format \
+            packages/collection_application/src/collection_application \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/__init__.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py
+
+      - name: Run catalog integration gate
+        run: |
+          uv run ruff check --fix \
+            packages/collection_application/src/collection_application \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/__init__.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py
+          uv run ruff format --check \
+            packages/collection_application/src/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres
+          uv run pytest -q \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py \
+            database/tests/test_pipeline_advancement_schema.py
+          uv run mypy \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run python -m compileall -q \
+            packages/collection_application/src/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres
+
+      - name: Commit catalog integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-pipeline-catalog-integration.yml
+          git add \
+            .github/workflows \
+            packages/collection_application \
+            packages/collection_infrastructure \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Feature (Pipeline): integrate canonical succeeded-work catalog'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
