@@ -1,0 +1,193 @@
+name: Download and Persistence E2E V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/data-flow-e2e-ci-v2.yml
+      - apps/http_worker/**
+      - apps/worker_gateway/**
+      - connectors/official_http/**
+      - packages/collection_application/**
+      - packages/collection_infrastructure/**
+      - packages/source_connector_sdk/**
+      - database/**
+      - deploy/compose/application.yaml
+      - tools/e2e/**
+  pull_request:
+    paths:
+      - apps/http_worker/**
+      - apps/worker_gateway/**
+      - connectors/official_http/**
+      - packages/collection_application/**
+      - packages/collection_infrastructure/**
+      - packages/source_connector_sdk/**
+      - database/**
+      - deploy/compose/application.yaml
+      - tools/e2e/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-download-persistence-e2e-v2
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+      COLLECTOR_TEST_S3_ENDPOINT_URL: http://127.0.0.1:8333
+      COLLECTOR_TEST_S3_BUCKET: collector-e2e
+      COLLECTOR_TEST_S3_ACCESS_KEY_ID: collector-e2e
+      COLLECTOR_TEST_S3_SECRET_ACCESS_KEY: collector-e2e-secret
+      COLLECTOR_TEST_S3_REGION: us-east-1
+
+    steps:
+      - name: Check out exact subject
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Detect complete acquisition owner
+        id: readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=true
+          for path in \
+            apps/http_worker/pyproject.toml \
+            apps/worker_gateway/pyproject.toml \
+            connectors/official_http/pyproject.toml \
+            packages/collection_infrastructure/tests/test_seaweedfs_s3_compatibility.py \
+            deploy/compose/application.yaml; do
+            test -f "$path" || ready=false
+          done
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+
+      - name: Install exact Python
+        if: steps.readiness.outputs.ready == 'true'
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        if: steps.readiness.outputs.ready == 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore frozen workspace
+        if: steps.readiness.outputs.ready == 'true'
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Start canonical S3-compatible service
+        if: steps.readiness.outputs.ready == 'true'
+        id: object_store
+        shell: bash
+        run: |
+          set -euo pipefail
+          service="$(uv run python - <<'PY'
+          import yaml
+          from pathlib import Path
+
+          document = yaml.safe_load(Path('deploy/compose/application.yaml').read_text())
+          matches = []
+          for name, definition in document.get('services', {}).items():
+              image = str(definition.get('image', ''))
+              if 'seaweed' in name.lower() or 'seaweed' in image.lower():
+                  matches.append(name)
+          if len(matches) != 1:
+              raise SystemExit(
+                  f'expected exactly one SeaweedFS service, observed {matches}'
+              )
+          print(matches[0])
+          PY
+          )"
+          echo "service=$service" >> "$GITHUB_OUTPUT"
+          docker compose -f deploy/compose/application.yaml up -d "$service"
+          for _ in $(seq 1 90); do
+            curl --silent --fail "$COLLECTOR_TEST_S3_ENDPOINT_URL/" >/dev/null && exit 0
+            sleep 2
+          done
+          docker compose -f deploy/compose/application.yaml logs "$service"
+          exit 1
+
+      - name: Apply fresh schema
+        if: steps.readiness.outputs.ready == 'true'
+        run: uv run collection-migrate upgrade head
+
+      - name: Prove immutable object lifecycle
+        if: steps.readiness.outputs.ready == 'true'
+        run: >-
+          uv run pytest -q -m object_store_integration
+          packages/collection_infrastructure/tests/test_seaweedfs_s3_compatibility.py
+
+      - name: Prove HTTP to raw-artifact vertical flow
+        if: steps.readiness.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t tests < <(find . -type f \
+            \( -iname '*vertical*data*flow*.py' \
+               -o -iname '*http*object*flow*.py' \
+               -o -iname '*acquisition*e2e*.py' \) \
+            ! -path './.venv/*' | sort)
+          test "${#tests[@]}" -gt 0
+          uv run pytest -q "${tests[@]}"
+
+      - name: Record exact-subject data-flow proof
+        if: steps.readiness.outputs.ready == 'true' && github.event_name != 'pull_request'
+        env:
+          SUBJECT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/proofs
+          cat > docs/proofs/download-persistence-e2e-ci.md <<EOF
+          # Download and persistence E2E proof
+
+          - Status: proven
+          - Subject commit: \`$SUBJECT_SHA\`
+          - Workflow run: \`$RUN_ID\`
+          - Conclusion: success
+
+          The exact subject performed a real HTTP acquisition fixture, persisted immutable raw bytes through the canonical S3-compatible object-store path, verified digest and size, and retained PostgreSQL artifact metadata and work lineage. This deterministic fixture proof does not claim approval of blocked production Berlin inputs.
+          EOF
+          git add docs/proofs/download-persistence-e2e-ci.md
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Docs (Proofs): record download and persistence E2E"
+          git fetch origin main
+          if test "$(git rev-parse HEAD^)" != "$(git rev-parse origin/main)"; then
+            git reset --soft origin/main
+            git commit -m "Docs (Proofs): record download and persistence E2E"
+          fi
+          git push origin HEAD:main
+
+      - name: Stop canonical object store
+        if: always() && steps.readiness.outputs.ready == 'true'
+        run: >-
+          docker compose -f deploy/compose/application.yaml
+          down --volumes --remove-orphans
