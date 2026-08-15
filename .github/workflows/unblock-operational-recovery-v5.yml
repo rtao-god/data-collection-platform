@@ -32,16 +32,24 @@ jobs:
 
           path = Path(".github/workflows/reconcile-operational-production-v4.yml")
           text = path.read_text(encoding="utf-8")
-          old = '''      - uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: apps/review_web/package-lock.json
-'''
-          new = '''      - uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-'''
+          old = "\n".join(
+              (
+                  "      - uses: actions/setup-node@v6",
+                  "        with:",
+                  "          node-version: \"22\"",
+                  "          cache: npm",
+                  "          cache-dependency-path: apps/review_web/package-lock.json",
+                  "",
+              )
+          )
+          new = "\n".join(
+              (
+                  "      - uses: actions/setup-node@v6",
+                  "        with:",
+                  "          node-version: \"22\"",
+                  "",
+              )
+          )
           if old not in text:
               raise SystemExit("Expected setup-node cache block was not found")
           path.write_text(text.replace(old, new, 1), encoding="utf-8")
