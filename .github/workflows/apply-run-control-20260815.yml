@@ -1,0 +1,125 @@
+name: Apply Run Control Owner Batch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-run-control-20260815.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-run-control-owner-batch
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+      PAYLOAD_BLOB_SHA: 9429c4c2c5d22d20501d26543b03fb10bac94c33
+      PATCH_SHA256: e69d6123093240b0910038dc1a8158cef29e422f6bd7ad350639672d17542a9a
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Retrieve and apply verified owner patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          api="https://api.github.com/repos/$REPOSITORY"
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$api/git/blobs/$PAYLOAD_BLOB_SHA" \
+            | jq -r .content \
+            | tr -d '\n' \
+            | base64 --decode > /tmp/run-control.patch.gz.b64
+          base64 --decode /tmp/run-control.patch.gz.b64 \
+            | gzip --decompress > /tmp/run-control.patch
+          echo "$PATCH_SHA256  /tmp/run-control.patch" | sha256sum --check
+          git apply --index --3way /tmp/run-control.patch
+          git diff --cached --check
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Verify formatting and lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format --check .
+          uv run ruff check .
+
+      - name: Verify contracts, typing, tests, and boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run mypy
+          uv run pytest -m "not integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collector config validate berlin_recording_services
+
+      - name: Verify fresh PostgreSQL contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+
+      - name: Commit production owners and remove transport workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-run-control-20260815.yml
+          git add apps connectors contracts database packages tools pyproject.toml uv.lock
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git config user.name "rtao-god"
+          git config user.email "rtaogod@gmail.com"
+          git commit -m "Feat (Runs): add run control and coverage API"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
