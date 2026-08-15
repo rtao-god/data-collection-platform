@@ -21,6 +21,12 @@ from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     pipeline_advancements,
 )
 
+_BLOCKING_STATES = (
+    PipelineAdvancementState.PENDING.value,
+    PipelineAdvancementState.LEASED.value,
+    PipelineAdvancementState.BLOCKED.value,
+)
+
 
 class PipelineAwareRunControlRepository:
     """Run Control decorator that exposes durable pipeline advancement blockers."""
@@ -52,6 +58,7 @@ class PipelineAwareRunControlRepository:
                             sa.func.count().label("count"),
                         )
                         .where(pipeline_advancements.c.run_id == run_id)
+                        .where(pipeline_advancements.c.state.in_(_BLOCKING_STATES))
                         .group_by(
                             pipeline_advancements.c.source_stage,
                             pipeline_advancements.c.state,
