@@ -1,0 +1,141 @@
+name: Commit Pipeline Advancement Schema
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/commit-pipeline-schema.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-owner-repair-v2
+  cancel-in-progress: false
+
+jobs:
+  schema:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply canonical schema identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          migration = Path(
+              "database/migrations/versions/20260815_0013_pipeline_advancement.py"
+          )
+          text = migration.read_text(encoding="utf-8").replace(
+              '"work.work_units.work_unit_id"',
+              '"work.work_units.work_id"',
+          )
+          if '"work.work_units.work_id"' not in text:
+              raise RuntimeError("canonical migration FK is absent")
+          if '"work.work_units.work_unit_id"' in text:
+              raise RuntimeError("obsolete migration FK remains")
+          migration.write_text(text, encoding="utf-8")
+
+          metadata = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/pipeline_advancement_metadata.py"
+          )
+          text = metadata.read_text(encoding="utf-8")
+          text = text.replace(
+              'sa.Column("work_unit_id", sa.Uuid(), primary_key=True)',
+              'sa.Column("work_id", sa.Uuid(), primary_key=True)',
+          )
+          text = text.replace(
+              '_work_units.c.work_unit_id',
+              '_work_units.c.work_id',
+          )
+          if "_work_units.c.work_unit_id" in text:
+              raise RuntimeError("obsolete metadata FK remains")
+          metadata.write_text(text, encoding="utf-8")
+
+          test = Path("database/tests/test_pipeline_advancement_schema.py")
+          text = test.read_text(encoding="utf-8")
+          text = text.replace(
+              '    assert "ON DELETE RESTRICT" in source\n',
+              '    assert \'ondelete="RESTRICT"\' in source\n',
+          )
+          anchor = '    assert \'schema="work"\' in source\n'
+          assertions = (
+              '    assert \'"work.work_units.work_id"\' in source\n'
+              '    assert \'"work.work_units.work_unit_id"\' not in source\n'
+          )
+          if assertions not in text:
+              if anchor not in text:
+                  raise RuntimeError("schema test anchor is absent")
+              text = text.replace(anchor, anchor + assertions, 1)
+          test.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Prove schema owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          files=(
+            database/migrations/versions/20260815_0013_pipeline_advancement.py
+            database/tests/test_pipeline_advancement_schema.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+          )
+          uv run ruff format "${files[@]}"
+          uv run ruff check "${files[@]}"
+          uv run pytest -q database/tests/test_pipeline_advancement_schema.py
+          uv run collection-migrate upgrade head
+          uv run pytest -q -m integration database/tests/test_work_engine_schema.py
+
+      - name: Commit schema repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Pipeline): target canonical work identity"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
