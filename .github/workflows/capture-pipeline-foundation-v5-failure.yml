@@ -1,0 +1,75 @@
+name: Capture Pipeline Foundation V5 Failure
+
+on:
+  workflow_run:
+    workflows: ["Reconcile Pipeline Foundation V5"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  capture:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Download V5 diagnostic artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(
+            -H "Authorization: Bearer $GH_TOKEN"
+            -H 'Accept: application/vnd.github+json'
+            -H 'X-GitHub-Api-Version: 2022-11-28'
+          )
+          run_id="$EVENT_RUN_ID"
+          if [[ -z "$run_id" || "$run_id" == 'null' ]]; then
+            run_id="$(curl -fsSL "${headers[@]}" \
+              "$api/actions/workflows/reconcile-pipeline-foundation-v5.yml/runs?branch=main&per_page=20" \
+              | jq -r '.workflow_runs[] | select(.conclusion == "failure") | .id' | head -1)"
+          fi
+          test -n "$run_id"
+          artifact_id="$(curl -fsSL "${headers[@]}" "$api/actions/runs/$run_id/artifacts" \
+            | jq -r '.artifacts[] | select(.name == "pipeline-foundation-v5-diagnostics") | .id' \
+            | head -1)"
+          test -n "$artifact_id"
+          curl -fsSL -L "${headers[@]}" "$api/actions/artifacts/$artifact_id/zip" -o diagnostics.zip
+          unzip -q diagnostics.zip -d diagnostics
+          test -f diagnostics/pipeline-foundation-v5.log
+          echo "$run_id" > failed-run-id.txt
+      - name: Commit concise V5 diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/diagnostics
+          run_id="$(cat failed-run-id.txt)"
+          {
+            echo '# Pipeline foundation V5 failure'
+            echo
+            echo "- Run: \`$run_id\`"
+            echo '- Status: `failed`'
+            echo
+            echo '```text'
+            tail -n 260 diagnostics/pipeline-foundation-v5.log
+            echo '```'
+          } > docs/diagnostics/pipeline-foundation-v5.md
+          git rm -f --ignore-unmatch .github/workflows/capture-pipeline-foundation-v5-failure.yml
+          git add docs/diagnostics/pipeline-foundation-v5.md
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Docs (Diagnostics): record V5 pipeline failure'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
