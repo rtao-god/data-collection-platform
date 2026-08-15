@@ -10,10 +10,10 @@ from collection_application.pipeline_advancement import (
     PipelineAdvancementConflict,
     SucceededWorkOutput,
 )
-from collection_domain import WorkStage
 from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.exc import SQLAlchemyError
 
+from collection_domain import WorkStage
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     pipeline_advancements,
 )
@@ -111,9 +111,7 @@ class PostgresSucceededWorkCatalog:
         stage_run_id = _required_uuid(work, "stage_run_id")
         stage_row = (
             connection.execute(
-                sa.select(schema.stage_runs).where(
-                    schema.stage_runs.c.stage_run_id == stage_run_id
-                )
+                sa.select(schema.stage_runs).where(schema.stage_runs.c.stage_run_id == stage_run_id)
             )
             .mappings()
             .one_or_none()
@@ -144,7 +142,8 @@ class PostgresSucceededWorkCatalog:
                     "outputArtifactCount": len(outputs),
                 },
                 required_action=(
-                    "Repair work completion so the exact output contract has one canonical artifact."
+                    "Repair work completion so the exact output contract "
+                    "has one canonical artifact."
                 ),
             )
         if outputs[0].artifact_id in {item.artifact_id for item in inputs}:
@@ -253,7 +252,12 @@ class PostgresSucceededWorkCatalog:
                     source_work_unit_id,
                 ),
             )
-        ordered = tuple(sorted(rows, key=lambda item: (item.direction, item.ordinal, item.artifact.role)))
+        ordered = tuple(
+            sorted(
+                rows,
+                key=lambda item: (item.direction, item.ordinal, item.artifact.role),
+            )
+        )
         identities = tuple(item.artifact.artifact_id for item in ordered)
         if len(identities) != len(set(identities)):
             raise _catalog_conflict(

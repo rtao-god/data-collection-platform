@@ -14,7 +14,6 @@ from collection_application.pipeline_advancement import (
     PipelineAdvancementState,
     PipelineAdvancementStatus,
     PipelineBlocker,
-    PipelineTransitionPlan,
     SucceededWorkOutput,
 )
 
@@ -93,8 +92,7 @@ class PipelineSupervisorService:
         if len(source_ids) != len(set(source_ids)):
             raise ValueError("successful work discovery returned duplicate work identities")
         return tuple(
-            self._advancement.register(source, correlation_id=correlation_id)
-            for source in sources
+            self._advancement.register(source, correlation_id=correlation_id) for source in sources
         )
 
     def run_once(

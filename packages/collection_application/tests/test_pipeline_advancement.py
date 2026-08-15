@@ -18,6 +18,7 @@ from collection_application.pipeline_advancement import (
     PipelineTransitionRegistry,
     SucceededWorkOutput,
 )
+
 from collection_contracts import OwnerContextError
 from collection_domain import WorkStage
 

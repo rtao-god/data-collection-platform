@@ -14,11 +14,12 @@ from collection_application.pipeline_advancement import (
     PipelineTransitionRegistry,
     SucceededWorkOutput,
 )
-from collection_domain import WorkStage
 from collection_infrastructure.postgres.pipeline_advancement import (
     PostgresPipelineAdvancementRepository,
 )
 from sqlalchemy.dialects import postgresql
+
+from collection_domain import WorkStage
 
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000301")
 _STAGE_RUN_ID = UUID("00000000-0000-0000-0000-000000000302")

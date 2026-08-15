@@ -314,7 +314,9 @@ class PipelineTransitionRegistry:
                 transition_key="manual-import-plan-admission",
                 code="PIPELINE_OUTPUT_ARTIFACT_CONFLICT",
                 message="The manual-import plan output role does not match its contract.",
-                required_action="Re-run the exact manual-import work with the canonical output role.",
+                required_action=(
+                    "Re-run the exact manual-import work with the canonical output role."
+                ),
                 context={
                     "expectedRole": "manual_import_plan",
                     "actualRole": source.output_artifact.role,
@@ -343,7 +345,8 @@ class PipelineTransitionRegistry:
                 code="PIPELINE_INPUT_ARTIFACT_CONFLICT",
                 message="The manual-import plan has multiple canonical source artifact bindings.",
                 required_action=(
-                    "Repair the source work so exactly one canonical manual source artifact is bound."
+                    "Repair the source work so exactly one canonical "
+                    "manual source artifact is bound."
                 ),
                 context={"matchingArtifactIds": [str(item.artifact_id) for item in parents]},
             )
@@ -361,7 +364,9 @@ class PipelineTransitionRegistry:
                 transition_key="manual-record-routing",
                 code="PIPELINE_OUTPUT_ARTIFACT_CONFLICT",
                 message="The manual-record output role does not match its contract.",
-                required_action="Re-run the exact manual-record work with the canonical output role.",
+                required_action=(
+                    "Re-run the exact manual-record work with the canonical output role."
+                ),
                 context={
                     "expectedRole": "manual_import_record",
                     "actualRole": source.output_artifact.role,

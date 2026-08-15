@@ -165,8 +165,7 @@ class PostgresPipelineAdvancementRepository:
                     connection.execute(
                         sa.select(pipeline_advancements)
                         .where(
-                            pipeline_advancements.c.state
-                            == PipelineAdvancementState.PENDING.value
+                            pipeline_advancements.c.state == PipelineAdvancementState.PENDING.value
                         )
                         .order_by(
                             pipeline_advancements.c.created_at_utc,
@@ -193,8 +192,7 @@ class PostgresPipelineAdvancementRepository:
                     .where(
                         pipeline_advancements.c.advancement_id == advancement_id,
                         pipeline_advancements.c.revision == int(row["revision"]),
-                        pipeline_advancements.c.state
-                        == PipelineAdvancementState.PENDING.value,
+                        pipeline_advancements.c.state == PipelineAdvancementState.PENDING.value,
                     )
                     .values(
                         state=PipelineAdvancementState.LEASED.value,
@@ -300,14 +298,17 @@ class PostgresPipelineAdvancementRepository:
                 if actual_result_digest != command.result_digest:
                     raise PipelineAdvancementConflict(
                         code="PIPELINE_RESULT_DIGEST_CONFLICT",
-                        message="The transition result digest differs from the requested completion.",
+                        message=(
+                            "The transition result digest differs from the requested completion."
+                        ),
                         context={
                             "advancementId": str(command.advancement_id),
                             "requestedDigest": command.result_digest,
                             "actualDigest": actual_result_digest,
                         },
                         required_action=(
-                            "Re-read the exact transition result and complete with its canonical digest."
+                            "Re-read the exact transition result and complete "
+                            "with its canonical digest."
                         ),
                     )
                 next_revision = command.expected_revision + 1

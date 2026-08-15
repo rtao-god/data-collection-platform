@@ -17,6 +17,7 @@ from collection_application.pipeline_supervision import (
     PipelinePreviewBlocked,
     PipelineSupervisorService,
 )
+
 from collection_domain import WorkStage
 
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000401")
@@ -84,6 +85,10 @@ def _status(
     result_digest: str | None = None,
     blocker: PipelineBlocker | None = None,
 ) -> PipelineAdvancementStatus:
+    terminal = state in {
+        PipelineAdvancementState.APPLIED,
+        PipelineAdvancementState.BLOCKED,
+    }
     return PipelineAdvancementStatus(
         advancement_id=_ADVANCEMENT_ID,
         source_work_unit_id=_WORK_ID,
@@ -91,8 +96,8 @@ def _status(
         state=state,
         transition_key="manual-import-plan-admission",
         transition_plan_digest=_PLAN_DIGEST,
-        revision=2 if state in {PipelineAdvancementState.APPLIED, PipelineAdvancementState.BLOCKED} else 0,
-        attempt_count=1 if state in {PipelineAdvancementState.APPLIED, PipelineAdvancementState.BLOCKED} else 0,
+        revision=2 if terminal else 0,
+        attempt_count=1 if terminal else 0,
         result_digest=result_digest,
         blocker=blocker,
         created_at_utc=_NOW,
@@ -100,8 +105,12 @@ def _status(
     )
 
 
+_DEFAULT_SOURCES = (_source(),)
+_DEFAULT_LEASE = _lease()
+
+
 class Discovery:
-    def __init__(self, sources=(_source(),)) -> None:
+    def __init__(self, sources=_DEFAULT_SOURCES) -> None:
         self.sources = sources
 
     def list_unregistered_succeeded(self, *, limit, correlation_id):
@@ -111,7 +120,7 @@ class Discovery:
 
 
 class Port:
-    def __init__(self, *, lease=_lease()) -> None:
+    def __init__(self, *, lease=_DEFAULT_LEASE) -> None:
         self.lease = lease
         self.applied = None
         self.blocked = None

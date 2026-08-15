@@ -13,10 +13,10 @@ from collection_application.run_control import (
     RunCoverageReport,
     TransitionCollectionRun,
 )
-from collection_domain import WorkStage
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from collection_domain import WorkStage
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     pipeline_advancements,
 )

@@ -4,11 +4,12 @@ from contextlib import AbstractContextManager
 from uuid import UUID
 
 from collection_application.run_control import RunCoverageReport
-from collection_domain import CollectionRunState, WorkStage
 from collection_infrastructure.postgres.pipeline_run_control import (
     PipelineAwareRunControlRepository,
 )
 from sqlalchemy.dialects import postgresql
+
+from collection_domain import CollectionRunState, WorkStage
 
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000501")
 
@@ -61,7 +62,7 @@ class Result:
 class Connection:
     def execute(self, statement):
         sql = str(statement.compile(dialect=postgresql.dialect())).upper()
-        assert "PIPELINE_ADVANCEMENTS.STATE IN" in sql
+        assert "WORK.PIPELINE_ADVANCEMENTS.STATE IN" in sql
         assert "APPLIED" not in statement.compile(dialect=postgresql.dialect()).params.values()
         return Result()
 

@@ -342,6 +342,8 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
     }
     assert set(inspector.get_table_names(schema="work")) == {
         "dead_letters",
+        "pipeline_advancement_attempts",
+        "pipeline_advancements",
         "work_attempts",
         "work_input_artifacts",
         "work_units",
