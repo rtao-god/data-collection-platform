@@ -1,0 +1,566 @@
+name: Reconcile Pipeline Foundation V6
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/diagnostics/pipeline-foundation-v5.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-foundation-v6
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore bounded supervisor and canonical exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(git log --all --format=%H -- apps/pipeline_supervisor/pyproject.toml | head -1)"
+          test -n "$commit"
+          git checkout "$commit" -- apps/pipeline_supervisor
+          for path in .github/workflows/pipeline-advancement-ci.yml; do
+            if git cat-file -e "$commit:$path" 2>/dev/null; then git checkout "$commit" -- "$path"; fi
+          done
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app_init = Path("packages/collection_application/src/collection_application/__init__.py")
+          text = app_init.read_text(encoding="utf-8")
+          if "from collection_application.pipeline_advancement import" not in text:
+              text += '''
+
+          from collection_application.pipeline_advancement import (
+              ApplyPipelineAdvancement,
+              ArtifactIdentity,
+              BlockPipelineAdvancement,
+              ClaimPipelineAdvancement,
+              PipelineAdvancementConflict,
+              PipelineAdvancementLease,
+              PipelineAdvancementPort,
+              PipelineAdvancementService,
+              PipelineAdvancementState,
+              PipelineAdvancementStatus,
+              PipelineBlocker,
+              PipelineTransitionDisposition,
+              PipelineTransitionPlan,
+              PipelineTransitionRegistry,
+              SucceededWorkOutput,
+          )
+
+          __all__ += (
+              "ApplyPipelineAdvancement",
+              "ArtifactIdentity",
+              "BlockPipelineAdvancement",
+              "ClaimPipelineAdvancement",
+              "PipelineAdvancementConflict",
+              "PipelineAdvancementLease",
+              "PipelineAdvancementPort",
+              "PipelineAdvancementService",
+              "PipelineAdvancementState",
+              "PipelineAdvancementStatus",
+              "PipelineBlocker",
+              "PipelineTransitionDisposition",
+              "PipelineTransitionPlan",
+              "PipelineTransitionRegistry",
+              "SucceededWorkOutput",
+          )
+          '''
+              app_init.write_text(text, encoding="utf-8")
+
+          pg_init = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/__init__.py"
+          )
+          text = pg_init.read_text(encoding="utf-8")
+          if "PostgresPipelineAdvancementRepository" not in text:
+              text += '''
+
+          from collection_infrastructure.postgres.pipeline_advancement import (
+              PipelineTransitionApplier,
+              PostgresPipelineAdvancementRepository,
+          )
+          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+              PIPELINE_ADVANCEMENT_TABLES,
+              pipeline_advancement_attempts,
+              pipeline_advancements,
+          )
+          from collection_infrastructure.postgres.succeeded_work_catalog import (
+              PostgresSucceededWorkCatalog,
+          )
+
+          __all__ += (
+              "PIPELINE_ADVANCEMENT_TABLES",
+              "PipelineTransitionApplier",
+              "PostgresPipelineAdvancementRepository",
+              "PostgresSucceededWorkCatalog",
+              "pipeline_advancement_attempts",
+              "pipeline_advancements",
+          )
+          '''
+              pg_init.write_text(text, encoding="utf-8")
+
+          infra_init = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/__init__.py"
+          )
+          text = infra_init.read_text(encoding="utf-8")
+          if "PostgresSucceededWorkCatalog" not in text:
+              text += '''
+
+          from collection_infrastructure.postgres.pipeline_advancement import (
+              PipelineTransitionApplier,
+              PostgresPipelineAdvancementRepository,
+          )
+          from collection_infrastructure.postgres.succeeded_work_catalog import (
+              PostgresSucceededWorkCatalog,
+          )
+
+          __all__ += (
+              "PipelineTransitionApplier",
+              "PostgresPipelineAdvancementRepository",
+              "PostgresSucceededWorkCatalog",
+          )
+          '''
+              infra_init.write_text(text, encoding="utf-8")
+
+          root = Path("pyproject.toml")
+          text = root.read_text(encoding="utf-8")
+          workspace = re.search(
+              r'(?ms)(\[tool\.uv\.workspace\]\s*members\s*=\s*\[)(.*?)(\])', text
+          )
+          if workspace is None:
+              raise RuntimeError("workspace registry missing")
+          body = workspace.group(2)
+          if '"apps/pipeline_supervisor"' not in body:
+              body = body.rstrip() + '\n  "apps/pipeline_supervisor",\n'
+              text = text[:workspace.start(2)] + body + text[workspace.end(2):]
+          mypy = re.search(r'(?ms)(\[tool\.mypy\].*?\nfiles\s*=\s*\[)(.*?)(\])', text)
+          if mypy is None:
+              raise RuntimeError("mypy registry missing")
+          body = mypy.group(2)
+          if 'apps/pipeline_supervisor/src/pipeline_supervisor' not in body:
+              body = body.rstrip() + '\n  "apps/pipeline_supervisor/src/pipeline_supervisor",\n'
+              text = text[:mypy.start(2)] + body + text[mypy.end(2):]
+          root.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Replace catalog with the physical repository schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py <<'PY'
+          from __future__ import annotations
+
+          from uuid import UUID
+
+          import sqlalchemy as sa
+          from collection_application.pipeline_advancement import (
+              ArtifactIdentity,
+              PipelineAdvancementConflict,
+              SucceededWorkOutput,
+          )
+          from collection_domain import WorkStage
+          from sqlalchemy.engine import Connection, Engine, RowMapping
+          from sqlalchemy.exc import SQLAlchemyError
+
+          from collection_infrastructure.postgres.artifact_metadata import (
+              artifact_objects,
+              artifact_records,
+              work_input_artifacts,
+              work_output_artifacts,
+          )
+          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+              pipeline_advancements,
+          )
+          from collection_infrastructure.postgres.work_metadata import stage_runs, work_units
+
+
+          class PostgresSucceededWorkCatalog:
+              """Canonical reader for one successful work result and its immutable artifacts."""
+
+              def __init__(self, engine: Engine) -> None:
+                  self._engine = engine
+
+              def __call__(
+                  self,
+                  connection: Connection,
+                  source_work_unit_id: UUID,
+              ) -> SucceededWorkOutput:
+                  return self.read(connection, source_work_unit_id)
+
+              def read(
+                  self,
+                  connection: Connection,
+                  source_work_unit_id: UUID,
+              ) -> SucceededWorkOutput:
+                  work = (
+                      connection.execute(
+                          sa.select(work_units)
+                          .where(work_units.c.work_id == source_work_unit_id)
+                          .with_for_update(read=True)
+                      )
+                      .mappings()
+                      .one_or_none()
+                  )
+                  if work is None:
+                      raise _conflict(
+                          "PIPELINE_SOURCE_WORK_NOT_FOUND",
+                          "The source work unit does not exist.",
+                          source_work_unit_id,
+                          "Refresh canonical work state and select an existing work unit.",
+                      )
+                  if _text(work, "state") != "succeeded":
+                      raise _conflict(
+                          "PIPELINE_SOURCE_WORK_NOT_SUCCEEDED",
+                          "Pipeline advancement accepts only successfully completed work.",
+                          source_work_unit_id,
+                          "Wait for canonical successful completion before advancement.",
+                      )
+                  run_id = _uuid(work, "run_id")
+                  stage_run_id = _uuid(work, "stage_run_id")
+                  stage = (
+                      connection.execute(
+                          sa.select(stage_runs).where(
+                              stage_runs.c.stage_run_id == stage_run_id,
+                              stage_runs.c.run_id == run_id,
+                          )
+                      )
+                      .mappings()
+                      .one_or_none()
+                  )
+                  if stage is None:
+                      raise _conflict(
+                          "PIPELINE_STAGE_OWNER_NOT_FOUND",
+                          "The successful work has no canonical stage owner.",
+                          source_work_unit_id,
+                          "Repair stage ownership before advancing the output.",
+                      )
+                  inputs = _bound_artifacts(connection, work_input_artifacts, source_work_unit_id)
+                  outputs = _bound_artifacts(connection, work_output_artifacts, source_work_unit_id)
+                  if len(outputs) != 1:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_OUTPUT_ARTIFACT_CARDINALITY",
+                          message="Successful work must bind exactly one canonical output artifact.",
+                          context={
+                              "sourceWorkUnitId": str(source_work_unit_id),
+                              "outputArtifactCount": len(outputs),
+                          },
+                          required_action=(
+                              "Repair completion so the exact output contract has one artifact."
+                          ),
+                      )
+                  input_ids = {item.artifact_id for item in inputs}
+                  if outputs[0].artifact_id in input_ids:
+                      raise _conflict(
+                          "PIPELINE_ARTIFACT_DIRECTION_CONFLICT",
+                          "One artifact is bound as both pipeline input and output.",
+                          source_work_unit_id,
+                          "Repair immutable artifact bindings before advancement.",
+                      )
+                  return SucceededWorkOutput(
+                      source_work_unit_id=source_work_unit_id,
+                      run_id=run_id,
+                      stage_run_id=stage_run_id,
+                      stage=WorkStage(_text(stage, "stage")),
+                      capability=_text(work, "capability"),
+                      output_contract=_text(work, "output_contract"),
+                      output_digest=_text(work, "output_digest"),
+                      output_artifact=outputs[0],
+                      input_artifacts=inputs,
+                  )
+
+              def list_unregistered_succeeded(
+                  self,
+                  *,
+                  limit: int,
+                  correlation_id: str,
+              ) -> tuple[SucceededWorkOutput, ...]:
+                  del correlation_id
+                  if not 1 <= limit <= 1_000:
+                      raise ValueError("successful work discovery limit must be between 1 and 1000")
+                  try:
+                      with self._engine.connect() as connection:
+                          statement = (
+                              sa.select(work_units.c.work_id)
+                              .where(
+                                  work_units.c.state == "succeeded",
+                                  ~sa.exists(
+                                      sa.select(sa.literal(1)).where(
+                                          pipeline_advancements.c.source_work_unit_id
+                                          == work_units.c.work_id
+                                      )
+                                  ),
+                              )
+                              .order_by(
+                                  work_units.c.completed_at_utc,
+                                  work_units.c.work_id,
+                              )
+                              .limit(limit)
+                          )
+                          work_ids = tuple(connection.execute(statement).scalars())
+                          return tuple(self.read(connection, _uuid_value(value)) for value in work_ids)
+                  except PipelineAdvancementConflict:
+                      raise
+                  except SQLAlchemyError as exc:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_DISCOVERY_STORAGE_FAILED",
+                          message="Successful work discovery did not complete.",
+                          context={"causeType": type(exc).__name__},
+                          required_action=(
+                              "Inspect PostgreSQL owner state and retry exact discovery."
+                          ),
+                      ) from exc
+
+
+          def _bound_artifacts(
+              connection: Connection,
+              binding: sa.Table,
+              work_id: UUID,
+          ) -> tuple[ArtifactIdentity, ...]:
+              rows = (
+                  connection.execute(
+                      sa.select(
+                          binding.c.position,
+                          binding.c.role,
+                          artifact_records.c.artifact_id,
+                          artifact_records.c.content_type,
+                          artifact_objects.c.content_digest,
+                          artifact_objects.c.size_bytes,
+                      )
+                      .select_from(
+                          binding.join(
+                              artifact_records,
+                              binding.c.artifact_id == artifact_records.c.artifact_id,
+                          ).join(
+                              artifact_objects,
+                              artifact_records.c.object_id == artifact_objects.c.object_id,
+                          )
+                      )
+                      .where(binding.c.work_id == work_id)
+                      .order_by(binding.c.position, binding.c.role)
+                  )
+                  .mappings()
+                  .all()
+              )
+              artifacts = tuple(
+                  ArtifactIdentity(
+                      artifact_id=_uuid(row, "artifact_id"),
+                      role=_text(row, "role"),
+                      content_digest=_text(row, "content_digest"),
+                      size_bytes=_integer(row, "size_bytes"),
+                      content_type=_text(row, "content_type"),
+                  )
+                  for row in rows
+              )
+              identities = tuple(item.artifact_id for item in artifacts)
+              roles = tuple(item.role for item in artifacts)
+              if len(identities) != len(set(identities)) or len(roles) != len(set(roles)):
+                  raise _conflict(
+                      "PIPELINE_ARTIFACT_BINDING_DUPLICATE",
+                      "Successful work contains duplicate artifact bindings.",
+                      work_id,
+                      "Repair duplicate immutable bindings before advancement.",
+                  )
+              return artifacts
+
+
+          def _conflict(
+              code: str,
+              message: str,
+              work_id: UUID,
+              required_action: str,
+          ) -> PipelineAdvancementConflict:
+              return PipelineAdvancementConflict(
+                  code=code,
+                  message=message,
+                  context={"sourceWorkUnitId": str(work_id)},
+                  required_action=required_action,
+              )
+
+
+          def _text(row: RowMapping, key: str) -> str:
+              value = row[key]
+              if not isinstance(value, str) or not value:
+                  raise TypeError(f"persisted {key} is not non-empty text")
+              return value
+
+
+          def _uuid(row: RowMapping, key: str) -> UUID:
+              return _uuid_value(row[key])
+
+
+          def _uuid_value(value: object) -> UUID:
+              if isinstance(value, UUID):
+                  return value
+              if isinstance(value, str):
+                  return UUID(value)
+              raise TypeError("persisted identity is not a UUID")
+
+
+          def _integer(row: RowMapping, key: str) -> int:
+              value = row[key]
+              if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                  raise TypeError(f"persisted {key} is not a non-negative integer")
+              return value
+          PY
+
+      - name: Align migration and image with current workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          migration = Path("database/migrations/versions/20260815_0013_pipeline_advancement.py")
+          text = migration.read_text(encoding="utf-8").replace(
+              '("work.work_units.work_unit_id",)', '("work.work_units.work_id",)'
+          )
+          migration.write_text(text, encoding="utf-8")
+          metadata = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "pipeline_advancement_metadata.py"
+          )
+          text = metadata.read_text(encoding="utf-8").replace(
+              'sa.Column("work_unit_id", sa.Uuid(), primary_key=True)',
+              'sa.Column("work_id", sa.Uuid(), primary_key=True)',
+          ).replace("_work_units.c.work_unit_id", "_work_units.c.work_id")
+          metadata.write_text(text, encoding="utf-8")
+          schema_test = Path("database/tests/test_pipeline_advancement_schema.py")
+          text = schema_test.read_text(encoding="utf-8").replace(
+              'assert "ON DELETE RESTRICT" in source',
+              'assert \'ondelete="RESTRICT"\' in source',
+          )
+          schema_test.write_text(text, encoding="utf-8")
+          PY
+          cat > deploy/docker/pipeline-supervisor.Dockerfile <<'DOCKER'
+          FROM python:3.13.14-slim AS build
+          ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+          WORKDIR /workspace
+          RUN pip install --no-cache-dir uv==0.10.0
+          COPY .python-version pyproject.toml uv.lock ./
+          COPY apps ./apps
+          COPY connectors ./connectors
+          COPY packages ./packages
+          RUN uv sync --frozen --no-dev --no-editable --package pipeline-supervisor
+          FROM python:3.13.14-slim AS runtime
+          ENV PATH="/workspace/.venv/bin:${PATH}" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+          RUN groupadd --gid 10001 worker && useradd --uid 10001 --gid worker --create-home worker
+          WORKDIR /workspace
+          COPY --from=build --chown=worker:worker /workspace/.venv /workspace/.venv
+          USER 10001:10001
+          ENTRYPOINT ["pipeline-supervisor"]
+          DOCKER
+
+      - name: Prove physical pipeline foundation
+        id: gate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          exec > >(tee pipeline-foundation-v6.log) 2>&1
+          set -euo pipefail
+          uv lock
+          uv sync --all-packages --dev --locked
+          uv run ruff format \
+            apps/pipeline_supervisor \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres \
+            packages/collection_infrastructure/tests
+          uv run ruff check --fix \
+            apps/pipeline_supervisor \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres \
+            packages/collection_infrastructure/tests
+          uv run ruff format --check .
+          uv run ruff check .
+          uv lock --check
+          uv run mypy
+          uv run pytest -m "not integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+          docker build --file deploy/docker/pipeline-supervisor.Dockerfile \
+            --tag data-collection-platform/pipeline-supervisor:ci .
+          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/pipeline-supervisor:ci)" = "10001:10001"
+
+      - name: Upload V6 diagnostics
+        if: steps.gate.outcome != 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: pipeline-foundation-v6-diagnostics
+          path: pipeline-foundation-v6.log
+          if-no-files-found: error
+          retention-days: 3
+      - name: Stop on failed gate
+        if: steps.gate.outcome != 'success'
+        run: exit 1
+
+      - name: Commit physical pipeline foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/repair-pipeline-schema-direct.yml \
+            .github/workflows/repair-pipeline-schema-v2.yml \
+            .github/workflows/repair-pipeline-code-v3.yml \
+            .github/workflows/materialize-pipeline-supervisor-direct.yml \
+            .github/workflows/reconcile-pipeline-foundation-v4.yml \
+            .github/workflows/reconcile-pipeline-foundation-v5.yml \
+            .github/workflows/reconcile-pipeline-foundation-v6.yml \
+            docs/diagnostics/pipeline-foundation-v4.md \
+            docs/diagnostics/pipeline-foundation-v5.md
+          git add \
+            apps/pipeline_supervisor \
+            deploy/docker/pipeline-supervisor.Dockerfile \
+            .github/workflows/pipeline-advancement-ci.yml \
+            pyproject.toml uv.lock \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application \
+            packages/collection_infrastructure
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Feature (Pipeline): bind supervisor to physical repository schema'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
