@@ -1,0 +1,204 @@
+name: Apply Unified E2E Production Owner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-unified-e2e-owner.yml
+      - .github/apply/unified-e2e-owner.patch
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-unified-e2e-owner
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Install Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Apply exact unified production patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test -s .github/apply/unified-e2e-owner.patch
+          if git apply --index --3way .github/apply/unified-e2e-owner.patch; then
+            git diff --cached --check
+            exit 0
+          fi
+
+          git reset --hard origin/main
+          all_present=true
+          required=(
+            packages/collection_application/src/collection_application/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            apps/pipeline_supervisor/pyproject.toml
+            apps/review_web/package-lock.json
+            apps/browser_worker/pyproject.toml
+            packages/export_core/src/export_core/service.py
+            apps/retention_job/pyproject.toml
+            apps/orchestrator/pyproject.toml
+            tools/operations/backup_restore.py
+            deploy/compose/application.yaml
+            .github/workflows/vertical-data-flow-e2e.yml
+            .github/workflows/backup-restore-ci.yml
+          )
+          for path in "${required[@]}"; do
+            test -f "$path" || all_present=false
+          done
+          if [[ "$all_present" != true ]]; then
+            echo 'Unified owner patch conflicted and the complete production owner is not already present.' >&2
+            exit 1
+          fi
+
+      - name: Restore exact Python workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Verify Python contracts and architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format --check .
+          uv run ruff check .
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run mypy
+          uv run pytest -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          if test -f tools/export_architecture_check.py; then
+            uv run python tools/export_architecture_check.py
+          fi
+          uv run python -m compileall -q apps connectors database packages tools tests
+          uv run collector config validate berlin_recording_services
+
+      - name: Verify fresh PostgreSQL contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+
+      - name: Verify typed review web
+        working-directory: apps/review_web
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run generate:contracts
+          npm run lint
+          npm run typecheck
+          npm run test
+          npm run build
+
+      - name: Verify complete Compose topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose \
+            --env-file deploy/compose/.env.example \
+            -f deploy/compose/infrastructure.yaml \
+            -f deploy/compose/application.yaml \
+            config >/tmp/application-compose.yaml
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          payload = yaml.safe_load(Path('/tmp/application-compose.yaml').read_text())
+          required = {
+              'migration',
+              'worker-gateway',
+              'control-api',
+              'manual-import-worker',
+              'osm-worker',
+              'http-worker',
+              'processing-worker',
+              'resolution-worker',
+              'pipeline-supervisor',
+              'review-web',
+              'browser-worker',
+              'collector-export',
+              'retention-job',
+              'dagster-webserver',
+              'dagster-daemon',
+              'otel-collector',
+              'edge',
+              'operations',
+          }
+          missing = required - set(payload['services'])
+          if missing:
+              raise SystemExit('missing services: ' + ', '.join(sorted(missing)))
+          PY
+
+      - name: Commit only production owners and remove transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/apply-unified-e2e-owner.yml \
+            .github/apply/unified-e2e-owner.patch
+          find .github/workflows -maxdepth 1 -type f \( \
+              -name 'apply-*.yml' -o \
+              -name 'cleanup-*.yml' -o \
+              -name 'materialize-*.yml' -o \
+              -name 'package-working-snapshot.yml' \
+            \) -print0 | xargs -0 -r git rm -f
+          if test -d .github/apply; then
+            find .github/apply -maxdepth 1 -type f -print0 | xargs -0 -r git rm -f
+          fi
+          find docs/diagnostics -maxdepth 1 -type f -name '.*transport*' -print0 2>/dev/null | xargs -0 -r git rm -f
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Feat (Platform): complete executable E2E runtime"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
