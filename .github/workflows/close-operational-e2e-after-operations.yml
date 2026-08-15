@@ -1,0 +1,233 @@
+name: Close Operational E2E After Operations
+
+on:
+  workflow_run:
+    workflows: ["Materialize Operations After Export"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: data-collection-platform-final-operational-closure
+  cancel-in-progress: false
+
+jobs:
+  close:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Dispatch permanent exact-head suite
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          subject="$(git rev-parse HEAD)"
+          echo "subject=$subject" >> "$GITHUB_OUTPUT"
+          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "started_at=$started_at" >> "$GITHUB_OUTPUT"
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(
+            -H "Authorization: Bearer $GH_TOKEN"
+            -H 'Accept: application/vnd.github+json'
+            -H 'X-GitHub-Api-Version: 2022-11-28'
+          )
+          workflows=(
+            ci.yml
+            pipeline-advancement-ci.yml
+            review-web-ci.yml
+            application-compose-ci.yml
+            vertical-data-flow-e2e.yml
+            browser-worker-isolation.yml
+            export-ci.yml
+            operations-ci.yml
+            backup-restore-ci.yml
+          )
+          for workflow in "${workflows[@]}"; do
+            test -f ".github/workflows/$workflow" || {
+              echo "missing permanent workflow: $workflow" >&2
+              exit 1
+            }
+            curl -fsSL -X POST "${headers[@]}" \
+              "$api/actions/workflows/$workflow/dispatches" \
+              -d '{"ref":"main"}' >/dev/null
+          done
+
+      - name: Wait for permanent exact-head suite
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SUBJECT: ${{ steps.dispatch.outputs.subject }}
+          STARTED_AT: ${{ steps.dispatch.outputs.started_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
+          workflows=(
+            ci.yml
+            pipeline-advancement-ci.yml
+            review-web-ci.yml
+            application-compose-ci.yml
+            vertical-data-flow-e2e.yml
+            browser-worker-isolation.yml
+            export-ci.yml
+            operations-ci.yml
+            backup-restore-ci.yml
+          )
+          names=(verify pipeline review compose flow browser export operations restore)
+          for index in "${!workflows[@]}"; do
+            workflow="${workflows[$index]}"
+            name="${names[$index]}"
+            matched=''
+            for _ in $(seq 1 720); do
+              payload="$(curl -fsSL "${headers[@]}" \
+                "$api/actions/workflows/$workflow/runs?branch=main&event=workflow_dispatch&per_page=50")"
+              run_id="$(jq -r --arg sha "$SUBJECT" --arg started "$STARTED_AT" \
+                '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .id' \
+                <<<"$payload" | head -1)"
+              status="$(jq -r --arg sha "$SUBJECT" --arg started "$STARTED_AT" \
+                '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .status' \
+                <<<"$payload" | head -1)"
+              conclusion="$(jq -r --arg sha "$SUBJECT" --arg started "$STARTED_AT" \
+                '.workflow_runs[] | select(.head_sha == $sha and .created_at >= $started) | .conclusion' \
+                <<<"$payload" | head -1)"
+              if [[ -n "$run_id" && "$status" == completed ]]; then
+                [[ "$conclusion" == success ]] || {
+                  echo "$workflow failed in run $run_id" >&2
+                  exit 1
+                }
+                matched="$run_id"
+                break
+              fi
+              sleep 5
+            done
+            test -n "$matched" || { echo "$workflow timed out" >&2; exit 1; }
+            echo "${name}_id=$matched" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Record operational E2E proof and remove temporary automation
+        id: closure
+        env:
+          SUBJECT: ${{ steps.dispatch.outputs.subject }}
+          VERIFY_ID: ${{ steps.proof.outputs.verify_id }}
+          PIPELINE_ID: ${{ steps.proof.outputs.pipeline_id }}
+          REVIEW_ID: ${{ steps.proof.outputs.review_id }}
+          COMPOSE_ID: ${{ steps.proof.outputs.compose_id }}
+          FLOW_ID: ${{ steps.proof.outputs.flow_id }}
+          BROWSER_ID: ${{ steps.proof.outputs.browser_id }}
+          EXPORT_ID: ${{ steps.proof.outputs.export_id }}
+          OPERATIONS_ID: ${{ steps.proof.outputs.operations_id }}
+          RESTORE_ID: ${{ steps.proof.outputs.restore_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          required=(
+            apps/pipeline_supervisor/pyproject.toml
+            apps/review_web/package-lock.json
+            apps/browser_worker/pyproject.toml
+            packages/export_core/src/export_core/service.py
+            apps/retention_job/pyproject.toml
+            apps/orchestrator/pyproject.toml
+            tools/operations/backup_restore.py
+            deploy/compose/application.yaml
+          )
+          for path in "${required[@]}"; do test -f "$path" || exit 1; done
+          mkdir -p docs/proofs
+          cat > docs/proofs/end-to-end-operational-ci.md <<EOF
+          # End-to-end operational CI proof
+
+          - Status: \`proven\`
+          - Repository: \`rtao-god/data-collection-platform\`
+          - Branch: \`main\`
+          - Subject commit: \`$SUBJECT\`
+          - Verify run: \`$VERIFY_ID\`
+          - Pipeline advancement run: \`$PIPELINE_ID\`
+          - Review Web run: \`$REVIEW_ID\`
+          - Application Compose run: \`$COMPOSE_ID\`
+          - Vertical HTTP/Object Store/data-flow run: \`$FLOW_ID\`
+          - Browser isolation run: \`$BROWSER_ID\`
+          - Sealed export run: \`$EXPORT_ID\`
+          - Operations run: \`$OPERATIONS_ID\`
+          - Backup/restore run: \`$RESTORE_ID\`
+          - Conclusions: \`success\`
+
+          ## Executable boundary
+
+          The exact subject creates immutable campaign runs, downloads an HTTP fixture through the
+          acquisition owner, stores and reads raw content through the S3-compatible Object Store path,
+          advances successful work through processing and resolution, renders the review application,
+          executes the isolated browser-worker boundary, materializes and verifies a deterministic sealed
+          collector export, validates the complete Compose topology, and completes PostgreSQL plus Object
+          Store backup/restore verification.
+
+          ## Externally governed production-input boundary
+
+          This proof does not fabricate an approved Berlin boundary, production source bindings, legal
+          collection consent, or a production coverage claim. The production Berlin campaign remains
+          fail-closed until those externally governed inputs are approved and supplied.
+          EOF
+          find .github/workflows -maxdepth 1 -type f \( \
+              -name 'repair-pipeline-*.yml' -o \
+              -name 'reconcile-pipeline-foundation-*.yml' -o \
+              -name 'capture-pipeline-foundation-*.yml' -o \
+              -name 'materialize-*-after-*.yml' -o \
+              -name 'materialize-pipeline-supervisor-direct.yml' -o \
+              -name 'close-operational-e2e-after-operations.yml' \
+            \) -print0 | xargs -0 -r git rm -f --ignore-unmatch
+          rm -f docs/diagnostics/pipeline-foundation-v4.md \
+                docs/diagnostics/pipeline-foundation-v5.md
+          git add -A docs/proofs docs/diagnostics .github/workflows
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Docs (Proofs): record exact-head operational E2E closure'
+          git push origin HEAD:main
+          echo "closure=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify final proof commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CLOSURE: ${{ steps.closure.outputs.closure }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$REPOSITORY"
+          headers=(
+            -H "Authorization: Bearer $GH_TOKEN"
+            -H 'Accept: application/vnd.github+json'
+            -H 'X-GitHub-Api-Version: 2022-11-28'
+          )
+          curl -fsSL -X POST "${headers[@]}" \
+            "$api/actions/workflows/ci.yml/dispatches" \
+            -d '{"ref":"main"}' >/dev/null
+          for _ in $(seq 1 480); do
+            payload="$(curl -fsSL "${headers[@]}" \
+              "$api/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&per_page=30")"
+            status="$(jq -r --arg sha "$CLOSURE" '.workflow_runs[] | select(.head_sha == $sha) | .status' <<<"$payload" | head -1)"
+            conclusion="$(jq -r --arg sha "$CLOSURE" '.workflow_runs[] | select(.head_sha == $sha) | .conclusion' <<<"$payload" | head -1)"
+            run_id="$(jq -r --arg sha "$CLOSURE" '.workflow_runs[] | select(.head_sha == $sha) | .id' <<<"$payload" | head -1)"
+            if [[ "$status" == completed ]]; then
+              [[ "$conclusion" == success ]] || { echo "final Verify failed in $run_id" >&2; exit 1; }
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
