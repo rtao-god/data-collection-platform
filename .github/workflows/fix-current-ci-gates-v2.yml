@@ -1,0 +1,256 @@
+name: Fix Current CI Gates V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-current-ci-gates-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-current-ci-gates
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Repair pipeline baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          python - <<'PY'
+          from pathlib import Path
+
+
+          def replace(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              if old in text:
+                  target.write_text(text.replace(old, new, 1), encoding="utf-8")
+                  return
+              if new not in text:
+                  raise SystemExit(f"Missing repair anchor in {path}: {old!r}")
+
+
+          application = (
+              "packages/collection_application/src/collection_application/"
+              "pipeline_advancement.py"
+          )
+          replace(
+              application,
+              '                required_action="Re-run the exact manual-import work with the canonical output role.",',
+              '                required_action=(\n'
+              '                    "Re-run the exact manual-import work with "\n'
+              '                    "the canonical output role."\n'
+              '                ),',
+          )
+          replace(
+              application,
+              '                    "Repair the source work so exactly one canonical manual source artifact is bound."',
+              '                    "Repair the source work so exactly one canonical "\n'
+              '                    "manual source artifact is bound."',
+          )
+          replace(
+              application,
+              '                required_action="Re-run the exact manual-record work with the canonical output role.",',
+              '                required_action=(\n'
+              '                    "Re-run the exact manual-record work with "\n'
+              '                    "the canonical output role."\n'
+              '                ),',
+          )
+
+          infrastructure = (
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "pipeline_advancement.py"
+          )
+          replace(
+              infrastructure,
+              '                        message="The transition result digest differs from the requested completion.",',
+              '                        message=(\n'
+              '                            "The transition result digest differs from "\n'
+              '                            "the requested completion."\n'
+              '                        ),',
+          )
+          replace(
+              infrastructure,
+              '                            "Re-read the exact transition result and complete with its canonical digest."',
+              '                            "Re-read the exact transition result and complete "\n'
+              '                            "with its canonical digest."',
+          )
+
+          catalog = (
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "succeeded_work_catalog.py"
+          )
+          replace(
+              catalog,
+              '                    "Repair work completion so the exact output contract has one canonical artifact."',
+              '                    "Repair work completion so the exact output contract "\n'
+              '                    "has one canonical artifact."',
+          )
+          replace(
+              catalog,
+              "        ordered = tuple(sorted(rows, key=lambda item: (item.direction, item.ordinal, item.artifact.role)))",
+              "        ordered = tuple(\n"
+              "            sorted(\n"
+              "                rows,\n"
+              "                key=lambda item: (\n"
+              "                    item.direction, item.ordinal, item.artifact.role\n"
+              "                ),\n"
+              "            )\n"
+              "        )",
+          )
+
+          supervision_test = Path(
+              "packages/collection_application/tests/test_pipeline_supervision.py"
+          )
+          text = supervision_test.read_text(encoding="utf-8")
+          if "_DEFAULT_SOURCES = (_source(),)" not in text:
+              marker = "\n\nclass Discovery:\n"
+              if marker not in text:
+                  raise SystemExit("Pipeline supervision class marker is missing")
+              text = text.replace(
+                  marker,
+                  "\n\n_DEFAULT_SOURCES = (_source(),)\n"
+                  "_DEFAULT_LEASE = _lease()\n\n\n"
+                  "class Discovery:\n",
+                  1,
+              )
+          text = text.replace(
+              "    def __init__(self, sources=(_source(),)) -> None:\n",
+              "    def __init__(self, sources=_DEFAULT_SOURCES) -> None:\n",
+              1,
+          )
+          text = text.replace(
+              "    def __init__(self, *, lease=_lease()) -> None:\n",
+              "    def __init__(self, *, lease=_DEFAULT_LEASE) -> None:\n",
+              1,
+          )
+          status_anchor = ") -> PipelineAdvancementStatus:\n    return PipelineAdvancementStatus(\n"
+          if "    terminal = state in {\n" not in text:
+              if status_anchor not in text:
+                  raise SystemExit("Pipeline supervision status marker is missing")
+              text = text.replace(
+                  status_anchor,
+                  ") -> PipelineAdvancementStatus:\n"
+                  "    terminal = state in {\n"
+                  "        PipelineAdvancementState.APPLIED,\n"
+                  "        PipelineAdvancementState.BLOCKED,\n"
+                  "    }\n"
+                  "    return PipelineAdvancementStatus(\n",
+                  1,
+              )
+          text = text.replace(
+              "        revision=2 if state in {PipelineAdvancementState.APPLIED, PipelineAdvancementState.BLOCKED} else 0,\n",
+              "        revision=2 if terminal else 0,\n",
+              1,
+          )
+          text = text.replace(
+              "        attempt_count=1 if state in {PipelineAdvancementState.APPLIED, PipelineAdvancementState.BLOCKED} else 0,\n",
+              "        attempt_count=1 if terminal else 0,\n",
+              1,
+          )
+          supervision_test.write_text(text, encoding="utf-8")
+
+          run_control_test = Path(
+              "packages/collection_infrastructure/tests/test_pipeline_run_control.py"
+          )
+          text = run_control_test.read_text(encoding="utf-8")
+          text = text.replace(
+              '        assert "PIPELINE_ADVANCEMENTS.STATE IN" in sql\n',
+              '        assert "WORK.PIPELINE_ADVANCEMENTS.STATE IN" in sql\n',
+              1,
+          )
+          run_control_test.write_text(text, encoding="utf-8")
+
+          schema_test = Path("database/tests/test_work_engine_schema.py")
+          text = schema_test.read_text(encoding="utf-8")
+          anchor = (
+              '    assert set(inspector.get_table_names(schema="work")) == {\n'
+              '        "dead_letters",\n'
+          )
+          if '        "pipeline_advancement_attempts",\n' not in text:
+              if anchor not in text:
+                  raise SystemExit("Work schema table assertion marker is missing")
+              text = text.replace(
+                  anchor,
+                  anchor
+                  + '        "pipeline_advancement_attempts",\n'
+                  + '        "pipeline_advancements",\n',
+                  1,
+              )
+          schema_test.write_text(text, encoding="utf-8")
+          PY
+
+          uv run ruff check . --fix
+          uv run ruff format .
+
+      - name: Prove repaired pipeline baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run pytest -m "not integration" \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+
+      - name: Commit repaired baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git reset .github/workflows
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Pipeline baseline is already repaired."
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Pipeline): align advancement baseline checks"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
