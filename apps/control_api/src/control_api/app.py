@@ -16,20 +16,34 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from control_api.auth import ReviewAuthenticationError, TokenAuthenticator
+from collection_application import (
+    CampaignRunService,
+    CreateCampaignRun,
+    RunControlService,
+)
+from collection_contracts import OwnerContextError
+from control_api.auth import (
+    ControlAuthenticationError,
+    OperatorPermission,
+    OperatorPrincipal,
+    TokenAuthenticator,
+)
 from control_api.schemas import (
     ActivateSuppressionRequest,
+    CreateRunRequest,
     DecisionResponse,
     ErrorResponse,
     ManualObservationRequest,
     ResolveSuppressionRequest,
     ReviewCaseDetailResponse,
     ReviewQueueResponse,
+    RunCoverageResponse,
+    RunResponse,
+    RunTransitionRequest,
     SubmitDecisionRequest,
 )
 from review_application import (
     ReviewApplicationError,
-    ReviewerPrincipal,
     ReviewService,
     decode_cursor,
 )
@@ -53,9 +67,23 @@ def _correlation_id(value: str | None, *, reject_invalid: bool) -> str:
     return normalized
 
 
+def _owner_status(code: str) -> int:
+    if code.endswith("_NOT_FOUND"):
+        return 404
+    if code.endswith("_REVISION_CONFLICT") or code.endswith("_TRANSITION_INVALID"):
+        return 409
+    if code.endswith("_STORAGE_FAILED"):
+        return 503
+    if code.endswith("_BLOCKED") or code.endswith("_INVALID"):
+        return 422
+    return 500
+
+
 def create_app(
     *,
     service: ReviewService,
+    run_creator: CampaignRunService,
+    run_control: RunControlService,
     authenticator: TokenAuthenticator,
     readiness_probe: ReadinessProbe,
 ) -> FastAPI:
@@ -73,11 +101,11 @@ def create_app(
             HTTPAuthorizationCredentials | None,
             Depends(bearer),
         ],
-    ) -> ReviewerPrincipal:
+    ) -> OperatorPrincipal:
         token = None if credentials is None else credentials.credentials
         try:
             return authenticator.authenticate(token)
-        except ReviewAuthenticationError as exc:
+        except ControlAuthenticationError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
 
     def correlation_dependency(
@@ -87,6 +115,18 @@ def create_app(
         ] = None,
     ) -> str:
         return _correlation_id(x_correlation_id, reject_invalid=True)
+
+    def require_permission(
+        principal: OperatorPrincipal,
+        permission: OperatorPermission,
+    ) -> None:
+        try:
+            principal.require(permission)
+        except PermissionError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail=f"operator permission {permission} is required",
+            ) from exc
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_error_handler(
@@ -148,6 +188,27 @@ def create_app(
             headers={"X-Correlation-ID": correlation_id},
         )
 
+    @app.exception_handler(OwnerContextError)
+    async def owner_context_error_handler(
+        request: Request,
+        exc: OwnerContextError,
+    ) -> JSONResponse:
+        envelope = exc.envelope
+        status_code = _owner_status(envelope.code)
+        body = ErrorResponse(
+            code=envelope.code,
+            owner=envelope.owner,
+            message=envelope.message,
+            required_action=envelope.required_action,
+            correlation_id=envelope.correlation_id,
+            context=envelope.context,
+        )
+        return JSONResponse(
+            status_code=status_code,
+            content=body.model_dump(mode="json", by_alias=True),
+            headers={"X-Correlation-ID": envelope.correlation_id},
+        )
+
     @app.exception_handler(ReviewApplicationError)
     async def review_error_handler(
         request: Request,
@@ -183,6 +244,135 @@ def create_app(
             )
         return {"status": "ready"}
 
+    @app.post(
+        "/runs",
+        response_model=RunResponse,
+        status_code=201,
+        operation_id="create_collection_run",
+    )
+    def create_run(
+        body: CreateRunRequest,
+        response: Response,
+        principal: Annotated[OperatorPrincipal, Depends(principal_dependency)],
+        correlation_id: Annotated[str, Depends(correlation_dependency)],
+    ) -> RunResponse:
+        require_permission(principal, "runs:create")
+        response.headers["X-Correlation-ID"] = correlation_id
+        created = run_creator.create(
+            CreateCampaignRun(
+                run_id=body.run_id,
+                campaign_key=body.campaign_key,
+                correlation_id=correlation_id,
+            )
+        )
+        return RunResponse.from_status(
+            run_control.get(created.run_id, correlation_id=correlation_id)
+        )
+
+    @app.get(
+        "/runs/{run_id}",
+        response_model=RunResponse,
+        operation_id="get_collection_run",
+    )
+    def get_run(
+        run_id: UUID,
+        response: Response,
+        principal: Annotated[OperatorPrincipal, Depends(principal_dependency)],
+        correlation_id: Annotated[str, Depends(correlation_dependency)],
+    ) -> RunResponse:
+        require_permission(principal, "runs:read")
+        response.headers["X-Correlation-ID"] = correlation_id
+        return RunResponse.from_status(run_control.get(run_id, correlation_id=correlation_id))
+
+    @app.get(
+        "/runs/{run_id}/coverage",
+        response_model=RunCoverageResponse,
+        operation_id="get_collection_run_coverage",
+    )
+    def get_run_coverage(
+        run_id: UUID,
+        response: Response,
+        principal: Annotated[OperatorPrincipal, Depends(principal_dependency)],
+        correlation_id: Annotated[str, Depends(correlation_dependency)],
+    ) -> RunCoverageResponse:
+        require_permission(principal, "runs:read")
+        response.headers["X-Correlation-ID"] = correlation_id
+        return RunCoverageResponse.from_report(
+            run_control.coverage(run_id, correlation_id=correlation_id)
+        )
+
+    @app.post(
+        "/runs/{run_id}/pause",
+        response_model=RunResponse,
+        operation_id="pause_collection_run",
+    )
+    def pause_run(
+        run_id: UUID,
+        body: RunTransitionRequest,
+        response: Response,
+        principal: Annotated[OperatorPrincipal, Depends(principal_dependency)],
+        correlation_id: Annotated[str, Depends(correlation_dependency)],
+    ) -> RunResponse:
+        require_permission(principal, "runs:control")
+        response.headers["X-Correlation-ID"] = correlation_id
+        return RunResponse.from_status(
+            run_control.pause(
+                run_id,
+                expected_revision=body.expected_revision,
+                actor_id=principal.actor_id,
+                reason=body.reason,
+                correlation_id=correlation_id,
+            )
+        )
+
+    @app.post(
+        "/runs/{run_id}/resume",
+        response_model=RunResponse,
+        operation_id="resume_collection_run",
+    )
+    def resume_run(
+        run_id: UUID,
+        body: RunTransitionRequest,
+        response: Response,
+        principal: Annotated[OperatorPrincipal, Depends(principal_dependency)],
+        correlation_id: Annotated[str, Depends(correlation_dependency)],
+    ) -> RunResponse:
+        require_permission(principal, "runs:control")
+        response.headers["X-Correlation-ID"] = correlation_id
+        return RunResponse.from_status(
+            run_control.resume(
+                run_id,
+                expected_revision=body.expected_revision,
+                actor_id=principal.actor_id,
+                reason=body.reason,
+                correlation_id=correlation_id,
+            )
+        )
+
+    @app.post(
+        "/runs/{run_id}/cancel",
+        response_model=RunResponse,
+        operation_id="cancel_collection_run",
+    )
+    def cancel_run(
+        run_id: UUID,
+        body: RunTransitionRequest,
+        response: Response,
+        principal: Annotated[OperatorPrincipal, Depends(principal_dependency)],
+        correlation_id: Annotated[str, Depends(correlation_dependency)],
+    ) -> RunResponse:
+        require_permission(principal, "runs:control")
+        response.headers["X-Correlation-ID"] = correlation_id
+        return RunResponse.from_status(
+            run_control.cancel(
+                run_id,
+                expected_revision=body.expected_revision,
+                actor_id=principal.actor_id,
+                reason=body.reason,
+                correlation_id=correlation_id,
+            )
+        )
+
     @app.get(
         "/review/cases",
         response_model=ReviewQueueResponse,
@@ -195,7 +385,7 @@ def create_app(
     def list_cases(
         response: Response,
         principal: Annotated[
-            ReviewerPrincipal,
+            OperatorPrincipal,
             Depends(principal_dependency),
         ],
         correlation_id: Annotated[
@@ -211,7 +401,7 @@ def create_app(
     ) -> ReviewQueueResponse:
         response.headers["X-Correlation-ID"] = correlation_id
         page = service.list_cases(
-            principal,
+            principal.as_reviewer(),
             state=state,
             limit=limit,
             cursor=decode_cursor(cursor),
@@ -227,7 +417,7 @@ def create_app(
         case_id: UUID,
         response: Response,
         principal: Annotated[
-            ReviewerPrincipal,
+            OperatorPrincipal,
             Depends(principal_dependency),
         ],
         correlation_id: Annotated[
@@ -236,7 +426,9 @@ def create_app(
         ],
     ) -> ReviewCaseDetailResponse:
         response.headers["X-Correlation-ID"] = correlation_id
-        return ReviewCaseDetailResponse.from_detail(service.get_case(principal, case_id))
+        return ReviewCaseDetailResponse.from_detail(
+            service.get_case(principal.as_reviewer(), case_id)
+        )
 
     @app.post(
         "/review/cases/{case_id}/decisions",
@@ -248,7 +440,7 @@ def create_app(
         body: SubmitDecisionRequest,
         response: Response,
         principal: Annotated[
-            ReviewerPrincipal,
+            OperatorPrincipal,
             Depends(principal_dependency),
         ],
         correlation_id: Annotated[
@@ -258,7 +450,7 @@ def create_app(
     ) -> DecisionResponse:
         response.headers["X-Correlation-ID"] = correlation_id
         case, decision = service.submit_decision(
-            principal,
+            principal.as_reviewer(),
             case_id=case_id,
             expected_revision=body.expected_revision,
             outcome=body.outcome,
@@ -279,7 +471,7 @@ def create_app(
         body: ManualObservationRequest,
         response: Response,
         principal: Annotated[
-            ReviewerPrincipal,
+            OperatorPrincipal,
             Depends(principal_dependency),
         ],
         correlation_id: Annotated[
@@ -289,7 +481,7 @@ def create_app(
     ) -> ManualObservation:
         response.headers["X-Correlation-ID"] = correlation_id
         return service.add_manual_observation(
-            principal,
+            principal.as_reviewer(),
             candidate_id=candidate_id,
             candidate_revision=body.candidate_revision,
             field_key=body.field_key,
@@ -308,7 +500,7 @@ def create_app(
         body: ActivateSuppressionRequest,
         response: Response,
         principal: Annotated[
-            ReviewerPrincipal,
+            OperatorPrincipal,
             Depends(principal_dependency),
         ],
         correlation_id: Annotated[
@@ -318,7 +510,7 @@ def create_app(
     ) -> SuppressionRevision:
         response.headers["X-Correlation-ID"] = correlation_id
         return service.activate_suppression(
-            principal,
+            principal.as_reviewer(),
             target_kind=body.target_kind,
             target_id=body.target_id,
             scopes=body.scopes,
@@ -338,7 +530,7 @@ def create_app(
         body: ResolveSuppressionRequest,
         response: Response,
         principal: Annotated[
-            ReviewerPrincipal,
+            OperatorPrincipal,
             Depends(principal_dependency),
         ],
         correlation_id: Annotated[
@@ -348,7 +540,7 @@ def create_app(
     ) -> SuppressionRevision:
         response.headers["X-Correlation-ID"] = correlation_id
         return service.resolve_suppression(
-            principal,
+            principal.as_reviewer(),
             suppression_id=suppression_id,
             expected_revision=body.expected_revision,
             evidence_reference=body.evidence_reference,

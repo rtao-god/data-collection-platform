@@ -29,6 +29,8 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         project_path="apps/control_api",
         distribution_name="control-api",
         allowed_internal_imports=(
+            "collection_application",
+            "collection_contracts",
             "collection_infrastructure",
             "review_application",
             "review_contracts",

@@ -9,6 +9,7 @@ from collection_infrastructure.postgres import (
     WORK_ENGINE_TABLES,
     WORK_SCHEMA,
     WORK_TABLES,
+    collection_run_transitions,
     collection_runs,
     dead_letters,
     source_capacity_states,
@@ -31,6 +32,7 @@ def test_work_metadata_has_exact_owner_schemas_and_tables() -> None:
     assert tuple(table.fullname for table in RUN_TABLES) == (
         "runs.collection_runs",
         "runs.stage_runs",
+        "runs.collection_run_transitions",
     )
     assert tuple(table.fullname for table in SOURCE_TABLES) == ("sources.source_capacity_states",)
     assert tuple(table.fullname for table in WORK_TABLES) == (
@@ -51,10 +53,11 @@ def test_work_metadata_has_exact_owner_schemas_and_tables() -> None:
 
 def test_work_metadata_preserves_owner_identity_without_cascade_delete() -> None:
     for table in WORK_ENGINE_TABLES:
-        assert all(foreign_key.ondelete is None for foreign_key in table.foreign_keys)
+        assert all(foreign_key.ondelete in {None, "RESTRICT"} for foreign_key in table.foreign_keys)
         assert all(column.server_default is None for column in table.columns)
 
     assert collection_runs.primary_key.columns.keys() == ["run_id"]
+    assert collection_run_transitions.primary_key.columns.keys() == ["transition_id"]
     assert stage_runs.primary_key.columns.keys() == ["stage_run_id"]
     assert source_capacity_states.primary_key.columns.keys() == ["source_key"]
     assert worker_registrations.primary_key.columns.keys() == ["worker_id"]
@@ -129,3 +132,12 @@ def test_source_capacity_ddl_is_centralized_and_bounded() -> None:
     assert "active_requests BETWEEN 0 AND max_active_requests" in sql
     assert "minimum_interval_milliseconds BETWEEN 0 AND 86400000" in sql
     assert "policy_digest ~ '^sha256:[0-9a-f]{64}$'" in sql
+
+
+def test_run_transition_ddl_is_append_only_owner_history() -> None:
+    sql = str(CreateTable(collection_run_transitions).compile(dialect=postgresql.dialect()))
+
+    assert "CONSTRAINT uq_run_transitions_revision" in sql
+    assert "to_revision = from_revision + 1" in sql
+    assert "REFERENCES runs.collection_runs" in sql
+    assert "ON DELETE RESTRICT" in sql

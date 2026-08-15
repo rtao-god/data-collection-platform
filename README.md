@@ -9,8 +9,8 @@ platform packages.
 
 ## Current implementation slice
 
-The repository implements the durable collection foundation through official HTTP acquisition,
-evidence-backed extraction, and typed normalization:
+The repository implements the durable collector foundation through deterministic resolution,
+quality evaluation, authenticated review operations, and revisioned run control:
 
 - strict campaign, manual-import, HTTP acquisition, extraction, and observation contracts;
 - immutable config snapshots, runs, stages, semantic work, leases, retries, dead letters, and source permits;
@@ -20,11 +20,16 @@ evidence-backed extraction, and typed normalization:
 - JSON-LD/microdata/RDFa plus HTML contact/address extraction with bounded evidence spans;
 - explicit observed/missing/prohibited/invalid observation states;
 - phone, URL/domain, email, address, money, set, and negative-aware boolean normalization;
+- deterministic candidate resolution, reversible clusters, fail-closed quality, and immutable
+  review decisions/manual observations/suppression;
+- authenticated Control API for exact-snapshot run creation, status, coverage, pause/resume/cancel,
+  and review operations;
+- append-only run transition history with optimistic concurrency;
 - PostgreSQL/PostGIS and SeaweedFS compatibility through the checked-in infrastructure Compose contract;
 - generated schemas, architecture checks, strict typing, unit/integration tests, and capability-specific images.
 
-This is not yet the complete platform. Candidate resolution, quality, review, browser acquisition,
-sealed export, full application Compose, and a real Berlin run remain later stages. The Berlin
+This is not yet the complete platform. Browser acquisition, deterministic sealed export, full
+application Compose, the review frontend, and a real Berlin run remain later stages. The Berlin
 boundary is intentionally not fabricated; the campaign remains explicitly blocked until an approved
 polygon artifact is added.
 

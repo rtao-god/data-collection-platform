@@ -16,10 +16,11 @@ transfer, manual import, orphan cleanup, OSM/Overpass, official HTTP acquisition
 normalization, deterministic entity resolution, reversible clusters, fail-closed quality, generated
 contracts, capability-specific images, PostgreSQL/PostGIS migrations, and permanent CI gates.
 
-Still incomplete: clean-machine full Compose, real Berlin boundary/run coverage, human review and
-suppression, browser acquisition, deterministic export, Control API/Dagster, retention deployable,
-and review frontend. Do not create placeholders; add each owner with its first complete production
-path and proof.
+Still incomplete: clean-machine full Compose, real Berlin boundary/run coverage, browser
+acquisition, deterministic sealed export, source operational controls, retention/backup owners,
+Dagster orchestration, and the review frontend. The authenticated Control API, review persistence,
+suppression, run creation, coverage, and revisioned run control are implemented. Do not create
+placeholders; add each owner with its first complete production path and proof.
 
 - `.codex/modules/processing.md` — evidence-backed extraction and typed normalization.
 - `.codex/modules/entity-resolution.md` — deterministic matching, clustering, and quality.

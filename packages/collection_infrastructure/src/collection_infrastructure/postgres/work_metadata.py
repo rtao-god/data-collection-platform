@@ -116,6 +116,42 @@ stage_runs = sa.Table(
     schema=RUNS_SCHEMA,
 )
 
+collection_run_transitions = sa.Table(
+    "collection_run_transitions",
+    collector_metadata,
+    sa.Column("transition_id", sa.Uuid, primary_key=True),
+    sa.Column(
+        "run_id",
+        sa.Uuid,
+        sa.ForeignKey("runs.collection_runs.run_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("from_state", sa.Text, nullable=False),
+    sa.Column("to_state", sa.Text, nullable=False),
+    sa.Column("from_revision", sa.BigInteger, nullable=False),
+    sa.Column("to_revision", sa.BigInteger, nullable=False),
+    sa.Column("actor_id", sa.Text, nullable=False),
+    sa.Column("reason", sa.Text, nullable=False),
+    sa.Column("changed_at_utc", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("correlation_id", sa.Text, nullable=False),
+    sa.CheckConstraint(_in_values("from_state", _RUN_STATES), name="ck_run_transitions_from"),
+    sa.CheckConstraint(_in_values("to_state", _RUN_STATES), name="ck_run_transitions_to"),
+    sa.CheckConstraint(
+        "from_revision >= 0 AND to_revision = from_revision + 1",
+        name="ck_run_transitions_revision_order",
+    ),
+    sa.CheckConstraint(
+        "char_length(actor_id) BETWEEN 1 AND 200",
+        name="ck_run_transitions_actor",
+    ),
+    sa.CheckConstraint(
+        "char_length(reason) BETWEEN 1 AND 1000",
+        name="ck_run_transitions_reason",
+    ),
+    sa.UniqueConstraint("run_id", "to_revision", name="uq_run_transitions_revision"),
+    schema=RUNS_SCHEMA,
+)
+
 source_capacity_states = sa.Table(
     "source_capacity_states",
     collector_metadata,
@@ -539,7 +575,7 @@ dead_letters = sa.Table(
     schema=WORK_SCHEMA,
 )
 
-RUN_TABLES = (collection_runs, stage_runs)
+RUN_TABLES = (collection_runs, stage_runs, collection_run_transitions)
 SOURCE_TABLES = (source_capacity_states,)
 WORK_TABLES = (
     worker_registrations,

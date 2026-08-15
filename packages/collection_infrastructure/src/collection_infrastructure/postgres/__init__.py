@@ -31,6 +31,7 @@ from collection_infrastructure.postgres.migrations import upgrade_database
 from collection_infrastructure.postgres.owned_artifact_publisher import (
     PostgresOwnedArtifactPublisher,
 )
+from collection_infrastructure.postgres.run_control import PostgresRunControlRepository
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import (
     RUN_TABLES,
@@ -40,6 +41,7 @@ from collection_infrastructure.postgres.work_metadata import (
     WORK_ENGINE_TABLES,
     WORK_SCHEMA,
     WORK_TABLES,
+    collection_run_transitions,
     collection_runs,
     dead_letters,
     source_capacity_states,
@@ -74,11 +76,13 @@ __all__ = [
     "PostgresCampaignSnapshotStore",
     "PostgresOwnedArtifactPublisher",
     "PostgresReviewRepository",
+    "PostgresRunControlRepository",
     "PostgresWorkEngine",
     "artifact_cleanup_tombstones",
     "artifact_objects",
     "artifact_records",
     "artifact_uploads",
+    "collection_run_transitions",
     "collection_runs",
     "collector_metadata",
     "config_bundle_artifacts",

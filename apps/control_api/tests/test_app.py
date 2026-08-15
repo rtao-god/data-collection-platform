@@ -8,6 +8,20 @@ from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
 from fastapi.testclient import TestClient
 
+from collection_application import (
+    CampaignRunCreated,
+    CollectionRunStatus,
+    RunCoverageReport,
+    StageCoverage,
+    StageRunStatus,
+    WorkStateCount,
+)
+from collection_domain import (
+    CollectionRunState,
+    StageRunState,
+    WorkStage,
+    WorkUnitState,
+)
 from review_application import ReviewQueuePage
 from review_contracts import (
     ReviewCase,
@@ -92,7 +106,92 @@ class Service:
         raise AssertionError("not used")
 
 
-def client(service: Service) -> TestClient:
+class RunCreator:
+    def __init__(self, control: RunControl) -> None:
+        self.control = control
+        self.command = None
+
+    def create(self, command):
+        self.command = command
+        return CampaignRunCreated(
+            run_id=command.run_id,
+            campaign_key=command.campaign_key,
+            config_bundle_digest=DIGEST,
+            initial_work_ids=(),
+        )
+
+
+class RunControl:
+    def __init__(self) -> None:
+        self.run_id = uuid4()
+        self.state = CollectionRunState.RUNNING
+        self.revision = 0
+        self.transition = None
+
+    def get(self, run_id, *, correlation_id):
+        self.run_id = run_id
+        return self._status()
+
+    def coverage(self, run_id, *, correlation_id):
+        return RunCoverageReport(
+            run_id=run_id,
+            state=self.state,
+            revision=self.revision,
+            stages=(
+                StageCoverage(
+                    stage=WorkStage.DISCOVERY,
+                    total=1,
+                    pending=1,
+                    leased=0,
+                    retry_wait=0,
+                    succeeded=0,
+                    dead_letter=0,
+                    blocked_by_policy=0,
+                    cancelled=0,
+                    superseded=0,
+                ),
+            ),
+            blockers=(),
+        )
+
+    def pause(self, run_id, **values):
+        return self._change(run_id, CollectionRunState.PAUSED, values)
+
+    def resume(self, run_id, **values):
+        return self._change(run_id, CollectionRunState.RUNNING, values)
+
+    def cancel(self, run_id, **values):
+        return self._change(run_id, CollectionRunState.CANCELLED, values)
+
+    def _change(self, run_id, state, values):
+        self.run_id = run_id
+        self.state = state
+        self.revision += 1
+        self.transition = values
+        return self._status()
+
+    def _status(self):
+        return CollectionRunStatus(
+            run_id=self.run_id,
+            campaign_key="berlin_recording_services",
+            config_bundle_digest=DIGEST,
+            state=self.state,
+            revision=self.revision,
+            created_at_utc=NOW,
+            updated_at_utc=NOW,
+            stages=(
+                StageRunStatus(
+                    stage_run_id=uuid4(),
+                    stage=WorkStage.DISCOVERY,
+                    state=StageRunState.RUNNING,
+                    revision=0,
+                    work_counts=(WorkStateCount(state=WorkUnitState.PENDING, count=1),),
+                ),
+            ),
+        )
+
+
+def client(service: Service, run_control: RunControl | None = None) -> TestClient:
     auth = TokenAuthenticator.from_json(
         json.dumps(
             {
@@ -103,14 +202,20 @@ def client(service: Service) -> TestClient:
                         "review:decide",
                         "review:observe",
                         "review:suppress",
+                        "runs:create",
+                        "runs:read",
+                        "runs:control",
                     ],
                 }
             }
         )
     )
+    control = run_control or RunControl()
     return TestClient(
         create_app(
             service=service,
+            run_creator=RunCreator(control),
+            run_control=control,
             authenticator=auth,
             readiness_probe=lambda: True,
         )
@@ -228,3 +333,43 @@ def test_invalid_correlation_id_is_rejected_without_echo() -> None:
 def test_runtime_openapi_route_is_not_exposed() -> None:
     response = client(Service()).get("/openapi.json")
     assert response.status_code == 404
+
+
+def test_run_create_read_coverage_and_pause_are_operator_owned() -> None:
+    service = Service()
+    control = RunControl()
+    api = client(service, control)
+    run_id = uuid4()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "X-Correlation-ID": "run-api-test",
+    }
+
+    created = api.post(
+        "/runs",
+        json={"runId": str(run_id), "campaignKey": "berlin_recording_services"},
+        headers=headers,
+    )
+    assert created.status_code == 201
+    assert created.json()["runId"] == str(run_id)
+    assert created.json()["state"] == "running"
+
+    read = api.get(f"/runs/{run_id}", headers=headers)
+    assert read.status_code == 200
+    assert read.json()["revision"] == 0
+
+    coverage = api.get(f"/runs/{run_id}/coverage", headers=headers)
+    assert coverage.status_code == 200
+    assert coverage.json()["total"] == 1
+    assert coverage.json()["terminal"] == 0
+    assert coverage.json()["blockers"] == []
+
+    paused = api.post(
+        f"/runs/{run_id}/pause",
+        json={"expectedRevision": 0, "reason": "Operator pause."},
+        headers=headers,
+    )
+    assert paused.status_code == 200
+    assert paused.json()["state"] == "paused"
+    assert control.transition["actor_id"] == "reviewer-1"
+    assert control.transition["correlation_id"] == "run-api-test"

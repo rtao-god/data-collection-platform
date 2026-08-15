@@ -24,6 +24,7 @@ RUN groupadd --gid 10001 control-api \
     && useradd --uid 10001 --gid control-api --create-home control-api
 WORKDIR /workspace
 COPY --from=build --chown=control-api:control-api /workspace/.venv /workspace/.venv
+COPY --chown=control-api:control-api campaigns/ /workspace/campaigns/
 USER 10001:10001
 
 EXPOSE 8080

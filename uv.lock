@@ -406,6 +406,8 @@ name = "control-api"
 version = "0.1.0"
 source = { editable = "apps/control_api" }
 dependencies = [
+    { name = "collection-application" },
+    { name = "collection-contracts" },
     { name = "collection-infrastructure" },
     { name = "fastapi" },
     { name = "pydantic" },
@@ -417,6 +419,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "collection-application", editable = "packages/collection_application" },
+    { name = "collection-contracts", editable = "packages/collection_contracts" },
     { name = "collection-infrastructure", editable = "packages/collection_infrastructure" },
     { name = "fastapi", specifier = "==0.141.1" },
     { name = "pydantic", specifier = "==2.13.4" },

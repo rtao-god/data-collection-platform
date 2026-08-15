@@ -7,8 +7,12 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 import sqlalchemy as sa
+from collection_application.run_control import TransitionCollectionRun
+from collection_infrastructure.postgres import PostgresRunControlRepository
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
+
+from collection_application import CollectionRunState, WorkUnitState
 
 pytestmark = pytest.mark.integration
 
@@ -321,6 +325,7 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
     inspector = sa.inspect(engine)
 
     assert set(inspector.get_table_names(schema="runs")) == {
+        "collection_run_transitions",
         "collection_runs",
         "stage_runs",
     }
@@ -410,6 +415,86 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
         "ix_artifact_cleanup_tombstones_claim",
         "uq_artifact_cleanup_tombstones_upload_id",
     }
+
+
+def test_run_control_persists_revisioned_transitions_and_cancels_pending_work() -> None:
+    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    label = "run-control-transition"
+    changed_at_utc = _NOW + timedelta(minutes=1)
+
+    with engine.begin() as connection:
+        run_id, stage_run_id = _insert_run_stage(connection, label, stage="extraction")
+        _insert_work(
+            connection,
+            _pending_work_values(
+                label,
+                run_id=run_id,
+                stage_run_id=stage_run_id,
+                stage="extraction",
+                capability="extraction",
+                source_key=None,
+            ),
+        )
+
+    repository = PostgresRunControlRepository(
+        engine,
+        clock=lambda: changed_at_utc,
+        uuid_factory=uuid4,
+    )
+    paused = repository.transition(
+        TransitionCollectionRun(
+            run_id=run_id,
+            expected_revision=0,
+            requested_state=CollectionRunState.PAUSED,
+            actor_id="operator-1",
+            reason="Controlled integration pause.",
+            correlation_id="run-control-pause",
+        )
+    )
+
+    assert paused.state is CollectionRunState.PAUSED
+    assert paused.revision == 1
+    assert repository.coverage(run_id).stages[0].pending == 1
+
+    cancelled = repository.transition(
+        TransitionCollectionRun(
+            run_id=run_id,
+            expected_revision=1,
+            requested_state=CollectionRunState.CANCELLED,
+            actor_id="operator-1",
+            reason="Cancel remaining pending work.",
+            correlation_id="run-control-cancel",
+        )
+    )
+
+    assert cancelled.state is CollectionRunState.CANCELLED
+    assert cancelled.revision == 2
+    assert cancelled.stages[0].work_counts[0].state is WorkUnitState.CANCELLED
+    assert cancelled.stages[0].work_counts[0].count == 1
+
+    with engine.begin() as connection:
+        transitions = _table(connection, "runs", "collection_run_transitions")
+        rows = (
+            connection.execute(
+                sa.select(transitions)
+                .where(transitions.c.run_id == run_id)
+                .order_by(transitions.c.to_revision)
+            )
+            .mappings()
+            .all()
+        )
+        assert [(row["from_state"], row["to_state"]) for row in rows] == [
+            ("running", "paused"),
+            ("paused", "cancelled"),
+        ]
+
+    with pytest.raises(sa.exc.DBAPIError), engine.begin() as connection:
+        transitions = _table(connection, "runs", "collection_run_transitions")
+        connection.execute(
+            sa.update(transitions)
+            .where(transitions.c.run_id == run_id)
+            .values(reason="Mutation must fail.")
+        )
 
 
 def test_worker_output_contract_identity_is_fail_closed() -> None:

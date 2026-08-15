@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Authenticated operator Control API for the Data Collection Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+  "collection-application",
+  "collection-contracts",
   "collection-infrastructure",
   "fastapi==0.141.1",
   "pydantic==2.13.4",
@@ -24,6 +26,8 @@ build-backend = "hatchling.build"
 packages = ["src/control_api"]
 
 [tool.uv.sources]
+collection-application = { workspace = true }
+collection-contracts = { workspace = true }
 collection-infrastructure = { workspace = true }
 review-application = { workspace = true }
 review-contracts = { workspace = true }

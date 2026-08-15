@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from collection_application import CollectionRunStatus, RunCoverageReport
 from review_application import ReviewCaseDetail, ReviewQueuePage, encode_cursor
 from review_contracts import (
     CandidateRevision,
@@ -35,6 +36,7 @@ class ErrorResponse(ApiModel):
     message: str
     required_action: str = Field(alias="requiredAction")
     correlation_id: str = Field(alias="correlationId")
+    context: dict[str, object] = Field(default_factory=dict)
 
 
 class ReviewQueueItemResponse(ApiModel):
@@ -166,6 +168,140 @@ class ActivateSuppressionRequest(ApiModel):
 class ResolveSuppressionRequest(ApiModel):
     expected_revision: Annotated[int, Field(ge=0)] = Field(alias="expectedRevision")
     evidence_reference: Digest = Field(alias="evidenceReference")
+
+
+class CreateRunRequest(ApiModel):
+    run_id: UUID = Field(alias="runId")
+    campaign_key: Key = Field(alias="campaignKey")
+
+
+class RunTransitionRequest(ApiModel):
+    expected_revision: Annotated[int, Field(ge=0)] = Field(alias="expectedRevision")
+    reason: Annotated[str, Field(min_length=1, max_length=1000)]
+
+    @field_validator("reason")
+    @classmethod
+    def require_plain_reason(cls, value: str) -> str:
+        return _plain_text(value)
+
+
+class WorkStateCountResponse(ApiModel):
+    state: str
+    count: Annotated[int, Field(ge=0)]
+
+
+class StageRunResponse(ApiModel):
+    stage_run_id: UUID = Field(alias="stageRunId")
+    stage: str
+    state: str
+    revision: Annotated[int, Field(ge=0)]
+    work_counts: tuple[WorkStateCountResponse, ...] = Field(alias="workCounts")
+
+
+class RunResponse(ApiModel):
+    run_id: UUID = Field(alias="runId")
+    campaign_key: str = Field(alias="campaignKey")
+    config_bundle_digest: Digest = Field(alias="configBundleDigest")
+    state: str
+    revision: Annotated[int, Field(ge=0)]
+    created_at_utc: datetime = Field(alias="createdAtUtc")
+    updated_at_utc: datetime = Field(alias="updatedAtUtc")
+    stages: tuple[StageRunResponse, ...]
+
+    @classmethod
+    def from_status(cls, status: CollectionRunStatus) -> RunResponse:
+        return cls(
+            run_id=status.run_id,
+            campaign_key=status.campaign_key,
+            config_bundle_digest=status.config_bundle_digest,
+            state=status.state.value,
+            revision=status.revision,
+            created_at_utc=status.created_at_utc,
+            updated_at_utc=status.updated_at_utc,
+            stages=tuple(
+                StageRunResponse(
+                    stage_run_id=stage.stage_run_id,
+                    stage=stage.stage.value,
+                    state=stage.state.value,
+                    revision=stage.revision,
+                    work_counts=tuple(
+                        WorkStateCountResponse(state=item.state.value, count=item.count)
+                        for item in stage.work_counts
+                    ),
+                )
+                for stage in status.stages
+            ),
+        )
+
+
+class StageCoverageResponse(ApiModel):
+    stage: str
+    total: Annotated[int, Field(ge=0)]
+    pending: Annotated[int, Field(ge=0)]
+    leased: Annotated[int, Field(ge=0)]
+    retry_wait: Annotated[int, Field(ge=0)] = Field(alias="retryWait")
+    succeeded: Annotated[int, Field(ge=0)]
+    dead_letter: Annotated[int, Field(ge=0)] = Field(alias="deadLetter")
+    blocked_by_policy: Annotated[int, Field(ge=0)] = Field(alias="blockedByPolicy")
+    cancelled: Annotated[int, Field(ge=0)]
+    superseded: Annotated[int, Field(ge=0)]
+    terminal: Annotated[int, Field(ge=0)]
+
+
+class RunCoverageBlockerResponse(ApiModel):
+    code: Code
+    stage: str | None
+    count: Annotated[int, Field(ge=1)]
+    message: str
+    required_action: str = Field(alias="requiredAction")
+
+
+class RunCoverageResponse(ApiModel):
+    run_id: UUID = Field(alias="runId")
+    state: str
+    revision: Annotated[int, Field(ge=0)]
+    total: Annotated[int, Field(ge=0)]
+    terminal: Annotated[int, Field(ge=0)]
+    succeeded: Annotated[int, Field(ge=0)]
+    stages: tuple[StageCoverageResponse, ...]
+    blockers: tuple[RunCoverageBlockerResponse, ...]
+
+    @classmethod
+    def from_report(cls, report: RunCoverageReport) -> RunCoverageResponse:
+        return cls(
+            run_id=report.run_id,
+            state=report.state.value,
+            revision=report.revision,
+            total=report.total,
+            terminal=report.terminal,
+            succeeded=report.succeeded,
+            stages=tuple(
+                StageCoverageResponse(
+                    stage=item.stage.value,
+                    total=item.total,
+                    pending=item.pending,
+                    leased=item.leased,
+                    retry_wait=item.retry_wait,
+                    succeeded=item.succeeded,
+                    dead_letter=item.dead_letter,
+                    blocked_by_policy=item.blocked_by_policy,
+                    cancelled=item.cancelled,
+                    superseded=item.superseded,
+                    terminal=item.terminal,
+                )
+                for item in report.stages
+            ),
+            blockers=tuple(
+                RunCoverageBlockerResponse(
+                    code=item.code,
+                    stage=item.stage.value if item.stage is not None else None,
+                    count=item.count,
+                    message=item.message,
+                    required_action=item.required_action,
+                )
+                for item in report.blockers
+            ),
+        )
 
 
 def _plain_text(value: str) -> str:

@@ -8,7 +8,7 @@ by the normal architecture check.
 <!-- dependency-policy:start -->
 | Production owner | Project | Allowed internal owners | Allowed external imports |
 |---|---|---|---|
-| `control_api` | `apps/control_api` | `collection_infrastructure`, `review_application`, `review_contracts` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
+| `control_api` | `apps/control_api` | `collection_application`, `collection_contracts`, `collection_infrastructure`, `review_application`, `review_contracts` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
 | `collector_cli` | `apps/collector_cli` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `boto3`, `sqlalchemy` |
 | `http_worker` | `apps/http_worker` | `official_http`, `source_connector_sdk` | none |
 | `processing_worker` | `apps/processing_worker` | `collection_contracts`, `extraction_core`, `normalization_core`, `source_connector_sdk` | `pydantic` |

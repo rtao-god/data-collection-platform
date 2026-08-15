@@ -33,6 +33,17 @@ from collection_application.owned_artifacts import (
     PublishOwnedArtifact,
 )
 from collection_application.ports import CampaignBundleSource, RawCampaignBundle
+from collection_application.run_control import (
+    CollectionRunStatus,
+    RunControlPort,
+    RunControlService,
+    RunCoverageBlocker,
+    RunCoverageReport,
+    StageCoverage,
+    StageRunStatus,
+    TransitionCollectionRun,
+    WorkStateCount,
+)
 from collection_application.work_artifacts import WorkInputArtifact, WorkOutputArtifact
 from collection_application.work_engine import (
     CollectionRunSpec,
@@ -57,7 +68,9 @@ from collection_application.work_engine import (
     WorkUnitSpec,
 )
 from collection_domain import (
+    CollectionRunLifecycle,
     CollectionRunState,
+    InvalidRunTransition,
     RetryPolicy,
     SourceOperationalState,
     SourcePermit,
@@ -85,10 +98,13 @@ __all__ = [
     "CampaignSnapshotPublicationService",
     "CampaignSnapshotService",
     "CampaignSnapshotStore",
+    "CollectionRunLifecycle",
     "CollectionRunSpec",
     "CollectionRunState",
+    "CollectionRunStatus",
     "CompiledCampaignBundle",
     "CreateCampaignRun",
+    "InvalidRunTransition",
     "LeaseExpirySweep",
     "LeaseExpirySweepResult",
     "LeaseHeartbeat",
@@ -106,11 +122,18 @@ __all__ = [
     "PublishedOwnedArtifact",
     "RawCampaignBundle",
     "RetryPolicy",
+    "RunControlPort",
+    "RunControlService",
+    "RunCoverageBlocker",
+    "RunCoverageReport",
     "SourceCapacitySpec",
     "SourceOperationalState",
     "SourcePermit",
+    "StageCoverage",
     "StageRunSpec",
     "StageRunState",
+    "StageRunStatus",
+    "TransitionCollectionRun",
     "VerifiedArtifactUpload",
     "VerifyArtifactUpload",
     "WorkAttemptOutcome",
@@ -129,6 +152,7 @@ __all__ = [
     "WorkOutputArtifact",
     "WorkRelease",
     "WorkStage",
+    "WorkStateCount",
     "WorkUnitSpec",
     "WorkUnitState",
     "WorkerRegistration",

@@ -9,6 +9,7 @@ from typing import cast
 from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
 
+from collection_application import CampaignRunService, RunControlService
 from review_application import ReviewService
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,8 @@ def render() -> dict[str, str]:
     )
     app = create_app(
         service=cast(ReviewService, _Service()),
+        run_creator=cast(CampaignRunService, _Service()),
+        run_control=cast(RunControlService, _Service()),
         authenticator=authenticator,
         readiness_probe=lambda: True,
     )

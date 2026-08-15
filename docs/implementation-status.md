@@ -8,7 +8,7 @@ This ledger reports only production owners that are present in the registered wo
 |---|---|
 | Foundation | Python 3.13 `uv` workspace, exact lock, Ruff, strict mypy, pytest, architecture checks, generated-contract drift checks, Alembic, and capability-specific Docker images |
 | Campaign configuration | Strict campaign documents, cross-reference validation, canonical JSON, deterministic SHA-256 bundle identity, readiness blockers, and immutable snapshot publication |
-| Runs and work | Durable runs, stage runs, semantic work units, attempts, leases, heartbeat, expiry, typed retries, dead letters, worker registration, output compatibility, and source permits |
+| Runs and work | Atomic run bootstrap from an exact immutable snapshot; durable stages, semantic work units, attempts, leases, heartbeat, expiry, typed retries, dead letters, worker registration, output compatibility, source permits, run coverage, revisioned pause/resume/cancel, and append-only transition history |
 | Worker boundary | Authenticated Worker Gateway is the only worker-facing state and artifact boundary; source workers have no PostgreSQL or S3 credentials |
 | Object transfer | Lease-scoped pre-signed upload/read, streamed size/digest verification, content-addressed object promotion, ordered artifact bindings, and atomic work completion |
 | Manual import | CSV/JSON/JSONL parsing, exact row/line locators, deterministic plan identity, complete issue ledger, explicit `reject_all`/`accept_valid` semantics, isolated worker, and transactional admission of one child work unit per accepted record |
@@ -17,7 +17,7 @@ This ledger reports only production owners that are present in the registered wo
 | Official website HTTP | Strict request/manifest contracts, canonical URL and public-address enforcement, robots/sitemap/page-interest planning, one-request Scrapy execution, conditional `304` reuse, bounded raw acquisition, typed `403`/`429` behavior, isolated worker, generated schemas, and Docker image |
 | Extraction and normalization | Digest-bound extraction requests, JSON-LD/microdata/RDFa and HTML contact/address evidence, bounded evidence spans, typed extracted records, explicit observation states, phone/URL/email/address/money normalization, negative-aware attribute patterns, derived artifacts, and a capability-isolated processing worker |
 | Entity resolution and quality | Canonical candidate batches, bounded deterministic blocking, integer match features, strong-identifier/corroboration rules, name-only and fuzzy-Berlin review gates, immutable manual decisions, transitive separation protection, deterministic reversible clusters, fail-closed cluster quality, synthetic golden data, and a capability-isolated resolution worker |
-| Database | Fresh PostgreSQL/PostGIS migration through `20260814_0010`, SQLAlchemy metadata, constraints, indexes, and integration tests for the implemented owners |
+| Database | Fresh PostgreSQL/PostGIS migration through `20260815_0012`, SQLAlchemy metadata, constraints, indexes, immutable review history, and append-only run transition history |
 | Architecture enforcement | Fail-closed workspace/project registry, declared dependency graph, AST import checks, forbidden capability scans, and worker-image isolation checks |
 
 ## Permanent proofs
@@ -32,13 +32,15 @@ This ledger reports only production owners that are present in the registered wo
 - the infrastructure Compose contract currently starts PostgreSQL/PostGIS and SeaweedFS only; Worker Gateway and workers are not yet composed into one clean-machine runtime;
 - SeaweedFS compatibility is a permanent dedicated infrastructure proof and remains excluded from ordinary unit execution;
 - no approved Berlin boundary artifact and no real Berlin collection run or coverage report;
-- no human review persistence/UI, suppression, browser, or export owner;
-- no Control API, Dagster composition, retention deployable, or review frontend;
+- no review frontend, browser, or export owner;
+- no Dagster composition, source-control API, retention/backup deployable, or complete operational UI;
 - the campaign does not yet bind and execute a complete manual/OSM/website acquisition flow.
 
 ## Next owner batch
 
-Stage 8 is next: immutable review cases and decisions, exact-revision optimistic concurrency, manual observations, suppression, evidence-safe Control API responses, and the React FSD review console.
+The next production batch is pipeline advancement and deterministic collector export: successful
+work must schedule the next typed stage, review-gated candidates must remain explicit, and only
+verified eligible revisions may enter a sealed export.
 
 ## Stage 8A — candidate and review foundation
 
@@ -60,3 +62,19 @@ Status: **application, PostgreSQL adapter, authenticated API, generated OpenAPI,
 - Review queue pagination uses opaque cursors.
 - Control API startup does not run migrations.
 - The React review console is the next Stage 8 owner.
+
+
+## Run Control and campaign-run bootstrap
+
+Status: **application owner, PostgreSQL adapter, authenticated API, generated contract, and migration implemented**.
+
+- `POST /runs` publishes and binds the exact campaign snapshot, then atomically creates source
+  capacities, all stage owners, and typed initial work.
+- Run reads and coverage are derived from canonical run/stage/work rows; missing counts are not
+  represented as successful work, and terminal run/stage/dead-letter/policy blockers are explicit.
+- Pause changes only canonical run state, which is already enforced by lease acquisition.
+- Resume requires exact revision and validates that persisted stages remain resumable.
+- Cancel terminalizes pending/retry work but does not forge cancellation of an active lease or
+  rewrite completed evidence.
+- Every operator transition appends actor, reason, correlation, and before/after revisions to
+  `runs.collection_run_transitions`; PostgreSQL rejects update and delete of that history.

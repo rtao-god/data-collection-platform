@@ -9,10 +9,16 @@
 - `collection_domain.work_retry` owns classified failure decisions and bounded retry delays.
 - `collection_domain.work_artifacts` owns immutable lease input identity and role constraints.
 - `collection_domain.source_capacity` owns source operational state and permit value contracts.
-- `collection_application.work_engine` owns commands, results, validation, the `WorkEnginePort`, and
-  owner-context error translation.
-- `collection_infrastructure.postgres.work_engine.PostgresWorkEngine` is the PostgreSQL port
-  implementation.
+- `collection_application.work_engine` owns worker commands, results, validation, the
+  `WorkEnginePort`, and owner-context error translation.
+- `collection_application.campaign_runs` owns atomic campaign-run bootstrap plans.
+- `collection_application.run_control` owns run status, coverage, revisioned operator transitions,
+  and the `RunControlPort`.
+- `collection_infrastructure.postgres.work_engine.PostgresWorkEngine` is the worker-state
+  PostgreSQL port implementation.
+- `PostgresCampaignRunStore` atomically creates sources, stages, and initial work;
+  `PostgresRunControlRepository` owns run reads, coverage, pause/resume/cancel, and append-only
+  transition history.
 - `worker_gateway` is the authenticated worker-facing HTTP composition root. It may construct and
   invoke application commands but does not own Work Engine state transitions.
 
@@ -47,7 +53,8 @@ keys are read from bounded secret files rather than request bodies or campaign c
 
 Alembic and SQLAlchemy metadata own these physical schemas:
 
-- `runs.collection_runs` and `runs.stage_runs`;
+- `runs.collection_runs`, `runs.stage_runs`, and append-only
+  `runs.collection_run_transitions`;
 - `sources.source_capacity_states`;
 - `work.worker_registrations`, `work.worker_capabilities`,
   `work.worker_output_contracts`, and `work.worker_heartbeats`;
@@ -62,7 +69,9 @@ semantic key and input digest.
 ## Claim and mutation invariants
 
 Lease acquisition uses `FOR UPDATE OF unit SKIP LOCKED` only inside the queue-claim query. The same
-transaction verifies the running run and stage, worker capability and output-contract compatibility,
+transaction verifies the running run and stage, so an operator pause or cancellation immediately
+prevents new leases without a second scheduler flag. It also verifies worker capability and
+output-contract compatibility,
 worker concurrency, source operational state, source capacity, minimum interval, and retry-after;
 then it reserves capacity, creates the attempt, writes the lease token and deadlines, and returns the
 lease.

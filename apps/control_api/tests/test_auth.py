@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from control_api.auth import ReviewAuthenticationError, TokenAuthenticator
+from control_api.auth import ControlAuthenticationError, TokenAuthenticator
 
 TOKEN = "a" * 40
 
@@ -20,9 +20,9 @@ def test_authenticator_returns_configured_principal() -> None:
 
 def test_authenticator_rejects_missing_and_invalid_tokens() -> None:
     value = authenticator()
-    with pytest.raises(ReviewAuthenticationError):
+    with pytest.raises(ControlAuthenticationError):
         value.authenticate(None)
-    with pytest.raises(ReviewAuthenticationError):
+    with pytest.raises(ControlAuthenticationError):
         value.authenticate("b" * 40)
 
 

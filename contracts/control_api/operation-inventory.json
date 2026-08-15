@@ -1,7 +1,7 @@
 {
   "contract": "collector-control-api-operation-inventory",
   "contractRevision": "control-api-operation-inventory-v1",
-  "openapiDigest": "sha256:69e0e3c7b6d3aa42a42872d27dc97635a9828f1d80a3c0dcb07710c56c7eb148",
+  "openapiDigest": "sha256:707f768be0ba4666af81f83e31a7b8d7ad5221e83efd30798fa4acb8bd8a3a69",
   "operations": [
     {
       "method": "GET",
@@ -42,6 +42,36 @@
       "method": "POST",
       "operationId": "resolve_review_suppression",
       "path": "/review/suppressions/{suppression_id}/resolve"
+    },
+    {
+      "method": "POST",
+      "operationId": "create_collection_run",
+      "path": "/runs"
+    },
+    {
+      "method": "GET",
+      "operationId": "get_collection_run",
+      "path": "/runs/{run_id}"
+    },
+    {
+      "method": "POST",
+      "operationId": "cancel_collection_run",
+      "path": "/runs/{run_id}/cancel"
+    },
+    {
+      "method": "GET",
+      "operationId": "get_collection_run_coverage",
+      "path": "/runs/{run_id}/coverage"
+    },
+    {
+      "method": "POST",
+      "operationId": "pause_collection_run",
+      "path": "/runs/{run_id}/pause"
+    },
+    {
+      "method": "POST",
+      "operationId": "resume_collection_run",
+      "path": "/runs/{run_id}/resume"
     }
   ]
 }
