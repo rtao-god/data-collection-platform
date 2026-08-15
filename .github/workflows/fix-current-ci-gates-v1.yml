@@ -54,28 +54,135 @@ jobs:
         run: |
           set -euo pipefail
           uv sync --frozen --all-packages --dev
-          uv run ruff format \
-            packages/collection_application/src/collection_application/pipeline_supervision.py \
-            packages/collection_application/tests/test_pipeline_supervision.py \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("database/tests/test_work_engine_schema.py")
-          text = path.read_text(encoding="utf-8")
-          anchor = '    assert set(inspector.get_table_names(schema="work")) == {\n        "dead_letters",\n'
-          replacement = (
+
+          def replace_required(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"Expected repair anchor was not found in {path}: {old!r}")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
+          application = (
+              "packages/collection_application/src/collection_application/"
+              "pipeline_advancement.py"
+          )
+          replace_required(
+              application,
+              '                required_action="Re-run the exact manual-import work with the canonical output role.",',
+              '                required_action=(\n'
+              '                    "Re-run the exact manual-import work with "\n'
+              '                    "the canonical output role."\n'
+              '                ),',
+          )
+          replace_required(
+              application,
+              '                    "Repair the source work so exactly one canonical manual source artifact is bound."',
+              '                    "Repair the source work so exactly one canonical "\n'
+              '                    "manual source artifact is bound."',
+          )
+          replace_required(
+              application,
+              '                required_action="Re-run the exact manual-record work with the canonical output role.",',
+              '                required_action=(\n'
+              '                    "Re-run the exact manual-record work with "\n'
+              '                    "the canonical output role."\n'
+              '                ),',
+          )
+
+          infrastructure = (
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "pipeline_advancement.py"
+          )
+          replace_required(
+              infrastructure,
+              '                        message="The transition result digest differs from the requested completion.",',
+              '                        message=(\n'
+              '                            "The transition result digest differs from "\n'
+              '                            "the requested completion."\n'
+              '                        ),',
+          )
+          replace_required(
+              infrastructure,
+              '                            "Re-read the exact transition result and complete with its canonical digest."',
+              '                            "Re-read the exact transition result and complete "\n'
+              '                            "with its canonical digest."',
+          )
+
+          catalog = (
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "succeeded_work_catalog.py"
+          )
+          replace_required(
+              catalog,
+              '                    "Repair work completion so the exact output contract has one canonical artifact."',
+              '                    "Repair work completion so the exact output contract "\n'
+              '                    "has one canonical artifact."',
+          )
+
+          supervision_test = Path(
+              "packages/collection_application/tests/test_pipeline_supervision.py"
+          )
+          text = supervision_test.read_text(encoding="utf-8")
+          class_marker = "\n\nclass Discovery:\n"
+          defaults = (
+              "\n\n_DEFAULT_SOURCES = (_source(),)\n"
+              "_DEFAULT_LEASE = _lease()\n\n\n"
+              "class Discovery:\n"
+          )
+          if "_DEFAULT_SOURCES = (_source(),)" not in text:
+              if class_marker not in text:
+                  raise SystemExit("Pipeline supervision test class marker was not found")
+              text = text.replace(class_marker, defaults, 1)
+          text = text.replace(
+              "    def __init__(self, sources=(_source(),)) -> None:\n",
+              "    def __init__(self, sources=_DEFAULT_SOURCES) -> None:\n",
+              1,
+          )
+          text = text.replace(
+              "    def __init__(self, *, lease=_lease()) -> None:\n",
+              "    def __init__(self, *, lease=_DEFAULT_LEASE) -> None:\n",
+              1,
+          )
+          supervision_test.write_text(text, encoding="utf-8")
+
+          schema_test = Path("database/tests/test_work_engine_schema.py")
+          text = schema_test.read_text(encoding="utf-8")
+          table_anchor = (
               '    assert set(inspector.get_table_names(schema="work")) == {\n'
               '        "dead_letters",\n'
-              '        "pipeline_advancement_attempts",\n'
-              '        "pipeline_advancements",\n'
           )
-          if anchor not in text:
-              raise SystemExit("Expected work-schema assertion anchor was not found")
-          path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
+          if '        "pipeline_advancement_attempts",\n' not in text:
+              if table_anchor not in text:
+                  raise SystemExit("Expected work-schema assertion anchor was not found")
+              text = text.replace(
+                  table_anchor,
+                  table_anchor
+                  + '        "pipeline_advancement_attempts",\n'
+                  + '        "pipeline_advancements",\n',
+                  1,
+              )
+          schema_test.write_text(text, encoding="utf-8")
           PY
-          uv run ruff format database/tests/test_work_engine_schema.py
+
+          files=(
+            packages/collection_application/src/collection_application/pipeline_advancement.py
+            packages/collection_application/src/collection_application/pipeline_supervision.py
+            packages/collection_application/tests/test_pipeline_advancement.py
+            packages/collection_application/tests/test_pipeline_supervision.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py
+            database/tests/test_work_engine_schema.py
+          )
+          uv run ruff check "${files[@]}" --fix
+          uv run ruff format "${files[@]}"
 
       - name: Prove repaired gates
         shell: bash
@@ -83,19 +190,22 @@ jobs:
           set -euo pipefail
           uv run ruff format --check .
           uv run ruff check .
+          uv run pytest -m "not integration" \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
           uv run collection-migrate upgrade head
-          uv run pytest -m integration database/tests/test_work_engine_schema.py
+          uv run pytest -m integration database/tests
 
       - name: Commit repaired baseline
         shell: bash
         run: |
           set -euo pipefail
-          git add \
-            packages/collection_application/src/collection_application/pipeline_supervision.py \
-            packages/collection_application/tests/test_pipeline_supervision.py \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
-            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py \
-            database/tests/test_work_engine_schema.py
+          git add -A
+          git reset .github/workflows
           git diff --cached --check
           if git diff --cached --quiet; then
             echo "Current gates are already repaired."
