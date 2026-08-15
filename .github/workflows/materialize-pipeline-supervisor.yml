@@ -1,0 +1,49 @@
+name: Materialize Pipeline Supervisor
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/materialize-pipeline-supervisor.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-materialize-pipeline-supervisor
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Require already-proven production owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test -f packages/collection_application/src/collection_application/pipeline_advancement.py
+          test -f packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+          test -f apps/pipeline_supervisor/pyproject.toml
+          test -f database/migrations/versions/20260815_0013_pipeline_advancement.py
+
+      - name: Remove transport workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/materialize-pipeline-supervisor.yml
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Build (Tooling): remove pipeline materialization guard"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
