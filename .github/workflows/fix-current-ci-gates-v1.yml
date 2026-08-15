@@ -1,0 +1,109 @@
+name: Fix Current CI Gates V1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-current-ci-gates-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-current-ci-gates
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Repair exact failed gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-packages --dev
+          uv run ruff format \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("database/tests/test_work_engine_schema.py")
+          text = path.read_text(encoding="utf-8")
+          anchor = '    assert set(inspector.get_table_names(schema="work")) == {\n        "dead_letters",\n'
+          replacement = (
+              '    assert set(inspector.get_table_names(schema="work")) == {\n'
+              '        "dead_letters",\n'
+              '        "pipeline_advancement_attempts",\n'
+              '        "pipeline_advancements",\n'
+          )
+          if anchor not in text:
+              raise SystemExit("Expected work-schema assertion anchor was not found")
+          path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
+          PY
+          uv run ruff format database/tests/test_work_engine_schema.py
+
+      - name: Prove repaired gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests/test_work_engine_schema.py
+
+      - name: Commit repaired baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py \
+            database/tests/test_work_engine_schema.py
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Current gates are already repaired."
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Pipeline): align advancement baseline checks"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
