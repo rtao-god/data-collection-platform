@@ -1,0 +1,201 @@
+name: Repair Pipeline Schema Directly
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair-pipeline-schema-direct.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-pipeline-schema-direct
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply canonical work identity and owner formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          migration = Path("database/migrations/versions/20260815_0013_pipeline_advancement.py")
+          text = migration.read_text(encoding="utf-8")
+          text = text.replace(
+              '("work.work_units.work_unit_id",)',
+              '("work.work_units.work_id",)',
+          )
+          migration.write_text(text, encoding="utf-8")
+
+          metadata = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "pipeline_advancement_metadata.py"
+          )
+          text = metadata.read_text(encoding="utf-8")
+          text = text.replace(
+              'sa.Column("work_unit_id", sa.Uuid(), primary_key=True)',
+              'sa.Column("work_id", sa.Uuid(), primary_key=True)',
+          )
+          text = text.replace("_work_units.c.work_unit_id", "_work_units.c.work_id")
+          metadata.write_text(text, encoding="utf-8")
+
+          catalog = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
+              "succeeded_work_catalog.py"
+          )
+          text = catalog.read_text(encoding="utf-8")
+          text = text.replace("schema.work_units.c.work_unit_id", "schema.work_units.c.work_id")
+          text = text.replace(
+              '("work_unit_id", "run_id", "stage_run_id", "state")',
+              '("work_id", "run_id", "stage_run_id", "state")',
+          )
+          text = text.replace(
+              'work_unit_id = table.c.get("work_unit_id")',
+              'work_unit_id = table.c.get("work_id")',
+          )
+          text = text.replace(
+              'for schema_name in ("artifacts", "work"):',
+              'for schema_name in ("sources", "work"):',
+          )
+          if "from typing import Any, Protocol" not in text:
+              text = text.replace("from typing import Protocol", "from typing import Any, Protocol")
+          text = text.replace("sa.Column[object]", "sa.Column[Any]")
+          old = '''    candidates = tuple(
+              binding
+              for table in tables
+              if table is not artifact_table
+              if (binding := _binding_table(table)) is not None
+          )
+          '''
+          new = '''    resolved: list[_BindingTable] = []
+              for table in tables:
+                  if table is artifact_table:
+                      continue
+                  binding = _binding_table(table)
+                  if binding is not None:
+                      resolved.append(binding)
+              candidates = tuple(resolved)
+          '''
+          text = text.replace(old, new)
+          catalog.write_text(text, encoding="utf-8")
+
+          schema_test = Path("database/tests/test_pipeline_advancement_schema.py")
+          text = schema_test.read_text(encoding="utf-8")
+          text = text.replace(
+              'assert "ON DELETE RESTRICT" in source',
+              'assert \'ondelete="RESTRICT"\' in source',
+          )
+          schema_test.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Format and verify pipeline owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          uv run ruff check --fix \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          uv run ruff format --check \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+          uv run pytest -q \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py \
+            database/tests/test_pipeline_advancement_schema.py
+
+      - name: Verify fresh migration
+        run: uv run collection-migrate upgrade head
+
+      - name: Commit production schema repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/repair-pipeline-schema-direct.yml
+          git add \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m 'Fix (Pipeline): align advancement with canonical work identity'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
