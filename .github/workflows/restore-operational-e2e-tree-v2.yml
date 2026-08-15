@@ -1,0 +1,156 @@
+name: Restore Proven Operational E2E Tree V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/restore-operational-e2e-tree-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-tree-recovery
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Restore proven tree and remove transport residue
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_sha="$(git rev-parse HEAD)"
+          proven_sha='9bec95589ee0592a873edbc0548be27707f53af6'
+          git merge-base --is-ancestor "$proven_sha" "$current_sha"
+          git checkout "$proven_sha" -- .
+
+          if git cat-file -e "$current_sha:AGENTS.md" 2>/dev/null; then
+            git checkout "$current_sha" -- AGENTS.md
+          fi
+          for path in \
+            .codex/modules/pipeline-advancement.md \
+            docs/specifications/pipeline-advancement.md; do
+            if git cat-file -e "$current_sha:$path" 2>/dev/null; then
+              git checkout "$current_sha" -- "$path"
+            fi
+          done
+
+          find .github/workflows -maxdepth 1 -type f \( \
+              -name 'apply-*.yml' -o \
+              -name 'cleanup-*.yml' -o \
+              -name 'materialize-*.yml' -o \
+              -name 'close-*.yml' -o \
+              -name 'final-*.yml' -o \
+              -name 'repair-*.yml' -o \
+              -name 'package-*.yml' -o \
+              -name 'restore-operational-e2e-tree*.yml' \
+            \) -print0 | xargs -0 -r git rm -f --ignore-unmatch
+          if test -d .github/apply; then
+            find .github/apply -type f -print0 | xargs -0 -r git rm -f --ignore-unmatch
+          fi
+          find docs/diagnostics -maxdepth 1 -type f \( \
+              -name '.*transport*' -o \
+              -name '.release-tool-probe' -o \
+              -name '.pipeline-transport-check' \
+            \) -print0 2>/dev/null | xargs -0 -r git rm -f --ignore-unmatch
+
+          required=(
+            packages/collection_application/src/collection_application/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            apps/pipeline_supervisor/pyproject.toml
+            apps/review_web/package-lock.json
+            apps/browser_worker/pyproject.toml
+            packages/export_core/src/export_core/service.py
+            apps/retention_job/pyproject.toml
+            apps/orchestrator/pyproject.toml
+            tools/operations/backup_restore.py
+            deploy/compose/application.yaml
+            .github/workflows/ci.yml
+            .github/workflows/pipeline-advancement-ci.yml
+            .github/workflows/review-web-ci.yml
+            .github/workflows/application-compose-ci.yml
+            .github/workflows/vertical-data-flow-e2e.yml
+            .github/workflows/browser-worker-isolation.yml
+            .github/workflows/export-ci.yml
+            .github/workflows/operations-ci.yml
+            .github/workflows/backup-restore-ci.yml
+          )
+          for path in "${required[@]}"; do
+            test -f "$path" || { echo "missing proven owner: $path" >&2; exit 1; }
+          done
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.7"
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/review_web/package-lock.json
+
+      - name: Verify restored static and unit contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --all-packages --dev --locked
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          if test -f tools/review_contract_generation/generate.py; then
+            uv run python tools/review_contract_generation/generate.py --check
+          fi
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors packages tools
+
+          npm --prefix apps/review_web ci
+          npm --prefix apps/review_web run lint --if-present
+          npm --prefix apps/review_web run typecheck --if-present
+          npm --prefix apps/review_web run test --if-present -- --run
+          npm --prefix apps/review_web run build
+
+          if test -f deploy/compose/.env.example; then
+            docker compose --env-file deploy/compose/.env.example \
+              -f deploy/compose/application.yaml config >/dev/null
+          else
+            docker compose -f deploy/compose/application.yaml config >/dev/null
+          fi
+
+      - name: Commit restored operational tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            .github/workflows/restore-operational-e2e-tree.yml \
+            .github/workflows/restore-operational-e2e-tree-v2.yml \
+            .github/workflows/apply-pipeline-owner-integration.yml \
+            .github/workflows/apply-pipeline-supervision-integration.yml \
+            .github/workflows/apply-pipeline-catalog-integration.yml
+          git add -A
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          if git diff --cached --quiet; then
+            echo 'The proven operational tree is already current.'
+            exit 0
+          fi
+          git commit -m 'Fix (Recovery): restore proven operational E2E tree'
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
