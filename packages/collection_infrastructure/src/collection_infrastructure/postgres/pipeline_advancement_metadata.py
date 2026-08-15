@@ -3,26 +3,14 @@ from __future__ import annotations
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-pipeline_advancement_metadata = sa.MetaData()
+from collection_infrastructure.postgres.metadata import collector_metadata
+from collection_infrastructure.postgres.work_metadata import (
+    collection_runs,
+    stage_runs,
+    work_units,
+)
 
-_work_units = sa.Table(
-    "work_units",
-    pipeline_advancement_metadata,
-    sa.Column("work_id", sa.Uuid(), primary_key=True),
-    schema="work",
-)
-_collection_runs = sa.Table(
-    "collection_runs",
-    pipeline_advancement_metadata,
-    sa.Column("run_id", sa.Uuid(), primary_key=True),
-    schema="runs",
-)
-_stage_runs = sa.Table(
-    "stage_runs",
-    pipeline_advancement_metadata,
-    sa.Column("stage_run_id", sa.Uuid(), primary_key=True),
-    schema="runs",
-)
+pipeline_advancement_metadata = collector_metadata
 
 pipeline_advancements = sa.Table(
     "pipeline_advancements",
@@ -31,20 +19,20 @@ pipeline_advancements = sa.Table(
     sa.Column(
         "source_work_unit_id",
         sa.Uuid(),
-        sa.ForeignKey(_work_units.c.work_id, ondelete="RESTRICT"),
+        sa.ForeignKey(work_units.c.work_id, ondelete="RESTRICT"),
         nullable=False,
         unique=True,
     ),
     sa.Column(
         "run_id",
         sa.Uuid(),
-        sa.ForeignKey(_collection_runs.c.run_id, ondelete="RESTRICT"),
+        sa.ForeignKey(collection_runs.c.run_id, ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column(
         "stage_run_id",
         sa.Uuid(),
-        sa.ForeignKey(_stage_runs.c.stage_run_id, ondelete="RESTRICT"),
+        sa.ForeignKey(stage_runs.c.stage_run_id, ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column("source_stage", sa.Text(), nullable=False),
@@ -82,7 +70,57 @@ pipeline_advancements = sa.Table(
     sa.Column("created_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("correlation_id", sa.Text(), nullable=False),
+    sa.CheckConstraint(
+        "source_output_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_output_digest",
+    ),
+    sa.CheckConstraint(
+        "source_output_artifact_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_artifact_digest",
+    ),
+    sa.CheckConstraint(
+        "transition_plan_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_plan_digest",
+    ),
+    sa.CheckConstraint(
+        "result_digest IS NULL OR result_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_result_digest",
+    ),
+    sa.CheckConstraint(
+        "source_output_artifact_size_bytes >= 0",
+        name="ck_pipeline_advancements_artifact_size",
+    ),
+    sa.CheckConstraint(
+        "jsonb_typeof(source_input_artifacts) = 'array'",
+        name="ck_pipeline_advancements_input_artifacts",
+    ),
+    sa.CheckConstraint(
+        "state IN ('pending', 'leased', 'applied', 'blocked')",
+        name="ck_pipeline_advancements_state",
+    ),
+    sa.CheckConstraint(
+        "revision >= 0 AND attempt_count >= 0",
+        name="ck_pipeline_advancements_revisions",
+    ),
     schema="work",
+)
+
+sa.Index(
+    "ix_pipeline_advancements_claim",
+    pipeline_advancements.c.state,
+    pipeline_advancements.c.created_at_utc,
+    pipeline_advancements.c.advancement_id,
+)
+sa.Index(
+    "ix_pipeline_advancements_expiry",
+    pipeline_advancements.c.state,
+    pipeline_advancements.c.lease_expires_at_utc,
+    postgresql_where=pipeline_advancements.c.state == "leased",
+)
+sa.Index(
+    "ix_pipeline_advancements_run_state",
+    pipeline_advancements.c.run_id,
+    pipeline_advancements.c.state,
 )
 
 pipeline_advancement_attempts = sa.Table(
@@ -119,6 +157,12 @@ pipeline_advancement_attempts = sa.Table(
         name="uq_pipeline_advancement_attempts_event",
     ),
     schema="work",
+)
+
+sa.Index(
+    "ix_pipeline_advancement_attempts_advancement",
+    pipeline_advancement_attempts.c.advancement_id,
+    pipeline_advancement_attempts.c.occurred_at_utc,
 )
 
 PIPELINE_ADVANCEMENT_TABLES = (

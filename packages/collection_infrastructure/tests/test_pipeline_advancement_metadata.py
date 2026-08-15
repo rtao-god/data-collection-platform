@@ -49,3 +49,13 @@ def test_lease_token_digest_is_deterministic_and_non_reversible() -> None:
     assert first == second
     assert first.startswith("sha256:")
     assert "lease-token-1" not in first
+
+
+def test_pipeline_advancement_metadata_targets_canonical_work_identity() -> None:
+    from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+        pipeline_advancements,
+    )
+
+    foreign_key = next(iter(pipeline_advancements.c.source_work_unit_id.foreign_keys))
+    assert foreign_key.target_fullname == "work.work_units.work_id"
+    assert foreign_key.ondelete == "RESTRICT"
