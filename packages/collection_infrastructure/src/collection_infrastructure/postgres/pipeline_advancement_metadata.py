@@ -8,7 +8,7 @@ pipeline_advancement_metadata = sa.MetaData()
 _work_units = sa.Table(
     "work_units",
     pipeline_advancement_metadata,
-    sa.Column("work_unit_id", sa.Uuid(), primary_key=True),
+    sa.Column("work_id", sa.Uuid(), primary_key=True),
     schema="work",
 )
 _collection_runs = sa.Table(
@@ -31,7 +31,7 @@ pipeline_advancements = sa.Table(
     sa.Column(
         "source_work_unit_id",
         sa.Uuid(),
-        sa.ForeignKey(_work_units.c.work_unit_id, ondelete="RESTRICT"),
+        sa.ForeignKey(_work_units.c.work_id, ondelete="RESTRICT"),
         nullable=False,
         unique=True,
     ),

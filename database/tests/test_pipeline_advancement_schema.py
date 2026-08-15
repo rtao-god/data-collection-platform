@@ -38,4 +38,4 @@ def test_pipeline_advancement_attempt_history_is_append_only() -> None:
     assert "reject_pipeline_advancement_attempt_mutation" in source
     assert "BEFORE UPDATE OR DELETE ON work.pipeline_advancement_attempts" in source
     assert "pipeline advancement attempt history is immutable" in source
-    assert "ON DELETE RESTRICT" in source
+    assert 'ondelete="RESTRICT"' in source

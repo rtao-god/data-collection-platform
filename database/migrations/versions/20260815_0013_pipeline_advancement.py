@@ -130,7 +130,7 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(
             ("source_work_unit_id",),
-            ("work.work_units.work_unit_id",),
+            ("work.work_units.work_id",),
             name="fk_pipeline_advancements_source_work_unit",
             ondelete="RESTRICT",
         ),
@@ -211,8 +211,7 @@ def upgrade() -> None:
             name="ck_pipeline_advancement_attempts_plan_digest",
         ),
         sa.CheckConstraint(
-            "lease_token_digest IS NULL OR "
-            "lease_token_digest ~ '^sha256:[0-9a-f]{64}$'",
+            "lease_token_digest IS NULL OR lease_token_digest ~ '^sha256:[0-9a-f]{64}$'",
             name="ck_pipeline_advancement_attempts_lease_digest",
         ),
         sa.CheckConstraint(
