@@ -53,34 +53,32 @@ jobs:
           version: "0.10.0"
           enable-cache: true
 
-      - name: Align pipeline advancement with canonical physical owners
+      - name: Materialize canonical pipeline storage adapter
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from __future__ import annotations
 
-          import base64
-          import zlib
+          python - <<'PY'
           from pathlib import Path
 
-          def write_compressed(path: str, payload: str) -> None:
-              Path(path).write_bytes(zlib.decompress(base64.b64decode(payload)))
-
-          write_compressed(
-              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
-              "pipeline_advancement_metadata.py",
-              "eNrtV11v2jAUfedXRHmiEuIf8NBSKnXrWNVme7WMc2EWjh3sa1r662cnhITPJiHSNmk8IMXxOT72vT73Zq5VEhAyt2g1EBLwJFUaAyqlQopcSdPrbcfMSlDBfkGyCagJDO3NPbYcHcacCmBoCpJUGVxocDN6+VymhJ/gWAmXc00Nasv8wsNi6jABpDFFWnBsIUqT4k1tqjell+SQr98L3K+C1laaQTZokC6g8pzhreTonm96vZSnILgEQuM1lQwSkFjSj04pPYkxbq6hw4jOBORqwpPTwlzFxWW3wulwrIRNZD+sTuJxOPDvflge928GQap5QvWGLGEzirSFm0N09pgJMspqBmR3AhnX7nXJWR16UBr4Qn6FTb88uSHLw8DjQaBkDAIQRuHL5DV6eRxHYYVBWiH8kYweqDBQjjualYVMcD54QbaLXUOlB4ng5OYcbdReOs8itRrKK1PSKauSdKKvCHNGnOdKBO/oc2UffxbJaEpnXHDctIIri6lFwpRETRlewxHzBZirGKhGPncqju5NSxqtBHSip8OtGf4BZLZBMDndHV88SoQF6CtIffi83+AmbbbhI7/hskpsKjelLCXDL6/fp3d9Z/hukWzN0W7FxhfApZ00PLv+zhWbHXEFmwoq24XJ1diGSaJhzY1btE0AKSIkqY+YldiGwEXAik8y8mRpCWdCsSVoot4k6FZIpmJoBUzAmPMGdxmrYWW5hpjQrEi0FC59rjps3Sz+jNmLWQMRQA2ct6saWFRLkG3CmcFjZyVZj+A2WaioiY/pwm1dE3gHZvMurh3BzHIRNwVvD84Y6yOLxCLL8ffuOkY8gT66vw8lC4J6hPCeulwxnTAyDQ7ZVN2Za2vTuDsyprQGQS8HbQ/rvw7oKPSZEp5vpbfmVLM93k1v1SbD+soG+bDPrt/Snez1XXe3z9hNf1f4vbTJrHDdZoafH9SSy7hZlWplTVd60r/oRF00Ed2bz/8y/1eUecWY1frP+ba7uNnH91hJ4xKVS6zjgEeuU76puklpZTRxJmdX5KLNkwwb7jvdUWF5fnyePD1OJ+T2/uftdDz5NplGJLq9e5q8urLSP1spzIUiUijwC/wGKv1KzQ==",
+          metadata = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/pipeline_advancement_metadata.py"
           )
-          write_compressed(
-              "packages/collection_infrastructure/src/collection_infrastructure/postgres/"
-              "succeeded_work_catalog.py",
-              "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",
+          metadata_text = metadata.read_text(encoding="utf-8")
+          metadata_text = metadata_text.replace(
+              'sa.Column("work_unit_id", sa.Uuid(), primary_key=True)',
+              'sa.Column("work_id", sa.Uuid(), primary_key=True)',
           )
-          write_compressed(
-              "packages/collection_infrastructure/tests/test_succeeded_work_catalog.py",
-              "eNrVVk1v20YQvfNXLHgiU4VxnNQHASxiSE4rNLEMV0IORbFYkUN5Y3KX3l1aUQ3/987ymxLlJsfwIECcNzM7b97MMlEyI5QmhSkUUEp4lktlCBNCGma4FNpxEosx+5yLbWOPmDbV+6LgcfN2vV7MHaf+k+8NNKBIpilENhxleZ7yqAwd5DyHlAugLH5kIoIMhGlieQ7B51IZnrDILGI0cbOflG9var/Lzm0mRYJxzcTxj1JykSg8ryoiW2SQS222CnTA6uA0A8NiZtgw906qe/TNC0MbpJ50FlmYA9P3Zx4r/MQpxqA/lEsXUQQQQ0zLYyP1LJXbYZK2Cqqx62WOqlK6kYWIW3P9UsFDwVEuGTPRHaqi4SLmW2x5ezj9kLI0uoNsH8Sc2XPqJm1zuof0CApii+U2wFu5+4ySwSSOQ78sb/+kizkJS6V57ln9vB75KZ+Ls7eu79DL29Xi4+Vs9YO+59Z3vvj96q8Vurn6jp3/ejF1yS/EZS55RS7eO3S5+uPq9gRoU4McJ4aE2Gmgo41P7mmhQWNrhBQ4G2nVKV5r3vPJ69/ItRQwLelPpAK+FfQe9hpTmiJPwRuVSRAFWhYqgipgIbjBqEE/gO+UMZnWgGynILyBlYQhedtH9K1/n/0TGKa2gCUUaSpYBhbv2mRBm1EHdTUuEvGh2gpBxhCSM4UuRvF/wXM3XMRWSoZtUnAnxBsdv/HR8/2O4WMlH5KrIJIqpnLzFRVJLWlsC94g/wHjbSikeyTB0HdCGp3W3KK20Q8ns5q1QcAgklnOsX+tyT71tITdlDQD5PmTAbJ2p/c77IMOn9yUG1BYpD2SdqdkpQp47nx8p/odtLRq2NOgisB289klXNjz9+FuJane+qwI1d8HrmgfBb9wkFZDYzn64nYJXlwNqDd4wz1Gc2QV1CPqolYDE60i5E6AogmHNNaHs6fkDntpb7+uY92K6nh+GnSpFTc2lNtljY15NxmHKInynxI3Y6LAPlZrkOYpE+6BR1sMVj0l/SV3ChhJYexA4F1e5ujdxW++ank6Q+NYLXibrdp4p/AaR5pu7Kgj9v15B6ulWAuwbIqdqWF3PGR5KNHSHjTs2SXz7tjcuFvz4XdD160ea+E4Z7YD4cv8D/kIj9jo6g/71ff5D0+x7/dlO7hYacZ1eeVSril8s97cpHuUsNUtxIdi7Qj5yfkov7m4uau/KQPFOK5074XPQB+lgWOa20+heNom/J8vF6/Z3LjD+xf7pGVpKMsmQfDI0gJwl8fVBXizuLn6tLi+osv16ma9qqPQ2fL646fFbOW+GAMp+VZquNsh9Rb9gntujWtuYefd3iftRdNRWi7DZVnUvB3WQS3O0bjOqjbMTw53i+wy95RSZ392/gOKoQDM",
+          metadata_text = metadata_text.replace(
+              "_work_units.c.work_unit_id",
+              "_work_units.c.work_id",
           )
+          if "_work_units.c.work_unit_id" in metadata_text:
+              raise RuntimeError("obsolete pipeline metadata work identity remains")
+          if "_work_units.c.work_id" not in metadata_text:
+              raise RuntimeError("canonical pipeline metadata work identity is missing")
+          metadata.write_text(metadata_text, encoding="utf-8")
 
           migration = Path(
               "database/migrations/versions/20260815_0013_pipeline_advancement.py"
@@ -90,45 +88,509 @@ jobs:
               '"work.work_units.work_unit_id"',
               '"work.work_units.work_id"',
           )
-          if '"work.work_units.work_id"' not in migration_text:
-              raise RuntimeError("canonical pipeline advancement work FK was not installed")
           if '"work.work_units.work_unit_id"' in migration_text:
-              raise RuntimeError("obsolete pipeline advancement work FK remains")
+              raise RuntimeError("obsolete pipeline migration work identity remains")
+          if '"work.work_units.work_id"' not in migration_text:
+              raise RuntimeError("canonical pipeline migration work identity is missing")
           migration.write_text(migration_text, encoding="utf-8")
 
-          schema_test = Path("database/tests/test_pipeline_advancement_schema.py")
-          schema_text = schema_test.read_text(encoding="utf-8")
-          schema_text = schema_text.replace(
-              '    assert "ON DELETE RESTRICT" in source\n',
-              '    assert \'ondelete="RESTRICT"\' in source\n',
+          supervision_test = Path(
+              "packages/collection_application/tests/test_pipeline_supervision.py"
           )
-          anchor = '    assert \'schema="work"\' in source\n'
-          assertions = (
-              '    assert \'"work.work_units.work_id"\' in source\n'
-              '    assert \'"work.work_units.work_unit_id"\' not in source\n'
+          supervision_text = supervision_test.read_text(encoding="utf-8")
+          constants_anchor = (
+              "        expires_at_utc=_NOW + timedelta(minutes=5),\n"
+              "    )\n\n\n"
+              "def _status(\n"
           )
-          if assertions not in schema_text:
-              if anchor not in schema_text:
-                  raise RuntimeError("pipeline advancement schema-test anchor is missing")
-              schema_text = schema_text.replace(anchor, anchor + assertions)
-          schema_test.write_text(schema_text, encoding="utf-8")
-
-          metadata_test = Path(
-              "packages/collection_infrastructure/tests/"
-              "test_pipeline_advancement_metadata.py"
+          constants_replacement = (
+              "        expires_at_utc=_NOW + timedelta(minutes=5),\n"
+              "    )\n\n\n"
+              "_DEFAULT_SOURCES = (_source(),)\n"
+              "_DEFAULT_LEASE = _lease()\n\n\n"
+              "def _status(\n"
           )
-          metadata_test_text = metadata_test.read_text(encoding="utf-8")
-          metadata_test_append = zlib.decompress(
-              base64.b64decode("eNptj0EKgzAQRfc5xeBKFw3ttmCP0AuUMgxxlGCcSDK2ePtqLcVCZ/sf7/8xxjTcgnJWHP3IwQsjNQ8SxwOL4sBKDSmhUupYMzqSKN5RwGdMPfpmobzOZQWHC1yj8NnAcm1M7DvBnucMNeg0Bi7/NWTrbI5TcrwJJ/G6WO1eUJm3k3LmpBBYyp8U6hpOe2Kf3o53u23HdgpBaOCVL9Yy+23M9vNNYV4wj2Ng")
-          ).decode()
-          if "test_pipeline_advancement_metadata_targets_canonical_work_identity" not in (
-              metadata_test_text
-          ):
-              metadata_test.write_text(
-                  metadata_test_text.rstrip() + metadata_test_append,
-                  encoding="utf-8",
+          if "_DEFAULT_SOURCES = (_source(),)" not in supervision_text:
+              if constants_anchor not in supervision_text:
+                  raise RuntimeError("pipeline supervision constants anchor is missing")
+              supervision_text = supervision_text.replace(
+                  constants_anchor,
+                  constants_replacement,
+                  1,
               )
+          discovery_old = (
+              "class Discovery:\n"
+              "    def __init__(self, sources=(_source(),)) -> None:\n"
+              "        self.sources = sources\n"
+          )
+          discovery_new = (
+              "class Discovery:\n"
+              "    def __init__(\n"
+              "        self,\n"
+              "        sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES,\n"
+              "    ) -> None:\n"
+              "        self.sources = sources\n"
+          )
+          if discovery_old in supervision_text:
+              supervision_text = supervision_text.replace(
+                  discovery_old,
+                  discovery_new,
+                  1,
+              )
+          elif "sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES" not in supervision_text:
+              raise RuntimeError("pipeline supervision discovery signature is missing")
+          port_old = (
+              "class Port:\n"
+              "    def __init__(self, *, lease=_lease()) -> None:\n"
+              "        self.lease = lease\n"
+          )
+          port_new = (
+              "class Port:\n"
+              "    def __init__(\n"
+              "        self,\n"
+              "        *,\n"
+              "        lease: PipelineAdvancementLease | None = _DEFAULT_LEASE,\n"
+              "    ) -> None:\n"
+              "        self.lease = lease\n"
+          )
+          if port_old in supervision_text:
+              supervision_text = supervision_text.replace(port_old, port_new, 1)
+          elif "lease: PipelineAdvancementLease | None = _DEFAULT_LEASE" not in supervision_text:
+              raise RuntimeError("pipeline supervision port signature is missing")
+          supervision_test.write_text(supervision_text, encoding="utf-8")
           PY
+
+          cat > packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py <<'PYFILE'
+          from __future__ import annotations
+
+          from dataclasses import dataclass
+          from uuid import UUID
+
+          import sqlalchemy as sa
+          from collection_application.pipeline_advancement import (
+              ArtifactIdentity,
+              PipelineAdvancementConflict,
+              SucceededWorkOutput,
+          )
+          from collection_domain import WorkStage
+          from sqlalchemy.engine import Connection, Engine, RowMapping
+          from sqlalchemy.exc import SQLAlchemyError
+
+          from collection_infrastructure.postgres.artifact_metadata import (
+              artifact_objects,
+              artifact_records,
+              work_input_artifacts,
+              work_output_artifacts,
+          )
+          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+              pipeline_advancements,
+          )
+          from collection_infrastructure.postgres.work_metadata import stage_runs, work_units
+
+
+          @dataclass(frozen=True, slots=True)
+          class _BoundArtifact:
+              position: int
+              artifact: ArtifactIdentity
+
+
+          class PostgresSucceededWorkCatalog:
+              """Canonical succeeded-work reader over the explicit physical schema."""
+
+              def __init__(self, engine: Engine) -> None:
+                  self._engine = engine
+
+              def __call__(
+                  self,
+                  connection: Connection,
+                  source_work_unit_id: UUID,
+              ) -> SucceededWorkOutput:
+                  return self.read(connection, source_work_unit_id)
+
+              def read(
+                  self,
+                  connection: Connection,
+                  source_work_unit_id: UUID,
+              ) -> SucceededWorkOutput:
+                  work = (
+                      connection.execute(
+                          sa.select(work_units)
+                          .where(work_units.c.work_id == source_work_unit_id)
+                          .with_for_update(read=True)
+                      )
+                      .mappings()
+                      .one_or_none()
+                  )
+                  if work is None:
+                      raise _catalog_conflict(
+                          "PIPELINE_SOURCE_WORK_NOT_FOUND",
+                          "The source work unit does not exist.",
+                          source_work_unit_id,
+                          "Refresh canonical work state and select an existing successful work unit.",
+                      )
+                  if _required_text(work, "state") != "succeeded":
+                      raise _catalog_conflict(
+                          "PIPELINE_SOURCE_WORK_NOT_SUCCEEDED",
+                          "Pipeline advancement accepts only successfully completed work.",
+                          source_work_unit_id,
+                          "Wait for canonical successful completion before registering advancement.",
+                      )
+
+                  run_id = _required_uuid(work, "run_id")
+                  stage_run_id = _required_uuid(work, "stage_run_id")
+                  stage_row = (
+                      connection.execute(
+                          sa.select(stage_runs).where(
+                              stage_runs.c.stage_run_id == stage_run_id
+                          )
+                      )
+                      .mappings()
+                      .one_or_none()
+                  )
+                  if stage_row is None:
+                      raise _catalog_conflict(
+                          "PIPELINE_STAGE_OWNER_NOT_FOUND",
+                          "The successful work has no canonical stage owner.",
+                          source_work_unit_id,
+                          "Repair stage ownership before advancing the successful output.",
+                      )
+                  if _required_uuid(stage_row, "run_id") != run_id:
+                      raise _catalog_conflict(
+                          "PIPELINE_STAGE_RUN_CONFLICT",
+                          "The work and stage owners belong to different collection runs.",
+                          source_work_unit_id,
+                          "Repair the corrupted run/stage ownership before advancement.",
+                      )
+
+                  inputs = _load_artifacts(
+                      connection,
+                      work_input_artifacts,
+                      source_work_unit_id,
+                  )
+                  outputs = _load_artifacts(
+                      connection,
+                      work_output_artifacts,
+                      source_work_unit_id,
+                  )
+                  if len(outputs) != 1:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_OUTPUT_ARTIFACT_CARDINALITY",
+                          message=(
+                              "Successful work must bind exactly one canonical output artifact."
+                          ),
+                          context={
+                              "sourceWorkUnitId": str(source_work_unit_id),
+                              "outputArtifactCount": len(outputs),
+                          },
+                          required_action=(
+                              "Repair work completion so the exact output contract has one "
+                              "canonical artifact."
+                          ),
+                      )
+
+                  identities = tuple(
+                      item.artifact.artifact_id for item in (*inputs, *outputs)
+                  )
+                  if len(identities) != len(set(identities)):
+                      raise _catalog_conflict(
+                          "PIPELINE_ARTIFACT_BINDING_DUPLICATE",
+                          "Successful work contains duplicate or conflicting artifact bindings.",
+                          source_work_unit_id,
+                          "Repair immutable input/output bindings before advancement.",
+                      )
+
+                  output_digest = _required_text(work, "output_digest")
+                  if output_digest != outputs[0].artifact.content_digest:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_OUTPUT_DIGEST_CONFLICT",
+                          message=(
+                              "The work completion digest differs from its canonical output artifact."
+                          ),
+                          context={
+                              "sourceWorkUnitId": str(source_work_unit_id),
+                              "workOutputDigest": output_digest,
+                              "artifactDigest": outputs[0].artifact.content_digest,
+                          },
+                          required_action=(
+                              "Repair the corrupted completion or artifact binding before advancement."
+                          ),
+                      )
+
+                  try:
+                      stage = WorkStage(_required_text(stage_row, "stage"))
+                  except ValueError as exc:
+                      raise _catalog_conflict(
+                          "PIPELINE_STAGE_VALUE_INVALID",
+                          "The canonical stage value is not supported.",
+                          source_work_unit_id,
+                          "Migrate the stage value before advancing this output.",
+                      ) from exc
+
+                  return SucceededWorkOutput(
+                      source_work_unit_id=source_work_unit_id,
+                      run_id=run_id,
+                      stage_run_id=stage_run_id,
+                      stage=stage,
+                      capability=_required_text(work, "capability"),
+                      output_contract=_required_text(work, "output_contract"),
+                      output_digest=output_digest,
+                      output_artifact=outputs[0].artifact,
+                      input_artifacts=tuple(item.artifact for item in inputs),
+                  )
+
+              def list_unregistered_succeeded(
+                  self,
+                  *,
+                  limit: int,
+                  correlation_id: str,
+              ) -> tuple[SucceededWorkOutput, ...]:
+                  del correlation_id
+                  if not 1 <= limit <= 1_000:
+                      raise ValueError(
+                          "successful work discovery limit must be between 1 and 1000"
+                      )
+                  try:
+                      with self._engine.connect() as connection:
+                          statement = (
+                              sa.select(work_units.c.work_id)
+                              .where(
+                                  work_units.c.state == "succeeded",
+                                  ~sa.exists(
+                                      sa.select(sa.literal(1)).where(
+                                          pipeline_advancements.c.source_work_unit_id
+                                          == work_units.c.work_id
+                                      )
+                                  ),
+                              )
+                              .order_by(work_units.c.updated_at_utc, work_units.c.work_id)
+                              .limit(limit)
+                          )
+                          work_ids = tuple(
+                              _uuid_value(value)
+                              for value in connection.execute(statement).scalars()
+                          )
+                          return tuple(self.read(connection, work_id) for work_id in work_ids)
+                  except PipelineAdvancementConflict:
+                      raise
+                  except SQLAlchemyError as exc:
+                      raise PipelineAdvancementConflict(
+                          code="PIPELINE_DISCOVERY_STORAGE_FAILED",
+                          message="Successful work discovery did not complete.",
+                          context={"causeType": type(exc).__name__},
+                          required_action=(
+                              "Inspect PostgreSQL owner state and retry exact discovery."
+                          ),
+                      ) from exc
+
+
+          def _binding_statement(
+              binding: sa.Table,
+              source_work_unit_id: UUID,
+          ) -> sa.Select[tuple[object, ...]]:
+              return (
+                  sa.select(
+                      binding.c.position.label("binding_position"),
+                      binding.c.role.label("binding_role"),
+                      artifact_records.c.artifact_id.label("artifact_id"),
+                      artifact_objects.c.content_digest.label("content_digest"),
+                      artifact_objects.c.size_bytes.label("size_bytes"),
+                      artifact_records.c.content_type.label("content_type"),
+                  )
+                  .select_from(
+                      binding.join(
+                          artifact_records,
+                          binding.c.artifact_id == artifact_records.c.artifact_id,
+                      ).join(
+                          artifact_objects,
+                          artifact_records.c.object_id == artifact_objects.c.object_id,
+                      )
+                  )
+                  .where(binding.c.work_id == source_work_unit_id)
+                  .order_by(binding.c.position, artifact_records.c.artifact_id)
+              )
+
+
+          def _load_artifacts(
+              connection: Connection,
+              binding: sa.Table,
+              source_work_unit_id: UUID,
+          ) -> tuple[_BoundArtifact, ...]:
+              rows = (
+                  connection.execute(
+                      _binding_statement(binding, source_work_unit_id)
+                  )
+                  .mappings()
+                  .all()
+              )
+              return tuple(_bound_artifact(row) for row in rows)
+
+
+          def _bound_artifact(row: RowMapping) -> _BoundArtifact:
+              return _BoundArtifact(
+                  position=_non_negative_int(row["binding_position"], "binding position"),
+                  artifact=ArtifactIdentity(
+                      artifact_id=_uuid_value(row["artifact_id"]),
+                      role=_non_empty_text(row["binding_role"], "artifact binding role"),
+                      content_digest=_non_empty_text(
+                          row["content_digest"],
+                          "artifact digest",
+                      ),
+                      size_bytes=_positive_int(row["size_bytes"], "artifact size"),
+                      content_type=_non_empty_text(
+                          row["content_type"],
+                          "artifact content type",
+                      ),
+                  ),
+              )
+
+
+          def _catalog_conflict(
+              code: str,
+              message: str,
+              source_work_unit_id: UUID,
+              required_action: str,
+          ) -> PipelineAdvancementConflict:
+              return PipelineAdvancementConflict(
+                  code=code,
+                  message=message,
+                  context={"sourceWorkUnitId": str(source_work_unit_id)},
+                  required_action=required_action,
+              )
+
+
+          def _required_uuid(row: RowMapping, key: str) -> UUID:
+              return _uuid_value(row[key])
+
+
+          def _uuid_value(value: object) -> UUID:
+              if value is None:
+                  raise TypeError("persisted UUID value is null")
+              return value if isinstance(value, UUID) else UUID(str(value))
+
+
+          def _required_text(row: RowMapping, key: str) -> str:
+              return _non_empty_text(row[key], key)
+
+
+          def _non_empty_text(value: object, meaning: str) -> str:
+              if not isinstance(value, str) or not value:
+                  raise TypeError(f"persisted {meaning} is not non-empty text")
+              return value
+
+
+          def _non_negative_int(value: object, meaning: str) -> int:
+              if not isinstance(value, int) or value < 0:
+                  raise TypeError(f"persisted {meaning} is not a non-negative integer")
+              return value
+
+
+          def _positive_int(value: object, meaning: str) -> int:
+              if not isinstance(value, int) or value <= 0:
+                  raise TypeError(f"persisted {meaning} is not a positive integer")
+              return value
+          PYFILE
+
+          cat > packages/collection_infrastructure/tests/test_succeeded_work_catalog.py <<'PYTEST'
+          from __future__ import annotations
+
+          from uuid import UUID
+
+          from collection_infrastructure.postgres.artifact_metadata import (
+              work_input_artifacts,
+              work_output_artifacts,
+          )
+          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+              pipeline_advancements,
+          )
+          from collection_infrastructure.postgres.succeeded_work_catalog import (
+              _binding_statement,
+          )
+          from sqlalchemy.dialects import postgresql
+
+          _WORK_ID = UUID("00000000-0000-0000-0000-000000000601")
+
+
+          def test_pipeline_checkpoint_targets_canonical_work_identity() -> None:
+              foreign_key = next(
+                  iter(pipeline_advancements.c.source_work_unit_id.foreign_keys)
+              )
+
+              assert foreign_key.target_fullname == "work.work_units.work_id"
+
+
+          def test_input_binding_query_joins_canonical_artifact_owners() -> None:
+              sql = str(
+                  _binding_statement(work_input_artifacts, _WORK_ID).compile(
+                      dialect=postgresql.dialect()
+                  )
+              )
+
+              assert "work.work_input_artifacts" in sql
+              assert "sources.artifact_records" in sql
+              assert "sources.artifact_objects" in sql
+              assert "work_input_artifacts.work_id" in sql
+              assert "artifact_records.object_id = artifact_objects.object_id" in sql
+
+
+          def test_output_binding_query_uses_the_same_explicit_lineage_path() -> None:
+              sql = str(
+                  _binding_statement(work_output_artifacts, _WORK_ID).compile(
+                      dialect=postgresql.dialect()
+                  )
+              )
+
+              assert "work.work_output_artifacts" in sql
+              assert "work_output_artifacts.work_id" in sql
+              assert "artifact_records.artifact_id" in sql
+              assert "artifact_objects.content_digest" in sql
+              assert "artifact_objects.size_bytes" in sql
+          PYTEST
+
+          cat > database/tests/test_pipeline_advancement_schema.py <<'PYTEST'
+          from __future__ import annotations
+
+          from pathlib import Path
+
+          _MIGRATION = (
+              Path(__file__).resolve().parents[1]
+              / "migrations"
+              / "versions"
+              / "20260815_0013_pipeline_advancement.py"
+          )
+
+
+          def test_pipeline_advancement_migration_is_linear_and_owner_scoped() -> None:
+              source = _MIGRATION.read_text(encoding="utf-8")
+
+              assert 'revision: str = "20260815_0013"' in source
+              assert 'down_revision: str | None = "20260815_0012"' in source
+              assert '"pipeline_advancements"' in source
+              assert '"pipeline_advancement_attempts"' in source
+              assert 'schema="work"' in source
+              assert '"work.work_units.work_id"' in source
+              assert '"work.work_units.work_unit_id"' not in source
+              assert "CASCADE" not in source
+
+
+          def test_pipeline_advancement_migration_enforces_fail_closed_state() -> None:
+              source = _MIGRATION.read_text(encoding="utf-8")
+
+              assert "ck_pipeline_advancements_terminal_payload" in source
+              assert "ck_pipeline_advancements_lease_payload" in source
+              assert "ck_pipeline_advancement_attempts_event_payload" in source
+              assert "source_output_digest ~ '^sha256:[0-9a-f]{64}$'" in source
+              assert "transition_plan_digest ~ '^sha256:[0-9a-f]{64}$'" in source
+              assert "jsonb_typeof(source_input_artifacts) = 'array'" in source
+
+
+          def test_pipeline_advancement_attempt_history_is_append_only() -> None:
+              source = _MIGRATION.read_text(encoding="utf-8")
+
+              assert "reject_pipeline_advancement_attempt_mutation" in source
+              assert "BEFORE UPDATE OR DELETE ON work.pipeline_advancement_attempts" in source
+              assert "pipeline advancement attempt history is immutable" in source
+              assert 'ondelete="RESTRICT"' in source
+          PYTEST
 
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
@@ -148,6 +610,7 @@ jobs:
             packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py
             packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
           )
+          uv run ruff format "${files[@]}"
           uv run ruff check --fix "${files[@]}"
           uv run ruff format "${files[@]}"
           uv run ruff check "${files[@]}"
@@ -157,10 +620,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          uv run pytest -q             packages/collection_application/tests/test_pipeline_advancement.py             packages/collection_application/tests/test_pipeline_supervision.py             packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py             packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py             packages/collection_infrastructure/tests/test_pipeline_run_control.py             packages/collection_infrastructure/tests/test_succeeded_work_catalog.py             database/tests/test_pipeline_advancement_schema.py
-          uv run mypy             packages/collection_application/src/collection_application/pipeline_advancement.py             packages/collection_application/src/collection_application/pipeline_supervision.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+          uv run pytest -q \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py \
+            database/tests/test_pipeline_advancement_schema.py
+          uv run mypy \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
           uv run python tools/architecture_checks/check_dependencies.py
-          uv run python -m compileall -q             packages/collection_application/src/collection_application             packages/collection_infrastructure/src/collection_infrastructure/postgres
+          uv run python -m compileall -q \
+            packages/collection_application/src/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres
 
       - name: Prove fresh canonical database
         shell: bash
@@ -169,16 +647,24 @@ jobs:
           uv run collection-migrate upgrade head
           uv run pytest -q -m integration database/tests
 
-      - name: Commit proven pipeline owner
+      - name: Commit proven production files
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/reconcile-operational-production-v2.yml
-          git add             database/migrations/versions/20260815_0013_pipeline_advancement.py             database/tests/test_pipeline_advancement_schema.py             packages/collection_application/src/collection_application/pipeline_supervision.py             packages/collection_application/tests/test_pipeline_supervision.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py             packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py             packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py             packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          git add \
+            database/migrations/versions/20260815_0013_pipeline_advancement.py \
+            database/tests/test_pipeline_advancement_schema.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
           git diff --cached --check
           git config user.name rtao-god
           git config user.email rtaogod@gmail.com
-          git commit -m "Fix (Pipeline): align advancement with canonical work identity"
           git fetch origin main
-          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git commit -m "Fix (Pipeline): align advancement with canonical work identity"
           git push origin HEAD:main
