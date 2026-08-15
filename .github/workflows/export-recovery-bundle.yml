@@ -58,19 +58,30 @@ jobs:
           : > recovery/fetch-manifest.txt
           for sha in "${shas[@]}"; do
             echo "fetching $sha"
-            git fetch --no-tags --depth=160 origin "$sha"
+            git fetch --no-tags origin "$sha"
             git cat-file -e "$sha^{commit}"
             short="${sha:0:12}"
             git update-ref "refs/heads/recovery/$short" "$sha"
             printf '%s %s\n' "$sha" "$(git show -s --format=%s "$sha")" >> recovery/fetch-manifest.txt
           done
 
+          mapfile -t bundle_refs < <(
+            git for-each-ref --format='%(refname)' refs/heads/main refs/heads/recovery/
+          )
+          expected_ref_count=$((${#shas[@]} + 1))
+          if [[ "${#bundle_refs[@]}" -ne "$expected_ref_count" ]]; then
+            printf 'expected %s bundle refs, found %s\n' \
+              "$expected_ref_count" "${#bundle_refs[@]}" >&2
+            printf '%s\n' "${bundle_refs[@]}" >&2
+            exit 1
+          fi
+
           git for-each-ref --sort=-committerdate \
             --format='%(objectname) %(refname) %(committerdate:iso8601) %(subject)' \
-            refs/heads/main refs/heads/recovery > recovery/refs.txt
+            refs/heads/main refs/heads/recovery/ > recovery/refs.txt
           git log --all --date=iso-strict --pretty='%H %P %cI %s' > recovery/all-commits.txt
           git bundle create recovery/data-collection-platform-recovery.bundle \
-            refs/heads/main 'refs/heads/recovery/*'
+            "${bundle_refs[@]}"
           git bundle verify recovery/data-collection-platform-recovery.bundle
           sha256sum recovery/data-collection-platform-recovery.bundle > recovery/SHA256SUMS
 
