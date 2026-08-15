@@ -13,7 +13,7 @@ from collection_application.pipeline_advancement import (
 from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.exc import SQLAlchemyError
 
-from collection_domain import WorkStage
+from collection_application import WorkStage
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     pipeline_advancements,
 )
