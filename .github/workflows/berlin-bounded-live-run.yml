@@ -1,0 +1,174 @@
+name: Berlin Bounded Live Collection
+
+on:
+  workflow_run:
+    workflows:
+      - Materialize Validated Berlin Source Inputs
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-berlin-bounded-live-run
+  cancel-in-progress: false
+
+env:
+  COMPOSE_PROJECT_NAME: dcp-live-proof
+  COLLECTOR_CONTROL_API_TOKEN: dcp-live-proof-operator-token
+  CONTROL_API_TOKEN: dcp-live-proof-operator-token
+  AWS_ACCESS_KEY_ID: dcp-live-proof
+  AWS_SECRET_ACCESS_KEY: dcp-live-proof-secret
+  COLLECTOR_TEST_S3_ACCESS_KEY_ID: dcp-live-proof
+  COLLECTOR_TEST_S3_SECRET_ACCESS_KEY: dcp-live-proof-secret
+  COLLECTOR_TEST_S3_REGION: us-east-1
+
+jobs:
+  live-run:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Require all upstream proofs and live inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            docs/proofs/end-to-end-operational-ci.md
+            campaigns/berlin_recording_services/geography/berlin-boundary.geojson
+            campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json
+            campaigns/berlin_recording_services/source-inputs.provenance.json
+            deploy/compose/application.yaml
+          )
+          for path in "${required[@]}"; do
+            test -f "$path" || { echo "missing live-run prerequisite: $path" >&2; exit 1; }
+          done
+          grep -q '"authority":"State of Berlin"' \
+            campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json
+          grep -q '"automaticSchedulesEnabled":false' \
+            campaigns/berlin_recording_services/source-inputs.provenance.json
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Normalize bounded runner owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tools/live_collection/run_bounded_live_proof.py")
+          text = path.read_text(encoding="utf-8")
+          old = '            state = owner.c.get("state") or owner.c.get("status")\n'
+          new = (
+              '            state = owner.c.get("state")\n'
+              '            if state is None:\n'
+              '                state = owner.c.get("status")\n'
+          )
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise RuntimeError("sealed-export state-column anchor is missing")
+          path.write_text(text, encoding="utf-8")
+          PY
+          uv run ruff format \
+            tools/live_collection/run_bounded_live_proof.py \
+            tools/live_collection/tests/test_run_bounded_live_proof.py
+          uv run ruff check --fix \
+            tools/live_collection/run_bounded_live_proof.py \
+            tools/live_collection/tests/test_run_bounded_live_proof.py
+          uv run ruff format \
+            tools/live_collection/run_bounded_live_proof.py \
+            tools/live_collection/tests/test_run_bounded_live_proof.py
+          uv run ruff check \
+            tools/live_collection/run_bounded_live_proof.py \
+            tools/live_collection/tests/test_run_bounded_live_proof.py
+          uv run pytest -q tools/live_collection/tests/test_run_bounded_live_proof.py
+
+      - name: Execute bounded real-source campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run python tools/live_collection/run_bounded_live_proof.py \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --compose-file deploy/compose/application.yaml \
+            --startup-timeout-seconds 420 \
+            --run-timeout-seconds 1200 \
+            --report docs/proofs/berlin-live-collection.json
+
+      - name: Capture exact runtime diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p /tmp/berlin-live-proof
+          docker compose -f deploy/compose/application.yaml ps -a \
+            > /tmp/berlin-live-proof/compose-ps.txt 2>&1
+          docker compose -f deploy/compose/application.yaml logs --no-color \
+            > /tmp/berlin-live-proof/compose.log 2>&1
+          cp docs/proofs/berlin-live-collection.json \
+            /tmp/berlin-live-proof/ 2>/dev/null || true
+          volumes="$(docker volume ls \
+            --filter label=com.docker.compose.project=dcp-live-proof \
+            --format '{{.Name}}' \
+            | grep -Ei '(seaweed|object|s3)' || true)"
+          for volume in $volumes; do
+            safe="${volume//[^A-Za-z0-9._-]/_}"
+            docker run --rm \
+              -v "$volume:/source:ro" \
+              -v /tmp/berlin-live-proof:/backup \
+              alpine:3.22 \
+              tar -C /source -czf "/backup/${safe}.tar.gz" . || true
+          done
+
+      - name: Upload raw object-store and runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: berlin-bounded-live-run-${{ github.run_id }}
+          path: /tmp/berlin-live-proof
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit exact live-run proof and runner repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add \
+            tools/live_collection/run_bounded_live_proof.py \
+            docs/proofs/berlin-live-collection.json
+          git diff --cached --check
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Data (Berlin): record bounded live collection proof"
+          git push origin HEAD:main
+
+      - name: Tear down bounded runtime
+        if: always()
+        run: docker compose -f deploy/compose/application.yaml down --volumes --remove-orphans
