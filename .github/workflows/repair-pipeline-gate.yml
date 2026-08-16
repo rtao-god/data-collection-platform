@@ -1,0 +1,216 @@
+name: Apply Canonical Pipeline Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair-pipeline-gate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-canonical-pipeline-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+
+    steps:
+      - name: Check out complete main history
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Apply exact canonical owner repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          from pathlib import Path
+          from textwrap import dedent
+
+          repair_workflow = Path(
+              ".github/workflows/reconcile-operational-production-v2.yml"
+          )
+          workflow_text = repair_workflow.read_text(encoding="utf-8")
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = workflow_text.index(start_marker) + len(start_marker)
+          end = workflow_text.index(end_marker, start)
+          embedded_repair = dedent(workflow_text[start:end])
+          exec(
+              compile(
+                  embedded_repair,
+                  str(repair_workflow) + ":embedded-owner-repair",
+                  "exec",
+              ),
+              {"__name__": "pipeline_owner_repair"},
+          )
+
+          supervision_test = Path(
+              "packages/collection_application/tests/test_pipeline_supervision.py"
+          )
+          text = supervision_test.read_text(encoding="utf-8")
+          if "_DEFAULT_SOURCES = (_source(),)" not in text:
+              anchor = "\n\ndef _status(\n"
+              replacement = (
+                  "\n\n_DEFAULT_SOURCES = (_source(),)\n"
+                  "_DEFAULT_LEASE = _lease()\n\n\ndef _status(\n"
+              )
+              if anchor not in text:
+                  raise RuntimeError("pipeline supervision default anchor is missing")
+              text = text.replace(anchor, replacement, 1)
+          old_discovery = (
+              "class Discovery:\n"
+              "    def __init__(self, sources=(_source(),)) -> None:\n"
+              "        self.sources = sources\n"
+          )
+          new_discovery = (
+              "class Discovery:\n"
+              "    def __init__(\n"
+              "        self,\n"
+              "        sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES,\n"
+              "    ) -> None:\n"
+              "        self.sources = sources\n"
+          )
+          if old_discovery in text:
+              text = text.replace(old_discovery, new_discovery, 1)
+          elif "sources: tuple[SucceededWorkOutput, ...] = _DEFAULT_SOURCES" not in text:
+              raise RuntimeError("pipeline supervision discovery default is missing")
+          old_port = (
+              "class Port:\n"
+              "    def __init__(self, *, lease=_lease()) -> None:\n"
+              "        self.lease = lease\n"
+          )
+          new_port = (
+              "class Port:\n"
+              "    def __init__(\n"
+              "        self,\n"
+              "        *,\n"
+              "        lease: PipelineAdvancementLease | None = _DEFAULT_LEASE,\n"
+              "    ) -> None:\n"
+              "        self.lease = lease\n"
+          )
+          if old_port in text:
+              text = text.replace(old_port, new_port, 1)
+          elif "lease: PipelineAdvancementLease | None = _DEFAULT_LEASE" not in text:
+              raise RuntimeError("pipeline supervision lease default is missing")
+          supervision_test.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Normalize and lint repaired owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            database/migrations/versions/20260815_0013_pipeline_advancement.py
+            database/tests/test_pipeline_advancement_schema.py
+            packages/collection_application/src/collection_application/pipeline_supervision.py
+            packages/collection_application/tests/test_pipeline_supervision.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          )
+          uv run ruff format "${files[@]}"
+          uv run ruff check --fix "${files[@]}"
+          uv run ruff format "${files[@]}"
+          uv run ruff check "${files[@]}"
+          uv run ruff format --check "${files[@]}"
+
+      - name: Prove application and storage owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run pytest -q \
+            packages/collection_application/tests/test_pipeline_advancement.py \
+            packages/collection_application/tests/test_pipeline_supervision.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/tests/test_pipeline_advancement_repository.py \
+            packages/collection_infrastructure/tests/test_pipeline_run_control.py \
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py \
+            database/tests/test_pipeline_advancement_schema.py
+          uv run mypy \
+            packages/collection_application/src/collection_application/pipeline_advancement.py \
+            packages/collection_application/src/collection_application/pipeline_supervision.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q \
+            packages/collection_application/src/collection_application \
+            packages/collection_infrastructure/src/collection_infrastructure/postgres
+
+      - name: Prove fresh canonical PostgreSQL state
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run collection-migrate upgrade head
+          uv run pytest -q -m integration database/tests
+
+      - name: Commit only proven production owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            database/migrations/versions/20260815_0013_pipeline_advancement.py
+            database/tests/test_pipeline_advancement_schema.py
+            packages/collection_application/src/collection_application/pipeline_supervision.py
+            packages/collection_application/tests/test_pipeline_supervision.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py
+            packages/collection_infrastructure/tests/test_pipeline_advancement_metadata.py
+            packages/collection_infrastructure/tests/test_succeeded_work_catalog.py
+          )
+          git add "${files[@]}"
+          git diff --cached --check
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          if git diff --cached --quiet; then
+            echo "Canonical pipeline owner already matches the proven state."
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Pipeline): align advancement with canonical work identity"
+          git push origin HEAD:main
