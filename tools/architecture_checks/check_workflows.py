@@ -85,9 +85,7 @@ def _permission_violations(value: object, *, scope: str) -> tuple[str, ...]:
         key for key, permission in normalized.items() if permission == "write"
     )
     if write_permissions:
-        violations.append(
-            f"{scope} permissions grant write access: {', '.join(write_permissions)}"
-        )
+        violations.append(f"{scope} permissions grant write access: {', '.join(write_permissions)}")
     return tuple(violations)
 
 
@@ -155,7 +153,7 @@ def find_violations(
     discovered = frozenset(
         path.relative_to(root).as_posix()
         for path in workflow_root.iterdir()
-        if path.is_file() and path.suffix in _WORKFLOW_SUFFIXES
+        if path.is_file() and path.suffix in _WORKFLOW_SUFIXES
     )
 
     violations: list[Violation] = []
