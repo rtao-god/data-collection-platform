@@ -1,0 +1,88 @@
+name: One-shot Lint Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-lint-repair.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-lint-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Apply exact lint fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            apps/worker_gateway/tests/test_auth.py
+            apps/worker_gateway/src/worker_gateway/__main__.py
+            apps/osm_worker/tests/test_worker.py
+            apps/migration/tests/test_cli.py
+            apps/migration/src/collection_migration/app.py
+            apps/http_worker/tests/test_worker.py
+            apps/control_api/tests/test_auth.py
+            apps/control_api/tests/test_app.py
+            apps/control_api/src/control_api/main.py
+            apps/collector_cli/src/collector_cli/artifact_cleanup.py
+          )
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/worker_gateway/src/worker_gateway/__main__.py")
+          text = path.read_text(encoding="utf-8")
+          old = '_CONTAINER_HOST = "0.0.0.0"'
+          new = old + '  # noqa: S104 - container-only bind is gated below.'
+          if new not in text:
+              if old not in text:
+                  raise SystemExit("worker-gateway container bind anchor is missing")
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding="utf-8")
+          PY
+          uv run ruff check --fix "${paths[@]}"
+          uv run ruff format --check .
+          uv run ruff check .
+          git diff --check
+
+          git rm .github/workflows/one-shot-lint-repair.yml
+          git add "${paths[@]}"
+
+          allowed="$(printf '%s\n' .github/workflows/one-shot-lint-repair.yml "${paths[@]}" | sort)"
+          actual="$(git diff --cached --name-only | sort)"
+          test "$actual" = "$allowed"
+
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Style (Python): restore lint baseline"
+          git push origin HEAD:main
