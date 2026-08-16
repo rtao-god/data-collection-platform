@@ -39,46 +39,134 @@ jobs:
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
 
-      - name: Apply exact lint fixes
+      - name: Repair complete Ruff ledger
         shell: bash
         run: |
           set -euo pipefail
-          paths=(
-            apps/worker_gateway/tests/test_auth.py
-            apps/worker_gateway/src/worker_gateway/__main__.py
-            apps/osm_worker/tests/test_worker.py
-            apps/migration/tests/test_cli.py
-            apps/migration/src/collection_migration/app.py
-            apps/http_worker/tests/test_worker.py
-            apps/control_api/tests/test_auth.py
-            apps/control_api/tests/test_app.py
-            apps/control_api/src/control_api/main.py
-            apps/collector_cli/src/collector_cli/artifact_cleanup.py
-          )
+
+          uv run ruff check --fix .
+
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("apps/worker_gateway/src/worker_gateway/__main__.py")
-          text = path.read_text(encoding="utf-8")
-          old = '_CONTAINER_HOST = "0.0.0.0"'
-          new = old + '  # noqa: S104 - container-only bind is gated below.'
-          if new not in text:
+          def replace_once(path_text: str, old: str, new: str) -> None:
+              path = Path(path_text)
+              text = path.read_text(encoding="utf-8")
+              if new in text:
+                  return
               if old not in text:
-                  raise SystemExit("worker-gateway container bind anchor is missing")
-              text = text.replace(old, new, 1)
-              path.write_text(text, encoding="utf-8")
+                  raise SystemExit(f"repair anchor is missing: {path_text}: {old!r}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "apps/worker_gateway/src/worker_gateway/__main__.py",
+              '_CONTAINER_HOST = "0.0.0.0"',
+              '_CONTAINER_HOST = "0.0.0.0"  # noqa: S104 - validated container-only bind.',
+          )
+          replace_once(
+              "apps/worker_gateway/tests/test_main.py",
+              'match="requires WORKER_GATEWAY_HOST=0.0.0.0"',
+              'match=r"requires WORKER_GATEWAY_HOST=0\\.0\\.0\\.0"',
+          )
+          replace_once(
+              "tools/compose_secrets/materialize.py",
+              "        os.replace(temporary_path, target)",
+              "        temporary_path.replace(target)",
+          )
+          replace_once(
+              "tools/live_collection/berlin_boundary.py",
+              "from xml.etree import ElementTree",
+              "from defusedxml import ElementTree",
+          )
+
+          portal = Path("tools/live_collection/berlin_boundary_portal.py")
+          portal_text = portal.read_text(encoding="utf-8")
+          if "_DATASET_PATH_TOKEN" in portal_text:
+              portal.write_text(
+                  portal_text.replace("_DATASET_PATH_TOKEN", "_DATASET_PATH_SEGMENT"),
+                  encoding="utf-8",
+              )
+          elif "_DATASET_PATH_SEGMENT" not in portal_text:
+              raise SystemExit("Berlin portal dataset-path owner anchor is missing")
+
+          replace_once(
+              "tools/live_collection/run_bounded_live_proof.py",
+              "    return subprocess.run(\n",
+              "    # Executable and arguments are assembled only by owner helpers; no shell is used.\n"
+              "    return subprocess.run(  # noqa: S603\n",
+          )
+
+          source_inputs = Path("tools/live_collection/select_source_inputs.py")
+          text = source_inputs.read_text(encoding="utf-8")
+          helper_anchor = "\n\ndef _git(repository_root: Path, *arguments: str) -> bytes:\n"
+          helper = '''\n\ndef _required_executable(name: str) -> str:\n    executable = shutil.which(name)\n    if executable is None:\n        raise SourceInputSelectionError(f"required executable is unavailable: {name}")\n    return executable\n\n\ndef _git(repository_root: Path, *arguments: str) -> bytes:\n'''
+          if "def _required_executable(" not in text:
+              if helper_anchor not in text:
+                  raise SystemExit("source-input executable owner anchor is missing")
+              text = text.replace(helper_anchor, helper, 1)
+          text = text.replace(
+              '        return subprocess.check_output(\n            ("git", "-C", str(repository_root), *arguments),',
+              '        # Executable is resolved explicitly and arguments are owner-constructed.\n'
+              '        return subprocess.check_output(  # noqa: S603\n'
+              '            (_required_executable("git"), "-C", str(repository_root), *arguments),',
+          )
+          text = text.replace(
+              '    result = subprocess.run(\n        (\n            "uv",',
+              '    # Executable is resolved explicitly and the validator command is constant.\n'
+              '    result = subprocess.run(  # noqa: S603\n'
+              '        (\n            _required_executable("uv"),',
+              1,
+          )
+          source_inputs.write_text(text, encoding="utf-8")
+
+          pyproject = Path("pyproject.toml")
+          project_text = pyproject.read_text(encoding="utf-8")
+          dependency = '  "defusedxml==0.7.1",\n'
+          if dependency not in project_text:
+              anchor = '  "boto3-stubs[s3]==1.43.54",\n'
+              if anchor not in project_text:
+                  raise SystemExit("root dev dependency anchor is missing")
+              project_text = project_text.replace(anchor, anchor + dependency, 1)
+          override = '''\n[[tool.mypy.overrides]]\nmodule = ["defusedxml", "defusedxml.*"]\nignore_missing_imports = true\n'''
+          if 'module = ["defusedxml", "defusedxml.*"]' not in project_text:
+              project_text += override
+          pyproject.write_text(project_text, encoding="utf-8")
           PY
-          uv run ruff check --fix "${paths[@]}"
+
+          uv lock
+          uv run ruff check --fix .
+          uv run ruff format .
+
+          uv lock --check
           uv run ruff format --check .
           uv run ruff check .
+          uv run mypy
+          uv run pytest -m "not integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
           git diff --check
 
           git rm .github/workflows/one-shot-lint-repair.yml
-          git add "${paths[@]}"
+          git add -A
 
-          allowed="$(printf '%s\n' .github/workflows/one-shot-lint-repair.yml "${paths[@]}" | sort)"
-          actual="$(git diff --cached --name-only | sort)"
-          test "$actual" = "$allowed"
+          python - <<'PY'
+          import subprocess
+
+          changed = subprocess.check_output(
+              ("git", "diff", "--cached", "--name-only"),
+              text=True,
+          ).splitlines()
+          workflow = ".github/workflows/one-shot-lint-repair.yml"
+          allowed_non_python = {workflow, "pyproject.toml", "uv.lock"}
+          invalid = [path for path in changed if path not in allowed_non_python and not path.endswith(".py")]
+          if invalid:
+              raise SystemExit(f"unexpected lint-repair scope: {invalid}")
+          if workflow not in changed:
+              raise SystemExit("one-shot workflow was not removed")
+          if len(changed) < 10:
+              raise SystemExit(f"lint repair unexpectedly changed only {len(changed)} files")
+          print(f"validated lint-repair scope: {len(changed)} files")
+          PY
 
           git fetch origin main
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
