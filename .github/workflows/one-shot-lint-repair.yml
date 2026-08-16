@@ -151,6 +151,92 @@ jobs:
           pyproject.write_text(project_text, encoding="utf-8")
           PY
 
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path_text: str, old: str, new: str) -> None:
+              path = Path(path_text)
+              text = path.read_text(encoding="utf-8")
+              if new in text:
+                  return
+              if old not in text:
+                  raise SystemExit(f"mypy repair anchor is missing: {path_text}: {old!r}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          source_inputs = "tools/live_collection/select_source_inputs.py"
+          replace_once(
+              source_inputs,
+              "from collections.abc import Mapping, Sequence",
+              "from collections.abc import Iterator, Mapping, Sequence",
+          )
+          replace_once(
+              source_inputs,
+              "def _walk(value: object):",
+              "def _walk(value: object) -> Iterator[object]:",
+          )
+
+          live_proof = "tools/live_collection/run_bounded_live_proof.py"
+          replace_once(live_proof, "from typing import Any", "from typing import Any, cast")
+          replace_once(
+              live_proof,
+              '''        else:\n            continue\n        try:\n            values.append(int(value))\n        except (TypeError, ValueError):\n            continue\n''',
+              '''        else:\n            continue\n        if not isinstance(value, (str, int)) or isinstance(value, bool):\n            continue\n        try:\n            values.append(int(value))\n        except ValueError:\n            continue\n''',
+          )
+          replace_once(
+              live_proof,
+              '''    if not isinstance(reference, str):\n        return schema\n''',
+              '''    if not isinstance(reference, str):\n        return cast(Mapping[str, Any], schema)\n''',
+          )
+          replace_once(
+              live_proof,
+              '''    if not isinstance(schemas, Mapping) or not isinstance(schemas.get(name), Mapping):\n        raise LiveProofError(f"OpenAPI schema is missing: {name}")\n    return schemas[name]\n''',
+              '''    if not isinstance(schemas, Mapping):\n        raise LiveProofError(f"OpenAPI schema is missing: {name}")\n    resolved = schemas.get(name)\n    if not isinstance(resolved, Mapping):\n        raise LiveProofError(f"OpenAPI schema is missing: {name}")\n    return cast(Mapping[str, Any], resolved)\n''',
+          )
+          replace_once(
+              live_proof,
+              "        return response.json()",
+              "        return cast(object, response.json())",
+          )
+          replace_once(
+              live_proof,
+              '''            if str(key).lower() in lowered_names:\n                return item\n''',
+              '''            if str(key).lower() in lowered_names:\n                return cast(object, item)\n''',
+          )
+
+          boundary = "tools/live_collection/berlin_boundary.py"
+          replace_once(
+              boundary,
+              '''    for geometry in geometries:\n        if geometry.get("type") not in {"Polygon", "MultiPolygon"}:\n            raise BoundaryMaterializationError(\n                f"unsupported boundary geometry: {geometry.get('type')}"\n            )\n''',
+              '''    for candidate_geometry in geometries:\n        if candidate_geometry.get("type") not in {"Polygon", "MultiPolygon"}:\n            raise BoundaryMaterializationError(\n                f"unsupported boundary geometry: {candidate_geometry.get('type')}"\n            )\n''',
+          )
+          replace_once(
+              boundary,
+              "        geometry: Mapping[str, Any] = geometries[0]",
+              "        canonical_geometry: Mapping[str, Any] = geometries[0]",
+          )
+          replace_once(
+              boundary,
+              "        merged = unary_union(tuple(shape(item) for item in geometries))",
+              "        merged = unary_union(tuple(shape(dict(item)) for item in geometries))",
+          )
+          replace_once(
+              boundary,
+              "        geometry = _as_mapping(mapping(merged))",
+              "        canonical_geometry = _as_mapping(mapping(merged))",
+          )
+          replace_once(
+              boundary,
+              '        "geometry": geometry,',
+              '        "geometry": canonical_geometry,',
+          )
+
+          replace_once(
+              "connectors/official_http/src/official_http/planning.py",
+              "from defusedxml.ElementTree import (  # type: ignore[import-untyped]",
+              "from defusedxml.ElementTree import (",
+          )
+          PY
+
           uv lock
           uv run ruff check --fix --unsafe-fixes .
           uv run ruff format .
@@ -178,12 +264,12 @@ jobs:
           allowed_non_python = {workflow, "pyproject.toml", "uv.lock"}
           invalid = [path for path in changed if path not in allowed_non_python and not path.endswith(".py")]
           if invalid:
-              raise SystemExit(f"unexpected lint-repair scope: {invalid}")
+              raise SystemExit(f"unexpected static-analysis repair scope: {invalid}")
           if workflow not in changed:
               raise SystemExit("one-shot workflow was not removed")
           if len(changed) < 10:
-              raise SystemExit(f"lint repair unexpectedly changed only {len(changed)} files")
-          print(f"validated lint-repair scope: {len(changed)} files")
+              raise SystemExit(f"static-analysis repair unexpectedly changed only {len(changed)} files")
+          print(f"validated static-analysis repair scope: {len(changed)} files")
           PY
 
           git fetch origin main
