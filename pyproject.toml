@@ -11,6 +11,7 @@ package = false
 [tool.uv.workspace]
 members = [
   "apps/collector_cli",
+  "apps/control_api",
   "apps/http_worker",
   "apps/manual_import_worker",
   "apps/migration",
@@ -30,11 +31,10 @@ members = [
   "packages/normalization_core",
   "packages/quality_core",
   "packages/resolution_contracts",
-  "packages/source_connector_sdk",
+  "packages/review_application",
   "packages/review_contracts",
   "packages/review_core",
-  "apps/control_api",
-  "packages/review_application",
+  "packages/source_connector_sdk",
 ]
 
 [dependency-groups]
@@ -111,7 +111,6 @@ strict = true
 warn_unused_configs = true
 show_error_codes = true
 plugins = ["pydantic.mypy"]
-explicit_package_bases = true
 exclude = [
   "(^|/)tests/",
 ]
