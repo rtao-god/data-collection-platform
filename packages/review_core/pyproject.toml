@@ -1,7 +1,7 @@
 [project]
 name = "review-core"
 version = "0.1.0"
-description = "Deterministic manual import planning for the Data Collection Platform"
+description = "Pure review and suppression transitions for the Data Collection Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "review-contracts",

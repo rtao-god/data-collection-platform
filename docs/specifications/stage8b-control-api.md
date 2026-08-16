@@ -4,9 +4,9 @@
 
 `review_application` owns reviewer permissions, command construction, opaque queue cursors, and orchestration against `ReviewRepository`.
 
-`PostgresReviewRepository` owns atomic optimistic-concurrency transactions, exact command replay, immutable supersession, queue reads, and mapping between PostgreSQL history and review contracts.
+`review_infrastructure.PostgresReviewRepository` owns atomic optimistic-concurrency transactions, exact command replay, immutable supersession, queue reads, and mapping between PostgreSQL history and review contracts.
 
-`control_api` owns authenticated HTTP transport. Actor identity is derived only from the bearer principal; request bodies cannot select or override the actor.
+`control_api` is the only production composition root for Collection and Review persistence and owns authenticated HTTP transport. Actor identity is derived only from the bearer principal; request bodies cannot select or override the actor.
 
 ## Invariants
 

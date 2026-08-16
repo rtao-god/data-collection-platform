@@ -130,6 +130,130 @@ def test_infrastructure_rejects_direct_domain_dependency(tmp_path: Path) -> None
     assert "must not import production owner collection_domain" in violations[0].message
 
 
+def test_collection_infrastructure_rejects_review_dependency(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "packages/collection_infrastructure/src/collection_infrastructure/adapter.py",
+        "from review_application import ReviewService\n",
+    )
+
+    violations = checker.find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert "must not import production owner review_application" in violations[0].message
+
+
+def test_review_infrastructure_accepts_only_review_owner_chain(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "packages/review_infrastructure/src/review_infrastructure/postgres.py",
+        (
+            "import sqlalchemy\n"
+            "from review_application import ReviewRepository\n"
+            "from review_contracts import ReviewCase\n"
+            "from review_core import decide_review_case\n"
+        ),
+    )
+
+    assert checker.find_violations(tmp_path) == ()
+
+
+def test_worker_gateway_rejects_review_infrastructure_dependency(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "apps/worker_gateway/src/worker_gateway/app.py",
+        "from review_infrastructure import PostgresReviewRepository\n",
+    )
+
+    violations = checker.find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert "must not import production owner review_infrastructure" in violations[0].message
+
+
+def test_runtime_closure_rejects_review_owner_in_worker_gateway(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "uv.lock",
+        (
+            'version = 1\nrevision = 3\nrequires-python = ">=3.13,<3.14"\n\n'
+            '[[package]]\nname = "worker-gateway"\n'
+            'dependencies = [{ name = "collection-application" }]\n\n'
+            '[[package]]\nname = "collection-application"\n'
+            'dependencies = [{ name = "review-application" }]\n\n'
+            '[[package]]\nname = "review-application"\n'
+        ),
+    )
+
+    violations = checker.find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert "worker-gateway runtime dependency closure contains forbidden review owners" in (
+        violations[0].message
+    )
+
+
+def test_runtime_closure_requires_complete_review_chain_in_control_api(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "uv.lock",
+        (
+            'version = 1\nrevision = 3\nrequires-python = ">=3.13,<3.14"\n\n'
+            '[[package]]\nname = "control-api"\n'
+            'dependencies = [{ name = "review-infrastructure" }]\n\n'
+            '[[package]]\nname = "review-infrastructure"\n'
+            "dependencies = [\n"
+            '  { name = "review-application" },\n'
+            '  { name = "review-contracts" },\n'
+            "]\n\n"
+            '[[package]]\nname = "review-application"\n'
+            'dependencies = [{ name = "review-contracts" }]\n\n'
+            '[[package]]\nname = "review-contracts"\n'
+        ),
+    )
+
+    violations = checker.find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert violations[0].message == (
+        "control-api runtime dependency closure is missing: review-core"
+    )
+
+
+def test_runtime_closure_accepts_isolated_review_composition(tmp_path: Path) -> None:
+    checker = _load_checker()
+    _write_source(
+        tmp_path,
+        "uv.lock",
+        (
+            'version = 1\nrevision = 3\nrequires-python = ">=3.13,<3.14"\n\n'
+            '[[package]]\nname = "control-api"\n'
+            'dependencies = [{ name = "review-infrastructure" }]\n\n'
+            '[[package]]\nname = "review-infrastructure"\n'
+            "dependencies = [\n"
+            '  { name = "review-application" },\n'
+            '  { name = "review-contracts" },\n'
+            '  { name = "review-core" },\n'
+            "]\n\n"
+            '[[package]]\nname = "review-application"\n'
+            'dependencies = [{ name = "review-contracts" }]\n\n'
+            '[[package]]\nname = "review-contracts"\n\n'
+            '[[package]]\nname = "review-core"\n'
+            'dependencies = [{ name = "review-contracts" }]\n\n'
+            '[[package]]\nname = "worker-gateway"\n'
+            'dependencies = [{ name = "collection-infrastructure" }]\n\n'
+            '[[package]]\nname = "collection-infrastructure"\n'
+        ),
+    )
+
+    assert checker.find_violations(tmp_path) == ()
+
+
 def test_migration_may_compose_infrastructure_without_owning_sql(tmp_path: Path) -> None:
     checker = _load_checker()
     _write_source(

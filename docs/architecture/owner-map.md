@@ -19,6 +19,11 @@
 | Embedded structured/HTML evidence extraction | `extraction_core` |
 | Typed evidence-preserving normalization | `normalization_core` |
 | Extraction/normalization runtime composition | `apps/processing_worker` |
+| Review wire contracts and immutable review records | `review_contracts` |
+| Review and suppression state transitions | `review_core` |
+| Review permissions, commands, queries, and persistence port | `review_application` |
+| Review PostgreSQL persistence | `review_infrastructure.PostgresReviewRepository` |
+| Review runtime composition and authenticated transport | `apps/control_api` |
 | Worker authentication scope | `worker_gateway.auth` and mounted worker token document |
 | Work persistence and queue claim | `collection_infrastructure.postgres.PostgresWorkEngine` |
 | Artifact transfer contract | `collection_application.artifacts` |
@@ -31,8 +36,10 @@
 | Import dependency policy | `tools/architecture_checks/check_dependencies.py` |
 
 Workers consume only Worker Gateway contracts and pre-signed object URLs. They do not import the
-PostgreSQL adapters and receive no Collection database credentials. S3/SeaweedFS details remain
-infrastructure concerns and do not enter domain or application contracts.
+PostgreSQL adapters and receive no Collection database credentials. The Worker Gateway, migration,
+and collector CLI dependency closures exclude Review owners; only Control API composes
+`review_infrastructure`. S3/SeaweedFS details remain infrastructure concerns and do not enter domain
+or application contracts.
 
 Planned owners without production contracts remain absent; empty packages and placeholder services
 are not created.

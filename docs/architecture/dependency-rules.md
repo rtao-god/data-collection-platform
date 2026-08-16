@@ -8,7 +8,7 @@ by the normal architecture check.
 <!-- dependency-policy:start -->
 | Production owner | Project | Allowed internal owners | Allowed external imports |
 |---|---|---|---|
-| `control_api` | `apps/control_api` | `collection_application`, `collection_contracts`, `collection_infrastructure`, `review_application`, `review_contracts` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
+| `control_api` | `apps/control_api` | `collection_application`, `collection_contracts`, `collection_infrastructure`, `review_application`, `review_contracts`, `review_infrastructure` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
 | `collector_cli` | `apps/collector_cli` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `boto3`, `sqlalchemy` |
 | `http_worker` | `apps/http_worker` | `official_http`, `source_connector_sdk` | none |
 | `processing_worker` | `apps/processing_worker` | `collection_contracts`, `extraction_core`, `normalization_core`, `source_connector_sdk` | `pydantic` |
@@ -22,7 +22,8 @@ by the normal architecture check.
 | `review_application` | `packages/review_application` | `review_contracts` | none |
 | `review_contracts` | `packages/review_contracts` | none | `pydantic` |
 | `review_core` | `packages/review_core` | `review_contracts` | none |
-| `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts`, `review_application`, `review_contracts`, `review_core` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
+| `review_infrastructure` | `packages/review_infrastructure` | `review_application`, `review_contracts`, `review_core` | `sqlalchemy` |
+| `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
 | `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
 | `extraction_core` | `packages/extraction_core` | `collection_contracts` | `extruct`, `lxml` |
 | `normalization_core` | `packages/normalization_core` | `collection_contracts` | `phonenumbers`, `tldextract` |
@@ -42,6 +43,9 @@ The checker is fail-closed for Python production projects under `apps/`, `packag
 - every import root must have an explicit owner policy and fixed project path;
 - every production project must be a declared `uv` workspace member;
 - internal dependencies in each project `pyproject.toml` must exactly match its owner policy;
+- the resolved `uv.lock` runtime closure must contain the complete Review owner chain only for
+  Control API and must exclude Review owners from Collection Infrastructure, migration, collector
+  CLI, and Worker Gateway;
 - source imports must stay inside the internal and external allowances above;
 - generic production path segments named `utils`, `common`, `helpers`, or `shared_domain` are
   rejected.

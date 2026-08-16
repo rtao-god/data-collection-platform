@@ -24,6 +24,13 @@ class OwnerPolicy:
     allowed_external_imports: frozenset[str]
 
 
+@dataclass(frozen=True, slots=True)
+class RuntimeClosurePolicy:
+    root_distribution: str
+    required_distributions: frozenset[str] = frozenset()
+    forbidden_distributions: frozenset[str] = frozenset()
+
+
 _OWNER_POLICIES: dict[str, OwnerPolicy] = {
     "control_api": OwnerPolicy(
         project_path="apps/control_api",
@@ -34,6 +41,7 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
             "collection_infrastructure",
             "review_application",
             "review_contracts",
+            "review_infrastructure",
         ),
         allowed_external_imports=frozenset({"fastapi", "pydantic", "sqlalchemy", "uvicorn"}),
     ),
@@ -146,15 +154,22 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         allowed_internal_imports=("review_contracts",),
         allowed_external_imports=frozenset(),
     ),
+    "review_infrastructure": OwnerPolicy(
+        project_path="packages/review_infrastructure",
+        distribution_name="review-infrastructure",
+        allowed_internal_imports=(
+            "review_application",
+            "review_contracts",
+            "review_core",
+        ),
+        allowed_external_imports=frozenset({"sqlalchemy"}),
+    ),
     "collection_infrastructure": OwnerPolicy(
         project_path="packages/collection_infrastructure",
         distribution_name="collection-infrastructure",
         allowed_internal_imports=(
             "collection_application",
             "collection_contracts",
-            "review_application",
-            "review_contracts",
-            "review_core",
         ),
         allowed_external_imports=frozenset(
             {"alembic", "boto3", "botocore", "psycopg", "sqlalchemy"}
@@ -236,6 +251,37 @@ _INTERNAL_DISTRIBUTIONS = {
     for owner, policy in _OWNER_POLICIES.items()
 }
 
+_REVIEW_RUNTIME_DISTRIBUTIONS = frozenset(
+    {
+        "review-application",
+        "review-contracts",
+        "review-core",
+        "review-infrastructure",
+    }
+)
+_RUNTIME_CLOSURE_POLICIES = (
+    RuntimeClosurePolicy(
+        root_distribution="control-api",
+        required_distributions=_REVIEW_RUNTIME_DISTRIBUTIONS,
+    ),
+    RuntimeClosurePolicy(
+        root_distribution="collection-infrastructure",
+        forbidden_distributions=_REVIEW_RUNTIME_DISTRIBUTIONS,
+    ),
+    RuntimeClosurePolicy(
+        root_distribution="collection-migration",
+        forbidden_distributions=_REVIEW_RUNTIME_DISTRIBUTIONS,
+    ),
+    RuntimeClosurePolicy(
+        root_distribution="collector-cli",
+        forbidden_distributions=_REVIEW_RUNTIME_DISTRIBUTIONS,
+    ),
+    RuntimeClosurePolicy(
+        root_distribution="worker-gateway",
+        forbidden_distributions=_REVIEW_RUNTIME_DISTRIBUTIONS,
+    ),
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Violation:
@@ -291,6 +337,7 @@ def find_violations(repository_root: Path) -> tuple[Violation, ...]:
             )
 
     violations.extend(_workspace_violations(root, discovered))
+    violations.extend(_runtime_dependency_closure_violations(root))
     violations.extend(_dependency_documentation_violations(root))
     return tuple(sorted(violations, key=lambda item: (item.path, item.line, item.message)))
 
@@ -564,6 +611,102 @@ def _project_dependency_violations(
             )
         )
     return violations
+
+
+def _runtime_dependency_closure_violations(root: Path) -> list[Violation]:
+    lock_path = root / "uv.lock"
+    if not lock_path.is_file():
+        return []
+
+    document, parse_violation = _read_toml(root, lock_path)
+    if parse_violation is not None:
+        return [parse_violation]
+    if document is None:
+        return [Violation("uv.lock", 1, "TOML parser returned no document")]
+
+    package_entries = document.get("package")
+    if not isinstance(package_entries, list):
+        return [Violation("uv.lock", 1, "uv lock package registry must be an explicit list")]
+
+    graph: dict[str, frozenset[str]] = {}
+    violations: list[Violation] = []
+    for entry in package_entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+            violations.append(Violation("uv.lock", 1, "uv lock package entry is invalid"))
+            continue
+        name = _normalize_distribution_name(entry["name"])
+        if name in graph:
+            violations.append(
+                Violation("uv.lock", 1, f"uv lock contains duplicate package entry {name}")
+            )
+            continue
+        dependencies = entry.get("dependencies", [])
+        if not isinstance(dependencies, list):
+            violations.append(
+                Violation("uv.lock", 1, f"uv lock dependencies for {name} must be a list")
+            )
+            continue
+        dependency_names: set[str] = set()
+        invalid_dependency = False
+        for dependency in dependencies:
+            if not isinstance(dependency, dict) or not isinstance(dependency.get("name"), str):
+                violations.append(
+                    Violation("uv.lock", 1, f"uv lock dependency entry for {name} is invalid")
+                )
+                invalid_dependency = True
+                break
+            dependency_names.add(_normalize_distribution_name(dependency["name"]))
+        if not invalid_dependency:
+            graph[name] = frozenset(dependency_names)
+
+    for policy in _RUNTIME_CLOSURE_POLICIES:
+        root_name = _normalize_distribution_name(policy.root_distribution)
+        if root_name not in graph:
+            continue
+        closure = _dependency_closure(graph, root_name)
+        missing = sorted(
+            _normalize_distribution_name(value)
+            for value in policy.required_distributions
+            if _normalize_distribution_name(value) not in closure
+        )
+        forbidden = sorted(
+            _normalize_distribution_name(value)
+            for value in policy.forbidden_distributions
+            if _normalize_distribution_name(value) in closure
+        )
+        if missing:
+            violations.append(
+                Violation(
+                    "uv.lock",
+                    1,
+                    f"{root_name} runtime dependency closure is missing: {', '.join(missing)}",
+                )
+            )
+        if forbidden:
+            violations.append(
+                Violation(
+                    "uv.lock",
+                    1,
+                    f"{root_name} runtime dependency closure contains forbidden review owners: "
+                    f"{', '.join(forbidden)}",
+                )
+            )
+    return violations
+
+
+def _dependency_closure(
+    graph: dict[str, frozenset[str]],
+    root_distribution: str,
+) -> frozenset[str]:
+    pending = [root_distribution]
+    visited: set[str] = set()
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        pending.extend(graph.get(current, ()))
+    return frozenset(visited)
 
 
 def _dependency_documentation_violations(root: Path) -> list[Violation]:

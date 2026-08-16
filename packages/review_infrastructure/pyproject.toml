@@ -1,0 +1,23 @@
+[project]
+name = "review-infrastructure"
+version = "0.1.0"
+description = "PostgreSQL adapter for review use cases in the Data Collection Platform"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "review-application",
+  "review-contracts",
+  "review-core",
+  "sqlalchemy==2.0.51",
+]
+
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/review_infrastructure"]
+
+[tool.uv.sources]
+review-application = { workspace = true }
+review-contracts = { workspace = true }
+review-core = { workspace = true }

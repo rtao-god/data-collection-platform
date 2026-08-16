@@ -28,6 +28,7 @@ members = [
     "review-application",
     "review-contracts",
     "review-core",
+    "review-infrastructure",
     "source-connector-sdk",
     "worker-gateway",
 ]
@@ -327,9 +328,6 @@ dependencies = [
     { name = "collection-application" },
     { name = "collection-contracts" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "review-application" },
-    { name = "review-contracts" },
-    { name = "review-core" },
     { name = "sqlalchemy" },
 ]
 
@@ -341,9 +339,6 @@ requires-dist = [
     { name = "collection-application", editable = "packages/collection_application" },
     { name = "collection-contracts", editable = "packages/collection_contracts" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.4" },
-    { name = "review-application", editable = "packages/review_application" },
-    { name = "review-contracts", editable = "packages/review_contracts" },
-    { name = "review-core", editable = "packages/review_core" },
     { name = "sqlalchemy", specifier = "==2.0.51" },
 ]
 
@@ -413,6 +408,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "review-application" },
     { name = "review-contracts" },
+    { name = "review-infrastructure" },
     { name = "sqlalchemy" },
     { name = "uvicorn" },
 ]
@@ -426,6 +422,7 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "review-application", editable = "packages/review_application" },
     { name = "review-contracts", editable = "packages/review_contracts" },
+    { name = "review-infrastructure", editable = "packages/review_infrastructure" },
     { name = "sqlalchemy", specifier = "==2.0.51" },
     { name = "uvicorn", specifier = "==0.52.1" },
 ]
@@ -1429,6 +1426,25 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "review-contracts", editable = "packages/review_contracts" }]
+
+[[package]]
+name = "review-infrastructure"
+version = "0.1.0"
+source = { editable = "packages/review_infrastructure" }
+dependencies = [
+    { name = "review-application" },
+    { name = "review-contracts" },
+    { name = "review-core" },
+    { name = "sqlalchemy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "review-application", editable = "packages/review_application" },
+    { name = "review-contracts", editable = "packages/review_contracts" },
+    { name = "review-core", editable = "packages/review_core" },
+    { name = "sqlalchemy", specifier = "==2.0.51" },
+]
 
 [[package]]
 name = "ruff"

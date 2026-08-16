@@ -24,10 +24,10 @@ from collection_infrastructure import (
     PostgresRunControlRepository,
     S3ArtifactObjectStore,
 )
-from collection_infrastructure.postgres import PostgresReviewRepository
 from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
 from review_application import ReviewService
+from review_infrastructure import PostgresReviewRepository
 
 
 def create_runtime_app() -> FastAPI:

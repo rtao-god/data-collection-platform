@@ -75,7 +75,6 @@ __all__ = [
     "PostgresCampaignRunStore",
     "PostgresCampaignSnapshotStore",
     "PostgresOwnedArtifactPublisher",
-    "PostgresReviewRepository",
     "PostgresRunControlRepository",
     "PostgresWorkEngine",
     "artifact_cleanup_tombstones",
@@ -104,5 +103,3 @@ __all__ = [
     "worker_output_contracts",
     "worker_registrations",
 ]
-
-from collection_infrastructure.postgres.review_repository import PostgresReviewRepository

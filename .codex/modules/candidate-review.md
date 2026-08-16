@@ -6,4 +6,6 @@
 - Review decisions and manual observations are append-only evidence.
 - Optimistic concurrency is explicit through expected revisions.
 - Suppression scopes are discovery, normalization, and export.
-- Runtime PostgreSQL adapter and Control API are downstream owners.
+- Runtime PostgreSQL adapter owner: `packages/review_infrastructure`.
+- Runtime composition and authenticated transport owner: `apps/control_api`.
+- Worker Gateway and other non-review deployables must not depend on `review_infrastructure`.

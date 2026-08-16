@@ -8,7 +8,6 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import NullPool
 
-from collection_infrastructure.postgres import PostgresReviewRepository
 from review_application import ReviewConflict, ReviewerPrincipal, ReviewService
 from review_contracts import (
     CandidateEvidence,
@@ -16,6 +15,7 @@ from review_contracts import (
     candidate_snapshot_digest,
 )
 from review_core import open_review_case
+from review_infrastructure import PostgresReviewRepository
 
 pytestmark = pytest.mark.integration
 

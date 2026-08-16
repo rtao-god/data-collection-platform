@@ -10,6 +10,7 @@ dependencies = [
   "fastapi==0.141.1",
   "pydantic==2.13.4",
   "review-application",
+  "review-infrastructure",
   "review-contracts",
   "sqlalchemy==2.0.51",
   "uvicorn==0.52.1",
@@ -30,4 +31,5 @@ collection-application = { workspace = true }
 collection-contracts = { workspace = true }
 collection-infrastructure = { workspace = true }
 review-application = { workspace = true }
+review-infrastructure = { workspace = true }
 review-contracts = { workspace = true }

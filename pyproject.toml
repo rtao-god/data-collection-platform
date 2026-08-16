@@ -34,6 +34,7 @@ members = [
   "packages/review_application",
   "packages/review_contracts",
   "packages/review_core",
+  "packages/review_infrastructure",
   "packages/source_connector_sdk",
 ]
 
@@ -92,6 +93,7 @@ src = [
   "packages/review_application/src",
   "packages/review_contracts/src",
   "packages/review_core/src",
+  "packages/review_infrastructure/src",
   "packages/source_connector_sdk/src",
 ]
 
@@ -142,6 +144,7 @@ files = [
   "packages/review_application/src",
   "packages/review_contracts/src",
   "packages/review_core/src",
+  "packages/review_infrastructure/src",
   "packages/source_connector_sdk/src",
   "database",
   "tools",
