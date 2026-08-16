@@ -1,0 +1,71 @@
+name: Normalize Live Collection Tools
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/normalize-live-collection-tools.yml
+      - tools/live_collection/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-live-collection-tools
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Normalize and prove tooling owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format tools/live_collection
+          uv run ruff check --fix tools/live_collection
+          uv run ruff format tools/live_collection
+          uv run ruff check tools/live_collection
+          uv run ruff format --check tools/live_collection
+          uv run pytest -q tools/live_collection/tests
+          uv run mypy \
+            tools/live_collection/berlin_boundary.py \
+            tools/live_collection/select_source_inputs.py \
+            tools/live_collection/run_bounded_live_proof.py
+          uv run python -m compileall -q tools/live_collection
+
+      - name: Commit only normalized tool owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add tools/live_collection
+          git diff --cached --check
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          if git diff --cached --quiet; then
+            echo 'Live collection tools are already normalized.'
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Build (Live collection): normalize bounded-run tools"
+          git push origin HEAD:main
