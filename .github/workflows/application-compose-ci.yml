@@ -1,0 +1,417 @@
+name: Application Compose Verify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/application-compose-ci.yml
+      - deploy/compose/**
+      - deploy/docker/**
+      - apps/collector_cli/**
+      - apps/control_api/**
+      - apps/http_worker/**
+      - apps/manual_import_worker/**
+      - apps/migration/**
+      - apps/osm_worker/**
+      - apps/processing_worker/**
+      - apps/resolution_worker/**
+      - apps/worker_gateway/**
+      - connectors/**
+      - packages/**
+      - database/**
+      - pyproject.toml
+      - uv.lock
+  pull_request:
+    paths:
+      - .github/workflows/application-compose-ci.yml
+      - deploy/compose/**
+      - deploy/docker/**
+      - apps/collector_cli/**
+      - apps/control_api/**
+      - apps/http_worker/**
+      - apps/manual_import_worker/**
+      - apps/migration/**
+      - apps/osm_worker/**
+      - apps/processing_worker/**
+      - apps/resolution_worker/**
+      - apps/worker_gateway/**
+      - connectors/**
+      - packages/**
+      - database/**
+      - pyproject.toml
+      - uv.lock
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-collection-platform-application-compose-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  application-compose:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate resolved topology and privilege boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source deploy/compose/.env.example
+          set +a
+
+          docker compose \
+            --env-file deploy/compose/.env.example \
+            -f deploy/compose/infrastructure.yaml \
+            -f deploy/compose/application.yaml \
+            config --format json > /tmp/application-compose.json
+
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/application-compose.json").read_text(encoding="utf-8"))
+          services = payload["services"]
+          expected_services = {
+              "collector-postgres",
+              "seaweedfs",
+              "object-store-bootstrap",
+              "migration",
+              "control-api",
+              "worker-gateway",
+              "manual-import-worker",
+              "http-worker",
+              "osm-worker",
+              "extraction-worker",
+              "normalization-worker",
+              "resolution-worker",
+              "collector-cli",
+          }
+          if set(services) != expected_services:
+              raise SystemExit(
+                  "application Compose service inventory mismatch: "
+                  f"expected={sorted(expected_services)} actual={sorted(services)}"
+              )
+
+          application_services = expected_services - {"collector-postgres", "seaweedfs"}
+          workers = {
+              "manual-import-worker",
+              "http-worker",
+              "osm-worker",
+              "extraction-worker",
+              "normalization-worker",
+              "resolution-worker",
+          }
+          egress_workers = {"http-worker", "osm-worker"}
+
+          def service_networks(name: str) -> set[str]:
+              value = services[name].get("networks", {})
+              return set(value if isinstance(value, dict) else value)
+
+          def service_secrets(name: str) -> set[str]:
+              result: set[str] = set()
+              for item in services[name].get("secrets", []):
+                  if isinstance(item, str):
+                      result.add(item)
+                  else:
+                      result.add(item["source"])
+              return result
+
+          def environment(name: str) -> dict[str, str | None]:
+              value = services[name].get("environment", {})
+              if not isinstance(value, dict):
+                  raise SystemExit(f"{name} environment did not normalize to an object")
+              return value
+
+          for name in application_services:
+              service = services[name]
+              if service.get("read_only") is not True:
+                  raise SystemExit(f"{name} must use a read-only root filesystem")
+              if "ALL" not in service.get("cap_drop", []):
+                  raise SystemExit(f"{name} must drop all Linux capabilities")
+              security_options = set(service.get("security_opt", []))
+              if "no-new-privileges:true" not in security_options:
+                  raise SystemExit(f"{name} must disable privilege escalation")
+              if service.get("privileged"):
+                  raise SystemExit(f"{name} must not run privileged")
+
+          forbidden_worker_environment = (
+              "COLLECTOR_DATABASE_URL",
+              "COLLECTOR_POSTGRES_",
+              "COLLECTOR_OBJECT_STORE_",
+              "ARTIFACT_S3_",
+              "AWS_ACCESS_KEY_ID",
+              "AWS_SECRET_ACCESS_KEY",
+          )
+          for name in workers:
+              worker_environment = environment(name)
+              forbidden = sorted(
+                  key
+                  for key in worker_environment
+                  if any(
+                      key == prefix or key.startswith(prefix)
+                      for prefix in forbidden_worker_environment
+                  )
+              )
+              if forbidden:
+                  raise SystemExit(f"{name} has forbidden owner credentials: {forbidden}")
+              if service_secrets(name):
+                  raise SystemExit(f"{name} must not mount platform owner secrets")
+              if services[name].get("ports"):
+                  raise SystemExit(f"{name} must not publish a host port")
+              expected_networks = {"collection-workers"}
+              if name in egress_workers:
+                  expected_networks.add("collection-acquisition-egress")
+              if service_networks(name) != expected_networks:
+                  raise SystemExit(
+                      f"{name} network scope mismatch: {sorted(service_networks(name))}"
+                  )
+
+          if services["worker-gateway"].get("ports"):
+              raise SystemExit("worker-gateway must not publish a host port")
+          if service_networks("worker-gateway") != {
+              "collection-infrastructure",
+              "collection-workers",
+          }:
+              raise SystemExit("worker-gateway must bridge only infrastructure and workers")
+          gateway_environment = environment("worker-gateway")
+          if gateway_environment.get("WORKER_GATEWAY_BIND_MODE") != "container":
+              raise SystemExit("worker-gateway must use the explicit container bind contract")
+          if gateway_environment.get("WORKER_GATEWAY_HOST") != "0.0.0.0":
+              raise SystemExit("worker-gateway container bind host must be 0.0.0.0")
+
+          if service_networks("control-api") != {
+              "collection-infrastructure",
+              "collection-operator",
+          }:
+              raise SystemExit("control-api network scope is broader than its owner contract")
+          control_ports = services["control-api"].get("ports", [])
+          if len(control_ports) != 1 or control_ports[0].get("host_ip") != "127.0.0.1":
+              raise SystemExit("control-api must publish exactly one loopback-only port")
+
+          for service_name in ("collector-postgres", "seaweedfs"):
+              for port in services[service_name].get("ports", []):
+                  if port.get("host_ip") != "127.0.0.1":
+                      raise SystemExit(f"{service_name} exposes a non-loopback host port")
+
+          networks = payload["networks"]
+          for name in (
+              "collection-infrastructure",
+              "collection-operator",
+              "collection-workers",
+          ):
+              if networks[name].get("internal") is not True:
+                  raise SystemExit(f"{name} must be an internal network")
+          if networks["collection-acquisition-egress"].get("internal") is True:
+              raise SystemExit("acquisition egress network must permit approved external access")
+
+          expected_profiles = {
+              "object-store-bootstrap": {"bootstrap"},
+              "migration": {"migration"},
+              "collector-cli": {"tools"},
+          }
+          for name, expected in expected_profiles.items():
+              if set(services[name].get("profiles", [])) != expected:
+                  raise SystemExit(f"{name} profile contract mismatch")
+          for name in application_services - set(expected_profiles):
+              if services[name].get("profiles"):
+                  raise SystemExit(f"{name} unexpectedly requires a Compose profile")
+
+          secret_sources = {
+              name: value.get("environment")
+              for name, value in payload.get("secrets", {}).items()
+          }
+          expected_secret_sources = {
+              "collector-object-store-access-key": "COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID",
+              "collector-object-store-secret-key": "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY",
+              "worker-gateway-credentials": "WORKER_GATEWAY_CREDENTIALS_JSON",
+          }
+          if secret_sources != expected_secret_sources:
+              raise SystemExit(f"Compose secret source mismatch: {secret_sources}")
+          object_store_secrets = {
+              "collector-object-store-access-key",
+              "collector-object-store-secret-key",
+          }
+          if service_secrets("control-api") != object_store_secrets:
+              raise SystemExit("control-api object-store secret scope mismatch")
+          if service_secrets("worker-gateway") != object_store_secrets | {
+              "worker-gateway-credentials"
+          }:
+              raise SystemExit("worker-gateway secret scope mismatch")
+
+          token_contract = {
+              "manual-import-worker": ("MANUAL_IMPORT_WORKER_TOKEN", "manual_import"),
+              "http-worker": ("HTTP_WORKER_TOKEN", "http_fetch"),
+              "osm-worker": ("OSM_WORKER_TOKEN", "osm_query"),
+              "extraction-worker": ("EXTRACTION_WORKER_TOKEN", "extraction"),
+              "normalization-worker": ("NORMALIZATION_WORKER_TOKEN", "normalization"),
+              "resolution-worker": ("RESOLUTION_WORKER_TOKEN", "entity_resolution"),
+          }
+          tokens = {name: os.environ[variable] for name, (variable, _) in token_contract.items()}
+          if len(set(tokens.values())) != len(tokens):
+              raise SystemExit("worker credentials must be unique per capability owner")
+          if any(len(value) < 32 for value in tokens.values()):
+              raise SystemExit("worker credentials must contain at least 32 characters")
+
+          credential_document = json.loads(os.environ["WORKER_GATEWAY_CREDENTIALS_JSON"])
+          if credential_document.get("contract") != "worker-gateway-local-credentials":
+              raise SystemExit("worker credential contract identity mismatch")
+          if (
+              credential_document.get("contractRevision")
+              != "worker-gateway-local-credentials-v1"
+          ):
+              raise SystemExit("worker credential contract revision mismatch")
+          actual_credentials = {
+              entry["token"]: (entry["workerId"], tuple(entry["capabilities"]))
+              for entry in credential_document["credentials"]
+          }
+          expected_credentials = {
+              tokens[name]: (f"{name}-local", (capability,))
+              for name, (_, capability) in token_contract.items()
+          }
+          if actual_credentials != expected_credentials:
+              raise SystemExit("worker credential document does not match service capabilities")
+
+          for name in application_services:
+              if "build" not in services[name]:
+                  raise SystemExit(f"{name} has no independently buildable image owner")
+          for name, service in services.items():
+              image = service.get("image", "")
+              if image.endswith(":latest"):
+                  raise SystemExit(f"{name} uses a forbidden latest image tag")
+          PY
+
+      - name: Build every declared application image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose \
+            --env-file deploy/compose/.env.example \
+            -f deploy/compose/infrastructure.yaml \
+            -f deploy/compose/application.yaml \
+            build \
+              collector-cli \
+              migration \
+              control-api \
+              worker-gateway \
+              manual-import-worker \
+              http-worker \
+              osm-worker \
+              extraction-worker \
+              normalization-worker \
+              resolution-worker
+
+      - name: Prove clean bootstrap, migration, APIs, and worker isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source deploy/compose/.env.example
+          set +a
+          compose=(
+            docker compose
+            --env-file deploy/compose/.env.example
+            -f deploy/compose/infrastructure.yaml
+            -f deploy/compose/application.yaml
+          )
+
+          cleanup() {
+            status=$?
+            if (( status != 0 )); then
+              "${compose[@]}" ps || true
+              "${compose[@]}" logs --no-color --tail=200 || true
+            fi
+            "${compose[@]}" down --volumes --remove-orphans || true
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          "${compose[@]}" up --detach --wait --wait-timeout 180 \
+            collector-postgres seaweedfs
+          "${compose[@]}" --profile bootstrap run --rm --no-deps \
+            object-store-bootstrap
+          "${compose[@]}" --profile migration run --rm --no-deps migration
+          "${compose[@]}" up --detach --wait --wait-timeout 180 \
+            control-api worker-gateway
+          "${compose[@]}" up --detach --wait --wait-timeout 180 \
+            manual-import-worker \
+            http-worker \
+            osm-worker \
+            extraction-worker \
+            normalization-worker \
+            resolution-worker
+
+          curl --fail --silent --show-error \
+            http://127.0.0.1:"${CONTROL_API_PORT}"/health/ready \
+            > /tmp/control-api-readiness.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(
+              Path("/tmp/control-api-readiness.json").read_text(encoding="utf-8")
+          )
+          if payload != {"status": "ready"}:
+              raise SystemExit(f"unexpected Control API readiness payload: {payload}")
+          PY
+
+          "${compose[@]}" exec -T worker-gateway python - <<'PY'
+          import json
+          import urllib.request
+
+          with urllib.request.urlopen(
+              "http://127.0.0.1:8080/health/ready",
+              timeout=5,
+          ) as response:
+              payload = json.load(response)
+          if payload != {"status": "ready"}:
+              raise SystemExit(f"unexpected Worker Gateway readiness payload: {payload}")
+          PY
+
+          expected_registrations=$'extraction-worker-local:extraction\nhttp-worker-local:http_fetch\nmanual-import-worker-local:manual_import\nnormalization-worker-local:normalization\nosm-worker-local:osm_query\nresolution-worker-local:entity_resolution'
+          actual_registrations=''
+          for _ in $(seq 1 60); do
+            actual_registrations="$(
+              "${compose[@]}" exec -T collector-postgres \
+                psql \
+                --username "$COLLECTOR_POSTGRES_USER" \
+                --dbname "$COLLECTOR_POSTGRES_DB" \
+                --tuples-only \
+                --no-align \
+                --command "
+                  SELECT
+                    registration.worker_id || ':' ||
+                    string_agg(capability.capability, ',' ORDER BY capability.capability)
+                  FROM work.worker_registrations AS registration
+                  JOIN work.worker_capabilities AS capability
+                    ON capability.worker_id = registration.worker_id
+                  WHERE registration.worker_id IN (
+                    'manual-import-worker-local',
+                    'http-worker-local',
+                    'osm-worker-local',
+                    'extraction-worker-local',
+                    'normalization-worker-local',
+                    'resolution-worker-local'
+                  )
+                  GROUP BY registration.worker_id
+                  ORDER BY registration.worker_id;
+                "
+            )"
+            [[ "$actual_registrations" == "$expected_registrations" ]] && break
+            sleep 2
+          done
+          if [[ "$actual_registrations" != "$expected_registrations" ]]; then
+            printf 'worker registration mismatch\nexpected:\n%s\nactual:\n%s\n' \
+              "$expected_registrations" "$actual_registrations" >&2
+            exit 1
+          fi
+
+          trap - EXIT
+          "${compose[@]}" down --volumes --remove-orphans
