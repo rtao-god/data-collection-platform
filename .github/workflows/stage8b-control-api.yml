@@ -10,15 +10,18 @@ on:
       - pyproject.toml
       - uv.lock
       - apps/control_api/**
+      - apps/worker_gateway/**
       - packages/review_application/**
       - packages/review_contracts/**
       - packages/review_core/**
+      - packages/review_infrastructure/**
       - packages/collection_infrastructure/**
       - database/migrations/versions/20260814_0010_candidate_review_foundation.py
       - database/tests/test_postgres_review_repository.py
       - contracts/control_api/**
       - tools/control_api_contract_generation/**
       - deploy/docker/control-api.Dockerfile
+      - deploy/docker/worker-gateway.Dockerfile
       - tools/architecture_checks/**
   pull_request:
     paths:
@@ -27,15 +30,18 @@ on:
       - pyproject.toml
       - uv.lock
       - apps/control_api/**
+      - apps/worker_gateway/**
       - packages/review_application/**
       - packages/review_contracts/**
       - packages/review_core/**
+      - packages/review_infrastructure/**
       - packages/collection_infrastructure/**
       - database/migrations/versions/20260814_0010_candidate_review_foundation.py
       - database/tests/test_postgres_review_repository.py
       - contracts/control_api/**
       - tools/control_api_contract_generation/**
       - deploy/docker/control-api.Dockerfile
+      - deploy/docker/worker-gateway.Dockerfile
       - tools/architecture_checks/**
   workflow_dispatch:
 
@@ -80,12 +86,56 @@ jobs:
       - name: Build non-root Control API image
         run: docker build --tag data-collection-platform/control-api:ci --file deploy/docker/control-api.Dockerfile .
 
-      - name: Verify image identity
+      - name: Verify image identity and review owner inventory
         shell: bash
         run: |
           set -euo pipefail
-          test "$(docker image inspect --format '{{.Config.User}}' data-collection-platform/control-api:ci)" = "10001:10001"
-          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' data-collection-platform/control-api:ci)" = "uvicorn"
+          image="data-collection-platform/control-api:ci"
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "10001:10001"
+          test "$(docker image inspect --format '{{index .Config.Entrypoint 0}}' "$image")" = "uvicorn"
+          docker run --rm -i --entrypoint python "$image" - <<'PY'
+          from importlib import import_module
+
+          required = (
+              "review_application",
+              "review_contracts",
+              "review_core",
+              "review_infrastructure",
+          )
+          for module in required:
+              import_module(module)
+          PY
+
+      - name: Build Worker Gateway boundary image
+        run: >-
+          docker build
+          --tag data-collection-platform/worker-gateway:review-boundary-ci
+          --file deploy/docker/worker-gateway.Dockerfile
+          .
+
+      - name: Verify Worker Gateway excludes review owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="data-collection-platform/worker-gateway:review-boundary-ci"
+          docker run --rm -i --entrypoint python "$image" - <<'PY'
+          from importlib import import_module
+          from importlib.util import find_spec
+
+          import_module("collection_infrastructure")
+          import_module("worker_gateway")
+          forbidden = (
+              "review_application",
+              "review_contracts",
+              "review_core",
+              "review_infrastructure",
+          )
+          present = sorted(name for name in forbidden if find_spec(name) is not None)
+          if present:
+              raise SystemExit(
+                  "Worker Gateway image contains review owners: " + ", ".join(present)
+              )
+          PY
 
   transactional-postgres:
     runs-on: ubuntu-24.04
