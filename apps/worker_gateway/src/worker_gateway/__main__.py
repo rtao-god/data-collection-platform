@@ -21,6 +21,9 @@ _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 8080
 _DEFAULT_EXPIRY_INTERVAL_SECONDS = 5.0
 _DEFAULT_EXPIRY_BATCH_SIZE = 100
+_DEFAULT_BIND_MODE = "local"
+_CONTAINER_BIND_MODE = "container"
+_CONTAINER_HOST = "0.0.0.0"
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
@@ -76,11 +79,7 @@ def build_runtime() -> tuple[FastAPI, Engine]:
 
 
 def main() -> None:
-    host = os.environ.get("WORKER_GATEWAY_HOST", _DEFAULT_HOST).strip()
-    if host not in _LOCAL_HOSTS:
-        raise RuntimeError(
-            "Worker Gateway refuses a non-local bind until an OIDC or mTLS owner contract exists"
-        )
+    host = _bind_host_from_environment()
     port = _integer_environment(
         "WORKER_GATEWAY_PORT",
         _DEFAULT_PORT,
@@ -100,6 +99,26 @@ def main() -> None:
         )
     finally:
         engine.dispose()
+
+
+def _bind_host_from_environment() -> str:
+    mode = os.environ.get("WORKER_GATEWAY_BIND_MODE", _DEFAULT_BIND_MODE).strip().casefold()
+    if mode == _DEFAULT_BIND_MODE:
+        host = os.environ.get("WORKER_GATEWAY_HOST", _DEFAULT_HOST).strip()
+        if host not in _LOCAL_HOSTS:
+            raise RuntimeError(
+                "Worker Gateway refuses a non-local bind unless "
+                "WORKER_GATEWAY_BIND_MODE=container"
+            )
+        return host
+    if mode == _CONTAINER_BIND_MODE:
+        host = os.environ.get("WORKER_GATEWAY_HOST", _CONTAINER_HOST).strip()
+        if host != _CONTAINER_HOST:
+            raise RuntimeError(
+                "Worker Gateway container bind mode requires WORKER_GATEWAY_HOST=0.0.0.0"
+            )
+        return host
+    raise RuntimeError("WORKER_GATEWAY_BIND_MODE must be local or container")
 
 
 def _required_environment(name: str) -> str:
