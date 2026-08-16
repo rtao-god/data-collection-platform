@@ -97,6 +97,7 @@ jobs:
           uv run python tools/contract_generation/generate.py --check
           uv run python tools/review_contract_generation/generate.py --check
           uv run python tools/control_api_contract_generation/generate.py --check
+          uv run ruff format tools/architecture_checks/tests/test_check_dependencies.py
           uv run ruff format --check .
           uv run ruff check .
           uv run mypy
