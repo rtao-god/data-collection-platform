@@ -91,6 +91,10 @@ strict = true
 warn_unused_configs = true
 show_error_codes = true
 plugins = ["pydantic.mypy"]
+explicit_package_bases = true
+exclude = [
+  "(^|/)tests/",
+]
 files = [
   "apps/collector_cli/src/collector_cli",
   "apps/http_worker/src/http_worker",
