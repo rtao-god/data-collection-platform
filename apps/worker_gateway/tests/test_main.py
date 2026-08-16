@@ -96,13 +96,38 @@ def test_object_store_secret_file_is_trimmed_and_bounded(tmp_path: Path) -> None
         gateway_main._read_secret_file(tmp_path / "missing.secret")
 
 
-def test_non_local_bind_is_rejected_before_composition(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_non_local_bind_is_rejected_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WORKER_GATEWAY_HOST", "0.0.0.0")  # noqa: S104
-    monkeypatch.delenv("COLLECTOR_DATABASE_URL", raising=False)
-    monkeypatch.delenv("WORKER_GATEWAY_TOKEN_FILE", raising=False)
+    monkeypatch.delenv("WORKER_GATEWAY_BIND_MODE", raising=False)
 
-    with pytest.raises(RuntimeError, match="refuses a non-local bind"):
-        gateway_main.main()
+    with pytest.raises(RuntimeError, match="WORKER_GATEWAY_BIND_MODE=container"):
+        gateway_main._bind_host_from_environment()
+
+
+def test_container_bind_mode_accepts_exact_all_interface_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WORKER_GATEWAY_BIND_MODE", "container")
+    monkeypatch.setenv("WORKER_GATEWAY_HOST", "0.0.0.0")  # noqa: S104
+
+    assert gateway_main._bind_host_from_environment() == "0.0.0.0"  # noqa: S104
+
+
+def test_container_bind_mode_rejects_local_or_ambiguous_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WORKER_GATEWAY_BIND_MODE", "container")
+    monkeypatch.setenv("WORKER_GATEWAY_HOST", "127.0.0.1")
+
+    with pytest.raises(RuntimeError, match="requires WORKER_GATEWAY_HOST=0.0.0.0"):
+        gateway_main._bind_host_from_environment()
+
+
+def test_unknown_bind_mode_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WORKER_GATEWAY_BIND_MODE", "public")
+
+    with pytest.raises(RuntimeError, match="must be local or container"):
+        gateway_main._bind_host_from_environment()
 
 
 @pytest.mark.parametrize("value", ["0", "65536", "not-an-integer"])
