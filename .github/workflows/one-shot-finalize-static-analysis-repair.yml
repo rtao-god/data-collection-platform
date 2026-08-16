@@ -20,27 +20,51 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Correct final repair anchor and remove transport
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Run the proven static-analysis repair
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          path = Path(".github/workflows/one-shot-lint-repair.yml")
-          text = path.read_text(encoding="utf-8")
-          old = '''              "from defusedxml.ElementTree import (",\n'''
-          new = '''              "from defusedxml.ElementTree import (  # Hardened parser for untrusted WFS XML.",\n'''
-          if old not in text:
-              raise SystemExit("final static-analysis repair anchor is missing")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          import yaml
+
+          planning = Path("connectors/official_http/src/official_http/planning.py")
+          planning_text = planning.read_text(encoding="utf-8")
+          old = "from defusedxml.ElementTree import (  # type: ignore[import-untyped]"
+          new = "from defusedxml.ElementTree import (  # Hardened parser for untrusted WFS XML."
+          if new not in planning_text:
+              if old not in planning_text:
+                  raise SystemExit("official HTTP parser import anchor is missing")
+              planning.write_text(planning_text.replace(old, new, 1), encoding="utf-8")
+
+          workflow = Path(".github/workflows/one-shot-lint-repair.yml")
+          payload = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+          steps = payload["jobs"]["repair"]["steps"]
+          repair = next(step["run"] for step in steps if step.get("name") == "Repair complete Ruff and mypy ledger")
+          marker = "git fetch origin main\n"
+          if repair.count(marker) != 1:
+              raise SystemExit("static-analysis repair finalization anchor is invalid")
+          repair = repair.replace(
+              marker,
+              "git rm .github/workflows/one-shot-finalize-static-analysis-repair.yml\n" + marker,
+              1,
+          )
+          Path("/tmp/static-analysis-repair.sh").write_text(repair, encoding="utf-8")
           PY
-          git rm .github/workflows/one-shot-finalize-static-analysis-repair.yml
-          git add .github/workflows/one-shot-lint-repair.yml
-          git diff --cached --check
-          git fetch origin main
-          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
-          git config user.name rtao-god
-          git config user.email rtaogod@gmail.com
-          git commit -m "Build (Tooling): finalize static-analysis repair"
-          git push origin HEAD:main
+          bash /tmp/static-analysis-repair.sh
