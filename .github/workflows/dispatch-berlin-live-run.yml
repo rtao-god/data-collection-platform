@@ -1,0 +1,50 @@
+name: Dispatch Berlin Live Run When Ready
+
+on:
+  workflow_run:
+    workflows:
+      - Finalize Operational E2E Proof
+      - Materialize Validated Berlin Source Inputs
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: data-collection-platform-berlin-live-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Dispatch only when every prerequisite exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            docs/proofs/end-to-end-operational-ci.md
+            campaigns/berlin_recording_services/geography/berlin-boundary.geojson
+            campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json
+            campaigns/berlin_recording_services/source-inputs.provenance.json
+          )
+          for path in "${required[@]}"; do
+            if ! test -f "$path"; then
+              echo "Waiting for prerequisite: $path"
+              exit 0
+            fi
+          done
+          gh workflow run berlin-bounded-live-run.yml --ref main
