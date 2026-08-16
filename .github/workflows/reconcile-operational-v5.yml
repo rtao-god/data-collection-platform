@@ -152,6 +152,36 @@ jobs:
               )
               migration.write_text(text, encoding="utf-8")
 
+          catalog = Path(
+              "packages/collection_infrastructure/src/collection_infrastructure/"
+              "postgres/succeeded_work_catalog.py"
+          )
+          if catalog.exists():
+              text = catalog.read_text(encoding="utf-8")
+              old_import = (
+                  "from collection_application.pipeline_advancement import (\n"
+                  "    ArtifactIdentity,\n"
+                  "    PipelineAdvancementConflict,\n"
+                  "    SucceededWorkOutput,\n"
+                  ")\n"
+                  "from collection_domain import WorkStage\n"
+              )
+              new_import = (
+                  "from collection_application.pipeline_advancement import (\n"
+                  "    ArtifactIdentity,\n"
+                  "    PipelineAdvancementConflict,\n"
+                  "    SucceededWorkOutput,\n"
+                  "    WorkStage,\n"
+                  ")\n"
+              )
+              if old_import in text:
+                  text = text.replace(old_import, new_import, 1)
+              if "from collection_domain import WorkStage" in text:
+                  raise RuntimeError(
+                      "succeeded-work catalog still bypasses its application contract"
+                  )
+              catalog.write_text(text, encoding="utf-8")
+
           supervision = Path(
               "packages/collection_application/tests/test_pipeline_supervision.py"
           )
@@ -209,294 +239,6 @@ jobs:
                   )
               inventory.write_text(text, encoding="utf-8")
           PY
-
-          cat > packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py <<'PYFILE'
-          from __future__ import annotations
-
-          from dataclasses import dataclass
-          from typing import Any
-          from uuid import UUID
-
-          import sqlalchemy as sa
-          from collection_application.pipeline_advancement import (
-              ArtifactIdentity,
-              PipelineAdvancementConflict,
-              SucceededWorkOutput,
-          )
-          from collection_domain import WorkStage
-          from sqlalchemy.engine import Connection, Engine, RowMapping
-          from sqlalchemy.exc import SQLAlchemyError
-
-          from collection_infrastructure.postgres.artifact_metadata import (
-              artifact_objects,
-              artifact_records,
-              work_input_artifacts,
-              work_output_artifacts,
-          )
-          from collection_infrastructure.postgres.pipeline_advancement_metadata import (
-              pipeline_advancements,
-          )
-          from collection_infrastructure.postgres.work_metadata import stage_runs, work_units
-
-
-          @dataclass(frozen=True, slots=True)
-          class _BoundArtifact:
-              position: int
-              artifact: ArtifactIdentity
-
-
-          class PostgresSucceededWorkCatalog:
-              """Read successful work through explicit canonical physical owners."""
-
-              def __init__(self, engine: Engine) -> None:
-                  self._engine = engine
-
-              def __call__(
-                  self,
-                  connection: Connection,
-                  source_work_unit_id: UUID,
-              ) -> SucceededWorkOutput:
-                  return self.read(connection, source_work_unit_id)
-
-              def read(
-                  self,
-                  connection: Connection,
-                  source_work_unit_id: UUID,
-              ) -> SucceededWorkOutput:
-                  work = (
-                      connection.execute(
-                          sa.select(work_units)
-                          .where(work_units.c.work_id == source_work_unit_id)
-                          .with_for_update(read=True)
-                      )
-                      .mappings()
-                      .one_or_none()
-                  )
-                  if work is None:
-                      raise _conflict(
-                          "PIPELINE_SOURCE_WORK_NOT_FOUND",
-                          "The source work unit does not exist.",
-                          source_work_unit_id,
-                          "Select an existing successful work unit.",
-                      )
-                  if _text(work, "state") != "succeeded":
-                      raise _conflict(
-                          "PIPELINE_SOURCE_WORK_NOT_SUCCEEDED",
-                          "Pipeline advancement accepts only successful work.",
-                          source_work_unit_id,
-                          "Wait for canonical completion before advancement.",
-                      )
-
-                  run_id = _uuid(work["run_id"])
-                  stage_run_id = _uuid(work["stage_run_id"])
-                  stage_row = (
-                      connection.execute(
-                          sa.select(stage_runs).where(
-                              stage_runs.c.stage_run_id == stage_run_id
-                          )
-                      )
-                      .mappings()
-                      .one_or_none()
-                  )
-                  if stage_row is None:
-                      raise _conflict(
-                          "PIPELINE_STAGE_OWNER_NOT_FOUND",
-                          "The successful work has no canonical stage owner.",
-                          source_work_unit_id,
-                          "Repair stage ownership before advancement.",
-                      )
-                  if _uuid(stage_row["run_id"]) != run_id:
-                      raise _conflict(
-                          "PIPELINE_STAGE_RUN_CONFLICT",
-                          "Work and stage owners belong to different runs.",
-                          source_work_unit_id,
-                          "Repair run/stage ownership before advancement.",
-                      )
-
-                  inputs = _load(connection, work_input_artifacts, source_work_unit_id)
-                  outputs = _load(connection, work_output_artifacts, source_work_unit_id)
-                  if len(outputs) != 1:
-                      raise PipelineAdvancementConflict(
-                          code="PIPELINE_OUTPUT_ARTIFACT_CARDINALITY",
-                          message="Successful work must have one canonical output artifact.",
-                          context={
-                              "sourceWorkUnitId": str(source_work_unit_id),
-                              "outputArtifactCount": len(outputs),
-                          },
-                          required_action="Repair immutable output bindings.",
-                      )
-                  identities = tuple(item.artifact.artifact_id for item in (*inputs, *outputs))
-                  if len(identities) != len(set(identities)):
-                      raise _conflict(
-                          "PIPELINE_ARTIFACT_BINDING_DUPLICATE",
-                          "Artifact bindings contain duplicate identities.",
-                          source_work_unit_id,
-                          "Repair immutable input/output bindings.",
-                      )
-
-                  output_digest = _text(work, "output_digest")
-                  if output_digest != outputs[0].artifact.content_digest:
-                      raise PipelineAdvancementConflict(
-                          code="PIPELINE_OUTPUT_DIGEST_CONFLICT",
-                          message="Work and artifact output digests differ.",
-                          context={
-                              "sourceWorkUnitId": str(source_work_unit_id),
-                              "workOutputDigest": output_digest,
-                              "artifactDigest": outputs[0].artifact.content_digest,
-                          },
-                          required_action="Repair the corrupted completion or binding.",
-                      )
-                  try:
-                      stage = WorkStage(_text(stage_row, "stage"))
-                  except ValueError as exc:
-                      raise _conflict(
-                          "PIPELINE_STAGE_VALUE_INVALID",
-                          "The canonical stage value is unsupported.",
-                          source_work_unit_id,
-                          "Migrate the stage value before advancement.",
-                      ) from exc
-
-                  return SucceededWorkOutput(
-                      source_work_unit_id=source_work_unit_id,
-                      run_id=run_id,
-                      stage_run_id=stage_run_id,
-                      stage=stage,
-                      capability=_text(work, "capability"),
-                      output_contract=_text(work, "output_contract"),
-                      output_digest=output_digest,
-                      output_artifact=outputs[0].artifact,
-                      input_artifacts=tuple(item.artifact for item in inputs),
-                  )
-
-              def list_unregistered_succeeded(
-                  self,
-                  *,
-                  limit: int,
-                  correlation_id: str,
-              ) -> tuple[SucceededWorkOutput, ...]:
-                  del correlation_id
-                  if not 1 <= limit <= 1_000:
-                      raise ValueError("discovery limit must be between 1 and 1000")
-                  try:
-                      with self._engine.connect() as connection:
-                          statement = (
-                              sa.select(work_units.c.work_id)
-                              .where(
-                                  work_units.c.state == "succeeded",
-                                  ~sa.exists(
-                                      sa.select(sa.literal(1)).where(
-                                          pipeline_advancements.c.source_work_unit_id
-                                          == work_units.c.work_id
-                                      )
-                                  ),
-                              )
-                              .order_by(work_units.c.updated_at_utc, work_units.c.work_id)
-                              .limit(limit)
-                          )
-                          work_ids = tuple(
-                              _uuid(value)
-                              for value in connection.execute(statement).scalars()
-                          )
-                          return tuple(self.read(connection, work_id) for work_id in work_ids)
-                  except PipelineAdvancementConflict:
-                      raise
-                  except SQLAlchemyError as exc:
-                      raise PipelineAdvancementConflict(
-                          code="PIPELINE_DISCOVERY_STORAGE_FAILED",
-                          message="Successful work discovery did not complete.",
-                          context={"causeType": type(exc).__name__},
-                          required_action="Inspect PostgreSQL and retry exact discovery.",
-                      ) from exc
-
-
-          def _binding_statement(
-              binding: sa.Table,
-              source_work_unit_id: UUID,
-          ) -> sa.Select[Any]:
-              return (
-                  sa.select(
-                      binding.c.position.label("binding_position"),
-                      binding.c.role.label("binding_role"),
-                      artifact_records.c.artifact_id.label("artifact_id"),
-                      artifact_objects.c.content_digest.label("content_digest"),
-                      artifact_objects.c.size_bytes.label("size_bytes"),
-                      artifact_records.c.content_type.label("content_type"),
-                  )
-                  .select_from(
-                      binding.join(
-                          artifact_records,
-                          binding.c.artifact_id == artifact_records.c.artifact_id,
-                      ).join(
-                          artifact_objects,
-                          artifact_records.c.object_id == artifact_objects.c.object_id,
-                      )
-                  )
-                  .where(binding.c.work_id == source_work_unit_id)
-                  .order_by(binding.c.position, artifact_records.c.artifact_id)
-              )
-
-
-          def _load(
-              connection: Connection,
-              binding: sa.Table,
-              source_work_unit_id: UUID,
-          ) -> tuple[_BoundArtifact, ...]:
-              rows = (
-                  connection.execute(_binding_statement(binding, source_work_unit_id))
-                  .mappings()
-                  .all()
-              )
-              return tuple(_bound(row) for row in rows)
-
-
-          def _bound(row: RowMapping) -> _BoundArtifact:
-              return _BoundArtifact(
-                  position=_integer(row["binding_position"], "binding position", minimum=0),
-                  artifact=ArtifactIdentity(
-                      artifact_id=_uuid(row["artifact_id"]),
-                      role=_string(row["binding_role"], "artifact role"),
-                      content_digest=_string(row["content_digest"], "artifact digest"),
-                      size_bytes=_integer(row["size_bytes"], "artifact size", minimum=1),
-                      content_type=_string(row["content_type"], "content type"),
-                  ),
-              )
-
-
-          def _conflict(
-              code: str,
-              message: str,
-              source_work_unit_id: UUID,
-              required_action: str,
-          ) -> PipelineAdvancementConflict:
-              return PipelineAdvancementConflict(
-                  code=code,
-                  message=message,
-                  context={"sourceWorkUnitId": str(source_work_unit_id)},
-                  required_action=required_action,
-              )
-
-
-          def _uuid(value: object) -> UUID:
-              if value is None:
-                  raise TypeError("persisted UUID value is null")
-              return value if isinstance(value, UUID) else UUID(str(value))
-
-
-          def _text(row: RowMapping, key: str) -> str:
-              return _string(row[key], key)
-
-
-          def _string(value: object, meaning: str) -> str:
-              if not isinstance(value, str) or not value:
-                  raise TypeError(f"persisted {meaning} is not non-empty text")
-              return value
-
-
-          def _integer(value: object, meaning: str, *, minimum: int) -> int:
-              if not isinstance(value, int) or value < minimum:
-                  raise TypeError(f"persisted {meaning} is below {minimum}")
-              return value
-          PYFILE
 
       - name: Reconcile workspace from physical project roots
         shell: bash
