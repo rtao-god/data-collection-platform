@@ -1,0 +1,295 @@
+name: data-collection-platform
+
+x-runtime-service: &runtime-service
+  init: true
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  pids_limit: 256
+  restart: unless-stopped
+
+x-worker-service: &worker-service
+  <<: *runtime-service
+  depends_on:
+    worker-gateway:
+      condition: service_healthy
+  networks:
+    - collection-workers
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -c
+      - import os; os.kill(1, 0)
+    interval: 30s
+    timeout: 3s
+    retries: 3
+    start_period: 10s
+
+services:
+  object-store-bootstrap:
+    <<: *runtime-service
+    profiles:
+      - bootstrap
+    build:
+      context: ../..
+      dockerfile: deploy/docker/collector-cli.Dockerfile
+    entrypoint:
+      - python
+      - -m
+      - collector_cli.object_store_bootstrap
+    environment:
+      ARTIFACT_S3_ENDPOINT_URL: http://seaweedfs:8333
+      ARTIFACT_S3_BUCKET: ${COLLECTOR_OBJECT_STORE_BUCKET:?COLLECTOR_OBJECT_STORE_BUCKET is required}
+      ARTIFACT_S3_ACCESS_KEY_ID: ${COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID:?COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID is required}
+      ARTIFACT_S3_SECRET_ACCESS_KEY: ${COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY:?COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY is required}
+      ARTIFACT_S3_REGION: ${COLLECTOR_OBJECT_STORE_REGION:?COLLECTOR_OBJECT_STORE_REGION is required}
+      OBJECT_STORE_BOOTSTRAP_TIMEOUT_SECONDS: ${OBJECT_STORE_BOOTSTRAP_TIMEOUT_SECONDS:-90}
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    networks:
+      - collection-infrastructure
+    restart: "no"
+
+  migration:
+    <<: *runtime-service
+    profiles:
+      - migration
+    build:
+      context: ../..
+      dockerfile: deploy/docker/migration.Dockerfile
+    command:
+      - upgrade
+      - head
+    environment:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://${COLLECTOR_POSTGRES_USER:?COLLECTOR_POSTGRES_USER is required}:${COLLECTOR_POSTGRES_PASSWORD:?COLLECTOR_POSTGRES_PASSWORD is required}@collector-postgres:5432/${COLLECTOR_POSTGRES_DB:?COLLECTOR_POSTGRES_DB is required}
+    depends_on:
+      collector-postgres:
+        condition: service_healthy
+    networks:
+      - collection-infrastructure
+    restart: "no"
+
+  control-api:
+    <<: *runtime-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/control-api.Dockerfile
+    environment:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://${COLLECTOR_POSTGRES_USER:?COLLECTOR_POSTGRES_USER is required}:${COLLECTOR_POSTGRES_PASSWORD:?COLLECTOR_POSTGRES_PASSWORD is required}@collector-postgres:5432/${COLLECTOR_POSTGRES_DB:?COLLECTOR_POSTGRES_DB is required}
+      CONTROL_API_OPERATOR_TOKENS_JSON: ${CONTROL_API_OPERATOR_TOKENS_JSON:?CONTROL_API_OPERATOR_TOKENS_JSON is required}
+      COLLECTOR_CAMPAIGNS_ROOT: /workspace/campaigns
+      COLLECTOR_OBJECT_STORE_ENDPOINT: http://seaweedfs:8333
+      COLLECTOR_OBJECT_STORE_BUCKET: ${COLLECTOR_OBJECT_STORE_BUCKET:?COLLECTOR_OBJECT_STORE_BUCKET is required}
+      COLLECTOR_OBJECT_STORE_ACCESS_KEY_FILE: /run/secrets/collector-object-store-access-key
+      COLLECTOR_OBJECT_STORE_SECRET_KEY_FILE: /run/secrets/collector-object-store-secret-key
+      COLLECTOR_OBJECT_STORE_REGION: ${COLLECTOR_OBJECT_STORE_REGION:?COLLECTOR_OBJECT_STORE_REGION is required}
+    secrets:
+      - collector-object-store-access-key
+      - collector-object-store-secret-key
+    depends_on:
+      collector-postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${CONTROL_API_PORT:-8081}:8080
+    networks:
+      - collection-infrastructure
+      - collection-operator
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=2).read()
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    mem_limit: 512m
+    cpus: 1.0
+
+  worker-gateway:
+    <<: *runtime-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/worker-gateway.Dockerfile
+    environment:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://${COLLECTOR_POSTGRES_USER:?COLLECTOR_POSTGRES_USER is required}:${COLLECTOR_POSTGRES_PASSWORD:?COLLECTOR_POSTGRES_PASSWORD is required}@collector-postgres:5432/${COLLECTOR_POSTGRES_DB:?COLLECTOR_POSTGRES_DB is required}
+      COLLECTOR_OBJECT_STORE_ENDPOINT: http://seaweedfs:8333
+      COLLECTOR_OBJECT_STORE_BUCKET: ${COLLECTOR_OBJECT_STORE_BUCKET:?COLLECTOR_OBJECT_STORE_BUCKET is required}
+      COLLECTOR_OBJECT_STORE_ACCESS_KEY_FILE: /run/secrets/collector-object-store-access-key
+      COLLECTOR_OBJECT_STORE_SECRET_KEY_FILE: /run/secrets/collector-object-store-secret-key
+      COLLECTOR_OBJECT_STORE_REGION: ${COLLECTOR_OBJECT_STORE_REGION:?COLLECTOR_OBJECT_STORE_REGION is required}
+      WORKER_GATEWAY_TOKEN_FILE: /run/secrets/worker-gateway-credentials
+      WORKER_GATEWAY_BIND_MODE: container
+      WORKER_GATEWAY_HOST: 0.0.0.0
+      WORKER_GATEWAY_PORT: 8080
+      WORKER_GATEWAY_EXPIRY_INTERVAL_SECONDS: ${WORKER_GATEWAY_EXPIRY_INTERVAL_SECONDS:-5}
+      WORKER_GATEWAY_EXPIRY_BATCH_SIZE: ${WORKER_GATEWAY_EXPIRY_BATCH_SIZE:-100}
+    secrets:
+      - collector-object-store-access-key
+      - collector-object-store-secret-key
+      - worker-gateway-credentials
+    depends_on:
+      collector-postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    expose:
+      - "8080"
+    networks:
+      - collection-infrastructure
+      - collection-workers
+    mem_limit: 512m
+    cpus: 1.0
+
+  manual-import-worker:
+    <<: *worker-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/manual-import-worker.Dockerfile
+    environment:
+      WORKER_GATEWAY_URL: http://worker-gateway:8080
+      WORKER_GATEWAY_TOKEN: ${MANUAL_IMPORT_WORKER_TOKEN:?MANUAL_IMPORT_WORKER_TOKEN is required}
+      WORKER_BUILD_IDENTITY: manual-import-worker@${COLLECTOR_BUILD_IDENTITY:-local}
+      WORKER_RESOURCE_PROFILE: manual-import
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-2}
+      WORKER_LEASE_DURATION_SECONDS: ${WORKER_LEASE_DURATION_SECONDS:-300}
+      WORKER_HEARTBEAT_INTERVAL_SECONDS: ${WORKER_HEARTBEAT_INTERVAL_SECONDS:-60}
+      WORKER_TRANSFER_TIMEOUT_SECONDS: ${WORKER_TRANSFER_TIMEOUT_SECONDS:-60}
+      MANUAL_IMPORT_MAX_SOURCE_BYTES: ${MANUAL_IMPORT_MAX_SOURCE_BYTES:-16777216}
+    mem_limit: 384m
+    cpus: 0.75
+
+  http-worker:
+    <<: *worker-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/http-worker.Dockerfile
+    environment:
+      WORKER_GATEWAY_BASE_URL: http://worker-gateway:8080
+      WORKER_GATEWAY_TOKEN: ${HTTP_WORKER_TOKEN:?HTTP_WORKER_TOKEN is required}
+      HTTP_WORKER_BUILD_IDENTITY: http-worker@${COLLECTOR_BUILD_IDENTITY:-local}
+      WORKER_GATEWAY_TIMEOUT_SECONDS: ${WORKER_GATEWAY_TIMEOUT_SECONDS:-30}
+      HTTP_LEASE_SECONDS: ${HTTP_LEASE_SECONDS:-300}
+      HTTP_HEARTBEAT_SECONDS: ${HTTP_HEARTBEAT_SECONDS:-60}
+      HTTP_POLL_SECONDS: ${HTTP_POLL_SECONDS:-5}
+      HTTP_REQUEST_MAXIMUM_BYTES: ${HTTP_REQUEST_MAXIMUM_BYTES:-1048576}
+    networks:
+      - collection-acquisition-egress
+      - collection-workers
+    mem_limit: 512m
+    cpus: 1.0
+
+  osm-worker:
+    <<: *worker-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/osm-worker.Dockerfile
+    environment:
+      WORKER_GATEWAY_BASE_URL: http://worker-gateway:8080
+      WORKER_GATEWAY_TOKEN: ${OSM_WORKER_TOKEN:?OSM_WORKER_TOKEN is required}
+      OSM_WORKER_BUILD_IDENTITY: osm-worker@${COLLECTOR_BUILD_IDENTITY:-local}
+      WORKER_GATEWAY_TIMEOUT_SECONDS: ${WORKER_GATEWAY_TIMEOUT_SECONDS:-30}
+      OVERPASS_ENDPOINT_URL: ${OVERPASS_ENDPOINT_URL:?OVERPASS_ENDPOINT_URL is required}
+      OVERPASS_ALLOWED_HOSTS: ${OVERPASS_ALLOWED_HOSTS:?OVERPASS_ALLOWED_HOSTS is required}
+      OVERPASS_USER_AGENT: ${OVERPASS_USER_AGENT:?OVERPASS_USER_AGENT is required}
+      OVERPASS_TIMEOUT_SECONDS: ${OVERPASS_TIMEOUT_SECONDS:-90}
+      OVERPASS_MAXIMUM_RESPONSE_BYTES: ${OVERPASS_MAXIMUM_RESPONSE_BYTES:-67108864}
+      OSM_LEASE_SECONDS: ${OSM_LEASE_SECONDS:-300}
+      OSM_HEARTBEAT_SECONDS: ${OSM_HEARTBEAT_SECONDS:-60}
+      OSM_POLL_SECONDS: ${OSM_POLL_SECONDS:-5}
+    networks:
+      - collection-acquisition-egress
+      - collection-workers
+    mem_limit: 512m
+    cpus: 1.0
+
+  extraction-worker:
+    <<: *worker-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/processing-worker.Dockerfile
+    environment:
+      WORKER_GATEWAY_BASE_URL: http://worker-gateway:8080
+      WORKER_GATEWAY_TOKEN: ${EXTRACTION_WORKER_TOKEN:?EXTRACTION_WORKER_TOKEN is required}
+      PROCESSING_WORKER_BUILD_IDENTITY: extraction-worker@${COLLECTOR_BUILD_IDENTITY:-local}
+      PROCESSING_WORKER_CAPABILITY: extraction
+      WORKER_GATEWAY_TIMEOUT_SECONDS: ${WORKER_GATEWAY_TIMEOUT_SECONDS:-30}
+      PROCESSING_LEASE_SECONDS: ${PROCESSING_LEASE_SECONDS:-300}
+      PROCESSING_HEARTBEAT_SECONDS: ${PROCESSING_HEARTBEAT_SECONDS:-60}
+      PROCESSING_POLL_SECONDS: ${PROCESSING_POLL_SECONDS:-5}
+      PROCESSING_MAXIMUM_INPUT_BYTES: ${PROCESSING_MAXIMUM_INPUT_BYTES:-67108864}
+    mem_limit: 768m
+    cpus: 1.5
+
+  normalization-worker:
+    <<: *worker-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/processing-worker.Dockerfile
+    environment:
+      WORKER_GATEWAY_BASE_URL: http://worker-gateway:8080
+      WORKER_GATEWAY_TOKEN: ${NORMALIZATION_WORKER_TOKEN:?NORMALIZATION_WORKER_TOKEN is required}
+      PROCESSING_WORKER_BUILD_IDENTITY: normalization-worker@${COLLECTOR_BUILD_IDENTITY:-local}
+      PROCESSING_WORKER_CAPABILITY: normalization
+      WORKER_GATEWAY_TIMEOUT_SECONDS: ${WORKER_GATEWAY_TIMEOUT_SECONDS:-30}
+      PROCESSING_LEASE_SECONDS: ${PROCESSING_LEASE_SECONDS:-300}
+      PROCESSING_HEARTBEAT_SECONDS: ${PROCESSING_HEARTBEAT_SECONDS:-60}
+      PROCESSING_POLL_SECONDS: ${PROCESSING_POLL_SECONDS:-5}
+      PROCESSING_MAXIMUM_INPUT_BYTES: ${PROCESSING_MAXIMUM_INPUT_BYTES:-67108864}
+    mem_limit: 768m
+    cpus: 1.5
+
+  resolution-worker:
+    <<: *worker-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/resolution-worker.Dockerfile
+    environment:
+      WORKER_GATEWAY_BASE_URL: http://worker-gateway:8080
+      WORKER_GATEWAY_TOKEN: ${RESOLUTION_WORKER_TOKEN:?RESOLUTION_WORKER_TOKEN is required}
+      RESOLUTION_WORKER_BUILD_IDENTITY: resolution-worker@${COLLECTOR_BUILD_IDENTITY:-local}
+      WORKER_GATEWAY_TIMEOUT_SECONDS: ${WORKER_GATEWAY_TIMEOUT_SECONDS:-30}
+      RESOLUTION_LEASE_SECONDS: ${RESOLUTION_LEASE_SECONDS:-300}
+      RESOLUTION_HEARTBEAT_SECONDS: ${RESOLUTION_HEARTBEAT_SECONDS:-60}
+      RESOLUTION_POLL_SECONDS: ${RESOLUTION_POLL_SECONDS:-5}
+      RESOLUTION_MAXIMUM_INPUT_BYTES: ${RESOLUTION_MAXIMUM_INPUT_BYTES:-67108864}
+    mem_limit: 768m
+    cpus: 1.5
+
+  collector-cli:
+    <<: *runtime-service
+    profiles:
+      - tools
+    build:
+      context: ../..
+      dockerfile: deploy/docker/collector-cli.Dockerfile
+    networks:
+      - collection-operator
+    restart: "no"
+
+networks:
+  collection-operator:
+    driver: bridge
+    internal: true
+  collection-workers:
+    driver: bridge
+    internal: true
+  collection-acquisition-egress:
+    driver: bridge
+
+secrets:
+  collector-object-store-access-key:
+    environment: COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID
+  collector-object-store-secret-key:
+    environment: COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY
+  worker-gateway-credentials:
+    environment: WORKER_GATEWAY_CREDENTIALS_JSON
