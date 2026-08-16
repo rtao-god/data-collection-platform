@@ -134,7 +134,7 @@ jobs:
           PY
 
           uv lock
-          uv run ruff check --fix .
+          uv run ruff check --fix --unsafe-fixes .
           uv run ruff format .
 
           uv lock --check
