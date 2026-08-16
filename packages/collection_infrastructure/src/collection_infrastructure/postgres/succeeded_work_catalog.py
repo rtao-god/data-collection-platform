@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import sqlalchemy as sa
+from collection_application import WorkStage
 from collection_application.pipeline_advancement import (
     ArtifactIdentity,
     PipelineAdvancementConflict,
     SucceededWorkOutput,
-    WorkStage,
 )
 from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.exc import SQLAlchemyError
