@@ -156,3 +156,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["extruct", "lxml", "lxml.*", "phonenumbers", "tldextract"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["check_dependencies", "tools.architecture_checks.check_dependencies"]
+disable_error_code = ["attr-defined"]
