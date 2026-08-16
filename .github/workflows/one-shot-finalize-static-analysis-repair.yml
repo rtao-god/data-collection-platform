@@ -53,6 +53,22 @@ jobs:
                   raise SystemExit("official HTTP parser import anchor is missing")
               planning.write_text(planning_text.replace(old, new, 1), encoding="utf-8")
 
+          portal = Path("tools/live_collection/berlin_boundary_portal.py")
+          portal_text = portal.read_text(encoding="utf-8")
+          function = '''\n\ndef _verify_official_request(request: httpx.Request) -> None:\n    _require_official_url(str(request.url))\n'''
+          if "def _verify_official_request(" not in portal_text:
+              anchor = "\n\ndef _walk(value: object) -> Iterable[object]:\n"
+              if anchor not in portal_text:
+                  raise SystemExit("Berlin portal request-hook anchor is missing")
+              portal_text = portal_text.replace(anchor, function + anchor, 1)
+          hook = '        event_hooks={"request": [_verify_official_request]},\n'
+          if hook not in portal_text:
+              anchor = '        headers={"User-Agent": "data-collection-platform-portal-boundary/1"},\n'
+              if anchor not in portal_text:
+                  raise SystemExit("Berlin portal client-hook anchor is missing")
+              portal_text = portal_text.replace(anchor, anchor + hook, 1)
+          portal.write_text(portal_text, encoding="utf-8")
+
           workflow = Path(".github/workflows/one-shot-lint-repair.yml")
           payload = yaml.safe_load(workflow.read_text(encoding="utf-8"))
           steps = payload["jobs"]["repair"]["steps"]
