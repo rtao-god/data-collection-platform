@@ -64,8 +64,17 @@ class PostgresManualImportAdmissionStore:
                 self._lock_identity(connection, command)
                 existing = self._load_existing(connection, command)
                 if existing is not None:
-                    self._require_existing_identity(connection, existing, command, children)
-                    return _result(existing, status="already_applied")
+                    child_ids = self._require_existing_identity(
+                        connection,
+                        existing,
+                        command,
+                        children,
+                    )
+                    return _result(
+                        existing,
+                        child_work_ids=child_ids,
+                        status="already_applied",
+                    )
                 self._require_parent_and_artifacts(connection, command)
                 child_ids = self._child_writer.enqueue(connection, command, children)
                 if child_ids != tuple(child.work_id for child in children):
@@ -177,7 +186,7 @@ class PostgresManualImportAdmissionStore:
         row: RowMapping,
         command: AdmitManualImportPlan,
         children: Sequence[ManualImportChildWork],
-    ) -> None:
+    ) -> tuple[UUID, ...]:
         expected = {
             "admission_id": command.admission_id,
             "parent_work_id": command.parent_work_id,
@@ -196,7 +205,7 @@ class PostgresManualImportAdmissionStore:
             "rejected_record_count": command.plan.rejected_record_count,
             "child_work_count": len(children),
         }
-        mismatches = sorted(key for key, value in expected.items() if row[key] != value)
+        mismatches = [key for key, value in expected.items() if row[key] != value]
         items = tuple(
             connection.execute(
                 sa.select(plan_admission_items)
@@ -216,15 +225,25 @@ class PostgresManualImportAdmissionStore:
         )
         actual_items = tuple(
             (
-                item["position"],
-                item["child_work_id"],
-                item["locator_kind"],
-                item["locator_value"],
-                item["record_digest"],
+                int(item["position"]),
+                UUID(str(item["child_work_id"])),
+                str(item["locator_kind"]),
+                str(item["locator_value"]),
+                str(item["record_digest"]),
             )
             for item in items
         )
-        if mismatches or actual_items != expected_items:
+        if actual_items != expected_items:
+            mismatches.append("child_items")
+        expected_child_ids = tuple(child.work_id for child in children)
+        expected_result_digest = admission_result_digest(
+            command.admission_id,
+            command.plan.plan_digest,
+            expected_child_ids,
+        )
+        if str(row["result_digest"]) != expected_result_digest:
+            mismatches.append("result_digest")
+        if mismatches:
             raise _conflict(
                 code="MANUAL_IMPORT_ADMISSION_IDENTITY_CONFLICT",
                 message="The admission identity is already bound to different immutable input.",
@@ -232,8 +251,9 @@ class PostgresManualImportAdmissionStore:
                 required_action=(
                     "Use the existing exact admission or allocate a new admission identity."
                 ),
-                mismatches=mismatches,
+                mismatches=sorted(mismatches),
             )
+        return expected_child_ids
 
     @staticmethod
     def _require_parent_and_artifacts(
@@ -241,7 +261,9 @@ class PostgresManualImportAdmissionStore:
     ) -> None:
         parent = (
             connection.execute(
-                sa.select(work_units).where(work_units.c.work_id == command.parent_work_id)
+                sa.select(work_units.c.run_id, work_units.c.capability).where(
+                    work_units.c.work_id == command.parent_work_id
+                )
             )
             .mappings()
             .one_or_none()
@@ -253,31 +275,64 @@ class PostgresManualImportAdmissionStore:
                 command=command,
                 required_action="Use the work unit that produced the verified plan artifact.",
             )
-        if "run_id" in parent and parent["run_id"] != command.run_id:
+        if parent["run_id"] != command.run_id:
             raise _conflict(
                 code="MANUAL_IMPORT_PARENT_RUN_MISMATCH",
                 message="The parent work unit belongs to a different collection run.",
                 command=command,
                 required_action="Use the run identity owned by the parent work unit.",
             )
+        if parent["capability"] != "manual_import":
+            raise _conflict(
+                code="MANUAL_IMPORT_PARENT_CAPABILITY_MISMATCH",
+                message="The parent work unit is not owned by manual import.",
+                command=command,
+                required_action="Use the manual-import work unit that produced the plan artifact.",
+            )
         raw_artifacts = artifact_metadata.artifact_records
+        artifact_objects = artifact_metadata.artifact_objects
         artifact_ids = {
             command.plan.plan_artifact_id,
             command.plan.source_artifact_id,
         }
-        existing_ids = set(
+        artifact_rows = tuple(
             connection.execute(
-                sa.select(raw_artifacts.c.artifact_id).where(
-                    raw_artifacts.c.artifact_id.in_(artifact_ids)
+                sa.select(
+                    raw_artifacts.c.artifact_id,
+                    artifact_objects.c.content_digest,
                 )
-            ).scalars()
+                .select_from(
+                    raw_artifacts.join(
+                        artifact_objects,
+                        raw_artifacts.c.object_id == artifact_objects.c.object_id,
+                    )
+                )
+                .where(raw_artifacts.c.artifact_id.in_(artifact_ids))
+            ).mappings()
         )
-        if existing_ids != artifact_ids:
+        artifact_digests = {
+            UUID(str(row["artifact_id"])): str(row["content_digest"])
+            for row in artifact_rows
+        }
+        if set(artifact_digests) != artifact_ids:
             raise _conflict(
                 code="MANUAL_IMPORT_ARTIFACT_NOT_FOUND",
                 message="The plan or source artifact is not verified in Collection metadata.",
                 command=command,
                 required_action="Verify both exact artifacts before admitting the plan.",
+            )
+        digest_mismatches: list[str] = []
+        if artifact_digests[command.plan.plan_artifact_id] != command.plan.plan_digest:
+            digest_mismatches.append("plan_artifact_digest")
+        if artifact_digests[command.plan.source_artifact_id] != command.plan.source_digest:
+            digest_mismatches.append("source_artifact_digest")
+        if digest_mismatches:
+            raise _conflict(
+                code="MANUAL_IMPORT_ARTIFACT_DIGEST_MISMATCH",
+                message="The plan or source artifact digest differs from the admitted plan.",
+                command=command,
+                required_action="Use the exact verified plan and source artifact digests.",
+                mismatches=digest_mismatches,
             )
         _require_artifact_binding(connection, command, input_binding=True)
         _require_artifact_binding(connection, command, input_binding=False)
@@ -322,11 +377,16 @@ def _require_artifact_binding(
         )
 
 
-def _result(row: RowMapping, *, status: str) -> ManualImportAdmissionResult:
+def _result(
+    row: RowMapping,
+    *,
+    child_work_ids: tuple[UUID, ...],
+    status: str,
+) -> ManualImportAdmissionResult:
     return ManualImportAdmissionResult(
         admission_id=UUID(str(row["admission_id"])),
         plan_digest=str(row["plan_digest"]),
-        child_work_ids=(),
+        child_work_ids=child_work_ids,
         status=status,
         result_digest=str(row["result_digest"]),
     )
