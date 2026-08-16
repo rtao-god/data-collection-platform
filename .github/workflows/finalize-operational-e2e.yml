@@ -1,0 +1,113 @@
+name: Finalize Operational E2E Proof
+
+on:
+  workflow_run:
+    workflows:
+      - Operational E2E
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: data-collection-platform-operational-proof
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Require exact successful subject
+        env:
+          PROVEN_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          test "$(git rev-parse HEAD)" = "$PROVEN_SHA"
+
+      - name: Avoid proof-only commit loop
+        id: loop
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff-tree --no-commit-id --name-only -r HEAD^ HEAD || true)"
+          if [[ "$changed" == 'docs/proofs/end-to-end-operational-ci.md' ]]; then
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'skip=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require complete production inventory
+        if: steps.loop.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            packages/collection_application/src/collection_application/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            apps/review_web/package-lock.json
+            apps/browser_worker/pyproject.toml
+            packages/export_core/src/export_core/service.py
+            apps/retention_job/pyproject.toml
+            apps/orchestrator/pyproject.toml
+            tools/operations/backup_restore.py
+            deploy/compose/application.yaml
+          )
+          for path in "${required[@]}"; do
+            test -f "$path" || { echo "missing operational owner: $path" >&2; exit 1; }
+          done
+
+      - name: Record exact-head proof
+        if: steps.loop.outputs.skip != 'true'
+        env:
+          PROVEN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/proofs
+          cat > docs/proofs/end-to-end-operational-ci.md <<EOF
+          # End-to-end operational CI proof
+
+          - Status: proven
+          - Repository: rtao-god/data-collection-platform
+          - Branch: main
+          - Subject commit: \`$PROVEN_SHA\`
+          - Permanent workflow: Operational E2E
+          - Workflow run: \`$RUN_ID\`
+          - Run number: \`$RUN_NUMBER\`
+          - Run attempt: \`$RUN_ATTEMPT\`
+          - Conclusion: success
+
+          The permanent workflow proved the exact subject commit across Python contracts,
+          PostgreSQL/PostGIS migrations and integration tests, review frontend compilation and tests,
+          resolved application Compose topology and image builds, browser-worker capability isolation,
+          deterministic export tests, retention/orchestration tests, and backup/restore tooling tests.
+
+          This proof does not claim that an externally approved Berlin boundary or production source
+          consent was supplied. Those external campaign inputs remain explicit fail-closed readiness
+          requirements and are not replaced with synthetic production facts.
+          EOF
+          git add docs/proofs/end-to-end-operational-ci.md
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Docs (Proofs): record operational E2E"
+          git fetch origin main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          git push origin HEAD:main
