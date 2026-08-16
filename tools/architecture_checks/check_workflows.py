@@ -126,9 +126,7 @@ def _workflow_violations(payload: Mapping[str, object]) -> tuple[str, ...]:
     trigger_names: set[str] = set()
     if isinstance(triggers, str):
         trigger_names.add(triggers)
-    elif isinstance(triggers, Sequence):
-        trigger_names.update(str(value) for value in triggers)
-    elif isinstance(triggers, Mapping):
+    elif isinstance(triggers, (Sequence, Mapping)):
         trigger_names.update(str(value) for value in triggers)
     forbidden = sorted(trigger_names & _FORBIDDEN_TRIGGERS)
     if forbidden:
@@ -153,7 +151,7 @@ def find_violations(
     discovered = frozenset(
         path.relative_to(root).as_posix()
         for path in workflow_root.iterdir()
-        if path.is_file() and path.suffix in _WORKFLOW_SUFIXES
+        if path.is_file() and path.suffix in _WORKFLOW_SUFFIXES
     )
 
     violations: list[Violation] = []
