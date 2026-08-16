@@ -49,7 +49,13 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers --import-mode=importlib"
-testpaths = ["apps", "connectors", "database", "packages", "tools"]
+testpaths = [
+  "apps",
+  "connectors",
+  "database",
+  "packages",
+  "tools",
+]
 markers = [
   "integration: requires explicit PostgreSQL/PostGIS infrastructure",
   "object_store_integration: requires explicit SeaweedFS S3 infrastructure",
@@ -58,7 +64,13 @@ markers = [
 [tool.ruff]
 target-version = "py313"
 line-length = 100
-src = ["apps", "connectors", "database", "packages", "tools"]
+src = [
+  "apps",
+  "connectors",
+  "database",
+  "packages",
+  "tools",
+]
 
 [tool.ruff.format]
 quote-style = "double"
