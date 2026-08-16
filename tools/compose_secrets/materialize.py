@@ -139,7 +139,7 @@ def _write_atomic_secret(target: Path, content: bytes) -> None:
             dir=target.parent,
         )
         temporary_path = Path(temporary_name)
-        os.fchmod(descriptor, 0o600)
+        temporary_path.chmod(0o600)
         with os.fdopen(descriptor, "wb") as stream:
             descriptor = -1
             stream.write(content)
