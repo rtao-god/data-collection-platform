@@ -68,6 +68,7 @@ jobs:
             --env-file deploy/compose/.env.example \
             -f deploy/compose/infrastructure.yaml \
             -f deploy/compose/application.yaml \
+            --profile "*" \
             config --format json > /tmp/application-compose.json
 
           python - <<'PY'
