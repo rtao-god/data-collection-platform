@@ -39,7 +39,7 @@ jobs:
       - name: Restore exact workspace
         run: uv sync --frozen --all-packages --dev
 
-      - name: Repair complete Ruff ledger
+      - name: Repair complete Ruff and mypy ledger
         shell: bash
         run: |
           set -euo pipefail
@@ -119,14 +119,32 @@ jobs:
           )
           source_inputs.write_text(text, encoding="utf-8")
 
+          package_markers = {
+              Path("tools/__init__.py"): '"""Repository-owned operational and verification tooling."""\n',
+              Path("tools/live_collection/__init__.py"): '"""Bounded live-collection proof tooling."""\n',
+          }
+          for path, content in package_markers.items():
+              if path.exists() and path.read_text(encoding="utf-8") != content:
+                  raise SystemExit(f"package marker already has another owner: {path}")
+              path.write_text(content, encoding="utf-8")
+
           pyproject = Path("pyproject.toml")
           project_text = pyproject.read_text(encoding="utf-8")
-          dependency = '  "defusedxml==0.7.1",\n'
-          if dependency not in project_text:
-              anchor = '  "boto3-stubs[s3]==1.43.54",\n'
-              if anchor not in project_text:
-                  raise SystemExit("root dev dependency anchor is missing")
-              project_text = project_text.replace(anchor, anchor + dependency, 1)
+          dependency_anchor = '  "boto3-stubs[s3]==1.43.54",\n'
+          dependencies = (
+              '  "defusedxml==0.7.1",\n',
+              '  "shapely==2.1.2",\n',
+              '  "types-shapely==2.1.0.20260630",\n',
+          )
+          if dependency_anchor not in project_text:
+              raise SystemExit("root dev dependency anchor is missing")
+          insertion = "".join(item for item in dependencies if item not in project_text)
+          if insertion:
+              project_text = project_text.replace(
+                  dependency_anchor,
+                  dependency_anchor + insertion,
+                  1,
+              )
           override = '''\n[[tool.mypy.overrides]]\nmodule = ["defusedxml", "defusedxml.*"]\nignore_missing_imports = true\n'''
           if 'module = ["defusedxml", "defusedxml.*"]' not in project_text:
               project_text += override
@@ -172,5 +190,5 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
           git config user.name rtao-god
           git config user.email rtaogod@gmail.com
-          git commit -m "Style (Python): restore lint baseline"
+          git commit -m "Style (Python): restore static-analysis baseline"
           git push origin HEAD:main
