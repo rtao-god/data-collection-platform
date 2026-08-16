@@ -1,0 +1,46 @@
+name: One-shot Finalize Static Analysis Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-shot-finalize-static-analysis-repair.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Correct final repair anchor and remove transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/one-shot-lint-repair.yml")
+          text = path.read_text(encoding="utf-8")
+          old = '''              "from defusedxml.ElementTree import (",\n'''
+          new = '''              "from defusedxml.ElementTree import (  # Hardened parser for untrusted WFS XML.",\n'''
+          if old not in text:
+              raise SystemExit("final static-analysis repair anchor is missing")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          git rm .github/workflows/one-shot-finalize-static-analysis-repair.yml
+          git add .github/workflows/one-shot-lint-repair.yml
+          git diff --cached --check
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Build (Tooling): finalize static-analysis repair"
+          git push origin HEAD:main
