@@ -1,0 +1,12 @@
+version = 1
+
+permanent = [
+  ".github/workflows/application-compose-ci.yml",
+  ".github/workflows/ci.yml",
+  ".github/workflows/http-worker-isolation.yml",
+  ".github/workflows/infrastructure-compatibility.yml",
+  ".github/workflows/stage7-resolution-quality.yml",
+  ".github/workflows/stage8a-candidate-review.yml",
+  ".github/workflows/stage8b-control-api.yml",
+  ".github/workflows/worker-image-isolation.yml",
+]

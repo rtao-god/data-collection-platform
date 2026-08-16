@@ -57,7 +57,9 @@ jobs:
         run: uv run pytest -m "not integration"
 
       - name: Verify dependency boundaries
-        run: uv run python tools/architecture_checks/check_dependencies.py
+        run: |
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/architecture_checks/check_workflows.py
 
       - name: Compile owned Python
         run: uv run python -m compileall -q apps connectors database packages tools

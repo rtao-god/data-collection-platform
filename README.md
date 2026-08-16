@@ -57,6 +57,7 @@ uv run collector config digest berlin_recording_services
 uv run python tools/contract_generation/generate.py --check
 uv run pytest -m "not integration"
 uv run python tools/architecture_checks/check_dependencies.py
+uv run python tools/architecture_checks/check_workflows.py
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy
