@@ -1,0 +1,83 @@
+name: Materialize Authoritative Berlin Boundary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/materialize-berlin-boundary.yml
+      - tools/live_collection/berlin_boundary.py
+      - tools/live_collection/tests/test_berlin_boundary.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-collection-platform-berlin-boundary
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 2
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Prove boundary materializer behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format --check \
+            tools/live_collection/berlin_boundary.py \
+            tools/live_collection/tests/test_berlin_boundary.py
+          uv run ruff check \
+            tools/live_collection/berlin_boundary.py \
+            tools/live_collection/tests/test_berlin_boundary.py
+          uv run pytest -q tools/live_collection/tests/test_berlin_boundary.py
+
+      - name: Materialize licensed official boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --with shapely==2.1.1 \
+            python tools/live_collection/berlin_boundary.py \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --timeout-seconds 90
+
+      - name: Validate exact campaign snapshot
+        run: uv run collector config validate berlin_recording_services
+
+      - name: Commit authoritative geography inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add campaigns/berlin_recording_services
+          git diff --cached --check
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          if git diff --cached --quiet; then
+            echo 'Authoritative Berlin boundary is already current.'
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Data (Geography): record authoritative Berlin boundary"
+          git push origin HEAD:main
