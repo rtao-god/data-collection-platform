@@ -48,7 +48,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Lint
-        run: uv run ruff check .
+        run: uv run ruff check . --output-format=github
 
       - name: Type-check
         run: uv run mypy
