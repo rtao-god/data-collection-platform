@@ -191,8 +191,6 @@ def test_campaign_update_replaces_boundary_identity_and_only_matching_blocker(
     ]
     geography_value = yaml.safe_load((campaign / "geography.yaml").read_text())
     assert geography_value == {
-        "boundary_artifact_path": (
-            "campaigns/example/geography/berlin-boundary.geojson"
-        ),
+        "boundary_artifact_path": ("campaigns/example/geography/berlin-boundary.geojson"),
         "boundary_digest": "sha256:" + "a" * 64,
     }

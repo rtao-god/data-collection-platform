@@ -34,9 +34,7 @@ def test_json_ld_distribution_produces_licensed_official_candidate() -> None:
     )
 
     assert len(candidates) == 1
-    assert candidates[0].resource_url == (
-        "https://gdi.berlin.de/landesgrenze.geojson"
-    )
+    assert candidates[0].resource_url == ("https://gdi.berlin.de/landesgrenze.geojson")
     assert candidates[0].license_identifier == "dl-de-by-2.0"
 
 

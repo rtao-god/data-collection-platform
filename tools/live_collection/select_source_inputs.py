@@ -62,9 +62,7 @@ def _git(repository_root: Path, *arguments: str) -> bytes:
             stderr=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError as exc:
-        raise SourceInputSelectionError(
-            f"git command failed: {' '.join(arguments)}"
-        ) from exc
+        raise SourceInputSelectionError(f"git command failed: {' '.join(arguments)}") from exc
 
 
 def _try_git(repository_root: Path, *arguments: str) -> bytes | None:

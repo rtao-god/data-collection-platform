@@ -96,9 +96,7 @@ def test_required_request_fields_receive_deterministic_live_values() -> None:
 def test_nested_identity_lookup_finds_run_id() -> None:
     value = {"result": {"run": {"runId": "00000000-0000-0000-0000-000000000123"}}}
 
-    assert _find_value(value, ("runId", "run_id")) == (
-        "00000000-0000-0000-0000-000000000123"
-    )
+    assert _find_value(value, ("runId", "run_id")) == ("00000000-0000-0000-0000-000000000123")
     assert UUID(str(_find_value(value, ("runId",))))
 
 

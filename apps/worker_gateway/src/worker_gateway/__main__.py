@@ -107,8 +107,7 @@ def _bind_host_from_environment() -> str:
         host = os.environ.get("WORKER_GATEWAY_HOST", _DEFAULT_HOST).strip()
         if host not in _LOCAL_HOSTS:
             raise RuntimeError(
-                "Worker Gateway refuses a non-local bind unless "
-                "WORKER_GATEWAY_BIND_MODE=container"
+                "Worker Gateway refuses a non-local bind unless WORKER_GATEWAY_BIND_MODE=container"
             )
         return host
     if mode == _CONTAINER_BIND_MODE:

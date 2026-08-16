@@ -55,10 +55,7 @@ class _PortalParser(HTMLParser):
         values = {key.lower(): value for key, value in attrs}
         if tag.lower() == "a" and values.get("href"):
             self.links.append(str(values["href"]))
-        if (
-            tag.lower() == "script"
-            and str(values.get("type", "")).lower() == "application/ld+json"
-        ):
+        if tag.lower() == "script" and str(values.get("type", "")).lower() == "application/ld+json":
             self._json_depth = 1
             self._json_buffer = []
 
@@ -210,8 +207,7 @@ def discover_portal_candidates(client: httpx.Client) -> tuple[ResourceCandidate,
     if not candidates:
         detail = "; ".join(failures) or "no dataset metadata links"
         raise BoundaryMaterializationError(
-            "Berlin Open Data portal yielded no licensed official boundary resource: "
-            + detail
+            "Berlin Open Data portal yielded no licensed official boundary resource: " + detail
         )
     return tuple(sorted(candidates.values(), key=lambda item: (-item.score, item.resource_url)))
 
@@ -238,9 +234,7 @@ def materialize_from_portal(
                 downloaded = download_candidate(client, candidate)
                 canonical = canonicalize_boundary(downloaded.geojson)
             except (BoundaryMaterializationError, httpx.HTTPError) as exc:
-                errors.append(
-                    f"{candidate.resource_identifier}: {type(exc).__name__}"
-                )
+                errors.append(f"{candidate.resource_identifier}: {type(exc).__name__}")
                 continue
             selected = candidate
             break

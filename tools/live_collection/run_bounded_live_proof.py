@@ -255,9 +255,7 @@ def select_operation(
             f"OpenAPI has no {method.upper()} operation containing {', '.join(required)}"
         )
     if len(candidates) > 1 and candidates[0][0] == candidates[1][0]:
-        raise LiveProofError(
-            f"OpenAPI operation selection is ambiguous for {', '.join(required)}"
-        )
+        raise LiveProofError(f"OpenAPI operation selection is ambiguous for {', '.join(required)}")
     return candidates[0][1]
 
 
@@ -355,7 +353,9 @@ def _request_body(openapi: Mapping[str, Any], operation: Operation) -> object | 
     return build_schema_value(openapi, media.get("schema"))
 
 
-def _parameters(openapi: Mapping[str, Any], operation: Operation) -> tuple[dict[str, str], dict[str, str]]:
+def _parameters(
+    openapi: Mapping[str, Any], operation: Operation
+) -> tuple[dict[str, str], dict[str, str]]:
     path_values: dict[str, str] = {}
     query_values: dict[str, str] = {}
     parameters = operation.definition.get("parameters")
@@ -382,11 +382,7 @@ def _auth_headers(config: Mapping[str, Any]) -> Mapping[str, str]:
     values: dict[str, str] = {}
     if isinstance(environment, Mapping):
         values.update(
-            {
-                str(key): str(value)
-                for key, value in environment.items()
-                if value is not None
-            }
+            {str(key): str(value) for key, value in environment.items() if value is not None}
         )
     values.update(os.environ)
     for key in (
@@ -412,7 +408,11 @@ def _invoke(
     if overrides:
         path_values.update(overrides)
         query_values.update(
-            {key: value for key, value in overrides.items() if "{" + key + "}" not in operation.path}
+            {
+                key: value
+                for key, value in overrides.items()
+                if "{" + key + "}" not in operation.path
+            }
         )
     path = operation.path
     for key, value in path_values.items():
@@ -436,9 +436,7 @@ def _invoke(
     try:
         return response.json()
     except ValueError as exc:
-        raise LiveProofError(
-            f"{operation.method} {operation.path} did not return JSON"
-        ) from exc
+        raise LiveProofError(f"{operation.method} {operation.path} did not return JSON") from exc
 
 
 def _find_value(value: object, names: Sequence[str]) -> object | None:

@@ -175,9 +175,10 @@ def discover_candidates(client: httpx.Client) -> tuple[ResourceCandidate, ...]:
                     score = _score_resource(dataset, resource)
                     if score <= 0:
                         continue
-                    identifier = _text(resource.get("id")) or hashlib.sha256(
-                        resource_url.encode("utf-8")
-                    ).hexdigest()
+                    identifier = (
+                        _text(resource.get("id"))
+                        or hashlib.sha256(resource_url.encode("utf-8")).hexdigest()
+                    )
                     try:
                         candidate = ResourceCandidate(
                             dataset_title=dataset_title,
@@ -404,8 +405,7 @@ def canonicalize_boundary(value: Mapping[str, Any]) -> Mapping[str, Any]:
             )
     min_lon, min_lat, max_lon, max_lat = _bounds(geometries)
     if not (
-        _MIN_LON <= min_lon <= max_lon <= _MAX_LON
-        and _MIN_LAT <= min_lat <= max_lat <= _MAX_LAT
+        _MIN_LON <= min_lon <= max_lon <= _MAX_LON and _MIN_LAT <= min_lat <= max_lat <= _MAX_LAT
     ):
         raise BoundaryMaterializationError(
             "boundary coordinates are outside the Berlin validation envelope"

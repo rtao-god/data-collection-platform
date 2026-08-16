@@ -54,12 +54,14 @@ def test_materialize_writes_exact_private_files(tmp_path: Path) -> None:
         "COLLECTOR_OBJECT_STORE_SECRET_KEY_SECRET_FILE",
         "WORKER_GATEWAY_CREDENTIALS_SECRET_FILE",
     }
-    assert paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SECRET_FILE"].read_text(
-        encoding="utf-8"
-    ) == "access-one"
-    assert paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SECRET_FILE"].read_text(
-        encoding="utf-8"
-    ) == "secret-one"
+    assert (
+        paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SECRET_FILE"].read_text(encoding="utf-8")
+        == "access-one"
+    )
+    assert (
+        paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SECRET_FILE"].read_text(encoding="utf-8")
+        == "secret-one"
+    )
     credential_path = paths["WORKER_GATEWAY_CREDENTIALS_SECRET_FILE"]
     assert json.loads(credential_path.read_text(encoding="utf-8"))["contract"] == (
         "worker-gateway-local-credentials"
@@ -78,9 +80,10 @@ def test_materialize_replaces_an_existing_owned_secret_atomically(tmp_path: Path
     second = materializer.materialize(output, _environment(suffix="two"))
 
     assert first == second
-    assert second["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SECRET_FILE"].read_text(
-        encoding="utf-8"
-    ) == "access-two"
+    assert (
+        second["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SECRET_FILE"].read_text(encoding="utf-8")
+        == "access-two"
+    )
     assert not tuple(output.glob(".*.*"))
 
 
@@ -102,9 +105,7 @@ def test_missing_source_returns_typed_owner_error(
     assert exit_code == 2
     assert payload["owner"] == "ApplicationComposeSecrets"
     assert payload["code"] == "COMPOSE_SECRET_SOURCE_MISSING"
-    assert payload["context"] == {
-        "sourceVariable": "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY"
-    }
+    assert payload["context"] == {"sourceVariable": "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY"}
 
 
 def test_symlink_secret_target_is_rejected(tmp_path: Path) -> None:
