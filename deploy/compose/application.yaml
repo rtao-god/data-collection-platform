@@ -288,8 +288,8 @@ networks:
 
 secrets:
   collector-object-store-access-key:
-    environment: COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID
+    file: ${COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE:?COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE is required}
   collector-object-store-secret-key:
-    environment: COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY
+    file: ${COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE:?COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE is required}
   worker-gateway-credentials:
-    environment: WORKER_GATEWAY_CREDENTIALS_JSON
+    file: ${WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE:?WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE is required}

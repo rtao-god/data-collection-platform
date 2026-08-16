@@ -23,5 +23,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+deploy/compose/.secrets/
 *.pem
 *.key
