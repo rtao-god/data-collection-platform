@@ -1,0 +1,224 @@
+name: Reconcile Operational Production V5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/reconcile-operational-production-v5.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: data-collection-platform-operational-reconciliation-v5
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    services:
+      collector-postgres:
+        image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+        env:
+          POSTGRES_DB: collector_core
+          POSTGRES_USER: collector_migrator
+          POSTGRES_PASSWORD: collector_migrator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collector_migrator -d collector_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      COLLECTOR_DATABASE_URL: postgresql+psycopg://collector_migrator:collector_migrator_test@127.0.0.1:5432/collector_core
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Wait for prior reconcilers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers=(-H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json")
+          for workflow in pipeline-owner-repair-v3.yml reconcile-operational-production-v4.yml; do
+            api="https://api.github.com/repos/$REPOSITORY/actions/workflows/$workflow/runs?per_page=20"
+            for _ in $(seq 1 720); do
+              payload="$(curl -fsSL "${headers[@]}" "$api" 2>/dev/null || printf '{"workflow_runs":[]}')"
+              active="$(jq '[.workflow_runs[] | select(.status != "completed")] | length' <<<"$payload")"
+              [[ "$active" == 0 ]] && break
+              sleep 5
+            done
+            payload="$(curl -fsSL "${headers[@]}" "$api" 2>/dev/null || printf '{"workflow_runs":[]}')"
+            active="$(jq '[.workflow_runs[] | select(.status != "completed")] | length' <<<"$payload")"
+            [[ "$active" == 0 ]] || { echo "$workflow did not quiesce" >&2; exit 1; }
+          done
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Restore production-only operational owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          e2e_sha="9bec95589ee0592a873edbc0548be27707f53af6"
+          git cat-file -e "$e2e_sha^{commit}"
+
+          protected='^(packages/collection_application/src/collection_application/(run_control|pipeline_advancement|pipeline_supervision)\.py|packages/collection_infrastructure/src/collection_infrastructure/postgres/(run_control|pipeline_advancement|pipeline_advancement_metadata|pipeline_run_control|succeeded_work_catalog)\.py|database/migrations/versions/20260815_001[23]_.*\.py|database/tests/test_pipeline_advancement_schema\.py)$'
+          commits=(
+            0da188be6fe963e3fae18f460ea5e566d104fa3c
+            5a035e8031a5d6e1eddfa4212b9f9c17dbb6f87c
+            553c63ad7e4d3f107894f687acb787e754ce61bf
+            0abfbe53bfeb18623f83f72584e5be22971ff7d5
+            e80bbcfebe8dce765b0bcdf7b362e069a979dbac
+            8069f7d9e926c9109e6aa7f47770ef7cfbb8d4cb
+            a175eb66110e4899741af6991cce829cc1b5112f
+            05d8ab74e1f20f3654b097c7e7812bcf94c70d82
+            47bda1aed7f0a49ac02d5586c88bd04b38ccff71
+            7e09b245b4d7b851d8d5efca2f1c765593ec2726
+            24c2979e7e871c814a895d9e8ec182cb6705321f
+            9bec95589ee0592a873edbc0548be27707f53af6
+          )
+
+          declare -A paths=()
+          for commit in "${commits[@]}"; do
+            while IFS= read -r path; do
+              [[ -n "$path" ]] || continue
+              [[ "$path" == .github/workflows/* ]] && continue
+              [[ "$path" == .github/apply/* ]] && continue
+              [[ "$path" == docs/diagnostics/* ]] && continue
+              [[ "$path" == .codex/* ]] && continue
+              [[ "$path" =~ $protected ]] && continue
+              git cat-file -e "$e2e_sha:$path" 2>/dev/null || continue
+              paths["$path"]=1
+            done < <(git diff-tree --no-commit-id --name-only -r "$commit")
+          done
+
+          explicit=(
+            apps/review_web
+            apps/browser_worker
+            apps/retention_job
+            apps/orchestrator
+            packages/export_core
+            tools/operations
+            deploy/compose/application.yaml
+          )
+          for path in "${explicit[@]}"; do
+            git cat-file -e "$e2e_sha:$path" 2>/dev/null && paths["$path"]=1 || true
+          done
+
+          for path in "${!paths[@]}"; do
+            git checkout "$e2e_sha" -- "$path"
+          done
+
+          run_control_commit="b7368ba690f588cf5e254f905ce1cdf69305444f"
+          parent="$(git rev-parse "$run_control_commit^")"
+          patch="$RUNNER_TEMP/run-control.patch"
+          git diff --binary --diff-filter=AM "$parent" "$run_control_commit" -- . \
+            ':(exclude).github/**' \
+            ':(exclude)docs/diagnostics/**' > "$patch"
+          if [[ -s "$patch" ]]; then
+            git apply --3way --index "$patch"
+          fi
+
+          required=(
+            apps/review_web/package-lock.json
+            apps/browser_worker/pyproject.toml
+            apps/retention_job/pyproject.toml
+            apps/orchestrator/pyproject.toml
+            packages/export_core/src/export_core/service.py
+            tools/operations/backup_restore.py
+            deploy/compose/application.yaml
+            packages/collection_application/src/collection_application/run_control.py
+            packages/collection_application/src/collection_application/pipeline_advancement.py
+          )
+          for path in "${required[@]}"; do
+            test -f "$path" || { echo "missing fallback owner: $path" >&2; exit 1; }
+          done
+
+      - name: Reconcile workspace and generated contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock
+          uv sync --frozen --all-packages --dev
+          uv run python tools/contract_generation/generate.py
+          uv run python tools/contract_generation/generate.py --check
+          if test -f tools/control_api_contract_generation/generate.py; then
+            uv run python tools/control_api_contract_generation/generate.py
+            uv run python tools/control_api_contract_generation/generate.py --check
+          fi
+          if test -f tools/review_contract_generation/generate.py; then
+            uv run python tools/review_contract_generation/generate.py
+            uv run python tools/review_contract_generation/generate.py --check
+          fi
+
+      - name: Prove Python and database owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ruff format .
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m "not integration and not object_store_integration"
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q apps connectors database packages tools
+          uv run collector config validate berlin_recording_services
+          uv run collection-migrate upgrade head
+          uv run pytest -m integration database/tests
+          git diff --check
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.14.0"
+          cache: npm
+          cache-dependency-path: apps/review_web/package-lock.json
+
+      - name: Prove review application and Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix apps/review_web ci
+          npm --prefix apps/review_web run lint
+          npm --prefix apps/review_web run typecheck --if-present
+          npm --prefix apps/review_web test -- --run
+          npm --prefix apps/review_web run build
+          docker compose -f deploy/compose/application.yaml config >/dev/null
+
+      - name: Commit fallback production reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A -- . \
+            ':(exclude).github/workflows/**' \
+            ':(exclude).github/apply/**' \
+            ':(exclude)docs/diagnostics/**'
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Fix (Recovery): restore operational E2E production owners"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
