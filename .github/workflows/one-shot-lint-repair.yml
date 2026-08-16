@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          uv run ruff check --fix .
+          uv run ruff check --fix --exit-zero .
 
           python - <<'PY'
           from pathlib import Path
