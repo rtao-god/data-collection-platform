@@ -1,0 +1,71 @@
+name: Advance Berlin Live Collection Chain V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/advance-berlin-live-chain-v2.yml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: data-collection-platform-berlin-live-chain-controller
+  cancel-in-progress: false
+
+jobs:
+  advance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Dispatch exactly the next missing owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          operational=(
+            packages/collection_application/src/collection_application/pipeline_advancement.py
+            packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py
+            apps/review_web/package-lock.json
+            apps/browser_worker/pyproject.toml
+            packages/export_core/src/export_core/service.py
+            apps/retention_job/pyproject.toml
+            apps/orchestrator/pyproject.toml
+            tools/operations/backup_restore.py
+            deploy/compose/application.yaml
+          )
+          for path in "${operational[@]}"; do
+            if ! test -f "$path"; then
+              gh workflow run reconcile-operational-production-v3.yml --ref main
+              echo "Dispatched operational tree reconciliation; missing: $path"
+              exit 0
+            fi
+          done
+          if ! test -f docs/proofs/end-to-end-operational-ci.md; then
+            gh workflow run operational-e2e-ci.yml --ref main
+            echo 'Dispatched permanent operational E2E proof.'
+            exit 0
+          fi
+          if ! test -f campaigns/berlin_recording_services/geography/berlin-boundary.geojson \
+             || ! test -f campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json; then
+            gh workflow run materialize-berlin-boundary.yml --ref main
+            echo 'Dispatched authoritative Berlin boundary materialization.'
+            exit 0
+          fi
+          if ! test -f campaigns/berlin_recording_services/source-inputs.provenance.json; then
+            gh workflow run materialize-berlin-source-inputs.yml --ref main
+            echo 'Dispatched validated source-input materialization.'
+            exit 0
+          fi
+          if ! test -f docs/proofs/berlin-live-collection.json; then
+            gh workflow run berlin-bounded-live-run.yml --ref main
+            echo 'Dispatched bounded real-source Berlin collection.'
+            exit 0
+          fi
+          echo 'Berlin live collection chain is complete.'
