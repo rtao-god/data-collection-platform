@@ -11,13 +11,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 import httpx
 import sqlalchemy as sa
-import yaml
 
 _CAMPAIGN_KEY = "berlin_recording_services"
 _DEFAULT_COMPOSE = Path("deploy/compose/application.yaml")
@@ -63,7 +62,8 @@ def _run(
     capture: bool = True,
     env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    # Executable and arguments are assembled only by owner helpers; no shell is used.
+    return subprocess.run(  # noqa: S603
         tuple(arguments),
         cwd=cwd,
         check=check,
@@ -150,9 +150,11 @@ def _published_ports(service: Mapping[str, Any]) -> tuple[int, ...]:
             value = item.split(":", 1)[0]
         else:
             continue
+        if not isinstance(value, (str, int)) or isinstance(value, bool):
+            continue
         try:
             values.append(int(value))
-        except (TypeError, ValueError):
+        except ValueError:
             continue
     return tuple(values)
 
@@ -264,7 +266,7 @@ def _resolve_schema(openapi: Mapping[str, Any], schema: object) -> Mapping[str, 
         return {}
     reference = schema.get("$ref")
     if not isinstance(reference, str):
-        return schema
+        return cast(Mapping[str, Any], schema)
     if not reference.startswith("#/components/schemas/"):
         raise LiveProofError(f"unsupported OpenAPI reference: {reference}")
     name = reference.rsplit("/", 1)[-1]
@@ -272,9 +274,12 @@ def _resolve_schema(openapi: Mapping[str, Any], schema: object) -> Mapping[str, 
     if not isinstance(components, Mapping):
         raise LiveProofError("OpenAPI components are missing")
     schemas = components.get("schemas")
-    if not isinstance(schemas, Mapping) or not isinstance(schemas.get(name), Mapping):
+    if not isinstance(schemas, Mapping):
         raise LiveProofError(f"OpenAPI schema is missing: {name}")
-    return schemas[name]
+    resolved = schemas.get(name)
+    if not isinstance(resolved, Mapping):
+        raise LiveProofError(f"OpenAPI schema is missing: {name}")
+    return cast(Mapping[str, Any], resolved)
 
 
 def build_schema_value(
@@ -434,7 +439,7 @@ def _invoke(
     if not response.content:
         return {}
     try:
-        return response.json()
+        return cast(object, response.json())
     except ValueError as exc:
         raise LiveProofError(f"{operation.method} {operation.path} did not return JSON") from exc
 
@@ -444,7 +449,7 @@ def _find_value(value: object, names: Sequence[str]) -> object | None:
     if isinstance(value, Mapping):
         for key, item in value.items():
             if str(key).lower() in lowered_names:
-                return item
+                return cast(object, item)
         for item in value.values():
             found = _find_value(item, names)
             if found is not None:

@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+
 from collection_application.pipeline_advancement import (
     ArtifactIdentity,
     PipelineAdvancementLease,
@@ -17,7 +18,6 @@ from collection_application.pipeline_supervision import (
     PipelinePreviewBlocked,
     PipelineSupervisorService,
 )
-
 from collection_domain import WorkStage
 
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000401")

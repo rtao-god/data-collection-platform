@@ -4,8 +4,6 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from control_api.app import create_app
-from control_api.auth import TokenAuthenticator
 from fastapi.testclient import TestClient
 
 from collection_application import (
@@ -22,6 +20,8 @@ from collection_domain import (
     WorkStage,
     WorkUnitState,
 )
+from control_api.app import create_app
+from control_api.auth import TokenAuthenticator
 from review_application import ReviewQueuePage
 from review_contracts import (
     ReviewCase,

@@ -7,6 +7,8 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import NoReturn
 
+from sqlalchemy import create_engine
+
 from collection_application.artifact_cleanup import (
     ArtifactCleanupPolicy,
     ArtifactCleanupService,
@@ -17,7 +19,6 @@ from collection_infrastructure.artifact_cleanup_object_store import (
 from collection_infrastructure.postgres.artifact_cleanup import (
     PostgresArtifactCleanupStore,
 )
-from sqlalchemy import create_engine
 
 
 def main(argv: Sequence[str] | None = None) -> int:

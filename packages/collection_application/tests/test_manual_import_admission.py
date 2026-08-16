@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
+
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionResult,

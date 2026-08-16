@@ -6,9 +6,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from official_http.scrapy_child import scrapy_settings
-
 from official_http import OfficialHttpRequest, ScrapyChildFetcher
+from official_http.scrapy_child import scrapy_settings
 
 
 def _request() -> OfficialHttpRequest:

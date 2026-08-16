@@ -4,6 +4,8 @@ import json
 import os
 
 import pytest
+from sqlalchemy import create_engine
+
 from collection_application.geography import (
     GeographyCoverageService,
     GeographyEvaluationError,
@@ -11,7 +13,6 @@ from collection_application.geography import (
     decode_boundary_geojson,
 )
 from collection_infrastructure.postgres.geography import PostgresGeographyCoverage
-from sqlalchemy import create_engine
 
 pytestmark = pytest.mark.integration
 

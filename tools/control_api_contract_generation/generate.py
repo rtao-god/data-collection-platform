@@ -6,10 +6,9 @@ from hashlib import sha256
 from pathlib import Path
 from typing import cast
 
+from collection_application import CampaignRunService, RunControlService
 from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
-
-from collection_application import CampaignRunService, RunControlService
 from review_application import ReviewService
 
 ROOT = Path(__file__).resolve().parents[2]

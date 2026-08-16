@@ -23,7 +23,7 @@ _DEFAULT_EXPIRY_INTERVAL_SECONDS = 5.0
 _DEFAULT_EXPIRY_BATCH_SIZE = 100
 _DEFAULT_BIND_MODE = "local"
 _CONTAINER_BIND_MODE = "container"
-_CONTAINER_HOST = "0.0.0.0"
+_CONTAINER_HOST = "0.0.0.0"  # noqa: S104 - validated container-only bind.
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 

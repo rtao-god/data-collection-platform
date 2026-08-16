@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from control_api.auth import ControlAuthenticationError, TokenAuthenticator
 
 TOKEN = "a" * 40

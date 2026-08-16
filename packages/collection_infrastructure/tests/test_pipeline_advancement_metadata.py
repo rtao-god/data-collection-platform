@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
 from collection_infrastructure.postgres.pipeline_advancement import _secret_digest
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     PIPELINE_ADVANCEMENT_TABLES,
     pipeline_advancement_attempts,
     pipeline_advancements,
 )
-from sqlalchemy.dialects import postgresql
 
 
 def test_pipeline_advancement_metadata_has_exact_owner_tables() -> None:

@@ -6,9 +6,9 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
-from collection_infrastructure.postgres import PostgresReviewRepository
 from sqlalchemy.pool import NullPool
 
+from collection_infrastructure.postgres import PostgresReviewRepository
 from review_application import ReviewConflict, ReviewerPrincipal, ReviewService
 from review_contracts import (
     CandidateEvidence,

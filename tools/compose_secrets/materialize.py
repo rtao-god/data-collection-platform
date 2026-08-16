@@ -145,7 +145,7 @@ def _write_atomic_secret(target: Path, content: bytes) -> None:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary_path, target)
+        temporary_path.replace(target)
         temporary_path = None
         target.chmod(0o600)
     except OSError as exc:

@@ -3,7 +3,6 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
-
 from tools.live_collection.run_bounded_live_proof import (
     DatabaseEvidence,
     LiveProofError,

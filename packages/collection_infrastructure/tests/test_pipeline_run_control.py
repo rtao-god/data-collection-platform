@@ -3,13 +3,13 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from uuid import UUID
 
+from sqlalchemy.dialects import postgresql
+
 from collection_application.run_control import RunCoverageReport
+from collection_domain import CollectionRunState, WorkStage
 from collection_infrastructure.postgres.pipeline_run_control import (
     PipelineAwareRunControlRepository,
 )
-from sqlalchemy.dialects import postgresql
-
-from collection_domain import CollectionRunState, WorkStage
 
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000501")
 

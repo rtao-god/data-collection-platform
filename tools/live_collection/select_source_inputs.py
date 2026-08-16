@@ -7,10 +7,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any
 from urllib.parse import urlparse
 
 import yaml
@@ -55,10 +54,18 @@ class SelectedInputs:
     content_digest: str
 
 
+def _required_executable(name: str) -> str:
+    executable = shutil.which(name)
+    if executable is None:
+        raise SourceInputSelectionError(f"required executable is unavailable: {name}")
+    return executable
+
+
 def _git(repository_root: Path, *arguments: str) -> bytes:
     try:
-        return subprocess.check_output(
-            ("git", "-C", str(repository_root), *arguments),
+        # Executable is resolved explicitly and arguments are owner-constructed.
+        return subprocess.check_output(  # noqa: S603
+            (_required_executable("git"), "-C", str(repository_root), *arguments),
             stderr=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError as exc:
@@ -67,8 +74,9 @@ def _git(repository_root: Path, *arguments: str) -> bytes:
 
 def _try_git(repository_root: Path, *arguments: str) -> bytes | None:
     try:
-        return subprocess.check_output(
-            ("git", "-C", str(repository_root), *arguments),
+        # Executable is resolved explicitly and arguments are owner-constructed.
+        return subprocess.check_output(  # noqa: S603
+            (_required_executable("git"), "-C", str(repository_root), *arguments),
             stderr=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError:
@@ -153,7 +161,7 @@ def candidates(repository_root: Path) -> tuple[Candidate, ...]:
     return tuple(sorted(values, key=lambda item: (-item.score, item.commit_sha)))
 
 
-def _walk(value: object):
+def _walk(value: object) -> Iterator[object]:
     yield value
     if isinstance(value, Mapping):
         for item in value.values():
@@ -317,9 +325,10 @@ def _validate_candidate(campaign_root: Path) -> tuple[str, ...]:
 
 
 def _run_validator(repository_root: Path) -> bool:
-    result = subprocess.run(
+    # Executable is resolved explicitly and the validator command is constant.
+    result = subprocess.run(  # noqa: S603
         (
-            "uv",
+            _required_executable("uv"),
             "run",
             "collector",
             "config",

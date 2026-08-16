@@ -4,13 +4,13 @@ import json
 from pathlib import Path
 
 import pytest
+
+from collection_application import WorkCapability
 from worker_gateway.auth import (
     WorkerAuthenticationError,
     WorkerAuthenticator,
     WorkerPrincipal,
 )
-
-from collection_application import WorkCapability
 
 _TOKEN = "worker-token-000000000000000000000001"
 

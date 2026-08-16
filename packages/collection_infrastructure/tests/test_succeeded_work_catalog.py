@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from uuid import UUID
 
 import pytest
+
 from collection_application.pipeline_advancement import PipelineAdvancementConflict
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     pipeline_advancements,

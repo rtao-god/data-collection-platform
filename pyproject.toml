@@ -40,6 +40,9 @@ members = [
 [dependency-groups]
 dev = [
   "boto3-stubs[s3]==1.43.54",
+  "defusedxml==0.7.1",
+  "shapely==2.1.2",
+  "types-shapely==2.1.0.20260630",
   "httpx",
   "mypy==2.3.0",
   "pytest==9.0.2",
@@ -160,3 +163,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["check_dependencies", "tools.architecture_checks.check_dependencies"]
 disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = ["defusedxml", "defusedxml.*"]
+ignore_missing_imports = true

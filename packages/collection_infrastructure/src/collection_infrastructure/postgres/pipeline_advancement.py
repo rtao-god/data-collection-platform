@@ -9,6 +9,9 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
+from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.exc import SQLAlchemyError
+
 from collection_application.pipeline_advancement import (
     ApplyPipelineAdvancement,
     ArtifactIdentity,
@@ -23,9 +26,6 @@ from collection_application.pipeline_advancement import (
     PipelineTransitionPlan,
     SucceededWorkOutput,
 )
-from sqlalchemy.engine import Connection, Engine, RowMapping
-from sqlalchemy.exc import SQLAlchemyError
-
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     pipeline_advancement_attempts,
     pipeline_advancements,

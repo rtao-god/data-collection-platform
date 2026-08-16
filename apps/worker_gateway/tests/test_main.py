@@ -119,7 +119,7 @@ def test_container_bind_mode_rejects_local_or_ambiguous_host(
     monkeypatch.setenv("WORKER_GATEWAY_BIND_MODE", "container")
     monkeypatch.setenv("WORKER_GATEWAY_HOST", "127.0.0.1")
 
-    with pytest.raises(RuntimeError, match="requires WORKER_GATEWAY_HOST=0.0.0.0"):
+    with pytest.raises(RuntimeError, match=r"requires WORKER_GATEWAY_HOST=0\.0\.0\.0"):
         gateway_main._bind_host_from_environment()
 
 

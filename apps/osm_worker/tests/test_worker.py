@@ -5,9 +5,8 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
 
-from osm_worker.worker import OSMWorker, OSMWorkerPolicy
-
 from osm_overpass import OverpassFetchFailure, OverpassFetchResult
+from osm_worker.worker import OSMWorker, OSMWorkerPolicy
 from source_connector_sdk import LeaseArtifact, WorkerLease
 
 

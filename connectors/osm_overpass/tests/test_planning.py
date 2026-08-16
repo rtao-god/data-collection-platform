@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 
-from osm_overpass.planning import plan_overpass_queries
-
 from osm_overpass import (
     GeoPoint,
     OsmTagFilter,
     OverpassPolygon,
     decode_query_spec,
 )
+from osm_overpass.planning import plan_overpass_queries
 
 
 def polygon() -> OverpassPolygon:

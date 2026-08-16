@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateIndex, CreateTable
+
 from collection_infrastructure.postgres import (
     ARTIFACT_TABLES,
     artifact_objects,
@@ -8,8 +11,6 @@ from collection_infrastructure.postgres import (
     work_input_artifacts,
     work_output_artifacts,
 )
-from sqlalchemy.dialects import postgresql
-from sqlalchemy.schema import CreateIndex, CreateTable
 
 
 def test_artifact_metadata_has_exact_owner_tables_and_no_cascade_delete() -> None:

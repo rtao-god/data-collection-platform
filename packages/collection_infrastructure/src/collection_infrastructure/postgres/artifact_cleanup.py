@@ -5,15 +5,15 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
+from sqlalchemy import Engine
+from sqlalchemy.engine import RowMapping
+
 from collection_application.artifact_cleanup import (
     ArtifactCleanupClaim,
     ArtifactCleanupPolicy,
     ArtifactCleanupStore,
     validate_cleanup_failure,
 )
-from sqlalchemy import Engine
-from sqlalchemy.engine import RowMapping
-
 from collection_infrastructure.postgres.artifact_metadata import (
     artifact_cleanup_tombstones,
     artifact_objects,

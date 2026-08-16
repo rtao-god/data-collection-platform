@@ -6,7 +6,7 @@ from typing import Literal
 from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
-from defusedxml.ElementTree import (  # type: ignore[import-untyped]
+from defusedxml.ElementTree import (  # Hardened parser for untrusted WFS XML.
     ParseError,
     fromstring,
 )

@@ -4,16 +4,16 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql import Select
+
 from collection_application import WorkStage
 from collection_application.pipeline_advancement import (
     ArtifactIdentity,
     PipelineAdvancementConflict,
     SucceededWorkOutput,
 )
-from sqlalchemy.engine import Connection, Engine, RowMapping
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.sql import Select
-
 from collection_infrastructure.postgres.artifact_metadata import (
     artifact_objects,
     artifact_records,

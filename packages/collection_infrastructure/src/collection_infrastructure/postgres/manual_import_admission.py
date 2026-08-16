@@ -6,15 +6,15 @@ from typing import Protocol
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.exc import SQLAlchemyError
+
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionResult,
     ManualImportChildWork,
     admission_result_digest,
 )
-from sqlalchemy.engine import Connection, Engine, RowMapping
-from sqlalchemy.exc import SQLAlchemyError
-
 from collection_infrastructure.postgres import artifact_metadata
 from collection_infrastructure.postgres.manual_import_metadata import (
     plan_admission_items,

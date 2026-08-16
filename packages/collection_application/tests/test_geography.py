@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pytest
+
 from collection_application.geography import (
     GeographyBoundaryError,
     GeographyCoverage,

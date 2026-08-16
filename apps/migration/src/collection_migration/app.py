@@ -8,9 +8,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from uuid import uuid4
 
-from collection_infrastructure.postgres import upgrade_database
-
 from collection_contracts import OwnerContextError, owner_error
+from collection_infrastructure.postgres import upgrade_database
 
 _DATABASE_URL_ENV = "COLLECTOR_DATABASE_URL"
 _ALEMBIC_CONFIG_ENV = "COLLECTOR_ALEMBIC_CONFIG"

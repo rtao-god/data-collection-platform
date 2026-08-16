@@ -6,7 +6,6 @@ from pathlib import Path
 import httpx
 import pytest
 import yaml
-
 from tools.live_collection.berlin_boundary import (
     BoundaryMaterializationError,
     ResourceCandidate,

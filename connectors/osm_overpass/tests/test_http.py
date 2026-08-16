@@ -4,17 +4,17 @@ from collections.abc import Sequence
 
 import httpx
 import pytest
-from osm_overpass.http import (
-    OverpassEndpointPolicy,
-    OverpassFetchFailure,
-    OverpassHttpClient,
-)
 
 from osm_overpass import (
     GeoPoint,
     OsmTagFilter,
     OverpassPolygon,
     OverpassQuerySpec,
+)
+from osm_overpass.http import (
+    OverpassEndpointPolicy,
+    OverpassFetchFailure,
+    OverpassHttpClient,
 )
 
 

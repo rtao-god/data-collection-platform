@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy import create_engine
+
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportChildWork,
@@ -11,7 +13,6 @@ from collection_application.manual_import_admission import (
 from collection_infrastructure.postgres.manual_import_child_writer import (
     PostgresManualImportChildWorkWriter,
 )
-from sqlalchemy import create_engine
 
 
 def test_child_writer_resolves_the_canonical_work_engine_contract() -> None:

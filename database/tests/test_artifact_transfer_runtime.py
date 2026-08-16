@@ -11,7 +11,6 @@ from uuid import UUID, uuid4
 import pytest
 import sqlalchemy as sa
 from botocore.exceptions import ClientError
-from collection_infrastructure.object_store.s3 import S3Client
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -44,6 +43,7 @@ from collection_infrastructure import (
     PostgresWorkEngine,
     S3ArtifactObjectStore,
 )
+from collection_infrastructure.object_store.s3 import S3Client
 
 pytestmark = pytest.mark.integration
 

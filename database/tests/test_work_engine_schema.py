@@ -7,12 +7,12 @@ from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 import sqlalchemy as sa
-from collection_application.run_control import TransitionCollectionRun
-from collection_infrastructure.postgres import PostgresRunControlRepository
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
 
 from collection_application import CollectionRunState, WorkUnitState
+from collection_application.run_control import TransitionCollectionRun
+from collection_infrastructure.postgres import PostgresRunControlRepository
 
 pytestmark = pytest.mark.integration
 

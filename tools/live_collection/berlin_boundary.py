@@ -3,17 +3,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-from xml.etree import ElementTree
 
 import httpx
 import yaml
+from defusedxml import ElementTree
 
 _OFFICIAL_HOST_SUFFIX = ".berlin.de"
 _PORTAL_ENDPOINTS = (
@@ -398,10 +397,10 @@ def _bounds(geometries: Sequence[Mapping[str, Any]]) -> tuple[float, float, floa
 
 def canonicalize_boundary(value: Mapping[str, Any]) -> Mapping[str, Any]:
     geometries = _feature_geometries(value)
-    for geometry in geometries:
-        if geometry.get("type") not in {"Polygon", "MultiPolygon"}:
+    for candidate_geometry in geometries:
+        if candidate_geometry.get("type") not in {"Polygon", "MultiPolygon"}:
             raise BoundaryMaterializationError(
-                f"unsupported boundary geometry: {geometry.get('type')}"
+                f"unsupported boundary geometry: {candidate_geometry.get('type')}"
             )
     min_lon, min_lat, max_lon, max_lat = _bounds(geometries)
     if not (
@@ -411,7 +410,7 @@ def canonicalize_boundary(value: Mapping[str, Any]) -> Mapping[str, Any]:
             "boundary coordinates are outside the Berlin validation envelope"
         )
     if len(geometries) == 1:
-        geometry: Mapping[str, Any] = geometries[0]
+        canonical_geometry: Mapping[str, Any] = geometries[0]
     else:
         try:
             from shapely.geometry import mapping, shape
@@ -420,10 +419,10 @@ def canonicalize_boundary(value: Mapping[str, Any]) -> Mapping[str, Any]:
             raise BoundaryMaterializationError(
                 "multiple official boundary features require shapely for deterministic union"
             ) from exc
-        merged = unary_union(tuple(shape(item) for item in geometries))
+        merged = unary_union(tuple(shape(dict(item)) for item in geometries))
         if merged.geom_type not in {"Polygon", "MultiPolygon"} or not merged.is_valid:
             raise BoundaryMaterializationError("official boundary union is not a valid polygon")
-        geometry = _as_mapping(mapping(merged))
+        canonical_geometry = _as_mapping(mapping(merged))
     return {
         "type": "Feature",
         "id": "berlin-administrative-boundary",
@@ -431,7 +430,7 @@ def canonicalize_boundary(value: Mapping[str, Any]) -> Mapping[str, Any]:
             "name": "Berlin administrative boundary",
             "authority": "State of Berlin",
         },
-        "geometry": geometry,
+        "geometry": canonical_geometry,
     }
 
 
@@ -456,13 +455,14 @@ def _update_yaml_value(value: object, boundary_path: str, digest: str) -> tuple[
             result[key] = digest
             changes += 1
             continue
-        if "boundary" in lowered and any(
-            token in lowered for token in ("path", "artifact", "reference", "file")
+        if (
+            "boundary" in lowered
+            and any(token in lowered for token in ("path", "artifact", "reference", "file"))
+            and isinstance(item, str)
         ):
-            if isinstance(item, str):
-                result[key] = boundary_path
-                changes += 1
-                continue
+            result[key] = boundary_path
+            changes += 1
+            continue
         rewritten, item_changes = _update_yaml_value(item, boundary_path, digest)
         result[key] = rewritten
         changes += item_changes

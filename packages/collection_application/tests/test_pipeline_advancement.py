@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+
 from collection_application.pipeline_advancement import (
     ApplyPipelineAdvancement,
     ArtifactIdentity,
@@ -18,7 +19,6 @@ from collection_application.pipeline_advancement import (
     PipelineTransitionRegistry,
     SucceededWorkOutput,
 )
-
 from collection_contracts import OwnerContextError
 from collection_domain import WorkStage
 

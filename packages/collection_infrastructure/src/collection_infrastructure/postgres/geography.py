@@ -5,6 +5,9 @@ from collections.abc import Sequence
 from typing import cast
 
 import sqlalchemy as sa
+from sqlalchemy import Engine
+from sqlalchemy.exc import DBAPIError
+
 from collection_application.geography import (
     GeographyBoundaryArtifact,
     GeographyCoverage,
@@ -12,8 +15,6 @@ from collection_application.geography import (
     GeographyEvaluationError,
     GeographyPoint,
 )
-from sqlalchemy import Engine
-from sqlalchemy.exc import DBAPIError
 
 _COVERAGE_QUERY = sa.text(
     """

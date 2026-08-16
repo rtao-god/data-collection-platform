@@ -4,8 +4,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from collection_application.owned_artifacts import PublishOwnedArtifact
-
 from collection_application import (
     CampaignRunBootstrapPlan,
     CampaignRunCreated,
@@ -16,6 +14,7 @@ from collection_application import (
     OwnedArtifactPublisherService,
     PublishedOwnedArtifact,
 )
+from collection_application.owned_artifacts import PublishOwnedArtifact
 from collection_infrastructure import FilesystemCampaignBundleSource
 
 _NOW = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)

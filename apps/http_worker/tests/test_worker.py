@@ -7,7 +7,6 @@ from hashlib import sha256
 from uuid import UUID
 
 from http_worker.worker import HttpWorker, HttpWorkerPolicy
-
 from official_http import HttpAcquisitionManifest, HttpFetchResult, ResponseHeader
 from source_connector_sdk import LeaseArtifact, SourcePermit, WorkerLease
 

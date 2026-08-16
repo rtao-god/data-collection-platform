@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
+
 from collection_application.run_control import (
     CollectionRunStatus,
     RunControlConflict,
@@ -14,7 +15,6 @@ from collection_application.run_control import (
     WorkStateCount,
     coverage_from_status,
 )
-
 from collection_contracts import OwnerContextError
 from collection_domain import CollectionRunState, StageRunState, WorkStage, WorkUnitState
 

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from collection_migration import app
 
 

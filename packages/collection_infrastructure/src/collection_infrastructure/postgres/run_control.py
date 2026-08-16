@@ -5,15 +5,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
-from collection_application.run_control import (
-    CollectionRunStatus,
-    RunControlConflict,
-    RunCoverageReport,
-    StageRunStatus,
-    TransitionCollectionRun,
-    WorkStateCount,
-    coverage_from_status,
-)
 from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -24,6 +15,15 @@ from collection_application import (
     StageRunState,
     WorkStage,
     WorkUnitState,
+)
+from collection_application.run_control import (
+    CollectionRunStatus,
+    RunControlConflict,
+    RunCoverageReport,
+    StageRunStatus,
+    TransitionCollectionRun,
+    WorkStateCount,
+    coverage_from_status,
 )
 from collection_infrastructure.postgres.work_metadata import (
     collection_run_transitions,

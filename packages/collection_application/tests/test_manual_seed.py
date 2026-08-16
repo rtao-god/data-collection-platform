@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 
 import pytest
-from collection_application.manual_seed import read_manual_seed_records
 
+from collection_application.manual_seed import read_manual_seed_records
 from collection_contracts import ManualImportDisposition, OwnerContextError
 
 _VALID_JSON_RECORD = {

@@ -3,8 +3,9 @@ from __future__ import annotations
 from logging.config import fileConfig
 
 from alembic import context
-from collection_infrastructure.postgres import collector_metadata
 from sqlalchemy import engine_from_config, pool
+
+from collection_infrastructure.postgres import collector_metadata
 
 config = context.config
 

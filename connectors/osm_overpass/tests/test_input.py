@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pytest
+
 from osm_overpass.input import decode_query_spec
 from osm_overpass.response import OverpassResponseError
 

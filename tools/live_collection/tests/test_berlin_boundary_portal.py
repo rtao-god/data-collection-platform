@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import httpx
 import pytest
-
 from tools.live_collection.berlin_boundary import BoundaryMaterializationError
 from tools.live_collection.berlin_boundary_portal import (
     _metadata_candidates,

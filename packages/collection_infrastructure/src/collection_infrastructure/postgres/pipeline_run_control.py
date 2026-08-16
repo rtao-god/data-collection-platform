@@ -3,6 +3,10 @@ from __future__ import annotations
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.engine import Engine, RowMapping
+from sqlalchemy.exc import SQLAlchemyError
+
+from collection_application import WorkStage
 from collection_application.pipeline_advancement import PipelineAdvancementState
 from collection_application.run_control import (
     CollectionRunStatus,
@@ -12,10 +16,6 @@ from collection_application.run_control import (
     RunCoverageReport,
     TransitionCollectionRun,
 )
-from sqlalchemy.engine import Engine, RowMapping
-from sqlalchemy.exc import SQLAlchemyError
-
-from collection_application import WorkStage
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     pipeline_advancements,
 )

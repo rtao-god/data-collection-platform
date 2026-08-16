@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateIndex, CreateTable
+
 from collection_infrastructure.postgres import (
     RUN_TABLES,
     RUNS_SCHEMA,
@@ -21,8 +24,6 @@ from collection_infrastructure.postgres import (
     worker_output_contracts,
     worker_registrations,
 )
-from sqlalchemy.dialects import postgresql
-from sqlalchemy.schema import CreateIndex, CreateTable
 
 
 def test_work_metadata_has_exact_owner_schemas_and_tables() -> None:

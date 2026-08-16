@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from html.parser import HTMLParser
@@ -30,7 +29,7 @@ _SEARCH_URLS = (
     "https://daten.berlin.de/datensaetze?search=Verwaltungsgrenzen",
     "https://daten.berlin.de/datensaetze?search=Bezirksgrenzen",
 )
-_DATASET_PATH_TOKEN = "/datensaetze/"
+_DATASET_PATH_SEGMENT = "/datensaetze/"
 _RESOURCE_KEYS = frozenset(
     {
         "contenturl",
@@ -68,6 +67,10 @@ class _PortalParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._json_depth:
             self._json_buffer.append(data)
+
+
+def _verify_official_request(request: httpx.Request) -> None:
+    _require_official_url(str(request.url))
 
 
 def _walk(value: object) -> Iterable[object]:
@@ -187,7 +190,7 @@ def discover_portal_candidates(client: httpx.Client) -> tuple[ResourceCandidate,
         for link in parser.links:
             url = urljoin(search_url, link)
             parsed = urlparse(url)
-            if _DATASET_PATH_TOKEN not in parsed.path:
+            if _DATASET_PATH_SEGMENT not in parsed.path:
                 continue
             try:
                 _require_official_url(url)
@@ -228,6 +231,7 @@ def materialize_from_portal(
         timeout=httpx.Timeout(timeout_seconds),
         follow_redirects=True,
         headers={"User-Agent": "data-collection-platform-portal-boundary/1"},
+        event_hooks={"request": [_verify_official_request]},
     ) as client:
         for candidate in discover_portal_candidates(client):
             try:

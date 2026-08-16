@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import sqlalchemy as sa
-from collection_infrastructure.postgres import PostgresReviewRepository
 from fastapi import FastAPI
 from sqlalchemy.pool import NullPool
 
@@ -25,6 +24,7 @@ from collection_infrastructure import (
     PostgresRunControlRepository,
     S3ArtifactObjectStore,
 )
+from collection_infrastructure.postgres import PostgresReviewRepository
 from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
 from review_application import ReviewService

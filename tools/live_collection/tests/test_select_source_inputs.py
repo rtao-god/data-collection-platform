@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from tools.live_collection.select_source_inputs import (
     SourceInputSelectionError,
     _binding_keys,
