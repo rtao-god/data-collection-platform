@@ -72,15 +72,34 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("database/tests/test_postgres_review_repository.py")
-          old = "from collection_infrastructure.postgres import PostgresReviewRepository\n"
-          new = "from review_infrastructure import PostgresReviewRepository\n"
-          text = path.read_text(encoding="utf-8")
-          if text.count(old) != 1:
-              raise SystemExit("review repository import anchor is not unique")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          test_path = Path("database/tests/test_postgres_review_repository.py")
+          old_test_import = (
+              "from collection_infrastructure.postgres import PostgresReviewRepository\n"
+          )
+          new_test_import = "from review_infrastructure import PostgresReviewRepository\n"
+          test_text = test_path.read_text(encoding="utf-8")
+          if test_text.count(old_test_import) != 1:
+              raise SystemExit("review repository test import anchor is not unique")
+          test_path.write_text(
+              test_text.replace(old_test_import, new_test_import, 1),
+              encoding="utf-8",
+          )
+
+          control_path = Path("apps/control_api/src/control_api/main.py")
+          obsolete_control_import = (
+              "from collection_infrastructure.postgres import PostgresReviewRepository\n"
+          )
+          control_text = control_path.read_text(encoding="utf-8")
+          if control_text.count(obsolete_control_import) != 1:
+              raise SystemExit("obsolete Control API review import anchor is not unique")
+          control_path.write_text(
+              control_text.replace(obsolete_control_import, "", 1),
+              encoding="utf-8",
+          )
           PY
-          git add database/tests/test_postgres_review_repository.py
+          git add \
+            apps/control_api/src/control_api/main.py \
+            database/tests/test_postgres_review_repository.py
           git rm -f \
             .github/workflows/apply-review-persistence-boundary.yml \
             .github/apply/review-persistence-boundary.patch.gz.b64
@@ -97,6 +116,9 @@ jobs:
           uv run python tools/contract_generation/generate.py --check
           uv run python tools/review_contract_generation/generate.py --check
           uv run python tools/control_api_contract_generation/generate.py --check
+          uv run ruff check --fix \
+            apps/control_api/src/control_api/main.py \
+            database/tests/test_postgres_review_repository.py
           uv run ruff format tools/architecture_checks/tests/test_check_dependencies.py
           uv run ruff format --check .
           uv run ruff check .
