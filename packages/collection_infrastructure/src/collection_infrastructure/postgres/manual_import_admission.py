@@ -311,8 +311,7 @@ class PostgresManualImportAdmissionStore:
             ).mappings()
         )
         artifact_digests = {
-            UUID(str(row["artifact_id"])): str(row["content_digest"])
-            for row in artifact_rows
+            UUID(str(row["artifact_id"])): str(row["content_digest"]) for row in artifact_rows
         }
         if set(artifact_digests) != artifact_ids:
             raise _conflict(

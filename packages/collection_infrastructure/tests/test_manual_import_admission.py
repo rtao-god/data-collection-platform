@@ -304,9 +304,7 @@ def test_artifact_object_digests_must_match_the_admitted_plan(
 
     assert error.value.code == "MANUAL_IMPORT_ARTIFACT_DIGEST_MISMATCH"
     assert error.value.context["mismatches"] == [expected_mismatch]
-    artifact_sql = str(
-        engine.connection.statements[3][0].compile(dialect=postgresql.dialect())
-    )
+    artifact_sql = str(engine.connection.statements[3][0].compile(dialect=postgresql.dialect()))
     assert "JOIN sources.artifact_objects" in artifact_sql
     assert writer.calls == []
     assert engine.connection.executed_count == 4
