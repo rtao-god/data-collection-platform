@@ -25,6 +25,7 @@ services:
     restart: unless-stopped
     networks:
       - collection-infrastructure
+      - collection-postgres-loopback
 
   seaweedfs:
     image: chrislusf/seaweedfs:4.40
@@ -52,11 +53,24 @@ services:
     restart: unless-stopped
     networks:
       - collection-infrastructure
+      - collection-object-store-loopback
 
 networks:
   collection-infrastructure:
     driver: bridge
     internal: true
+  collection-postgres-loopback:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
+  collection-object-store-loopback:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
 
 volumes:
   collector-postgres-data:

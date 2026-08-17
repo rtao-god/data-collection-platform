@@ -10,18 +10,13 @@ Create an ignored local environment file from the example and replace every loca
 cp deploy/compose/.env.example deploy/compose/.env.local
 ```
 
-Materialize the values owned by that environment file into the ignored, file-backed secret
-directory before any Compose command:
+Materialize the values owned by that environment file into the ignored, file-backed secret directory before any Compose command:
 
 ```text
 python tools/compose_secrets/materialize.py --environment-file deploy/compose/.env.local --output-directory deploy/compose/.secrets
 ```
 
-Run the same command again after rotating any object-store key or Worker Gateway credential. On
-POSIX hosts the materializer keeps `deploy/compose/.secrets` owner-only (`0700`) and writes each
-mounted file read-only (`0444`). Docker Compose bind-mounts local secret files without remapping
-their host UID, so the read bit is required by the fixed non-root container UID. Access remains
-restricted by the owner-only host directory and by the exact per-service secret mounts.
+Run the same command again after rotating any object-store key or Worker Gateway credential. On POSIX hosts the materializer keeps `deploy/compose/.secrets` owner-only (`0700`) and writes each mounted file read-only (`0444`). Docker Compose bind-mounts local secret files without remapping their host UID, so the read bit is required by the fixed non-root container UID. Access remains restricted by the owner-only host directory and by the exact per-service secret mounts.
 
 Use both Compose files for every command:
 
@@ -71,13 +66,13 @@ docker compose \
     resolution-worker
 ```
 
-The Control API is exposed only through `127.0.0.1:${CONTROL_API_PORT}`. PostgreSQL and SeaweedFS development ports are also loopback-only. The Worker Gateway has no host port.
+The Control API is published only through `127.0.0.1:${CONTROL_API_PORT}`. PostgreSQL and SeaweedFS development ports are also loopback-only. Worker Gateway and capability workers have no host ports.
 
 ## Credential and network boundaries
 
 | Process | Collection DB | Object Store credentials | External egress | Host port |
 |---|---:|---:|---:|---:|
-| `control-api` | yes | scoped | no | loopback only |
+| `control-api` | yes | scoped | no Docker NAT egress | loopback only |
 | `worker-gateway` | yes | scoped | no | no |
 | `manual-import-worker` | no | no | no | no |
 | `http-worker` | no | no | approved HTTP egress | no |
@@ -86,9 +81,19 @@ The Control API is exposed only through `127.0.0.1:${CONTROL_API_PORT}`. Postgre
 | `normalization-worker` | no | no | no | no |
 | `resolution-worker` | no | no | no | no |
 
-The Worker Gateway is the only bridge between the internal worker network and the infrastructure network. Its default executable contract remains loopback-only; the Compose service must opt into `WORKER_GATEWAY_BIND_MODE=container` and the exact `0.0.0.0` container bind. A non-local bind outside that explicit mode fails before runtime composition.
+Worker Gateway is the only bridge between the internal worker network and the infrastructure network. Its default executable contract remains loopback-only; the Compose service must opt into `WORKER_GATEWAY_BIND_MODE=container` and the exact `0.0.0.0` container bind. A non-local bind outside that explicit mode fails before runtime composition.
 
 The acquisition egress network is attached only to `http-worker` and `osm-worker`. Processing workers cannot reach PostgreSQL, SeaweedFS, or the external network. Object-store keys and the Worker Gateway credential document are mounted only into their owning trusted processes through Compose secrets.
+
+Docker does not publish host ports for services that are attached only to an `internal` bridge. The local runtime therefore gives each host-visible service one dedicated loopback-publishing bridge:
+
+- `collection-control-loopback` contains only `control-api`;
+- `collection-postgres-loopback` contains only `collector-postgres`;
+- `collection-object-store-loopback` contains only `seaweedfs`.
+
+Each bridge binds published ports to `127.0.0.1`, disables inter-container communication, and disables Docker IP masquerading. The service retains its separate internal owner network for application traffic. The loopback bridge exists only to carry the exact host-published port; it does not become a shared service network or a general external-egress path.
+
+`tools/compose_topology/verify.py` is the static owner of this topology proof. It validates the exact service, network, port, secret, profile, credential, and image inventory from resolved Compose JSON. The runtime workflow separately inspects the created Docker networks, proves one expected container per loopback bridge, verifies the exact host bindings, and opens each published loopback port.
 
 ## Process hardening
 
@@ -126,4 +131,4 @@ docker compose \
   down --volumes --remove-orphans
 ```
 
-`.github/workflows/application-compose-ci.yml` renders the merged topology, verifies the credential and network matrix, builds every application image, starts a clean PostgreSQL and Object Store, executes bootstrap and migration, starts the APIs and six workers, and proves the exact capability-scoped worker registrations in PostgreSQL.
+`.github/workflows/application-compose-ci.yml` renders the merged topology, verifies the credential and network matrix, builds every application image, starts a clean PostgreSQL and Object Store, executes bootstrap and migration, starts the APIs and six workers, proves the exact loopback publication, and verifies the capability-scoped worker registrations in PostgreSQL.

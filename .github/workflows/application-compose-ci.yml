@@ -20,6 +20,7 @@ on:
       - packages/**
       - database/**
       - tools/compose_secrets/**
+      - tools/compose_topology/**
       - pyproject.toml
       - uv.lock
   pull_request:
@@ -40,6 +41,7 @@ on:
       - packages/**
       - database/**
       - tools/compose_secrets/**
+      - tools/compose_topology/**
       - pyproject.toml
       - uv.lock
   workflow_dispatch:
@@ -85,264 +87,10 @@ jobs:
             --profile "*" \
             config --format json > /tmp/application-compose.json
 
-          python - <<'PY'
-          from __future__ import annotations
-
-          import json
-          import os
-          import stat
-          from pathlib import Path
-
-          payload = json.loads(Path("/tmp/application-compose.json").read_text(encoding="utf-8"))
-          services = payload["services"]
-          expected_services = {
-              "collector-postgres",
-              "seaweedfs",
-              "object-store-bootstrap",
-              "migration",
-              "control-api",
-              "worker-gateway",
-              "manual-import-worker",
-              "http-worker",
-              "osm-worker",
-              "extraction-worker",
-              "normalization-worker",
-              "resolution-worker",
-              "collector-cli",
-          }
-          if set(services) != expected_services:
-              raise SystemExit(
-                  "application Compose service inventory mismatch: "
-                  f"expected={sorted(expected_services)} actual={sorted(services)}"
-              )
-
-          application_services = expected_services - {"collector-postgres", "seaweedfs"}
-          workers = {
-              "manual-import-worker",
-              "http-worker",
-              "osm-worker",
-              "extraction-worker",
-              "normalization-worker",
-              "resolution-worker",
-          }
-          egress_workers = {"http-worker", "osm-worker"}
-
-          def service_networks(name: str) -> set[str]:
-              value = services[name].get("networks", {})
-              return set(value if isinstance(value, dict) else value)
-
-          def service_secrets(name: str) -> set[str]:
-              result: set[str] = set()
-              for item in services[name].get("secrets", []):
-                  if isinstance(item, str):
-                      result.add(item)
-                  else:
-                      result.add(item["source"])
-              return result
-
-          def environment(name: str) -> dict[str, str | None]:
-              value = services[name].get("environment", {})
-              if not isinstance(value, dict):
-                  raise SystemExit(f"{name} environment did not normalize to an object")
-              return value
-
-          for name in application_services:
-              service = services[name]
-              if service.get("read_only") is not True:
-                  raise SystemExit(f"{name} must use a read-only root filesystem")
-              if "ALL" not in service.get("cap_drop", []):
-                  raise SystemExit(f"{name} must drop all Linux capabilities")
-              security_options = set(service.get("security_opt", []))
-              if "no-new-privileges:true" not in security_options:
-                  raise SystemExit(f"{name} must disable privilege escalation")
-              if service.get("privileged"):
-                  raise SystemExit(f"{name} must not run privileged")
-
-          forbidden_worker_environment = (
-              "COLLECTOR_DATABASE_URL",
-              "COLLECTOR_POSTGRES_",
-              "COLLECTOR_OBJECT_STORE_",
-              "ARTIFACT_S3_",
-              "AWS_ACCESS_KEY_ID",
-              "AWS_SECRET_ACCESS_KEY",
-          )
-          for name in workers:
-              worker_environment = environment(name)
-              forbidden = sorted(
-                  key
-                  for key in worker_environment
-                  if any(
-                      key == prefix or key.startswith(prefix)
-                      for prefix in forbidden_worker_environment
-                  )
-              )
-              if forbidden:
-                  raise SystemExit(f"{name} has forbidden owner credentials: {forbidden}")
-              if service_secrets(name):
-                  raise SystemExit(f"{name} must not mount platform owner secrets")
-              if services[name].get("ports"):
-                  raise SystemExit(f"{name} must not publish a host port")
-              expected_networks = {"collection-workers"}
-              if name in egress_workers:
-                  expected_networks.add("collection-acquisition-egress")
-              if service_networks(name) != expected_networks:
-                  raise SystemExit(
-                      f"{name} network scope mismatch: {sorted(service_networks(name))}"
-                  )
-
-          if services["worker-gateway"].get("ports"):
-              raise SystemExit("worker-gateway must not publish a host port")
-          if service_networks("worker-gateway") != {
-              "collection-infrastructure",
-              "collection-workers",
-          }:
-              raise SystemExit("worker-gateway must bridge only infrastructure and workers")
-          gateway_environment = environment("worker-gateway")
-          if gateway_environment.get("WORKER_GATEWAY_BIND_MODE") != "container":
-              raise SystemExit("worker-gateway must use the explicit container bind contract")
-          if gateway_environment.get("WORKER_GATEWAY_HOST") != "0.0.0.0":
-              raise SystemExit("worker-gateway container bind host must be 0.0.0.0")
-
-          if service_networks("control-api") != {
-              "collection-infrastructure",
-              "collection-operator",
-          }:
-              raise SystemExit("control-api network scope is broader than its owner contract")
-          control_ports = services["control-api"].get("ports", [])
-          if len(control_ports) != 1 or control_ports[0].get("host_ip") != "127.0.0.1":
-              raise SystemExit("control-api must publish exactly one loopback-only port")
-
-          for service_name in ("collector-postgres", "seaweedfs"):
-              for port in services[service_name].get("ports", []):
-                  if port.get("host_ip") != "127.0.0.1":
-                      raise SystemExit(f"{service_name} exposes a non-loopback host port")
-
-          networks = payload["networks"]
-          for name in (
-              "collection-infrastructure",
-              "collection-operator",
-              "collection-workers",
-          ):
-              if networks[name].get("internal") is not True:
-                  raise SystemExit(f"{name} must be an internal network")
-          if networks["collection-acquisition-egress"].get("internal") is True:
-              raise SystemExit("acquisition egress network must permit approved external access")
-
-          expected_profiles = {
-              "object-store-bootstrap": {"bootstrap"},
-              "migration": {"migration"},
-              "collector-cli": {"tools"},
-          }
-          for name, expected in expected_profiles.items():
-              if set(services[name].get("profiles", [])) != expected:
-                  raise SystemExit(f"{name} profile contract mismatch")
-          for name in application_services - set(expected_profiles):
-              if services[name].get("profiles"):
-                  raise SystemExit(f"{name} unexpectedly requires a Compose profile")
-
-          def resolve_secret_source(value: object) -> Path:
-              if not isinstance(value, str) or not value:
-                  raise SystemExit("Compose secret has no file source")
-              source = Path(value)
-              if source.is_absolute():
-                  return source.resolve()
-              direct = source.resolve()
-              compose_relative = (Path("deploy/compose") / source).resolve()
-              if direct.exists():
-                  return direct
-              return compose_relative
-
-          secrets = payload.get("secrets", {})
-          expected_secret_values = {
-              "collector-object-store-access-key": os.environ[
-                  "COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID"
-              ],
-              "collector-object-store-secret-key": os.environ[
-                  "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY"
-              ],
-              "worker-gateway-credentials": os.environ[
-                  "WORKER_GATEWAY_CREDENTIALS_JSON"
-              ],
-          }
-          if set(secrets) != set(expected_secret_values):
-              raise SystemExit(f"Compose secret inventory mismatch: {sorted(secrets)}")
-
-          expected_secret_root = Path("deploy/compose/.secrets").resolve()
-          if not expected_secret_root.is_dir() or expected_secret_root.is_symlink():
-              raise SystemExit("Compose secret root is unavailable or unsafe")
-          if stat.S_IMODE(expected_secret_root.stat().st_mode) != 0o700:
-              raise SystemExit("Compose secret root must remain owner-only")
-
-          for name, expected_value in expected_secret_values.items():
-              secret = secrets[name]
-              if secret.get("environment") is not None:
-                  raise SystemExit(f"{name} must not use an environment-backed secret")
-              source = resolve_secret_source(secret.get("file"))
-              if source.parent != expected_secret_root:
-                  raise SystemExit(f"{name} file source escaped the owned secret root")
-              if not source.is_file() or source.is_symlink():
-                  raise SystemExit(f"{name} file source does not exist or is unsafe")
-              if source.stat().st_uid != expected_secret_root.stat().st_uid:
-                  raise SystemExit(f"{name} file source has a different host owner")
-              if stat.S_IMODE(source.stat().st_mode) != 0o444:
-                  raise SystemExit(
-                      f"{name} must be read-only and readable by the fixed non-root container UID"
-                  )
-              if source.read_text(encoding="utf-8") != expected_value:
-                  raise SystemExit(f"{name} file source does not match its local test value")
-
-          object_store_secrets = {
-              "collector-object-store-access-key",
-              "collector-object-store-secret-key",
-          }
-          if service_secrets("control-api") != object_store_secrets:
-              raise SystemExit("control-api object-store secret scope mismatch")
-          if service_secrets("worker-gateway") != object_store_secrets | {
-              "worker-gateway-credentials"
-          }:
-              raise SystemExit("worker-gateway secret scope mismatch")
-
-          token_contract = {
-              "manual-import-worker": ("MANUAL_IMPORT_WORKER_TOKEN", "manual_import"),
-              "http-worker": ("HTTP_WORKER_TOKEN", "http_fetch"),
-              "osm-worker": ("OSM_WORKER_TOKEN", "osm_query"),
-              "extraction-worker": ("EXTRACTION_WORKER_TOKEN", "extraction"),
-              "normalization-worker": ("NORMALIZATION_WORKER_TOKEN", "normalization"),
-              "resolution-worker": ("RESOLUTION_WORKER_TOKEN", "entity_resolution"),
-          }
-          tokens = {name: os.environ[variable] for name, (variable, _) in token_contract.items()}
-          if len(set(tokens.values())) != len(tokens):
-              raise SystemExit("worker credentials must be unique per capability owner")
-          if any(len(value) < 32 for value in tokens.values()):
-              raise SystemExit("worker credentials must contain at least 32 characters")
-
-          credential_document = json.loads(os.environ["WORKER_GATEWAY_CREDENTIALS_JSON"])
-          if credential_document.get("contract") != "worker-gateway-local-credentials":
-              raise SystemExit("worker credential contract identity mismatch")
-          if (
-              credential_document.get("contractRevision")
-              != "worker-gateway-local-credentials-v1"
-          ):
-              raise SystemExit("worker credential contract revision mismatch")
-          actual_credentials = {
-              entry["token"]: (entry["workerId"], tuple(entry["capabilities"]))
-              for entry in credential_document["credentials"]
-          }
-          expected_credentials = {
-              tokens[name]: (f"{name}-local", (capability,))
-              for name, (_, capability) in token_contract.items()
-          }
-          if actual_credentials != expected_credentials:
-              raise SystemExit("worker credential document does not match service capabilities")
-
-          for name in application_services:
-              if "build" not in services[name]:
-                  raise SystemExit(f"{name} has no independently buildable image owner")
-          for name, service in services.items():
-              image = service.get("image", "")
-              if image.endswith(":latest"):
-                  raise SystemExit(f"{name} uses a forbidden latest image tag")
-          PY
+          python tools/compose_topology/verify.py \
+            --config /tmp/application-compose.json \
+            --secret-root deploy/compose/.secrets
+          python -m compileall -q tools/compose_secrets tools/compose_topology
 
       - name: Build every declared application image
         shell: bash
@@ -364,7 +112,7 @@ jobs:
               normalization-worker \
               resolution-worker
 
-      - name: Prove clean bootstrap, migration, APIs, and worker isolation
+      - name: Prove clean bootstrap, loopback publication, APIs, and worker isolation
         shell: bash
         run: |
           set -euo pipefail
@@ -389,6 +137,56 @@ jobs:
           }
           trap cleanup EXIT
 
+          verify_loopback_network() {
+            local network_name="$1"
+            local expected_service="$2"
+            local network_ids
+            network_ids="$(
+              docker network ls \
+                --filter "label=com.docker.compose.project=data-collection-platform" \
+                --filter "label=com.docker.compose.network=${network_name}" \
+                --format '{{.ID}}'
+            )"
+            if [[ -z "$network_ids" || "$network_ids" == *$'\n'* ]]; then
+              printf 'loopback network identity mismatch: %s -> %q\n' \
+                "$network_name" "$network_ids" >&2
+              return 1
+            fi
+            local network_state
+            network_state="$(
+              docker network inspect "$network_ids" \
+                --format '{{.Internal}}|{{.Driver}}|{{index .Options "com.docker.network.bridge.enable_icc"}}|{{index .Options "com.docker.network.bridge.enable_ip_masquerade"}}|{{index .Options "com.docker.network.bridge.host_binding_ipv4"}}|{{len .Containers}}'
+            )"
+            if [[ "$network_state" != "false|bridge|false|false|127.0.0.1|1" ]]; then
+              printf 'loopback network state mismatch: %s -> %s\n' \
+                "$network_name" "$network_state" >&2
+              return 1
+            fi
+            local attached_service
+            attached_service="$(
+              docker network inspect "$network_ids" \
+                --format '{{range .Containers}}{{.Name}}{{end}}'
+            )"
+            if [[ "$attached_service" != "data-collection-platform-${expected_service}-1" ]]; then
+              printf 'loopback network member mismatch: %s -> %s\n' \
+                "$network_name" "$attached_service" >&2
+              return 1
+            fi
+          }
+
+          verify_published_port() {
+            local service="$1"
+            local container_port="$2"
+            local expected_host_port="$3"
+            local actual
+            actual="$("${compose[@]}" port "$service" "$container_port")"
+            if [[ "$actual" != "127.0.0.1:${expected_host_port}" ]]; then
+              printf 'published port mismatch: %s:%s -> %s\n' \
+                "$service" "$container_port" "$actual" >&2
+              return 1
+            fi
+          }
+
           "${compose[@]}" up --detach --wait --wait-timeout 180 \
             collector-postgres seaweedfs
           "${compose[@]}" --profile bootstrap run --rm --no-deps \
@@ -403,6 +201,30 @@ jobs:
             extraction-worker \
             normalization-worker \
             resolution-worker
+
+          verify_loopback_network collection-control-loopback control-api
+          verify_loopback_network collection-postgres-loopback collector-postgres
+          verify_loopback_network collection-object-store-loopback seaweedfs
+          verify_published_port control-api 8080 "$CONTROL_API_PORT"
+          verify_published_port collector-postgres 5432 "$COLLECTOR_POSTGRES_PORT"
+          verify_published_port seaweedfs 8333 "$SEAWEEDFS_S3_PORT"
+          verify_published_port seaweedfs 9333 "$SEAWEEDFS_MASTER_PORT"
+
+          python - <<'PY'
+          import os
+          import socket
+
+          for variable in (
+              "COLLECTOR_POSTGRES_PORT",
+              "SEAWEEDFS_S3_PORT",
+              "SEAWEEDFS_MASTER_PORT",
+          ):
+              with socket.create_connection(
+                  ("127.0.0.1", int(os.environ[variable])),
+                  timeout=5,
+              ):
+                  pass
+          PY
 
           curl --fail --silent --show-error \
             http://127.0.0.1:"${CONTROL_API_PORT}"/health/ready \

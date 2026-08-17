@@ -102,6 +102,7 @@ services:
     networks:
       - collection-infrastructure
       - collection-operator
+      - collection-control-loopback
     healthcheck:
       test:
         - CMD
@@ -285,6 +286,12 @@ networks:
     internal: true
   collection-acquisition-egress:
     driver: bridge
+  collection-control-loopback:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
 
 secrets:
   collector-object-store-access-key:
