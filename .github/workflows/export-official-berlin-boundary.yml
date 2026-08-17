@@ -25,52 +25,91 @@ jobs:
           version: "0.10.0"
           enable-cache: true
       - run: uv sync --frozen --all-packages --dev
-      - name: Download exact official district GML
+      - name: Materialize official Berlin district-derived boundary
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .tmp/official-boundary
           uv run python - <<'PY'
           from pathlib import Path
-          import json
           import httpx
 
-          url = (
-              "https://gdi.berlin.de/services/wfs/alkis_bezirke"
-              "?service=WFS&version=2.0.0&request=GetFeature"
-              "&typenames=alkis_bezirke%3Abezirksgrenzen"
-              "&srsName=EPSG%3A4326&outputFormat=GML2"
+          from tools.live_collection.berlin_boundary import (
+              _canonical_json,
+              _sha256,
+              canonicalize_boundary,
+              update_campaign,
+          )
+
+          distribution_url = (
+              "https://tsb-opendata.s3.eu-central-1.amazonaws.com/"
+              "bezirksgrenzen/bezirksgrenzen.geojson"
           )
           with httpx.Client(
               timeout=httpx.Timeout(90.0),
               follow_redirects=False,
               headers={
-                  "Accept": "application/gml+xml, application/xml;q=0.9, text/xml;q=0.8",
+                  "Accept": "application/geo+json, application/json",
                   "User-Agent": "data-collection-platform-boundary-proof/1",
               },
           ) as client:
-              response = client.get(url)
-          output = Path(".tmp/official-boundary")
-          (output / "response.bin").write_bytes(response.content)
-          (output / "metadata.json").write_text(
-              json.dumps(
-                  {
-                      "status": response.status_code,
-                      "contentType": response.headers.get("content-type"),
-                      "contentLength": len(response.content),
-                      "url": str(response.url),
-                  },
-                  sort_keys=True,
-                  separators=(",", ":"),
-              ) + "\n",
-              encoding="utf-8",
+              response = client.get(distribution_url)
+          response.raise_for_status()
+          payload = response.json()
+          features = payload.get("features") if isinstance(payload, dict) else None
+          if not isinstance(features, list) or len(features) != 12:
+              raise SystemExit("ODIS Berlin district distribution must contain exactly 12 features")
+          if any(
+              not isinstance(feature, dict)
+              or not isinstance(feature.get("properties"), dict)
+              or feature["properties"].get("Land_name") != "Berlin"
+              for feature in features
+          ):
+              raise SystemExit("ODIS district distribution contains a non-Berlin feature")
+
+          root = Path.cwd()
+          campaign_root = root / "campaigns/berlin_recording_services"
+          boundary_path = campaign_root / "geography/berlin-boundary.geojson"
+          provenance_path = campaign_root / "geography/berlin-boundary.provenance.json"
+          canonical = canonicalize_boundary(payload)
+          boundary_bytes = _canonical_json(canonical)
+          boundary_digest = _sha256(boundary_bytes)
+          source_digest = _sha256(response.content)
+          relative = boundary_path.relative_to(root).as_posix()
+          provenance = {
+              "contract": "berlin-boundary-provenance",
+              "contractRevision": "1",
+              "authority": "State of Berlin",
+              "officialDatasetTitle": "ALKIS Berlin Bezirke - WFS",
+              "officialDatasetIdentifier": "ced31d7d-353d-373a-b9a9-2251b9498bc0",
+              "officialServiceUrl": "https://gdi.berlin.de/services/wfs/alkis_bezirke",
+              "distributionOwner": "Open Data Informationsstelle Berlin / Technologiestiftung Berlin",
+              "distributionUrl": distribution_url,
+              "distributionFeatureCount": 12,
+              "derivation": "deterministic union of the 12 official Berlin district polygons",
+              "licenseIdentifier": "dl-de-zero-2.0",
+              "licenseTitle": "Datenlizenz Deutschland - Zero - Version 2.0",
+              "sourceDigest": source_digest,
+              "boundaryDigest": boundary_digest,
+              "boundaryPath": relative,
+          }
+          boundary_path.parent.mkdir(parents=True, exist_ok=True)
+          boundary_path.write_bytes(boundary_bytes)
+          provenance_path.write_bytes(_canonical_json(provenance))
+          modified = update_campaign(
+              campaign_root,
+              boundary_path=relative,
+              digest=boundary_digest,
           )
-          if response.status_code != 200 or not response.content:
-              raise SystemExit("official district response is unavailable")
+          if modified != (campaign_root / "campaign.yaml",):
+              raise SystemExit(f"unexpected campaign files changed: {modified}")
           PY
+          uv run collector config validate berlin_recording_services
       - uses: actions/upload-artifact@v4
         with:
-          name: official-berlin-boundary-raw
-          path: .tmp/official-boundary/
+          name: official-berlin-boundary
+          path: |
+            campaigns/berlin_recording_services/campaign.yaml
+            campaigns/berlin_recording_services/geography/berlin-boundary.geojson
+            campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json
           if-no-files-found: error
           retention-days: 1
