@@ -1,0 +1,71 @@
+paignKey": bundle.campaign_key, "path": path, "reason": reason},
++        required_action="Publish one canonical boundary/provenance identity and validate again.",
++        correlation_id=correlation_id,
++    )
+diff --git a/packages/collection_application/src/collection_application/campaign_validation.py b/packages/collection_application/src/collection_application/campaign_validation.py
+index 334c4b7..0587c99 100644
+--- a/packages/collection_application/src/collection_application/campaign_validation.py
++++ b/packages/collection_application/src/collection_application/campaign_validation.py
+@@ -29,6 +29,26 @@ def validate_campaign_references(
+     binding_map = {item.key: item for item in documents.source_bindings.items}
+     attribute_keys = {item.key for item in documents.attributes.items}
+ 
++    if campaign.readiness.state == "ready" and documents.geography is None:
++        violations.append(
++            {
++                "reference": "campaign.geography_revision",
++                "value": campaign.geography_revision,
++                "reason": "geography_document_missing",
++            }
++        )
++    if (
++        documents.geography is not None
++        and documents.geography.geography_revision != campaign.geography_revision
++    ):
++        violations.append(
++            {
++                "reference": "geography.geography_revision",
++                "expected": campaign.geography_revision,
++                "actual": documents.geography.geography_revision,
++            }
++        )
++
+     _append_missing(violations, "campaign.entity_kinds", campaign.entity_kinds, kind_keys)
+     _append_missing(
+         violations,
+diff --git a/packages/collection_application/src/collection_application/canonicalization.py b/packages/collection_application/src/collection_application/canonicalization.py
+index 83a7d66..289812b 100644
+--- a/packages/collection_application/src/collection_application/canonicalization.py
++++ b/packages/collection_application/src/collection_application/canonicalization.py
+@@ -8,6 +8,7 @@ from collection_application.campaign_documents import (
+     ATTRIBUTES_DOCUMENT,
+     CAMPAIGN_DOCUMENT,
+     ENTITY_KINDS_DOCUMENT,
++    GEOGRAPHY_DOCUMENT,
+     SOURCE_BINDINGS_DOCUMENT,
+     TAXONOMY_DOCUMENT,
+     ParsedCampaignDocuments,
+@@ -26,6 +27,9 @@ def canonical_documents(
+         ATTRIBUTES_DOCUMENT: documents.attributes.model_dump(mode="json"),
+         SOURCE_BINDINGS_DOCUMENT: documents.source_bindings.model_dump(mode="json"),
+     }
++    if documents.geography is not None:
++        result[GEOGRAPHY_DOCUMENT] = documents.geography.model_dump(mode="json")
++        result.update(documents.geography_artifacts)
+     for policy in documents.source_policies.values():
+         result[f"source_policies/{policy.policy_key}.yaml"] = policy.model_dump(mode="json")
+     for path, rows in seed_rows.items():
+diff --git a/packages/collection_application/tests/test_campaign_snapshot_service.py b/packages/collection_application/tests/test_campaign_snapshot_service.py
+index 57c93ef..d9df970 100644
+--- a/packages/collection_application/tests/test_campaign_snapshot_service.py
++++ b/packages/collection_application/tests/test_campaign_snapshot_service.py
+@@ -121,3 +121,97 @@ def test_manual_seed_declared_format_must_be_policy_approved() -> None:
+         )
+ 
+     assert captured.value.envelope.code == "MANUAL_SEED_FORMAT_FORBIDDEN"
++
++
++def test_ready_campaign_requires_exact_geography_revision() -> None:
++    import yaml
++
++    files 

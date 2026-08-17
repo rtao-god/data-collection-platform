@@ -1,0 +1,101 @@
+e.model_validate(payload)
+     except ValidationError as exc:
+@@ -201,6 +222,109 @@ def _load_source_policies(
+     return policies
+ 
+ 
++def _load_geography(
++    bundle: RawCampaignBundle,
++    correlation_id: str,
++) -> tuple[GeographyDocument | None, dict[str, object]]:
++    if GEOGRAPHY_DOCUMENT not in bundle.files:
++        return None, {}
++    geography = _load_model(bundle, GEOGRAPHY_DOCUMENT, GeographyDocument, correlation_id)
++    boundary_raw = _require_artifact(
++        bundle,
++        geography.boundary_artifact_path,
++        correlation_id,
++    )
++    provenance_raw = _require_artifact(
++        bundle,
++        geography.provenance_artifact_path,
++        correlation_id,
++    )
++    try:
++        boundary = decode_boundary_geojson(boundary_raw)
++    except GeographyBoundaryError as exc:
++        raise owner_error(
++            error_type="collection/campaign-geography-boundary-invalid",
++            owner="CampaignGeography",
++            code=exc.code,
++            message=str(exc),
++            context={
++                "campaignKey": bundle.campaign_key,
++                "path": geography.boundary_artifact_path,
++                **exc.context,
++            },
++            required_action="Publish a reviewed canonical WGS84 Polygon or MultiPolygon.",
++            correlation_id=correlation_id,
++        ) from exc
++    if boundary.canonical_geojson != boundary_raw:
++        _raise_geography_identity_error(
++            bundle,
++            geography.boundary_artifact_path,
++            "boundary_not_canonical",
++            correlation_id,
++        )
++    if boundary.geometry_digest != geography.boundary_digest:
++        _raise_geography_digest_error(
++            bundle,
++            geography.boundary_artifact_path,
++            geography.boundary_digest,
++            boundary.geometry_digest,
++            correlation_id,
++        )
++    provenance_payload = _load_json(
++        provenance_raw, geography.provenance_artifact_path, correlation_id
++    )
++    provenance = _validate_model(
++        bundle,
++        geography.provenance_artifact_path,
++        provenance_payload,
++        GeographyProvenanceDocument,
++        correlation_id,
++    )
++    observed_provenance_digest = f"sha256:{sha256(provenance_raw).hexdigest()}"
++    if observed_provenance_digest != geography.provenance_digest:
++        _raise_geography_digest_error(
++            bundle,
++            geography.provenance_artifact_path,
++            geography.provenance_digest,
++            observed_provenance_digest,
++            correlation_id,
++        )
++    if (
++        provenance.boundary_digest != geography.boundary_digest
++        or provenance.boundary_artifact_path != geography.boundary_artifact_path
++    ):
++        _raise_geography_identity_error(
++            bundle,
++            geography.provenance_artifact_path,
++            "provenance_boundary_identity_mismatch",
++            correlation_id,
++        )
++    boundary_document = json.loads(boundary.canonical_geojson)
++    return geography, {
++        geography.boundary_artifact_path: boundary_document,
++        geography.provenance_artifact_path: provenance.model_dump(mode="json"),
++    }
++
++
++def _require_artifact(
++    bundle: RawCampaignBundle,
++    path: str,
++    correlation_id: str,
++) -> bytes:
++    raw = bundle.files.get(path)
++    if raw is not None:
++        return raw
++    raise owner_error(
++        error_type="collection/campaign-geography-artifact-missing",
++        owner="C

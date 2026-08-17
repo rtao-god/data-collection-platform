@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/apply-campaign-geography-owner.yml
-      - .github/apply/campaign-geography-owner.patch.gz
+      - ".github/apply/campaign-geography-owner.patch.part-*"
   workflow_dispatch:
 
 permissions:
@@ -37,9 +37,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gzip --decompress --stdout \
-            .github/apply/campaign-geography-owner.patch.gz \
+          cat \
+            .github/apply/campaign-geography-owner.patch.part-00 \
+            .github/apply/campaign-geography-owner.patch.part-01 \
+            .github/apply/campaign-geography-owner.patch.part-02 \
+            .github/apply/campaign-geography-owner.patch.part-03 \
+            .github/apply/campaign-geography-owner.patch.part-04 \
+            .github/apply/campaign-geography-owner.patch.part-05 \
+            .github/apply/campaign-geography-owner.patch.part-06 \
+            .github/apply/campaign-geography-owner.patch.part-07 \
             > /tmp/campaign-geography-owner.patch
+          echo "1a6e8698372aed01cc86f06529613d615ed0ebe89d7347c387c826d0f95f2578  /tmp/campaign-geography-owner.patch" \
+            | sha256sum --check --strict
           git apply --index --3way /tmp/campaign-geography-owner.patch
           git diff --cached --check
       - name: Verify campaign geography owner
@@ -78,9 +87,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git rm \
-            .github/workflows/apply-campaign-geography-owner.yml \
-            .github/apply/campaign-geography-owner.patch.gz
+          git rm .github/workflows/apply-campaign-geography-owner.yml
+          git rm .github/apply/campaign-geography-owner.patch.gz
+          git rm .github/apply/campaign-geography-owner.patch.part-*
           git add -A
           git diff --cached --check
           git config user.name rtao-god
