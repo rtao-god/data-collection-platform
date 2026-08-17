@@ -10,6 +10,19 @@ Create an ignored local environment file from the example and replace every loca
 cp deploy/compose/.env.example deploy/compose/.env.local
 ```
 
+Materialize the values owned by that environment file into the ignored, file-backed secret
+directory before any Compose command:
+
+```text
+python tools/compose_secrets/materialize.py --environment-file deploy/compose/.env.local --output-directory deploy/compose/.secrets
+```
+
+Run the same command again after rotating any object-store key or Worker Gateway credential. On
+POSIX hosts the materializer keeps `deploy/compose/.secrets` owner-only (`0700`) and writes each
+mounted file read-only (`0444`). Docker Compose bind-mounts local secret files without remapping
+their host UID, so the read bit is required by the fixed non-root container UID. Access remains
+restricted by the owner-only host directory and by the exact per-service secret mounts.
+
 Use both Compose files for every command:
 
 ```text

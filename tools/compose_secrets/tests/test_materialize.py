@@ -43,33 +43,40 @@ def _environment(*, suffix: str = "one") -> dict[str, str]:
     }
 
 
-def test_materialize_writes_exact_private_files(tmp_path: Path) -> None:
+def test_materialize_writes_exact_read_only_mounted_files(tmp_path: Path) -> None:
     materializer = _load_materializer()
     output = tmp_path / "compose-secrets"
 
     paths = materializer.materialize(output, _environment())
 
     assert set(paths) == {
-        "COLLECTOR_OBJECT_STORE_ACCESS_KEY_SECRET_FILE",
-        "COLLECTOR_OBJECT_STORE_SECRET_KEY_SECRET_FILE",
-        "WORKER_GATEWAY_CREDENTIALS_SECRET_FILE",
+        "COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE",
+        "COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE",
+        "WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE",
     }
+    assert paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE"].name == (
+        "collector-object-store-access-key"
+    )
+    assert paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE"].name == (
+        "collector-object-store-secret-key"
+    )
+    assert paths["WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE"].name == ("worker-gateway-credentials")
     assert (
-        paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SECRET_FILE"].read_text(encoding="utf-8")
+        paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE"].read_text(encoding="utf-8")
         == "access-one"
     )
     assert (
-        paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SECRET_FILE"].read_text(encoding="utf-8")
+        paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE"].read_text(encoding="utf-8")
         == "secret-one"
     )
-    credential_path = paths["WORKER_GATEWAY_CREDENTIALS_SECRET_FILE"]
+    credential_path = paths["WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE"]
     assert json.loads(credential_path.read_text(encoding="utf-8"))["contract"] == (
         "worker-gateway-local-credentials"
     )
     if os.name != "nt":
         assert stat.S_IMODE(output.stat().st_mode) == 0o700
         for path in paths.values():
-            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+            assert stat.S_IMODE(path.stat().st_mode) == 0o444
 
 
 def test_materialize_replaces_an_existing_owned_secret_atomically(tmp_path: Path) -> None:
@@ -81,10 +88,95 @@ def test_materialize_replaces_an_existing_owned_secret_atomically(tmp_path: Path
 
     assert first == second
     assert (
-        second["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SECRET_FILE"].read_text(encoding="utf-8")
+        second["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE"].read_text(encoding="utf-8")
         == "access-two"
     )
     assert not tuple(output.glob(".*.*"))
+
+
+def test_run_reads_secret_sources_from_environment_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    materializer = _load_materializer()
+    environment = _environment(suffix="file")
+    environment_file = tmp_path / ".env.local"
+    environment_file.write_text(
+        "\n".join(
+            (
+                (
+                    "COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID="
+                    f"{environment['COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID']}"
+                ),
+                "UNRELATED_VALUE=ignored",
+                (
+                    "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY="
+                    f"{environment['COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY']}"
+                ),
+                (
+                    "WORKER_GATEWAY_CREDENTIALS_JSON='"
+                    f"{environment['WORKER_GATEWAY_CREDENTIALS_JSON']}'"
+                ),
+            )
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "compose-secrets"
+
+    exit_code = materializer.run(
+        [
+            "--environment-file",
+            str(environment_file),
+            "--output-directory",
+            str(output),
+        ],
+        environment={},
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert captured.err == ""
+    assert payload["owner"] == "ApplicationComposeSecrets"
+    assert payload["status"] == "materialized"
+    assert (output / "collector-object-store-access-key").read_text(encoding="utf-8") == (
+        "access-file"
+    )
+    assert (
+        json.loads((output / "worker-gateway-credentials").read_text(encoding="utf-8"))[
+            "credentials"
+        ][0]["workerId"]
+        == "worker-local"
+    )
+
+
+def test_process_environment_overrides_environment_file(
+    tmp_path: Path,
+) -> None:
+    materializer = _load_materializer()
+    environment_file = tmp_path / ".env.local"
+    file_environment = _environment(suffix="file")
+    environment_file.write_text(
+        "\n".join(f"{key}='{value}'" for key, value in file_environment.items()),
+        encoding="utf-8",
+    )
+    process_environment = _environment(suffix="process")
+    output = tmp_path / "compose-secrets"
+
+    exit_code = materializer.run(
+        [
+            "--environment-file",
+            str(environment_file),
+            "--output-directory",
+            str(output),
+        ],
+        environment=process_environment,
+    )
+
+    assert exit_code == 0
+    assert (output / "collector-object-store-access-key").read_text(encoding="utf-8") == (
+        "access-process"
+    )
 
 
 def test_missing_source_returns_typed_owner_error(
@@ -106,6 +198,49 @@ def test_missing_source_returns_typed_owner_error(
     assert payload["owner"] == "ApplicationComposeSecrets"
     assert payload["code"] == "COMPOSE_SECRET_SOURCE_MISSING"
     assert payload["context"] == {"sourceVariable": "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY"}
+
+
+def test_duplicate_environment_source_returns_typed_owner_error(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    materializer = _load_materializer()
+    environment = _environment()
+    environment_file = tmp_path / ".env.local"
+    environment_file.write_text(
+        "\n".join(
+            (
+                "COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID=first",
+                "COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID=second",
+                (
+                    "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY="
+                    f"{environment['COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY']}"
+                ),
+                (
+                    "WORKER_GATEWAY_CREDENTIALS_JSON='"
+                    f"{environment['WORKER_GATEWAY_CREDENTIALS_JSON']}'"
+                ),
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = materializer.run(
+        [
+            "--environment-file",
+            str(environment_file),
+            "--output-directory",
+            str(tmp_path / "compose-secrets"),
+        ],
+        environment={},
+    )
+    output = capsys.readouterr()
+    payload = json.loads(output.err)
+
+    assert exit_code == 2
+    assert payload["code"] == "COMPOSE_SECRET_ENVIRONMENT_SOURCE_DUPLICATED"
+    assert payload["context"]["sourceVariable"] == ("COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID")
+    assert payload["context"]["lineNumber"] == 2
 
 
 def test_symlink_secret_target_is_rejected(tmp_path: Path) -> None:
