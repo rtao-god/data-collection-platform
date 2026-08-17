@@ -14,6 +14,8 @@ import httpx
 import yaml
 from defusedxml import ElementTree
 
+from collection_application.geography import decode_boundary_geojson
+
 _OFFICIAL_HOST_SUFFIX = ".berlin.de"
 _PORTAL_ENDPOINTS = (
     "https://daten.berlin.de/api/3/action/package_search",
@@ -567,9 +569,21 @@ def write_geography_revision(
     provenance_path = campaign_root / provenance_relative
     geography_path = campaign_root / "geography.yaml"
 
-    canonical = canonicalize_boundary(canonical_boundary)
-    boundary_bytes = _canonical_json(canonical)
-    boundary_digest = _sha256(boundary_bytes)
+    canonical_feature = canonicalize_boundary(canonical_boundary)
+    geometry = canonical_feature.get("geometry")
+    if not isinstance(geometry, Mapping):
+        raise BoundaryMaterializationError("canonical Berlin boundary feature has no geometry")
+    boundary = decode_boundary_geojson(
+        json.dumps(
+            geometry,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    )
+    boundary_bytes = boundary.canonical_geojson
+    boundary_digest = boundary.geometry_digest
     feature_label = "geometry" if distribution_feature_count == 1 else "geometries"
     provenance = {
         "authority": "State of Berlin",

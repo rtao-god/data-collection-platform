@@ -17,6 +17,8 @@ from tools.live_collection.berlin_boundary import (
     write_geography_revision,
 )
 
+from collection_application.geography import decode_boundary_geojson
+
 
 def _polygon() -> dict[str, object]:
     return {
@@ -273,9 +275,12 @@ def test_geography_writer_materializes_one_typed_revision(tmp_path: Path) -> Non
     }
 
     boundary = boundary_path.read_bytes()
+    parsed_boundary = decode_boundary_geojson(boundary)
     provenance = provenance_path.read_bytes()
     geography = yaml.safe_load(geography_path.read_text())
     provenance_value = json.loads(provenance)
+    assert json.loads(boundary)["type"] == "Polygon"
+    assert parsed_boundary.canonical_geojson == boundary
     assert geography == {
         "schema_revision": "geography-config-v1",
         "geography_revision": "berlin-official-boundary-v1",
