@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.engine import Connection, Engine
+
 from collection_application import (
     RetryPolicy,
     WorkInputArtifact,
@@ -21,7 +23,6 @@ from collection_infrastructure.postgres.manual_import_admission import (
 )
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import stage_runs
-from sqlalchemy.engine import Connection, Engine
 
 
 class PostgresManualImportChildWorkWriter:

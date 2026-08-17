@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
 from collection_infrastructure.postgres.artifact_metadata import artifact_records
 from collection_infrastructure.postgres.metadata import collector_metadata
 from collection_infrastructure.postgres.work_metadata import work_units
-from sqlalchemy.dialects import postgresql
 
 MANUAL_IMPORT_SCHEMA = "manual_import"
 manual_import_metadata = collector_metadata

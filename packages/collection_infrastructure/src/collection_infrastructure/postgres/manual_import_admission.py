@@ -6,6 +6,9 @@ from typing import Protocol
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.exc import SQLAlchemyError
+
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionResult,
@@ -18,8 +21,6 @@ from collection_infrastructure.postgres.manual_import_metadata import (
     plan_admissions,
 )
 from collection_infrastructure.postgres.work_metadata import work_units
-from sqlalchemy.engine import Connection, Engine, RowMapping
-from sqlalchemy.exc import SQLAlchemyError
 
 
 class ManualImportChildWorkWriter(Protocol):

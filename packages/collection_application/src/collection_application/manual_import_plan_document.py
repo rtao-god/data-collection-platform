@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from hashlib import sha256
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from collection_application.manual_import_admission import ManualImportPlanForAdmission
 from collection_contracts import ManualImportPlan
 from manual_import_core import (
@@ -14,7 +16,6 @@ from manual_import_core import (
     canonical_manual_import_plan_json,
     verify_manual_import_plan,
 )
-from pydantic import ValidationError
 
 _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 

@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID
 
+from sqlalchemy import create_engine
+
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionService,
@@ -21,7 +23,6 @@ from manual_import_core import (
     build_manual_import_plan,
     canonical_manual_import_plan_json,
 )
-from sqlalchemy import create_engine
 
 _STAGE_RUN_ID = UUID("00000000-0000-0000-0000-000000000207")
 

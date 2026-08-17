@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from collection_infrastructure.postgres.manual_import_metadata import plan_admissions
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable
+
+from collection_infrastructure.postgres.manual_import_metadata import plan_admissions
 
 
 def test_manual_import_admission_metadata_owns_canonical_plan_and_record_route() -> None:

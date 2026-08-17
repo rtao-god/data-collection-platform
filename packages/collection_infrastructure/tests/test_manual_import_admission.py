@@ -7,6 +7,8 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from sqlalchemy.dialects import postgresql
+
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionService,
@@ -23,7 +25,6 @@ from manual_import_core import (
     build_manual_import_plan,
     canonical_manual_import_plan_json,
 )
-from sqlalchemy.dialects import postgresql
 
 _ADMISSION_ID = UUID("00000000-0000-0000-0000-000000000401")
 _PARENT_WORK_ID = UUID("00000000-0000-0000-0000-000000000402")

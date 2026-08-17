@@ -5,6 +5,7 @@ from hashlib import sha256
 from uuid import UUID
 
 import pytest
+
 from collection_application.manual_import_plan_document import (
     ManualImportPlanDocumentError,
     decode_manual_import_plan,
