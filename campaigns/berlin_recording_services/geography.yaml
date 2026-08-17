@@ -1,0 +1,6 @@
+schema_revision: geography-config-v1
+geography_revision: berlin-official-boundary-v1
+boundary_artifact_path: geography/berlin-boundary.geojson
+boundary_digest: sha256:d67bbca795b0a3f0b5741ba8609222e35cb81d3402df03fc403409e666ea0b9a
+provenance_artifact_path: geography/berlin-boundary.provenance.json
+provenance_digest: sha256:7a7b5e2c9a5c2d2d9a0f3914de858b707b90bafa438df26ccf55a838a7a125d1

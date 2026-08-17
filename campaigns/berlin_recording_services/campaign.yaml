@@ -2,33 +2,28 @@ schema_revision: campaign-config-v1
 campaign_key: berlin_recording_services
 display_name: Berlin Recording Services
 locales:
-  - de-DE
-  - en-GB
+- de-DE
+- en-GB
 timezone: Europe/Berlin
 entity_kinds:
-  - organization
-  - place
-  - provider
+- organization
+- place
+- provider
 target_categories:
-  - recording_studio
-  - vocal_recording
-  - band_recording
-  - drum_recording
-  - podcast_studio
-  - voice_over_adr
-  - producer
-  - mixing_engineer
-  - mastering_service
-  - rehearsal_recording_space
+- recording_studio
+- vocal_recording
+- band_recording
+- drum_recording
+- podcast_studio
+- voice_over_adr
+- producer
+- mixing_engineer
+- mastering_service
+- rehearsal_recording_space
 geography_revision: berlin-official-boundary-v1
 enabled_source_bindings:
-  - manual_seed_import
+- manual_seed_import
 quality_profile: berlin-recording-quality-v1
 export_profile: collector-candidate-export-v1
 readiness:
-  state: blocked
-  blockers:
-    - code: BERLIN_BOUNDARY_ARTIFACT_MISSING
-      owner: CampaignGeography
-      message: The approved Berlin polygon artifact is not present in this implementation slice.
-      required_action: Add the reviewed official polygon, provenance, and deterministic geography revision before creating a production run.
+  state: ready
