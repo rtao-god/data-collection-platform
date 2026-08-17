@@ -502,6 +502,7 @@
       "WorkCapability": {
         "enum": [
           "manual_import",
+          "manual_record",
           "osm_query",
           "http_fetch",
           "browser_fetch",
