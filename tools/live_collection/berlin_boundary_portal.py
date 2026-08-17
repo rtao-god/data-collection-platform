@@ -16,12 +16,11 @@ from tools.live_collection.berlin_boundary import (
     BoundaryMaterializationError,
     MaterializedBoundary,
     ResourceCandidate,
-    _canonical_json,
+    _distribution_feature_count,
     _require_official_url,
-    _sha256,
     canonicalize_boundary,
     download_candidate,
-    update_campaign,
+    write_geography_revision,
 )
 
 _SEARCH_URLS = (
@@ -220,9 +219,6 @@ def materialize_from_portal(
     *,
     timeout_seconds: float,
 ) -> tuple[Path, Path, tuple[Path, ...]]:
-    campaign_root = repository_root / "campaigns/berlin_recording_services"
-    boundary_path = campaign_root / "geography/berlin-boundary.geojson"
-    provenance_path = campaign_root / "geography/berlin-boundary.provenance.json"
     selected: ResourceCandidate | None = None
     downloaded: MaterializedBoundary | None = None
     canonical: Mapping[str, Any] | None = None
@@ -246,35 +242,18 @@ def materialize_from_portal(
         raise BoundaryMaterializationError(
             "no Berlin portal boundary resource passed validation: " + "; ".join(errors)
         )
-    boundary_bytes = _canonical_json(canonical)
-    boundary_digest = _sha256(boundary_bytes)
-    relative = boundary_path.relative_to(repository_root).as_posix()
-    provenance = {
-        "contract": "berlin-boundary-provenance",
-        "contractRevision": "1",
-        "authority": "State of Berlin",
-        "discoveryMethod": "Berlin Open Data portal JSON-LD",
-        "datasetTitle": selected.dataset_title,
-        "datasetIdentifier": selected.dataset_identifier,
-        "resourceIdentifier": selected.resource_identifier,
-        "resourceUrl": downloaded.source_url,
-        "resourceFormat": selected.resource_format,
-        "featureType": downloaded.feature_type,
-        "licenseIdentifier": selected.license_identifier,
-        "licenseTitle": selected.license_title,
-        "sourceDigest": downloaded.source_digest,
-        "boundaryDigest": boundary_digest,
-        "boundaryPath": relative,
-    }
-    boundary_path.parent.mkdir(parents=True, exist_ok=True)
-    boundary_path.write_bytes(boundary_bytes)
-    provenance_path.write_bytes(_canonical_json(provenance))
-    modified = update_campaign(
-        campaign_root,
-        boundary_path=relative,
-        digest=boundary_digest,
+    return write_geography_revision(
+        repository_root,
+        canonical_boundary=canonical,
+        source_digest=downloaded.source_digest,
+        source_url=downloaded.source_url,
+        dataset_title=selected.dataset_title,
+        dataset_identifier=selected.dataset_identifier,
+        distribution_owner="State of Berlin Open Data Portal",
+        distribution_feature_count=_distribution_feature_count(downloaded.geojson),
+        license_identifier=selected.license_identifier,
+        license_title=selected.license_title,
     )
-    return boundary_path, provenance_path, modified
 
 
 def _parser() -> argparse.ArgumentParser:

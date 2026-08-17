@@ -14,6 +14,7 @@ from tools.live_collection.berlin_boundary import (
     canonicalize_boundary,
     discover_candidates,
     update_campaign,
+    write_geography_revision,
 )
 
 
@@ -193,3 +194,98 @@ def test_campaign_update_replaces_boundary_identity_and_only_matching_blocker(
         "boundary_artifact_path": ("campaigns/example/geography/berlin-boundary.geojson"),
         "boundary_digest": "sha256:" + "a" * 64,
     }
+
+
+def test_campaign_update_marks_ready_without_empty_blockers(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    (campaign / "campaign.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "readiness": {
+                    "state": "blocked",
+                    "blockers": [
+                        {
+                            "code": "BERLIN_BOUNDARY_ARTIFACT_MISSING",
+                            "owner": "CampaignGeography",
+                        }
+                    ],
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    modified = update_campaign(
+        campaign,
+        boundary_path="geography/berlin-boundary.geojson",
+        digest="sha256:" + "a" * 64,
+    )
+
+    assert modified == (campaign / "campaign.yaml",)
+    campaign_value = yaml.safe_load((campaign / "campaign.yaml").read_text())
+    assert campaign_value["readiness"] == {"state": "ready"}
+
+
+def test_geography_writer_materializes_one_typed_revision(tmp_path: Path) -> None:
+    repository_root = tmp_path / "repository"
+    campaign_root = repository_root / "campaigns/berlin_recording_services"
+    campaign_root.mkdir(parents=True)
+    (campaign_root / "campaign.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "geography_revision": "berlin-official-boundary-v1",
+                "readiness": {
+                    "state": "blocked",
+                    "blockers": [
+                        {
+                            "code": "BERLIN_BOUNDARY_ARTIFACT_MISSING",
+                            "owner": "CampaignGeography",
+                        }
+                    ],
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    boundary_path, provenance_path, modified = write_geography_revision(
+        repository_root,
+        canonical_boundary={"type": "Feature", "geometry": _polygon()},
+        source_digest="sha256:" + "b" * 64,
+        source_url="https://gdi.berlin.de/official-boundary.geojson",
+        dataset_title="Official Berlin boundary",
+        dataset_identifier="official-berlin-boundary",
+        distribution_owner="State of Berlin Open Data",
+        distribution_feature_count=12,
+        license_identifier="dl-de-zero-2.0",
+        license_title="Datenlizenz Deutschland Zero 2.0",
+    )
+
+    geography_path = campaign_root / "geography.yaml"
+    assert boundary_path == campaign_root / "geography/berlin-boundary.geojson"
+    assert provenance_path == (campaign_root / "geography/berlin-boundary.provenance.json")
+    assert {path.name for path in modified} == {"campaign.yaml", "geography.yaml"}
+    assert yaml.safe_load((campaign_root / "campaign.yaml").read_text())["readiness"] == {
+        "state": "ready"
+    }
+
+    boundary = boundary_path.read_bytes()
+    provenance = provenance_path.read_bytes()
+    geography = yaml.safe_load(geography_path.read_text())
+    provenance_value = json.loads(provenance)
+    assert geography == {
+        "schema_revision": "geography-config-v1",
+        "geography_revision": "berlin-official-boundary-v1",
+        "boundary_artifact_path": "geography/berlin-boundary.geojson",
+        "boundary_digest": "sha256:" + __import__("hashlib").sha256(boundary).hexdigest(),
+        "provenance_artifact_path": "geography/berlin-boundary.provenance.json",
+        "provenance_digest": "sha256:" + __import__("hashlib").sha256(provenance).hexdigest(),
+    }
+    assert provenance_value["contract"] == "campaign-geography-provenance"
+    assert provenance_value["contract_revision"] == "campaign-geography-provenance-v1"
+    assert provenance_value["boundary_artifact_path"] == geography["boundary_artifact_path"]
+    assert provenance_value["boundary_digest"] == geography["boundary_digest"]
+    assert provenance_value["distribution_feature_count"] == 12

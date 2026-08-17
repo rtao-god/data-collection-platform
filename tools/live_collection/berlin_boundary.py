@@ -472,6 +472,7 @@ def _update_yaml_value(value: object, boundary_path: str, digest: str) -> tuple[
         if isinstance(blockers, Sequence) and not blockers:
             readiness = dict(readiness)
             readiness["state"] = "ready"
+            readiness.pop("blockers", None)
             result["readiness"] = readiness
     return result, changes
 
@@ -504,14 +505,136 @@ def update_campaign(
     return tuple(modified)
 
 
+def _distribution_feature_count(value: Mapping[str, Any]) -> int:
+    if value.get("type") != "FeatureCollection":
+        return 1
+    features = value.get("features")
+    if not isinstance(features, Sequence) or isinstance(features, (str, bytes, bytearray)):
+        raise BoundaryMaterializationError("boundary FeatureCollection has no feature sequence")
+    if not features:
+        raise BoundaryMaterializationError("boundary FeatureCollection is empty")
+    return len(features)
+
+
+def _campaign_geography_revision(campaign_root: Path) -> str:
+    campaign_path = campaign_root / "campaign.yaml"
+    value = yaml.safe_load(campaign_path.read_text(encoding="utf-8"))
+    if not isinstance(value, Mapping):
+        raise BoundaryMaterializationError("campaign.yaml must contain one mapping")
+    revision = value.get("geography_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise BoundaryMaterializationError(
+            "campaign.yaml must declare an explicit geography_revision"
+        )
+    return revision
+
+
+def write_geography_revision(
+    repository_root: Path,
+    *,
+    canonical_boundary: Mapping[str, Any],
+    source_digest: str,
+    source_url: str,
+    dataset_title: str,
+    dataset_identifier: str,
+    distribution_owner: str,
+    distribution_feature_count: int,
+    license_identifier: str,
+    license_title: str,
+) -> tuple[Path, Path, tuple[Path, ...]]:
+    if distribution_feature_count <= 0:
+        raise BoundaryMaterializationError("distribution feature count must be positive")
+    if not source_digest.startswith("sha256:") or len(source_digest) != 71:
+        raise BoundaryMaterializationError("source digest must be one SHA-256 identity")
+    required_text = {
+        "source URL": source_url,
+        "dataset title": dataset_title,
+        "dataset identifier": dataset_identifier,
+        "distribution owner": distribution_owner,
+        "license identifier": license_identifier,
+        "license title": license_title,
+    }
+    missing = tuple(label for label, value in required_text.items() if not value.strip())
+    if missing:
+        raise BoundaryMaterializationError(
+            "geography provenance is missing required values: " + ", ".join(missing)
+        )
+
+    campaign_root = repository_root / "campaigns/berlin_recording_services"
+    boundary_relative = "geography/berlin-boundary.geojson"
+    provenance_relative = "geography/berlin-boundary.provenance.json"
+    boundary_path = campaign_root / boundary_relative
+    provenance_path = campaign_root / provenance_relative
+    geography_path = campaign_root / "geography.yaml"
+
+    canonical = canonicalize_boundary(canonical_boundary)
+    boundary_bytes = _canonical_json(canonical)
+    boundary_digest = _sha256(boundary_bytes)
+    feature_label = "geometry" if distribution_feature_count == 1 else "geometries"
+    provenance = {
+        "authority": "State of Berlin",
+        "boundary_artifact_path": boundary_relative,
+        "boundary_digest": boundary_digest,
+        "contract": "campaign-geography-provenance",
+        "contract_revision": "campaign-geography-provenance-v1",
+        "dataset_identifier": dataset_identifier,
+        "dataset_title": dataset_title,
+        "derivation": (
+            f"Deterministic union of {distribution_feature_count} official Berlin "
+            f"administrative boundary {feature_label}."
+        ),
+        "distribution_feature_count": distribution_feature_count,
+        "distribution_owner": distribution_owner,
+        "distribution_url": source_url,
+        "license_identifier": license_identifier,
+        "license_title": license_title,
+        "source_digest": source_digest,
+    }
+    provenance_bytes = _canonical_json(provenance)
+    geography = {
+        "schema_revision": "geography-config-v1",
+        "geography_revision": _campaign_geography_revision(campaign_root),
+        "boundary_artifact_path": boundary_relative,
+        "boundary_digest": boundary_digest,
+        "provenance_artifact_path": provenance_relative,
+        "provenance_digest": _sha256(provenance_bytes),
+    }
+
+    boundary_path.parent.mkdir(parents=True, exist_ok=True)
+    boundary_path.write_bytes(boundary_bytes)
+    provenance_path.write_bytes(provenance_bytes)
+    geography_path.write_text(
+        yaml.safe_dump(
+            geography,
+            allow_unicode=True,
+            sort_keys=False,
+            width=100,
+        ),
+        encoding="utf-8",
+    )
+    modified = update_campaign(
+        campaign_root,
+        boundary_path=boundary_relative,
+        digest=boundary_digest,
+    )
+    campaign_value = yaml.safe_load((campaign_root / "campaign.yaml").read_text(encoding="utf-8"))
+    readiness = campaign_value.get("readiness") if isinstance(campaign_value, Mapping) else None
+    blockers = readiness.get("blockers") if isinstance(readiness, Mapping) else None
+    if isinstance(blockers, Sequence) and any(
+        isinstance(blocker, Mapping) and blocker.get("code") == "BERLIN_BOUNDARY_ARTIFACT_MISSING"
+        for blocker in blockers
+    ):
+        raise BoundaryMaterializationError(
+            "campaign geography artifacts were written but the boundary blocker remains"
+        )
+    return boundary_path, provenance_path, modified
+
+
 def materialize(
     repository_root: Path,
     *,
     timeout_seconds: float,
 ) -> tuple[Path, Path, tuple[Path, ...]]:
-    campaign_root = repository_root / "campaigns/berlin_recording_services"
-    boundary_path = campaign_root / "geography/berlin-boundary.geojson"
-    provenance_path = campaign_root / "geography/berlin-boundary.provenance.json"
     with httpx.Client(
         timeout=httpx.Timeout(timeout_seconds),
         follow_redirects=False,
@@ -520,6 +643,7 @@ def materialize(
         errors: list[str] = []
         selected: ResourceCandidate | None = None
         downloaded: MaterializedBoundary | None = None
+        canonical: Mapping[str, Any] | None = None
         for candidate in discover_candidates(client):
             try:
                 downloaded = download_candidate(client, candidate)
@@ -532,38 +656,22 @@ def materialize(
                 continue
             selected = candidate
             break
-    if selected is None or downloaded is None:
+    if selected is None or downloaded is None or canonical is None:
         raise BoundaryMaterializationError(
             "no official Berlin boundary candidate passed validation: " + "; ".join(errors)
         )
-    canonical_bytes = _canonical_json(canonical)
-    digest = _sha256(canonical_bytes)
-    relative_boundary = boundary_path.relative_to(repository_root).as_posix()
-    provenance = {
-        "contract": "berlin-boundary-provenance",
-        "contractRevision": "1",
-        "authority": "State of Berlin",
-        "datasetTitle": selected.dataset_title,
-        "datasetIdentifier": selected.dataset_identifier,
-        "resourceIdentifier": selected.resource_identifier,
-        "resourceUrl": downloaded.source_url,
-        "resourceFormat": selected.resource_format,
-        "featureType": downloaded.feature_type,
-        "licenseIdentifier": selected.license_identifier,
-        "licenseTitle": selected.license_title,
-        "sourceDigest": downloaded.source_digest,
-        "boundaryDigest": digest,
-        "boundaryPath": relative_boundary,
-    }
-    boundary_path.parent.mkdir(parents=True, exist_ok=True)
-    boundary_path.write_bytes(canonical_bytes)
-    provenance_path.write_bytes(_canonical_json(provenance))
-    modified = update_campaign(
-        campaign_root,
-        boundary_path=relative_boundary,
-        digest=digest,
+    return write_geography_revision(
+        repository_root,
+        canonical_boundary=canonical,
+        source_digest=downloaded.source_digest,
+        source_url=downloaded.source_url,
+        dataset_title=selected.dataset_title,
+        dataset_identifier=selected.dataset_identifier,
+        distribution_owner="State of Berlin Open Data",
+        distribution_feature_count=_distribution_feature_count(downloaded.geojson),
+        license_identifier=selected.license_identifier,
+        license_title=selected.license_title,
     )
-    return boundary_path, provenance_path, modified
 
 
 def _parser() -> argparse.ArgumentParser:
