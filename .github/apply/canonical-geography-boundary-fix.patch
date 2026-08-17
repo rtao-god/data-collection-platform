@@ -1,0 +1,52 @@
+--- a/tools/live_collection/berlin_boundary.py
++++ b/tools/live_collection/berlin_boundary.py
+@@ -14,4 +14,6 @@
+ import yaml
+ from defusedxml import ElementTree
++
++from collection_application.geography import decode_boundary_geojson
+ 
+ _OFFICIAL_HOST_SUFFIX = ".berlin.de"
+@@ -594,7 +596,19 @@
+     geography_path = campaign_root / "geography.yaml"
+ 
+-    canonical = canonicalize_boundary(canonical_boundary)
+-    boundary_bytes = _canonical_json(canonical)
+-    boundary_digest = _sha256(boundary_bytes)
++    canonical_feature = canonicalize_boundary(canonical_boundary)
++    geometry = canonical_feature.get("geometry")
++    if not isinstance(geometry, Mapping):
++        raise BoundaryMaterializationError("canonical Berlin boundary feature has no geometry")
++    boundary = decode_boundary_geojson(
++        json.dumps(
++            geometry,
++            ensure_ascii=False,
++            sort_keys=True,
++            separators=(",", ":"),
++            allow_nan=False,
++        ).encode("utf-8")
++    )
++    boundary_bytes = boundary.canonical_geojson
++    boundary_digest = boundary.geometry_digest
+     feature_label = "geometry" if distribution_feature_count == 1 else "geometries"
+     provenance = {
+--- a/tools/live_collection/tests/test_berlin_boundary.py
++++ b/tools/live_collection/tests/test_berlin_boundary.py
+@@ -17,4 +17,6 @@
+     write_geography_revision,
+ )
++
++from collection_application.geography import decode_boundary_geojson
+ 
+ 
+@@ -306,7 +308,10 @@
+ 
+     boundary = boundary_path.read_bytes()
++    parsed_boundary = decode_boundary_geojson(boundary)
+     provenance = provenance_path.read_bytes()
+     geography = yaml.safe_load(geography_path.read_text())
+     provenance_value = json.loads(provenance)
++    assert json.loads(boundary)["type"] == "Polygon"
++    assert parsed_boundary.canonical_geojson == boundary
+     assert geography == {
+         "schema_revision": "geography-config-v1",
