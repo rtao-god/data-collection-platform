@@ -1,0 +1,25 @@
+name: Export Source Snapshot
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/export-source-snapshot.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: .
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
