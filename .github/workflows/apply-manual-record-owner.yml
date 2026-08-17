@@ -45,7 +45,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base_sha="2ba19d2103b4e19051b25cd176aebd05bee0d1c1"
           python - <<'PY'
           from __future__ import annotations
 
@@ -142,6 +141,48 @@ jobs:
           rm .github/workflows/apply-manual-record-owner.yml
           rm .github/apply/manual-record-owner.tar.xz.b64.part-*
           rmdir .github/apply
+          git diff --check
+
+      - name: Narrow capability source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/manual_import_worker/src/manual_import_worker/worker.py")
+          text = path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "            source = parse_manual_import_source(lease)\n",
+                  "            import_source = parse_manual_import_source(lease)\n",
+              ),
+              ("                source.artifact,\n", "                import_source.artifact,\n"),
+              ("                format=source.format,\n", "                format=import_source.format,\n"),
+              ("                mode=source.mode,\n", "                mode=import_source.mode,\n"),
+              (
+                  "            source = parse_manual_record_source(lease)\n",
+                  "            record_source = parse_manual_record_source(lease)\n",
+              ),
+              (
+                  "                source.plan_artifact,\n",
+                  "                record_source.plan_artifact,\n",
+              ),
+              (
+                  "                source_artifact_role=source.source_artifact.role,\n",
+                  "                source_artifact_role=record_source.source_artifact.role,\n",
+              ),
+              (
+                  "                plan_record_position=source.plan_record_position,\n",
+                  "                plan_record_position=record_source.plan_record_position,\n",
+              ),
+          )
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"manual worker source narrowing target mismatch: {old!r}")
+              text = text.replace(old, new)
+          path.write_text(text, encoding="utf-8")
+          PY
           git diff --check
 
       - name: Verify canonical manual-record owner
