@@ -56,6 +56,7 @@ jobs:
               write_geography_revision,
           )
 
+          repository_root = Path.cwd().resolve()
           distribution_url = (
               "https://tsb-opendata.s3.eu-central-1.amazonaws.com/"
               "bezirksgrenzen/bezirksgrenzen.geojson"
@@ -86,7 +87,7 @@ jobs:
 
           canonical = canonicalize_boundary(payload)
           boundary_path, provenance_path, modified = write_geography_revision(
-              Path.cwd(),
+              repository_root,
               canonical_boundary=canonical,
               source_digest=_sha256(response.content),
               source_url=str(response.url),
@@ -100,14 +101,22 @@ jobs:
               license_title="Datenlizenz Deutschland - Zero - Version 2.0",
           )
           expected_artifacts = {
-              Path("campaigns/berlin_recording_services/geography/berlin-boundary.geojson"),
-              Path(
-                  "campaigns/berlin_recording_services/geography/"
+              (
+                  repository_root
+                  / "campaigns/berlin_recording_services/geography/berlin-boundary.geojson"
+              ).resolve(),
+              (
+                  repository_root
+                  / "campaigns/berlin_recording_services/geography/"
                   "berlin-boundary.provenance.json"
-              ),
+              ).resolve(),
           }
-          if {boundary_path, provenance_path} != expected_artifacts:
-              raise SystemExit("geography writer returned unexpected artifact paths")
+          actual_artifacts = {boundary_path.resolve(), provenance_path.resolve()}
+          if actual_artifacts != expected_artifacts:
+              raise SystemExit(
+                  "geography writer returned unexpected artifact paths: "
+                  f"{sorted(str(path) for path in actual_artifacts)}"
+              )
           unexpected = {path.name for path in modified} - {
               "campaign.yaml",
               "geography.yaml",
