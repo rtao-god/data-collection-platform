@@ -50,6 +50,8 @@ jobs:
           echo "1a6e8698372aed01cc86f06529613d615ed0ebe89d7347c387c826d0f95f2578  /tmp/campaign-geography-owner.patch" \
             | sha256sum --check --strict
           git apply --index --3way /tmp/campaign-geography-owner.patch
+          uv run python tools/contract_generation/generate.py
+          git add contracts/json_schema
           git diff --cached --check
       - name: Verify campaign geography owner
         shell: bash
@@ -88,7 +90,6 @@ jobs:
         run: |
           set -euo pipefail
           git rm .github/workflows/apply-campaign-geography-owner.yml
-          git rm .github/apply/campaign-geography-owner.patch.gz
           git rm .github/apply/campaign-geography-owner.patch.part-*
           git add -A
           git diff --cached --check
