@@ -30,15 +30,15 @@ def _valid_files() -> dict[str, bytes]:
     }
 
 
-def test_snapshot_is_deterministic_and_preserves_explicit_blocker() -> None:
+def test_snapshot_is_deterministic_and_preserves_ready_state() -> None:
     service = CampaignSnapshotService(InMemorySource(_valid_files()))
 
     first = service.create("berlin_recording_services", "correlation-1")
     second = service.create("berlin_recording_services", "correlation-2")
 
     assert first.bundle_digest == second.bundle_digest
-    assert first.readiness == "blocked"
-    assert [blocker.code for blocker in first.blockers] == ["BERLIN_BOUNDARY_ARTIFACT_MISSING"]
+    assert first.readiness == "ready"
+    assert first.blockers == ()
     assert tuple(component.path for component in first.components) == tuple(
         sorted(component.path for component in first.components)
     )
@@ -73,12 +73,12 @@ def test_duplicate_yaml_key_is_rejected_with_owner_context() -> None:
 
 
 def test_unresolved_taxonomy_reference_is_rejected() -> None:
+    import yaml
+
     files = _valid_files()
-    files["campaign.yaml"] = files["campaign.yaml"].replace(
-        b"  - recording_studio\n",
-        b"  - unknown_category\n",
-        1,
-    )
+    campaign = yaml.safe_load(files["campaign.yaml"])
+    campaign["target_categories"][0] = "unknown_category"
+    files["campaign.yaml"] = yaml.safe_dump(campaign, sort_keys=False).encode()
 
     with pytest.raises(OwnerContextError) as captured:
         CampaignSnapshotService(InMemorySource(files)).create(
@@ -124,12 +124,8 @@ def test_manual_seed_declared_format_must_be_policy_approved() -> None:
 
 
 def test_ready_campaign_requires_exact_geography_revision() -> None:
-    import yaml
-
     files = _valid_files()
-    campaign = yaml.safe_load(files["campaign.yaml"])
-    campaign["readiness"] = {"state": "ready"}
-    files["campaign.yaml"] = yaml.safe_dump(campaign, sort_keys=False).encode()
+    del files["geography.yaml"]
 
     with pytest.raises(OwnerContextError) as captured:
         CampaignSnapshotService(InMemorySource(files)).create(
