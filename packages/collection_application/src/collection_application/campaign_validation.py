@@ -29,6 +29,26 @@ def validate_campaign_references(
     binding_map = {item.key: item for item in documents.source_bindings.items}
     attribute_keys = {item.key for item in documents.attributes.items}
 
+    if campaign.readiness.state == "ready" and documents.geography is None:
+        violations.append(
+            {
+                "reference": "campaign.geography_revision",
+                "value": campaign.geography_revision,
+                "reason": "geography_document_missing",
+            }
+        )
+    if (
+        documents.geography is not None
+        and documents.geography.geography_revision != campaign.geography_revision
+    ):
+        violations.append(
+            {
+                "reference": "geography.geography_revision",
+                "expected": campaign.geography_revision,
+                "actual": documents.geography.geography_revision,
+            }
+        )
+
     _append_missing(violations, "campaign.entity_kinds", campaign.entity_kinds, kind_keys)
     _append_missing(
         violations,

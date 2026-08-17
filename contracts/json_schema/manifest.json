@@ -39,6 +39,11 @@
       "sha256": "sha256:d064cb7b0eba353db3fecf6f704520d8d6fec5e313e09a4713597c6359717f0a"
     },
     {
+      "file": "geography-document.schema.json",
+      "model": "collection_contracts.campaign_config.GeographyDocument",
+      "sha256": "sha256:6eb66324fd79bbe88066da94fe2c737f72f5d7c8095eba7a4dc6df2821cf5338"
+    },
+    {
       "file": "manual-import-plan.schema.json",
       "model": "collection_contracts.manual_import.ManualImportPlan",
       "sha256": "sha256:ad64cc85ad707f12c4b4d68d2458579207233f3d053b0c2f48fbcde3c6be5b9e"

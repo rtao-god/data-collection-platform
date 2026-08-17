@@ -121,3 +121,97 @@ def test_manual_seed_declared_format_must_be_policy_approved() -> None:
         )
 
     assert captured.value.envelope.code == "MANUAL_SEED_FORMAT_FORBIDDEN"
+
+
+def test_ready_campaign_requires_exact_geography_revision() -> None:
+    import yaml
+
+    files = _valid_files()
+    campaign = yaml.safe_load(files["campaign.yaml"])
+    campaign["readiness"] = {"state": "ready"}
+    files["campaign.yaml"] = yaml.safe_dump(campaign, sort_keys=False).encode()
+
+    with pytest.raises(OwnerContextError) as captured:
+        CampaignSnapshotService(InMemorySource(files)).create(
+            "berlin_recording_services",
+            "correlation-geography-missing",
+        )
+
+    assert captured.value.envelope.code == "CAMPAIGN_REFERENCE_INVALID"
+    violations = captured.value.envelope.context["violations"]
+    assert any(item["reason"] == "geography_document_missing" for item in violations)
+
+
+def test_geography_artifacts_are_digest_bound_snapshot_components() -> None:
+    import hashlib
+    import json
+
+    import yaml
+
+    files = _valid_files()
+    campaign = yaml.safe_load(files["campaign.yaml"])
+    campaign["readiness"] = {"state": "ready"}
+    files["campaign.yaml"] = yaml.safe_dump(campaign, sort_keys=False).encode()
+    boundary = json.dumps(
+        {
+            "coordinates": [
+                [
+                    [13.0, 52.0],
+                    [13.1, 52.0],
+                    [13.1, 52.1],
+                    [13.0, 52.0],
+                ]
+            ],
+            "type": "Polygon",
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    boundary_digest = f"sha256:{hashlib.sha256(boundary).hexdigest()}"
+    provenance = json.dumps(
+        {
+            "authority": "State of Berlin",
+            "boundary_artifact_path": "geography/berlin-boundary.geojson",
+            "boundary_digest": boundary_digest,
+            "contract": "campaign-geography-provenance",
+            "contract_revision": "campaign-geography-provenance-v1",
+            "dataset_identifier": "official-test-dataset",
+            "dataset_title": "Official Berlin boundary test fixture",
+            "derivation": "Independent owner contract fixture.",
+            "distribution_feature_count": 12,
+            "distribution_owner": "Official fixture owner",
+            "distribution_url": "https://example.test/berlin.geojson",
+            "license_identifier": "dl-de-zero-2.0",
+            "license_title": "Datenlizenz Deutschland Zero 2.0",
+            "source_digest": "sha256:" + "a" * 64,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    provenance_digest = f"sha256:{hashlib.sha256(provenance).hexdigest()}"
+    files["geography/berlin-boundary.geojson"] = boundary
+    files["geography/berlin-boundary.provenance.json"] = provenance
+    files["geography.yaml"] = yaml.safe_dump(
+        {
+            "schema_revision": "geography-config-v1",
+            "geography_revision": campaign["geography_revision"],
+            "boundary_artifact_path": "geography/berlin-boundary.geojson",
+            "boundary_digest": boundary_digest,
+            "provenance_artifact_path": ("geography/berlin-boundary.provenance.json"),
+            "provenance_digest": provenance_digest,
+        },
+        sort_keys=False,
+    ).encode()
+
+    snapshot = CampaignSnapshotService(InMemorySource(files)).create(
+        "berlin_recording_services",
+        "correlation-geography-ready",
+    )
+
+    assert snapshot.readiness == "ready"
+    component_paths = {component.path for component in snapshot.components}
+    assert {
+        "geography.yaml",
+        "geography/berlin-boundary.geojson",
+        "geography/berlin-boundary.provenance.json",
+    }.issubset(component_paths)

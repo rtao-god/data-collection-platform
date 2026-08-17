@@ -1,8 +1,0 @@
-targets() -> tuple[ContractTarget, ...]:
-         ContractTarget("campaign-snapshot.schema.json", CampaignSnapshot),
-         ContractTarget("entity-kinds.schema.json", EntityKindsDocument),
-         ContractTarget("error-envelope.schema.json", ErrorEnvelope),
-+        ContractTarget("geography-document.schema.json", GeographyDocument),
-         ContractTarget("extracted-record.schema.json", ExtractedRecord),
-         ContractTarget("extraction-request.schema.json", ExtractionRequest),
-         ContractTarget("manual-import-plan.schema.json", ManualImportPlan),

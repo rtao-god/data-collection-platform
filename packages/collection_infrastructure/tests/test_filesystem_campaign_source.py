@@ -67,3 +67,24 @@ def test_symlink_is_rejected(tmp_path: Path) -> None:
 
     assert captured.value.envelope.code == "CAMPAIGN_PATH_BOUNDARY_VIOLATION"
     assert captured.value.envelope.context["reason"] == "symlink_not_allowed"
+
+
+def test_campaign_geography_owner_paths_are_bounded_and_allowlisted(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaigns" / "example"
+    geography = campaign / "geography"
+    geography.mkdir(parents=True)
+    (campaign / "geography.yaml").write_text("schema_revision: geography-config-v1\n")
+    (geography / "primary.geojson").write_text(
+        '{"coordinates":[[[0,0],[1,0],[1,1],[0,0]]],"type":"Polygon"}',
+        encoding="utf-8",
+    )
+    (geography / "primary.provenance.json").write_text("{}", encoding="utf-8")
+    source = FilesystemCampaignBundleSource(tmp_path / "campaigns")
+
+    bundle = source.read("example", "correlation-geography")
+
+    assert set(bundle.files) == {
+        "geography.yaml",
+        "geography/primary.geojson",
+        "geography/primary.provenance.json",
+    }

@@ -8,6 +8,7 @@ from collection_application.campaign_documents import (
     ATTRIBUTES_DOCUMENT,
     CAMPAIGN_DOCUMENT,
     ENTITY_KINDS_DOCUMENT,
+    GEOGRAPHY_DOCUMENT,
     SOURCE_BINDINGS_DOCUMENT,
     TAXONOMY_DOCUMENT,
     ParsedCampaignDocuments,
@@ -26,6 +27,9 @@ def canonical_documents(
         ATTRIBUTES_DOCUMENT: documents.attributes.model_dump(mode="json"),
         SOURCE_BINDINGS_DOCUMENT: documents.source_bindings.model_dump(mode="json"),
     }
+    if documents.geography is not None:
+        result[GEOGRAPHY_DOCUMENT] = documents.geography.model_dump(mode="json")
+        result.update(documents.geography_artifacts)
     for policy in documents.source_policies.values():
         result[f"source_policies/{policy.policy_key}.yaml"] = policy.model_dump(mode="json")
     for path, rows in seed_rows.items():

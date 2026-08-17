@@ -14,12 +14,15 @@ _ROOT_FILES = frozenset(
         "attributes.yaml",
         "campaign.yaml",
         "entity_kinds.yaml",
+        "geography.yaml",
         "source_bindings.yaml",
         "taxonomy.yaml",
     }
 )
 _MAX_YAML_BYTES = 1_048_576
 _MAX_SEED_BYTES = 10_485_760
+_MAX_GEOGRAPHY_BYTES = 16 * 1024 * 1024
+_MAX_PROVENANCE_BYTES = 262_144
 
 
 class FilesystemCampaignBundleSource:
@@ -126,6 +129,18 @@ class FilesystemCampaignBundleSource:
             return _MAX_YAML_BYTES
         if relative == "discovery/manual_seeds.csv":
             return _MAX_SEED_BYTES
+        if (
+            relative.startswith("geography/")
+            and relative.count("/") == 1
+            and relative.endswith(".geojson")
+        ):
+            return _MAX_GEOGRAPHY_BYTES
+        if (
+            relative.startswith("geography/")
+            and relative.count("/") == 1
+            and relative.endswith(".provenance.json")
+        ):
+            return _MAX_PROVENANCE_BYTES
         raise owner_error(
             error_type="collection/campaign-file-unexpected",
             owner="CampaignConfiguration",

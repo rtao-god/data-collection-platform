@@ -44,6 +44,13 @@ RelativeFile = Annotated[
         strip_whitespace=True,
     ),
 ]
+Sha256Digest = Annotated[
+    str,
+    StringConstraints(
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        strip_whitespace=True,
+    ),
+]
 
 
 class StrictContract(BaseModel):
@@ -99,6 +106,46 @@ class CampaignDocument(StrictContract):
         _require_unique("target_categories", self.target_categories)
         _require_unique("enabled_source_bindings", self.enabled_source_bindings)
         return self
+
+
+class GeographyDocument(StrictContract):
+    schema_revision: Revision
+    geography_revision: Revision
+    boundary_artifact_path: RelativeFile
+    boundary_digest: Sha256Digest
+    provenance_artifact_path: RelativeFile
+    provenance_digest: Sha256Digest
+
+    @model_validator(mode="after")
+    def validate_owned_paths(self) -> GeographyDocument:
+        if not self.boundary_artifact_path.startswith("geography/"):
+            raise ValueError("boundary artifact must be owned by geography/")
+        if not self.boundary_artifact_path.endswith(".geojson"):
+            raise ValueError("boundary artifact must be GeoJSON")
+        if not self.provenance_artifact_path.startswith("geography/"):
+            raise ValueError("provenance artifact must be owned by geography/")
+        if not self.provenance_artifact_path.endswith(".provenance.json"):
+            raise ValueError("provenance artifact path is invalid")
+        if self.boundary_artifact_path == self.provenance_artifact_path:
+            raise ValueError("geography artifacts must be distinct")
+        return self
+
+
+class GeographyProvenanceDocument(StrictContract):
+    contract: Literal["campaign-geography-provenance"]
+    contract_revision: Literal["campaign-geography-provenance-v1"]
+    authority: DisplayText
+    dataset_title: DisplayText
+    dataset_identifier: str = Field(min_length=1, max_length=200)
+    distribution_owner: DisplayText
+    distribution_url: AnyHttpUrl
+    distribution_feature_count: PositiveInt
+    derivation: DisplayText
+    license_identifier: str = Field(min_length=1, max_length=100)
+    license_title: DisplayText
+    source_digest: Sha256Digest
+    boundary_digest: Sha256Digest
+    boundary_artifact_path: RelativeFile
 
 
 class EntityKind(StrictContract):

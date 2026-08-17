@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "boundary_artifact_path": {
+      "maxLength": 240,
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_./-]*$",
+      "title": "Boundary Artifact Path",
+      "type": "string"
+    },
+    "boundary_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Boundary Digest",
+      "type": "string"
+    },
+    "geography_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Geography Revision",
+      "type": "string"
+    },
+    "provenance_artifact_path": {
+      "maxLength": 240,
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_./-]*$",
+      "title": "Provenance Artifact Path",
+      "type": "string"
+    },
+    "provenance_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Provenance Digest",
+      "type": "string"
+    },
+    "schema_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_revision",
+    "geography_revision",
+    "boundary_artifact_path",
+    "boundary_digest",
+    "provenance_artifact_path",
+    "provenance_digest"
+  ],
+  "title": "GeographyDocument",
+  "type": "object"
+}
