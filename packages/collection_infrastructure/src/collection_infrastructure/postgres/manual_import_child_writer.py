@@ -5,16 +5,14 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Connection, Engine
-
 from collection_application import (
     RetryPolicy,
-    WorkCapability,
     WorkInputArtifact,
-    WorkStage,
     WorkUnitSpec,
 )
 from collection_application.manual_import_admission import (
+    MANUAL_RECORD_CAPABILITY,
+    MANUAL_RECORD_STAGE,
     AdmitManualImportPlan,
     ManualImportChildWork,
 )
@@ -23,10 +21,11 @@ from collection_infrastructure.postgres.manual_import_admission import (
 )
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import stage_runs
+from sqlalchemy.engine import Connection, Engine
 
 
 class PostgresManualImportChildWorkWriter:
-    """Enqueues child work through the Work Engine in the admission transaction."""
+    """Enqueues canonical manual-record work in the admission transaction."""
 
     def __init__(
         self,
@@ -43,27 +42,25 @@ class PostgresManualImportChildWorkWriter:
         command: AdmitManualImportPlan,
         children: Sequence[ManualImportChildWork],
     ) -> tuple[UUID, ...]:
-        target_stage = _stage(command)
-        target_capability = _capability(command)
-        stage_run_id = _stage_run_id(connection, command, target_stage)
+        stage_run_id = _stage_run_id(connection, command)
         available_at_utc = self._now_utc()
-        artifacts = (
-            WorkInputArtifact(
-                artifact_id=command.plan.source_artifact_id,
-                role="manual_import_source",
-            ),
-            WorkInputArtifact(
-                artifact_id=command.plan.plan_artifact_id,
-                role="manual_import_plan",
-            ),
-        )
         for child in children:
+            artifacts = (
+                WorkInputArtifact(
+                    artifact_id=command.plan.source_artifact_id,
+                    role=command.plan.source_artifact_role,
+                ),
+                WorkInputArtifact(
+                    artifact_id=command.plan.plan_artifact_id,
+                    role=f"manual_import_plan_record:{child.position}",
+                ),
+            )
             spec = WorkUnitSpec(
                 work_id=child.work_id,
                 run_id=command.run_id,
                 stage_run_id=stage_run_id,
-                stage=target_stage,
-                capability=target_capability,
+                stage=MANUAL_RECORD_STAGE,
+                capability=MANUAL_RECORD_CAPABILITY,
                 source_key=None,
                 semantic_key=child.semantic_key,
                 input_digest=child.input_digest,
@@ -89,38 +86,15 @@ class PostgresManualImportChildWorkWriter:
         return value
 
 
-def _stage(command: AdmitManualImportPlan) -> WorkStage:
-    try:
-        return WorkStage(command.target_stage)
-    except ValueError as exc:
-        raise _conflict(
-            command,
-            code="MANUAL_IMPORT_TARGET_STAGE_INVALID",
-            message="The manual import target stage is not supported by the Work Engine.",
-        ) from exc
-
-
-def _capability(command: AdmitManualImportPlan) -> WorkCapability:
-    try:
-        return WorkCapability(command.target_capability)
-    except ValueError as exc:
-        raise _conflict(
-            command,
-            code="MANUAL_IMPORT_TARGET_CAPABILITY_INVALID",
-            message="The manual import target capability is not supported by the Work Engine.",
-        ) from exc
-
-
 def _stage_run_id(
     connection: Connection,
     command: AdmitManualImportPlan,
-    target_stage: WorkStage,
 ) -> UUID:
     rows = (
         connection.execute(
             sa.select(stage_runs.c.stage_run_id).where(
                 stage_runs.c.run_id == command.run_id,
-                stage_runs.c.stage == target_stage.value,
+                stage_runs.c.stage == MANUAL_RECORD_STAGE.value,
             )
         )
         .scalars()
@@ -130,7 +104,7 @@ def _stage_run_id(
         raise _conflict(
             command,
             code="MANUAL_IMPORT_TARGET_STAGE_RUN_UNAVAILABLE",
-            message="The target stage has no unique stage-run owner.",
+            message="The discovery stage has no unique stage-run owner.",
         )
     return UUID(str(rows[0]))
 
@@ -148,5 +122,5 @@ def _conflict(
             "admissionId": str(command.admission_id),
             "planDigest": command.plan.plan_digest,
         },
-        required_action=("Align the manual import admission with the canonical Work Engine owner."),
+        required_action=("Align admission with the canonical discovery Work Engine owner."),
     )

@@ -1,36 +1,36 @@
 from __future__ import annotations
 
-from contextlib import AbstractContextManager
+import json
+from contextlib import AbstractContextManager, suppress
+from hashlib import sha256
 from typing import Any
 from uuid import UUID
 
 import pytest
-from sqlalchemy.dialects import postgresql
-
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
+    ManualImportAdmissionService,
     ManualImportChildWork,
     ManualImportPlanForAdmission,
-    ManualImportRecord,
     admission_result_digest,
 )
+from collection_contracts import ManualImportFormat, ManualImportMode
 from collection_infrastructure.postgres.manual_import_admission import (
     ManualImportAdmissionConflict,
     PostgresManualImportAdmissionStore,
 )
+from manual_import_core import (
+    build_manual_import_plan,
+    canonical_manual_import_plan_json,
+)
+from sqlalchemy.dialects import postgresql
 
-_PLAN_DIGEST = "sha256:" + "1" * 64
-_SOURCE_DIGEST = "sha256:" + "2" * 64
-_RECORD_DIGEST = "sha256:" + "3" * 64
-_INPUT_DIGEST = "sha256:" + "4" * 64
-_SEMANTIC_KEY = "sha256:" + "5" * 64
-_OTHER_DIGEST = "sha256:" + "9" * 64
 _ADMISSION_ID = UUID("00000000-0000-0000-0000-000000000401")
 _PARENT_WORK_ID = UUID("00000000-0000-0000-0000-000000000402")
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000403")
 _PLAN_ARTIFACT_ID = UUID("00000000-0000-0000-0000-000000000404")
 _SOURCE_ARTIFACT_ID = UUID("00000000-0000-0000-0000-000000000405")
-_CHILD_WORK_ID = UUID("00000000-0000-0000-0000-000000000406")
+_OTHER_DIGEST = "sha256:" + "9" * 64
 _UNSET = object()
 
 
@@ -63,7 +63,11 @@ class FakeResult:
         return self._scalar
 
     def __iter__(self):
-        return iter(dict(row) for row in self._rows)
+        rows = self._rows
+        if not rows and self._one is not _UNSET and self._one is not None:
+            assert isinstance(self._one, dict)
+            rows = (self._one,)
+        return iter(dict(row) for row in rows)
 
 
 class FakeConnection:
@@ -115,183 +119,117 @@ class RecordingChildWriter:
         return tuple(child.work_id for child in children)
 
 
-def _command() -> AdmitManualImportPlan:
-    record = _record()
-    return AdmitManualImportPlan(
-        admission_id=_ADMISSION_ID,
-        parent_work_id=_PARENT_WORK_ID,
-        run_id=_RUN_ID,
-        stage_name="manual_import_admission",
-        target_stage="normalization",
-        target_capability="normalization",
-        target_output_contract="normalized-observation@1",
-        correlation_id="manual-import-admission-store-test",
-        plan=ManualImportPlanForAdmission(
-            plan_artifact_id=_PLAN_ARTIFACT_ID,
-            source_artifact_id=_SOURCE_ARTIFACT_ID,
-            plan_digest=_PLAN_DIGEST,
-            source_digest=_SOURCE_DIGEST,
-            mode="partial",
-            status="ready",
-            total_record_count=1,
-            accepted_record_count=1,
-            rejected_record_count=0,
-            records=(record,),
-        ),
-    )
+class _CaptureStore:
+    def __init__(self) -> None:
+        self.children: tuple[ManualImportChildWork, ...] = ()
+
+    def admit(self, command, children):
+        del command
+        self.children = tuple(children)
+        raise _Captured
 
 
-def _record() -> ManualImportRecord:
-    return ManualImportRecord(
-        position=0,
-        locator_kind="line",
-        locator_value="1",
-        record_digest=_RECORD_DIGEST,
-        values={"name": "Studio"},
-    )
+class _Captured(Exception):
+    pass
 
 
-def _child() -> ManualImportChildWork:
-    return ManualImportChildWork(
-        work_id=_CHILD_WORK_ID,
-        semantic_key=_SEMANTIC_KEY,
-        input_digest=_INPUT_DIGEST,
-        input_payload=b'{"contract":"manual-import-record-input@1"}',
-        record=_record(),
-    )
-
-
-def _existing_row(*, result_digest: str | None = None) -> dict[str, object]:
-    command = _command()
+def test_exact_replay_returns_persisted_canonical_child_identities() -> None:
     child = _child()
-    return {
-        "admission_id": command.admission_id,
-        "parent_work_id": command.parent_work_id,
-        "run_id": command.run_id,
-        "plan_artifact_id": command.plan.plan_artifact_id,
-        "source_artifact_id": command.plan.source_artifact_id,
-        "plan_digest": command.plan.plan_digest,
-        "source_digest": command.plan.source_digest,
-        "mode": command.plan.mode,
-        "plan_status": command.plan.status,
-        "target_stage": command.target_stage,
-        "target_capability": command.target_capability,
-        "target_output_contract": command.target_output_contract,
-        "total_record_count": command.plan.total_record_count,
-        "accepted_record_count": command.plan.accepted_record_count,
-        "rejected_record_count": command.plan.rejected_record_count,
-        "child_work_count": 1,
-        "result_digest": result_digest
-        or admission_result_digest(
-            command.admission_id,
-            command.plan.plan_digest,
-            (child.work_id,),
-        ),
-    }
-
-
-def _existing_item() -> dict[str, object]:
-    child = _child()
-    return {
-        "position": child.record.position,
-        "child_work_id": child.work_id,
-        "locator_kind": child.record.locator_kind,
-        "locator_value": child.record.locator_value,
-        "record_digest": child.record.record_digest,
-    }
-
-
-def _artifact_rows(
-    *,
-    plan_digest: str = _PLAN_DIGEST,
-    source_digest: str = _SOURCE_DIGEST,
-) -> tuple[dict[str, object], ...]:
-    return (
-        {"artifact_id": _PLAN_ARTIFACT_ID, "content_digest": plan_digest},
-        {"artifact_id": _SOURCE_ARTIFACT_ID, "content_digest": source_digest},
-    )
-
-
-def test_exact_replay_returns_the_persisted_child_identities() -> None:
     engine = FakeEngine(
         (
             FakeResult(),
-            FakeResult(one=_existing_row()),
-            FakeResult(rows=(_existing_item(),)),
+            FakeResult(one=_existing_row(child)),
+            FakeResult(rows=(_existing_item(child),)),
         )
     )
     writer = RecordingChildWriter()
     store = PostgresManualImportAdmissionStore(engine, writer)  # type: ignore[arg-type]
 
-    result = store.admit(_command(), (_child(),))
+    result = store.admit(_command(), (child,))
 
     assert result.status == "already_applied"
-    assert result.child_work_ids == (_CHILD_WORK_ID,)
-    assert result.result_digest == _existing_row()["result_digest"]
+    assert result.child_work_ids == (child.work_id,)
     assert writer.calls == []
     assert engine.connection.executed_count == 3
 
 
-def test_exact_replay_rejects_a_corrupted_result_digest() -> None:
+def test_crossed_persisted_identities_fail_as_explicit_conflict() -> None:
+    child = _child()
+    first = _existing_row(child)
+    second = dict(first)
+    second["admission_id"] = UUID("00000000-0000-0000-0000-000000000499")
     engine = FakeEngine(
         (
             FakeResult(),
-            FakeResult(one=_existing_row(result_digest=_OTHER_DIGEST)),
-            FakeResult(rows=(_existing_item(),)),
+            FakeResult(rows=(first, second)),
         )
     )
     writer = RecordingChildWriter()
     store = PostgresManualImportAdmissionStore(engine, writer)  # type: ignore[arg-type]
 
     with pytest.raises(ManualImportAdmissionConflict) as error:
-        store.admit(_command(), (_child(),))
+        store.admit(_command(), (child,))
 
     assert error.value.code == "MANUAL_IMPORT_ADMISSION_IDENTITY_CONFLICT"
-    assert error.value.context["mismatches"] == ["result_digest"]
+    assert error.value.context["mismatches"] == [
+        "admission_id",
+        "parent_plan_identity",
+    ]
     assert writer.calls == []
-    assert engine.connection.executed_count == 3
 
 
-def test_parent_must_be_owned_by_manual_import() -> None:
+def test_parent_must_own_the_exact_succeeded_semantic_plan_digest() -> None:
+    child = _child()
     engine = FakeEngine(
         (
             FakeResult(),
             FakeResult(one=None),
-            FakeResult(one={"run_id": _RUN_ID, "capability": "normalization"}),
+            FakeResult(
+                one={
+                    "run_id": _RUN_ID,
+                    "capability": "manual_import",
+                    "state": "succeeded",
+                    "output_contract": "manual-import-plan@1",
+                    "output_digest": _OTHER_DIGEST,
+                }
+            ),
         )
     )
     writer = RecordingChildWriter()
     store = PostgresManualImportAdmissionStore(engine, writer)  # type: ignore[arg-type]
 
     with pytest.raises(ManualImportAdmissionConflict) as error:
-        store.admit(_command(), (_child(),))
+        store.admit(_command(), (child,))
 
-    assert error.value.code == "MANUAL_IMPORT_PARENT_CAPABILITY_MISMATCH"
+    assert error.value.code == "MANUAL_IMPORT_PARENT_OUTPUT_MISMATCH"
     assert writer.calls == []
-    assert engine.connection.executed_count == 3
 
 
 @pytest.mark.parametrize(
-    ("plan_digest", "source_digest", "expected_mismatch"),
+    ("plan_digest", "source_digest", "source_size", "expected_mismatch"),
     (
-        (_OTHER_DIGEST, _SOURCE_DIGEST, "plan_artifact_digest"),
-        (_PLAN_DIGEST, _OTHER_DIGEST, "source_artifact_digest"),
+        (_OTHER_DIGEST, None, None, "plan_artifact_digest"),
+        (None, _OTHER_DIGEST, None, "source_artifact_digest"),
+        (None, None, 999, "source_artifact_size"),
     ),
 )
-def test_artifact_object_digests_must_match_the_admitted_plan(
-    plan_digest: str,
-    source_digest: str,
+def test_artifact_identity_separates_semantic_plan_and_artifact_digests(
+    plan_digest: str | None,
+    source_digest: str | None,
+    source_size: int | None,
     expected_mismatch: str,
 ) -> None:
+    child = _child()
     engine = FakeEngine(
         (
             FakeResult(),
             FakeResult(one=None),
-            FakeResult(one={"run_id": _RUN_ID, "capability": "manual_import"}),
+            FakeResult(one=_parent_row()),
             FakeResult(
                 rows=_artifact_rows(
                     plan_digest=plan_digest,
                     source_digest=source_digest,
+                    source_size=source_size,
                 )
             ),
         )
@@ -300,22 +238,22 @@ def test_artifact_object_digests_must_match_the_admitted_plan(
     store = PostgresManualImportAdmissionStore(engine, writer)  # type: ignore[arg-type]
 
     with pytest.raises(ManualImportAdmissionConflict) as error:
-        store.admit(_command(), (_child(),))
+        store.admit(_command(), (child,))
 
-    assert error.value.code == "MANUAL_IMPORT_ARTIFACT_DIGEST_MISMATCH"
+    assert error.value.code == "MANUAL_IMPORT_ARTIFACT_IDENTITY_MISMATCH"
     assert error.value.context["mismatches"] == [expected_mismatch]
     artifact_sql = str(engine.connection.statements[3][0].compile(dialect=postgresql.dialect()))
     assert "JOIN sources.artifact_objects" in artifact_sql
     assert writer.calls == []
-    assert engine.connection.executed_count == 4
 
 
-def test_verified_provenance_enqueues_children_in_the_admission_transaction() -> None:
+def test_verified_exact_provenance_enqueues_children_in_admission_transaction() -> None:
+    child = _child()
     engine = FakeEngine(
         (
             FakeResult(),
             FakeResult(one=None),
-            FakeResult(one={"run_id": _RUN_ID, "capability": "manual_import"}),
+            FakeResult(one=_parent_row()),
             FakeResult(rows=_artifact_rows()),
             FakeResult(scalar=True),
             FakeResult(scalar=True),
@@ -326,9 +264,139 @@ def test_verified_provenance_enqueues_children_in_the_admission_transaction() ->
     writer = RecordingChildWriter()
     store = PostgresManualImportAdmissionStore(engine, writer)  # type: ignore[arg-type]
 
-    result = store.admit(_command(), (_child(),))
+    result = store.admit(_command(), (child,))
 
     assert result.status == "applied"
-    assert result.child_work_ids == (_CHILD_WORK_ID,)
-    assert writer.calls == [(engine.connection, (_child(),))]
-    assert engine.connection.executed_count == 8
+    assert result.child_work_ids == (child.work_id,)
+    assert writer.calls == [(engine.connection, (child,))]
+    inserted = engine.connection.statements[6][0]
+    compiled = str(inserted.compile(dialect=postgresql.dialect()))
+    assert "manual_import.plan_admissions" in compiled
+
+
+def _command() -> AdmitManualImportPlan:
+    plan = _plan()
+    payload = canonical_manual_import_plan_json(plan).encode("utf-8")
+    return AdmitManualImportPlan(
+        admission_id=_ADMISSION_ID,
+        parent_work_id=_PARENT_WORK_ID,
+        run_id=_RUN_ID,
+        correlation_id="manual-import-admission-store-test",
+        plan=ManualImportPlanForAdmission(
+            plan_artifact_id=_PLAN_ARTIFACT_ID,
+            plan_artifact_digest=_digest(payload),
+            source_artifact_id=_SOURCE_ARTIFACT_ID,
+            source_artifact_role="manual_import_source:json:atomic",
+            plan=plan,
+        ),
+    )
+
+
+def _child() -> ManualImportChildWork:
+    capture = _CaptureStore()
+    with suppress(_Captured):
+        ManualImportAdmissionService(capture).admit(_command())
+    assert len(capture.children) == 1
+    return capture.children[0]
+
+
+def _existing_row(child: ManualImportChildWork) -> dict[str, object]:
+    command = _command()
+    plan = command.plan.plan
+    return {
+        "admission_id": command.admission_id,
+        "parent_work_id": command.parent_work_id,
+        "run_id": command.run_id,
+        "plan_artifact_id": command.plan.plan_artifact_id,
+        "source_artifact_id": command.plan.source_artifact_id,
+        "source_artifact_role": command.plan.source_artifact_role,
+        "plan_digest": plan.plan_digest,
+        "source_digest": plan.source_digest,
+        "mode": plan.mode.value,
+        "plan_disposition": plan.disposition.value,
+        "target_stage": command.target_stage,
+        "target_capability": command.target_capability,
+        "target_output_contract": command.target_output_contract,
+        "valid_record_count": plan.valid_record_count,
+        "issue_count": plan.issue_count,
+        "child_work_count": 1,
+        "result_digest": admission_result_digest(
+            command.admission_id,
+            plan.plan_digest,
+            (child.work_id,),
+        ),
+    }
+
+
+def _existing_item(child: ManualImportChildWork) -> dict[str, object]:
+    return {
+        "position": child.position,
+        "child_work_id": child.work_id,
+        "locator_kind": child.record.locator.kind,
+        "locator_value": child.record.locator.pointer,
+        "record_digest": child.record.record_digest,
+    }
+
+
+def _parent_row() -> dict[str, object]:
+    return {
+        "run_id": _RUN_ID,
+        "capability": "manual_import",
+        "state": "succeeded",
+        "output_contract": "manual-import-plan@1",
+        "output_digest": _command().plan.plan_digest,
+    }
+
+
+def _artifact_rows(
+    *,
+    plan_digest: str | None = None,
+    source_digest: str | None = None,
+    source_size: int | None = None,
+) -> tuple[dict[str, object], ...]:
+    command = _command()
+    return (
+        {
+            "artifact_id": _PLAN_ARTIFACT_ID,
+            "content_digest": plan_digest or command.plan.plan_artifact_digest,
+            "size_bytes": len(canonical_manual_import_plan_json(command.plan.plan).encode()),
+        },
+        {
+            "artifact_id": _SOURCE_ARTIFACT_ID,
+            "content_digest": source_digest or command.plan.source_digest,
+            "size_bytes": (
+                command.plan.plan.source_size_bytes if source_size is None else source_size
+            ),
+        },
+    )
+
+
+def _plan():
+    source = _source()
+    return build_manual_import_plan(
+        source,
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+
+
+def _source() -> bytes:
+    return json.dumps(
+        [
+            {
+                "expected_entity_kind": "place",
+                "display_name": "Studio A",
+                "website": "https://studio.example",
+                "osm_id": None,
+                "reference_urls": [],
+                "note": None,
+                "provenance": "manual import test",
+            }
+        ],
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def _digest(value: bytes) -> str:
+    return f"sha256:{sha256(value).hexdigest()}"

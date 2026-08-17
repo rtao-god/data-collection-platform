@@ -17,6 +17,7 @@ class WorkStage(StrEnum):
 
 class WorkCapability(StrEnum):
     MANUAL_IMPORT = "manual_import"
+    MANUAL_RECORD = "manual_record"
     OSM_QUERY = "osm_query"
     HTTP_FETCH = "http_fetch"
     BROWSER_FETCH = "browser_fetch"
@@ -29,7 +30,13 @@ class WorkCapability(StrEnum):
 
 
 _STAGE_CAPABILITIES: dict[WorkStage, frozenset[WorkCapability]] = {
-    WorkStage.DISCOVERY: frozenset({WorkCapability.MANUAL_IMPORT, WorkCapability.OSM_QUERY}),
+    WorkStage.DISCOVERY: frozenset(
+        {
+            WorkCapability.MANUAL_IMPORT,
+            WorkCapability.MANUAL_RECORD,
+            WorkCapability.OSM_QUERY,
+        }
+    ),
     WorkStage.ACQUISITION: frozenset({WorkCapability.HTTP_FETCH, WorkCapability.BROWSER_FETCH}),
     WorkStage.EXTRACTION: frozenset({WorkCapability.EXTRACTION}),
     WorkStage.NORMALIZATION: frozenset({WorkCapability.NORMALIZATION}),

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-
 from collection_infrastructure.postgres.artifact_metadata import artifact_records
 from collection_infrastructure.postgres.metadata import collector_metadata
 from collection_infrastructure.postgres.work_metadata import work_units
+from sqlalchemy.dialects import postgresql
 
 MANUAL_IMPORT_SCHEMA = "manual_import"
 manual_import_metadata = collector_metadata
@@ -33,29 +32,48 @@ plan_admissions = sa.Table(
         sa.ForeignKey(artifact_records.c.artifact_id, ondelete="RESTRICT"),
         nullable=False,
     ),
+    sa.Column("source_artifact_role", sa.Text(), nullable=False),
     sa.Column("plan_digest", sa.Text(), nullable=False),
     sa.Column("source_digest", sa.Text(), nullable=False),
     sa.Column("mode", sa.Text(), nullable=False),
-    sa.Column("plan_status", sa.Text(), nullable=False),
+    sa.Column("plan_disposition", sa.Text(), nullable=False),
     sa.Column("target_stage", sa.Text(), nullable=False),
     sa.Column("target_capability", sa.Text(), nullable=False),
     sa.Column("target_output_contract", sa.Text(), nullable=False),
-    sa.Column("total_record_count", sa.Integer(), nullable=False),
-    sa.Column("accepted_record_count", sa.Integer(), nullable=False),
-    sa.Column("rejected_record_count", sa.Integer(), nullable=False),
+    sa.Column("valid_record_count", sa.Integer(), nullable=False),
+    sa.Column("issue_count", sa.Integer(), nullable=False),
     sa.Column("child_work_count", sa.Integer(), nullable=False),
     sa.Column("result_digest", sa.Text(), nullable=False),
     sa.Column("admitted_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("correlation_id", sa.Text(), nullable=False),
     sa.Column("revision", sa.Integer(), nullable=False, server_default="0"),
-    sa.CheckConstraint("plan_status = 'ready'", name="ck_plan_admissions_ready"),
     sa.CheckConstraint(
-        "accepted_record_count + rejected_record_count = total_record_count",
-        name="ck_plan_admissions_counts",
+        "source_artifact_role ~ "
+        "'^(manual_source|manual_import_source):(csv|json|jsonl):(atomic|partial)$'",
+        name="ck_plan_admissions_source_role",
     ),
     sa.CheckConstraint(
-        "accepted_record_count = child_work_count",
+        "mode IN ('atomic', 'partial')",
+        name="ck_plan_admissions_mode",
+    ),
+    sa.CheckConstraint(
+        "plan_disposition IN ('accepted', 'partial')",
+        name="ck_plan_admissions_disposition",
+    ),
+    sa.CheckConstraint(
+        "(plan_disposition = 'accepted' AND valid_record_count > 0 "
+        "AND issue_count = 0) OR (plan_disposition = 'partial' "
+        "AND valid_record_count > 0 AND issue_count > 0)",
+        name="ck_plan_admissions_disposition_shape",
+    ),
+    sa.CheckConstraint(
+        "valid_record_count = child_work_count",
         name="ck_plan_admissions_child_count",
+    ),
+    sa.CheckConstraint(
+        "target_stage = 'discovery' AND target_capability = 'manual_record' "
+        "AND target_output_contract = 'manual-import-record@1'",
+        name="ck_plan_admissions_target_owner",
     ),
     sa.CheckConstraint(
         "plan_digest ~ '^sha256:[0-9a-f]{64}$' AND "

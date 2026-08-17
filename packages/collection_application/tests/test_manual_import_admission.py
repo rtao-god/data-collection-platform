@@ -1,23 +1,25 @@
 from __future__ import annotations
 
+import json
+from hashlib import sha256
 from uuid import UUID
 
 import pytest
-
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
     ManualImportAdmissionResult,
     ManualImportAdmissionService,
     ManualImportChildWork,
-    ManualImportPlanBlocked,
     ManualImportPlanForAdmission,
-    ManualImportRecord,
+    ManualImportPlanRejected,
     admission_result_digest,
 )
+from collection_contracts import ManualImportFormat, ManualImportMode
+from manual_import_core import (
+    build_manual_import_plan,
+    canonical_manual_import_plan_json,
+)
 
-_PLAN_DIGEST = "sha256:" + "1" * 64
-_SOURCE_DIGEST = "sha256:" + "2" * 64
-_RECORD_DIGEST = "sha256:" + "3" * 64
 _ADMISSION_ID = UUID("00000000-0000-0000-0000-000000000101")
 _PARENT_WORK_ID = UUID("00000000-0000-0000-0000-000000000102")
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000103")
@@ -61,51 +63,12 @@ class _RecordingStore:
         return self._result
 
 
-def _record(position: int = 0) -> ManualImportRecord:
-    return ManualImportRecord(
-        position=position,
-        locator_kind="line",
-        locator_value=str(position + 1),
-        record_digest=_RECORD_DIGEST,
-        values={"name": "Studio", "website": None},
-    )
-
-
-def _command(
-    *, status: str = "ready", records: tuple[ManualImportRecord, ...] | None = None
-) -> AdmitManualImportPlan:
-    selected = (_record(),) if records is None and status == "ready" else (records or ())
-    plan = ManualImportPlanForAdmission(
-        plan_artifact_id=_PLAN_ARTIFACT_ID,
-        source_artifact_id=_SOURCE_ARTIFACT_ID,
-        plan_digest=_PLAN_DIGEST,
-        source_digest=_SOURCE_DIGEST,
-        mode="partial",
-        status=status,
-        total_record_count=2 if status == "ready" else 1,
-        accepted_record_count=len(selected),
-        rejected_record_count=(2 - len(selected)) if status == "ready" else 1,
-        records=selected,
-    )
-    return AdmitManualImportPlan(
-        admission_id=_ADMISSION_ID,
-        parent_work_id=_PARENT_WORK_ID,
-        run_id=_RUN_ID,
-        stage_name="manual_import_admission",
-        target_stage="normalization",
-        target_capability="normalization",
-        target_output_contract="normalized-observation@1",
-        correlation_id="manual-import-admission-test",
-        plan=plan,
-    )
-
-
-def test_ready_plan_creates_one_deterministic_child_per_accepted_record() -> None:
+def test_canonical_plan_creates_one_deterministic_manual_record_child() -> None:
     store = _RecordingStore()
     service = ManualImportAdmissionService(store)
 
-    first = service.admit(_command())
-    second = service.admit(_command())
+    first = service.admit(_command(_accepted_plan()))
+    second = service.admit(_command(_accepted_plan()))
 
     assert first.status == "applied"
     assert second.status == "already_applied"
@@ -113,25 +76,105 @@ def test_ready_plan_creates_one_deterministic_child_per_accepted_record() -> Non
     assert store.children is not None
     assert len(store.children) == 1
     child = store.children[0]
+    assert child.position == 0
     assert child.semantic_key.startswith("sha256:")
-    assert len(child.semantic_key) == 71
     assert child.input_digest.startswith("sha256:")
-    assert b'"planArtifactId":"00000000-0000-0000-0000-000000000104"' in child.input_payload
-    assert b'"sourceArtifactId":"00000000-0000-0000-0000-000000000105"' in child.input_payload
+    payload = json.loads(child.input_payload)
+    assert payload["targetStage"] == "discovery"
+    assert payload["targetCapability"] == "manual_record"
+    assert payload["targetOutputContract"] == "manual-import-record@1"
+    assert payload["planArtifactDigest"] != payload["planDigest"]
+    assert payload["sourceArtifactRole"] == "manual_import_source:json:atomic"
 
 
-def test_blocked_plan_never_reaches_persistence() -> None:
+def test_partial_plan_schedules_only_canonical_valid_records() -> None:
     store = _RecordingStore()
 
-    with pytest.raises(ManualImportPlanBlocked) as error:
-        ManualImportAdmissionService(store).admit(_command(status="blocked"))
+    result = ManualImportAdmissionService(store).admit(_command(_partial_plan()))
 
-    assert error.value.code == "MANUAL_IMPORT_PLAN_BLOCKED"
+    assert result.status == "applied"
+    assert store.children is not None
+    assert len(store.children) == 1
+    assert store.children[0].record.record.display_name == "Studio A"
+
+
+def test_rejected_plan_never_reaches_persistence() -> None:
+    store = _RecordingStore()
+    plan = _rejected_plan()
+
+    with pytest.raises(ManualImportPlanRejected) as error:
+        ManualImportAdmissionService(store).admit(_command(plan))
+
+    assert error.value.code == "MANUAL_IMPORT_PLAN_REJECTED"
+    assert error.value.context["disposition"] == "rejected"
     assert store.children is None
 
 
-def test_record_positions_and_digests_are_unique() -> None:
-    duplicate = _record()
+def test_source_artifact_role_must_match_exact_plan_format_and_mode() -> None:
+    plan = _accepted_plan()
 
-    with pytest.raises(ValueError, match="positions must be unique"):
-        _command(records=(duplicate, duplicate))
+    with pytest.raises(ValueError, match="role mode differs"):
+        _bound_plan(plan, source_role="manual_import_source:json:partial")
+
+
+def _command(plan) -> AdmitManualImportPlan:
+    return AdmitManualImportPlan(
+        admission_id=_ADMISSION_ID,
+        parent_work_id=_PARENT_WORK_ID,
+        run_id=_RUN_ID,
+        correlation_id="manual-import-admission-test",
+        plan=_bound_plan(plan),
+    )
+
+
+def _bound_plan(plan, *, source_role: str | None = None):
+    if source_role is None:
+        source_role = f"manual_import_source:{plan.format.value}:{plan.mode.value}"
+    artifact = canonical_manual_import_plan_json(plan).encode("utf-8")
+    return ManualImportPlanForAdmission(
+        plan_artifact_id=_PLAN_ARTIFACT_ID,
+        plan_artifact_digest=f"sha256:{sha256(artifact).hexdigest()}",
+        source_artifact_id=_SOURCE_ARTIFACT_ID,
+        source_artifact_role=source_role,
+        plan=plan,
+    )
+
+
+def _accepted_plan():
+    return build_manual_import_plan(
+        _json_bytes([_row("Studio A")]),
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+
+
+def _partial_plan():
+    return build_manual_import_plan(
+        _json_bytes([_row("Studio A"), {"display_name": "invalid"}]),
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.PARTIAL,
+    )
+
+
+def _rejected_plan():
+    return build_manual_import_plan(
+        _json_bytes([{"display_name": "invalid"}]),
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+
+
+def _row(name: str) -> dict[str, object]:
+    return {
+        "expected_entity_kind": "place",
+        "display_name": name,
+        "website": "https://studio.example",
+        "osm_id": None,
+        "reference_urls": [],
+        "note": None,
+        "provenance": "manual import test",
+    }
+
+
+def _json_bytes(value: object) -> bytes:
+    return json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")

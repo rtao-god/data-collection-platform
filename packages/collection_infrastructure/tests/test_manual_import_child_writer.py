@@ -1,74 +1,138 @@
 from __future__ import annotations
 
+import json
+from contextlib import suppress
+from datetime import UTC, datetime
+from hashlib import sha256
 from uuid import UUID
-
-from sqlalchemy import create_engine
 
 from collection_application.manual_import_admission import (
     AdmitManualImportPlan,
+    ManualImportAdmissionService,
     ManualImportChildWork,
     ManualImportPlanForAdmission,
-    ManualImportRecord,
 )
+from collection_contracts import ManualImportFormat, ManualImportMode
+from collection_domain import WorkCapability, WorkStage
 from collection_infrastructure.postgres.manual_import_child_writer import (
     PostgresManualImportChildWorkWriter,
 )
+from manual_import_core import (
+    build_manual_import_plan,
+    canonical_manual_import_plan_json,
+)
+from sqlalchemy import create_engine
+
+_STAGE_RUN_ID = UUID("00000000-0000-0000-0000-000000000207")
 
 
-def test_child_writer_resolves_the_canonical_work_engine_contract() -> None:
+class _ScalarResult:
+    def scalars(self) -> _ScalarResult:
+        return self
+
+    def all(self) -> list[UUID]:
+        return [_STAGE_RUN_ID]
+
+
+class _Connection:
+    def execute(self, statement):
+        del statement
+        return _ScalarResult()
+
+
+class _RecordingWorkEngine:
+    def __init__(self) -> None:
+        self.specs = []
+
+    def enqueue_work_in_transaction(self, connection, spec) -> None:
+        del connection
+        self.specs.append(spec)
+
+
+class _ChildStore:
+    def __init__(self) -> None:
+        self.children: tuple[ManualImportChildWork, ...] = ()
+
+    def admit(self, command, children):
+        del command
+        self.children = tuple(children)
+        raise _ChildrenCaptured
+
+
+class _ChildrenCaptured(Exception):
+    pass
+
+
+def test_child_writer_uses_fixed_discovery_owner_and_selected_plan_role() -> None:
     engine = create_engine("postgresql+psycopg://collection:collection@localhost:5432/collection")
-    writer = PostgresManualImportChildWorkWriter(engine)
+    writer = PostgresManualImportChildWorkWriter(
+        engine,
+        clock=lambda: datetime(2026, 8, 17, tzinfo=UTC),
+    )
+    recording = _RecordingWorkEngine()
+    writer._work_engine = recording  # type: ignore[assignment]
     command = _command()
-    child = _child()
+    child = _child(command)
 
-    assert writer._work_engine is not None
-    assert command.target_stage == "normalization"
-    assert child.semantic_key.startswith("sha256:")
-    assert child.input_digest.startswith("sha256:")
+    result = writer.enqueue(_Connection(), command, (child,))  # type: ignore[arg-type]
+
+    assert result == (child.work_id,)
+    assert len(recording.specs) == 1
+    spec = recording.specs[0]
+    assert spec.stage is WorkStage.DISCOVERY
+    assert spec.capability is WorkCapability.MANUAL_RECORD
+    assert spec.source_key is None
+    assert spec.expected_output_contract == "manual-import-record@1"
+    assert tuple(binding.role for binding in spec.input_artifacts) == (
+        "manual_import_source:json:atomic",
+        "manual_import_plan_record:0",
+    )
 
 
 def _command() -> AdmitManualImportPlan:
-    record = _record()
+    plan = _plan()
+    payload = canonical_manual_import_plan_json(plan).encode("utf-8")
     return AdmitManualImportPlan(
         admission_id=UUID("00000000-0000-0000-0000-000000000201"),
         parent_work_id=UUID("00000000-0000-0000-0000-000000000202"),
         run_id=UUID("00000000-0000-0000-0000-000000000203"),
-        stage_name="manual_import_admission",
-        target_stage="normalization",
-        target_capability="normalization",
-        target_output_contract="normalized-observation@1",
         correlation_id="manual-import-child-writer-test",
         plan=ManualImportPlanForAdmission(
             plan_artifact_id=UUID("00000000-0000-0000-0000-000000000204"),
+            plan_artifact_digest=f"sha256:{sha256(payload).hexdigest()}",
             source_artifact_id=UUID("00000000-0000-0000-0000-000000000205"),
-            plan_digest="sha256:" + "1" * 64,
-            source_digest="sha256:" + "2" * 64,
-            mode="partial",
-            status="ready",
-            total_record_count=1,
-            accepted_record_count=1,
-            rejected_record_count=0,
-            records=(record,),
+            source_artifact_role="manual_import_source:json:atomic",
+            plan=plan,
         ),
     )
 
 
-def _record() -> ManualImportRecord:
-    return ManualImportRecord(
-        position=0,
-        locator_kind="line",
-        locator_value="1",
-        record_digest="sha256:" + "3" * 64,
-        values={"name": "Studio"},
-    )
+def _child(command: AdmitManualImportPlan) -> ManualImportChildWork:
+    store = _ChildStore()
+    with suppress(_ChildrenCaptured):
+        ManualImportAdmissionService(store).admit(command)
+    assert len(store.children) == 1
+    return store.children[0]
 
 
-def _child() -> ManualImportChildWork:
-    record = _record()
-    return ManualImportChildWork(
-        work_id=UUID("00000000-0000-0000-0000-000000000206"),
-        semantic_key="sha256:" + "5" * 64,
-        input_digest="sha256:" + "4" * 64,
-        input_payload=b'{"contract":"manual-import-record-input@1"}',
-        record=record,
+def _plan():
+    source = json.dumps(
+        [
+            {
+                "expected_entity_kind": "place",
+                "display_name": "Studio A",
+                "website": "https://studio.example",
+                "osm_id": None,
+                "reference_urls": [],
+                "note": None,
+                "provenance": "manual import test",
+            }
+        ],
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return build_manual_import_plan(
+        source,
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
     )
