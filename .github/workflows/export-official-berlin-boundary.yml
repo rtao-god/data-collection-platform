@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/export-official-berlin-boundary.yml
+      - packages/collection_application/src/collection_application/geography.py
       - tools/live_collection/berlin_boundary.py
       - tools/live_collection/berlin_boundary_portal.py
   workflow_dispatch:
