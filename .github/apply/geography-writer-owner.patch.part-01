@@ -1,0 +1,68 @@
+_root / "campaigns/berlin_recording_services"
++    boundary_relative = "geography/berlin-boundary.geojson"
++    provenance_relative = "geography/berlin-boundary.provenance.json"
++    boundary_path = campaign_root / boundary_relative
++    provenance_path = campaign_root / provenance_relative
++    geography_path = campaign_root / "geography.yaml"
++
++    canonical = canonicalize_boundary(canonical_boundary)
++    boundary_bytes = _canonical_json(canonical)
++    boundary_digest = _sha256(boundary_bytes)
++    feature_label = "geometry" if distribution_feature_count == 1 else "geometries"
++    provenance = {
++        "authority": "State of Berlin",
++        "boundary_artifact_path": boundary_relative,
++        "boundary_digest": boundary_digest,
++        "contract": "campaign-geography-provenance",
++        "contract_revision": "campaign-geography-provenance-v1",
++        "dataset_identifier": dataset_identifier,
++        "dataset_title": dataset_title,
++        "derivation": (
++            f"Deterministic union of {distribution_feature_count} official Berlin "
++            f"administrative boundary {feature_label}."
++        ),
++        "distribution_feature_count": distribution_feature_count,
++        "distribution_owner": distribution_owner,
++        "distribution_url": source_url,
++        "license_identifier": license_identifier,
++        "license_title": license_title,
++        "source_digest": source_digest,
++    }
++    provenance_bytes = _canonical_json(provenance)
++    geography = {
++        "schema_revision": "geography-config-v1",
++        "geography_revision": _campaign_geography_revision(campaign_root),
++        "boundary_artifact_path": boundary_relative,
++        "boundary_digest": boundary_digest,
++        "provenance_artifact_path": provenance_relative,
++        "provenance_digest": _sha256(provenance_bytes),
++    }
++
++    boundary_path.parent.mkdir(parents=True, exist_ok=True)
++    boundary_path.write_bytes(boundary_bytes)
++    provenance_path.write_bytes(provenance_bytes)
++    geography_path.write_text(
++        yaml.safe_dump(
++            geography,
++            allow_unicode=True,
++            sort_keys=False,
++            width=100,
++        ),
++        encoding="utf-8",
++    )
++    modified = update_campaign(
++        campaign_root,
++        boundary_path=boundary_relative,
++        digest=boundary_digest,
++    )
++    campaign_value = yaml.safe_load((campaign_root / "campaign.yaml").read_text(encoding="utf-8"))
++    readiness = campaign_value.get("readiness") if isinstance(campaign_value, Mapping) else None
++    blockers = readiness.get("blockers") if isinstance(readiness, Mapping) else None
++    if isinstance(blockers, Sequence) and any(
++        isinstance(blocker, Mapping) and blocker.get("code") == "BERLIN_BOUNDARY_ARTIFACT_MISSING"
++        for blocker in blockers
++    ):
++        raise BoundaryMaterializationError(
++            "campaign geography artifacts were written but the boundary blocker remains"
++        )
++    retu
