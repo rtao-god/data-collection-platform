@@ -1,4 +1,4 @@
-name: Export Official Berlin Boundary
+name: Finalize Official Berlin Geography
 
 on:
   push:
@@ -6,29 +6,41 @@ on:
       - main
     paths:
       - .github/workflows/export-official-berlin-boundary.yml
-      - packages/collection_application/src/collection_application/geography.py
-      - tools/live_collection/berlin_boundary.py
-      - tools/live_collection/berlin_boundary_portal.py
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: data-collection-platform-finalize-berlin-geography
+  cancel-in-progress: false
 
 jobs:
-  export:
+  materialize:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+      - name: Check out exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version-file: .python-version
           check-latest: false
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
           version: "0.10.0"
           enable-cache: true
-      - run: uv sync --frozen --all-packages --dev
-      - name: Materialize official Berlin district-derived boundary
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Materialize owner-bound Berlin geography
         shell: bash
         run: |
           set -euo pipefail
@@ -53,7 +65,7 @@ jobs:
               follow_redirects=False,
               headers={
                   "Accept": "application/geo+json, application/json",
-                  "User-Agent": "data-collection-platform-boundary-proof/1",
+                  "User-Agent": "data-collection-platform-boundary-materializer/1",
               },
           ) as client:
               response = client.get(distribution_url)
@@ -73,7 +85,7 @@ jobs:
               raise SystemExit("ODIS district distribution contains a non-Berlin feature")
 
           canonical = canonicalize_boundary(payload)
-          _, _, modified = write_geography_revision(
+          boundary_path, provenance_path, modified = write_geography_revision(
               Path.cwd(),
               canonical_boundary=canonical,
               source_digest=_sha256(response.content),
@@ -87,6 +99,15 @@ jobs:
               license_identifier="dl-de-zero-2.0",
               license_title="Datenlizenz Deutschland - Zero - Version 2.0",
           )
+          expected_artifacts = {
+              Path("campaigns/berlin_recording_services/geography/berlin-boundary.geojson"),
+              Path(
+                  "campaigns/berlin_recording_services/geography/"
+                  "berlin-boundary.provenance.json"
+              ),
+          }
+          if {boundary_path, provenance_path} != expected_artifacts:
+              raise SystemExit("geography writer returned unexpected artifact paths")
           unexpected = {path.name for path in modified} - {
               "campaign.yaml",
               "geography.yaml",
@@ -101,14 +122,44 @@ jobs:
           if campaign.get("readiness") != {"state": "ready"}:
               raise SystemExit("Berlin campaign remains blocked after geography materialization")
           PY
+
+      - name: Verify geography owner
+        shell: bash
+        run: |
+          set -euo pipefail
           uv run collector config validate berlin_recording_services
-      - uses: actions/upload-artifact@v4
-        with:
-          name: official-berlin-boundary
-          path: |
-            campaigns/berlin_recording_services/campaign.yaml
-            campaigns/berlin_recording_services/geography.yaml
-            campaigns/berlin_recording_services/geography/berlin-boundary.geojson
+          uv run python tools/contract_generation/generate.py --check
+          uv run ruff format --check \
+            packages/collection_application/src/collection_application/geography.py \
+            tools/live_collection/berlin_boundary.py \
+            tools/live_collection/berlin_boundary_portal.py \
+            tools/live_collection/tests/test_berlin_boundary.py
+          uv run ruff check \
+            packages/collection_application/src/collection_application/geography.py \
+            tools/live_collection/berlin_boundary.py \
+            tools/live_collection/berlin_boundary_portal.py \
+            tools/live_collection/tests/test_berlin_boundary.py
+          uv run pytest -q \
+            packages/collection_application/tests/test_geography.py \
+            tools/live_collection/tests/test_berlin_boundary.py
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python -m compileall -q packages tools
+
+      - name: Commit immutable geography revision and remove materializer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/export-official-berlin-boundary.yml
+          git add \
+            campaigns/berlin_recording_services/campaign.yaml \
+            campaigns/berlin_recording_services/geography.yaml \
+            campaigns/berlin_recording_services/geography/berlin-boundary.geojson \
             campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json
-          if-no-files-found: error
-          retention-days: 1
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Feature (Campaign): materialize official Berlin geography"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
