@@ -1,0 +1,63 @@
+name: Apply Berlin Boundary
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-berlin-boundary.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-berlin-boundary
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+      - run: uv sync --frozen --all-packages --dev
+      - name: Materialize reviewed official Berlin boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run python tools/live_collection/berlin_boundary_portal.py \
+            --repository-root . \
+            --timeout-seconds 90
+          uv run collector config validate berlin_recording_services
+          changed="$(git status --short | awk '{print $2}' | sort)"
+          expected="$(printf '%s\n' \
+            campaigns/berlin_recording_services/campaign.yaml \
+            campaigns/berlin_recording_services/geography/berlin-boundary.geojson \
+            campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json \
+            | sort)"
+          test "$changed" = "$expected"
+          git diff --check
+      - name: Commit exact campaign geography owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-berlin-boundary.yml
+          git add campaigns/berlin_recording_services
+          git diff --cached --check
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          git commit -m "Data (Berlin): materialize official campaign boundary"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
