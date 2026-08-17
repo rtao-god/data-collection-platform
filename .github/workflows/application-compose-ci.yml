@@ -249,7 +249,7 @@ jobs:
               timeout=5,
           ) as response:
               payload = json.load(response)
-          if payload != {"status": "ready"}:
+          if payload != {"component": "worker-gateway", "status": "ready"}:
               raise SystemExit(f"unexpected Worker Gateway readiness payload: {payload}")
           PY
 
