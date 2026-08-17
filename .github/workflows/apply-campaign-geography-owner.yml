@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/apply-campaign-geography-owner.yml
-      - .github/apply/campaign-geography-owner.patch.gz.b64
+      - .github/apply/campaign-geography-owner.patch.gz
   workflow_dispatch:
 
 permissions:
@@ -37,170 +37,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode .github/apply/campaign-geography-owner.patch.gz.b64 \
-            | gzip --decompress > /tmp/campaign-geography-owner.patch
+          gzip --decompress --stdout \
+            .github/apply/campaign-geography-owner.patch.gz \
+            > /tmp/campaign-geography-owner.patch
           git apply --index --3way /tmp/campaign-geography-owner.patch
-          cat > .github/workflows/export-official-berlin-boundary.yml <<'BOUNDARY'
-          name: Export Official Berlin Boundary
-
-          on:
-            push:
-              branches:
-                - main
-              paths:
-                - .github/workflows/export-official-berlin-boundary.yml
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          jobs:
-            export:
-              runs-on: ubuntu-24.04
-              steps:
-                - uses: actions/checkout@v6
-                - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
-                  with:
-                    python-version-file: .python-version
-                    check-latest: false
-                - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
-                  with:
-                    version: "0.10.0"
-                    enable-cache: true
-                - run: uv sync --frozen --all-packages --dev
-                - name: Materialize official Berlin district-derived boundary
-                  shell: bash
-                  run: |
-                    set -euo pipefail
-                    uv run python - <<'PY'
-                    from hashlib import sha256
-                    from pathlib import Path
-
-                    import httpx
-                    import yaml
-
-                    from tools.live_collection.berlin_boundary import (
-                        _canonical_json,
-                        _sha256,
-                        canonicalize_boundary,
-                        update_campaign,
-                    )
-
-                    distribution_url = (
-                        "https://tsb-opendata.s3.eu-central-1.amazonaws.com/"
-                        "bezirksgrenzen/bezirksgrenzen.geojson"
-                    )
-                    with httpx.Client(
-                        timeout=httpx.Timeout(90.0),
-                        follow_redirects=False,
-                        headers={
-                            "Accept": "application/geo+json, application/json",
-                            "User-Agent": "data-collection-platform-boundary-proof/1",
-                        },
-                    ) as client:
-                        response = client.get(distribution_url)
-                    response.raise_for_status()
-                    payload = response.json()
-                    features = payload.get("features") if isinstance(payload, dict) else None
-                    if not isinstance(features, list) or len(features) != 12:
-                        raise SystemExit(
-                            "ODIS Berlin district distribution must contain exactly 12 features"
-                        )
-                    if any(
-                        not isinstance(feature, dict)
-                        or not isinstance(feature.get("properties"), dict)
-                        or feature["properties"].get("Land_name") != "Berlin"
-                        for feature in features
-                    ):
-                        raise SystemExit(
-                            "ODIS district distribution contains a non-Berlin feature"
-                        )
-
-                    root = Path.cwd()
-                    campaign_root = root / "campaigns/berlin_recording_services"
-                    boundary_relative = "geography/berlin-boundary.geojson"
-                    provenance_relative = "geography/berlin-boundary.provenance.json"
-                    boundary_path = campaign_root / boundary_relative
-                    provenance_path = campaign_root / provenance_relative
-                    geography_path = campaign_root / "geography.yaml"
-                    canonical = canonicalize_boundary(payload)
-                    boundary_bytes = _canonical_json(canonical)
-                    boundary_digest = _sha256(boundary_bytes)
-                    source_digest = _sha256(response.content)
-                    provenance = {
-                        "authority": "State of Berlin",
-                        "boundary_artifact_path": boundary_relative,
-                        "boundary_digest": boundary_digest,
-                        "contract": "campaign-geography-provenance",
-                        "contract_revision": "campaign-geography-provenance-v1",
-                        "dataset_identifier": "ced31d7d-353d-373a-b9a9-2251b9498bc0",
-                        "dataset_title": "ALKIS Berlin Bezirke - WFS",
-                        "derivation": (
-                            "Deterministic union of the 12 official Berlin district polygons."
-                        ),
-                        "distribution_feature_count": 12,
-                        "distribution_owner": (
-                            "Open Data Informationsstelle Berlin / Technologiestiftung Berlin"
-                        ),
-                        "distribution_url": distribution_url,
-                        "license_identifier": "dl-de-zero-2.0",
-                        "license_title": (
-                            "Datenlizenz Deutschland - Zero - Version 2.0"
-                        ),
-                        "source_digest": source_digest,
-                    }
-                    provenance_bytes = _canonical_json(provenance)
-                    provenance_digest = (
-                        f"sha256:{sha256(provenance_bytes).hexdigest()}"
-                    )
-                    boundary_path.parent.mkdir(parents=True, exist_ok=True)
-                    boundary_path.write_bytes(boundary_bytes)
-                    provenance_path.write_bytes(provenance_bytes)
-                    geography_path.write_text(
-                        yaml.safe_dump(
-                            {
-                                "schema_revision": "geography-config-v1",
-                                "geography_revision": "berlin-official-boundary-v1",
-                                "boundary_artifact_path": boundary_relative,
-                                "boundary_digest": boundary_digest,
-                                "provenance_artifact_path": provenance_relative,
-                                "provenance_digest": provenance_digest,
-                            },
-                            allow_unicode=True,
-                            sort_keys=False,
-                        ),
-                        encoding="utf-8",
-                    )
-                    modified = update_campaign(
-                        campaign_root,
-                        boundary_path=boundary_relative,
-                        digest=boundary_digest,
-                    )
-                    if {path.name for path in modified} != {
-                        "campaign.yaml",
-                        "geography.yaml",
-                    }:
-                        raise SystemExit(f"unexpected campaign files changed: {modified}")
-                    PY
-                    uv run collector config validate berlin_recording_services
-                - uses: actions/upload-artifact@v4
-                  with:
-                    name: official-berlin-boundary
-                    path: |
-                      campaigns/berlin_recording_services/campaign.yaml
-                      campaigns/berlin_recording_services/geography.yaml
-                      campaigns/berlin_recording_services/geography/berlin-boundary.geojson
-                      campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json
-                    if-no-files-found: error
-                    retention-days: 1
-          BOUNDARY
-          git add .github/workflows/export-official-berlin-boundary.yml
           git diff --cached --check
       - name: Verify campaign geography owner
         shell: bash
         run: |
           set -euo pipefail
-          uv run pythoon tools/contract_generation/generate.py --check
+          uv run python tools/contract_generation/generate.py --check
           uv run ruff format --check \
             packages/collection_application/src/collection_application/campaign_documents.py \
             packages/collection_application/src/collection_application/canonicalization.py \
@@ -234,7 +80,7 @@ jobs:
           set -euo pipefail
           git rm \
             .github/workflows/apply-campaign-geography-owner.yml \
-            .github/apply/campaign-geography-owner.patch.gz.b64
+            .github/apply/campaign-geography-owner.patch.gz
           git add -A
           git diff --cached --check
           git config user.name rtao-god
