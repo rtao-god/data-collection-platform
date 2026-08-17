@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          uv run python tools/live_collection/berlin_boundary_portal.py \
+          uv run python -m tools.live_collection.berlin_boundary_portal \
             --repository-root . \
             --timeout-seconds 90
           uv run collector config validate berlin_recording_services
