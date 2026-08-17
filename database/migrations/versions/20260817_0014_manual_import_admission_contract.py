@@ -275,7 +275,7 @@ def _replace_capability_constraints(capabilities: tuple[str, ...]) -> None:
 
 
 def _stage_capability_check(capabilities: tuple[str, ...]) -> str:
-    manual = ("manual_import", "osm_query")
+    manual: tuple[str, ...] = ("manual_import", "osm_query")
     if "manual_record" in capabilities:
         manual = ("manual_import", "manual_record", "osm_query")
     stage_capabilities = {
