@@ -31,13 +31,14 @@ jobs:
           set -euo pipefail
           uv run python - <<'PY'
           from pathlib import Path
+
           import httpx
+          import yaml
 
           from tools.live_collection.berlin_boundary import (
-              _canonical_json,
               _sha256,
               canonicalize_boundary,
-              update_campaign,
+              write_geography_revision,
           )
 
           distribution_url = (
@@ -57,7 +58,9 @@ jobs:
           payload = response.json()
           features = payload.get("features") if isinstance(payload, dict) else None
           if not isinstance(features, list) or len(features) != 12:
-              raise SystemExit("ODIS Berlin district distribution must contain exactly 12 features")
+              raise SystemExit(
+                  "ODIS Berlin district distribution must contain exactly 12 features"
+              )
           if any(
               not isinstance(feature, dict)
               or not isinstance(feature.get("properties"), dict)
@@ -66,42 +69,34 @@ jobs:
           ):
               raise SystemExit("ODIS district distribution contains a non-Berlin feature")
 
-          root = Path.cwd()
-          campaign_root = root / "campaigns/berlin_recording_services"
-          boundary_path = campaign_root / "geography/berlin-boundary.geojson"
-          provenance_path = campaign_root / "geography/berlin-boundary.provenance.json"
           canonical = canonicalize_boundary(payload)
-          boundary_bytes = _canonical_json(canonical)
-          boundary_digest = _sha256(boundary_bytes)
-          source_digest = _sha256(response.content)
-          relative = boundary_path.relative_to(root).as_posix()
-          provenance = {
-              "contract": "berlin-boundary-provenance",
-              "contractRevision": "1",
-              "authority": "State of Berlin",
-              "officialDatasetTitle": "ALKIS Berlin Bezirke - WFS",
-              "officialDatasetIdentifier": "ced31d7d-353d-373a-b9a9-2251b9498bc0",
-              "officialServiceUrl": "https://gdi.berlin.de/services/wfs/alkis_bezirke",
-              "distributionOwner": "Open Data Informationsstelle Berlin / Technologiestiftung Berlin",
-              "distributionUrl": distribution_url,
-              "distributionFeatureCount": 12,
-              "derivation": "deterministic union of the 12 official Berlin district polygons",
-              "licenseIdentifier": "dl-de-zero-2.0",
-              "licenseTitle": "Datenlizenz Deutschland - Zero - Version 2.0",
-              "sourceDigest": source_digest,
-              "boundaryDigest": boundary_digest,
-              "boundaryPath": relative,
-          }
-          boundary_path.parent.mkdir(parents=True, exist_ok=True)
-          boundary_path.write_bytes(boundary_bytes)
-          provenance_path.write_bytes(_canonical_json(provenance))
-          modified = update_campaign(
-              campaign_root,
-              boundary_path=relative,
-              digest=boundary_digest,
+          _, _, modified = write_geography_revision(
+              Path.cwd(),
+              canonical_boundary=canonical,
+              source_digest=_sha256(response.content),
+              source_url=str(response.url),
+              dataset_title="ALKIS Berlin Bezirke - WFS",
+              dataset_identifier="ced31d7d-353d-373a-b9a9-2251b9498bc0",
+              distribution_owner=(
+                  "Open Data Informationsstelle Berlin / Technologiestiftung Berlin"
+              ),
+              distribution_feature_count=12,
+              license_identifier="dl-de-zero-2.0",
+              license_title="Datenlizenz Deutschland - Zero - Version 2.0",
           )
-          if modified != (campaign_root / "campaign.yaml",):
-              raise SystemExit(f"unexpected campaign files changed: {modified}")
+          unexpected = {path.name for path in modified} - {
+              "campaign.yaml",
+              "geography.yaml",
+          }
+          if unexpected:
+              raise SystemExit(f"unexpected campaign files changed: {sorted(unexpected)}")
+          campaign = yaml.safe_load(
+              Path("campaigns/berlin_recording_services/campaign.yaml").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if campaign.get("readiness") != {"state": "ready"}:
+              raise SystemExit("Berlin campaign remains blocked after geography materialization")
           PY
           uv run collector config validate berlin_recording_services
       - uses: actions/upload-artifact@v4
@@ -109,6 +104,7 @@ jobs:
           name: official-berlin-boundary
           path: |
             campaigns/berlin_recording_services/campaign.yaml
+            campaigns/berlin_recording_services/geography.yaml
             campaigns/berlin_recording_services/geography/berlin-boundary.geojson
             campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json
           if-no-files-found: error
