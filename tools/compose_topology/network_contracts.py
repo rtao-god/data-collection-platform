@@ -31,7 +31,7 @@ def require_network_topology(
             required_action="Declare only the internal, egress, and dedicated loopback networks.",
         )
 
-    actual_members = {name: set() for name in networks}
+    actual_members: dict[str, set[str]] = {name: set() for name in networks}
     for service_name, raw_service in services.items():
         service = mapping(raw_service, owner=f"services.{service_name}")
         for network_name in service_networks(service):

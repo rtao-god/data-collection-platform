@@ -98,7 +98,9 @@ def require_secret_inventory(
                 required_action="Rotate and materialize the exact current environment value.",
             )
 
-    expected_mounts = {name: frozenset() for name in EXPECTED_SERVICES}
+    expected_mounts: dict[str, frozenset[str]] = {
+        name: frozenset() for name in EXPECTED_SERVICES
+    }
     expected_mounts["control-api"] = OBJECT_STORE_SECRETS
     expected_mounts["worker-gateway"] = OBJECT_STORE_SECRETS | {"worker-gateway-credentials"}
     for name, raw_service in services.items():
