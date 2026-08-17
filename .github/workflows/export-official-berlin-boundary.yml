@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - .github/workflows/export-official-berlin-boundary.yml
+      - tools/live_collection/berlin_boundary.py
+      - tools/live_collection/berlin_boundary_portal.py
   workflow_dispatch:
 
 permissions:
