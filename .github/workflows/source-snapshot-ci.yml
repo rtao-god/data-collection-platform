@@ -1,0 +1,44 @@
+name: Export Current Source Snapshot
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/source-snapshot-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v6
+
+      - name: Package exact source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude=.git \
+            --exclude=.venv \
+            --exclude='**/__pycache__' \
+            --exclude='.pytest_cache' \
+            --exclude='.mypy_cache' \
+            --exclude='.ruff_cache' \
+            -czf /tmp/data-collection-platform-source.tar.gz .
+          sha256sum /tmp/data-collection-platform-source.tar.gz \
+            > /tmp/data-collection-platform-source.tar.gz.sha256
+
+      - name: Upload exact source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-source-snapshot
+          path: |
+            /tmp/data-collection-platform-source.tar.gz
+            /tmp/data-collection-platform-source.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 1
