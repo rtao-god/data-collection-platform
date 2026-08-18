@@ -138,6 +138,63 @@ jobs:
           PY
           git diff --check
 
+      - name: Narrow manual-record extraction types
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path("packages/extraction_core/src/extraction_core/manual_record.py")
+          text = source.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "from collections.abc import Callable\n",
+                  "from collections.abc import Callable\nfrom typing import Literal, cast\n",
+              ),
+              (
+                  "MANUAL_IMPORT_RECORD_EXTRACTOR_REVISION = \"manual-import-record-extractor@1\"\n",
+                  "MANUAL_IMPORT_RECORD_EXTRACTOR_REVISION = \"manual-import-record-extractor@1\"\n\n"
+                  "type ExtractedEntityKind = Literal[\"organization\", \"place\", \"provider\"]\n",
+              ),
+              (
+                  "    if record.osm_id is not None:\n"
+                  "        add(\"osm_id\", lambda: ExtractedTextValue(value=record.osm_id), record.osm_id)\n",
+                  "    if record.osm_id is not None:\n"
+                  "        osm_id = cast(str, record.osm_id)\n"
+                  "        add(\"osm_id\", lambda: ExtractedTextValue(value=osm_id), osm_id)\n",
+              ),
+              (
+                  "    payload = ExtractedRecordPayload(\n",
+                  "    entity_kind = record.expected_entity_kind\n"
+                  "    if entity_kind not in {\"organization\", \"place\", \"provider\"}:\n"
+                  "        raise ExtractionError(\n"
+                  "            code=\"MANUAL_RECORD_ENTITY_KIND_UNSUPPORTED\",\n"
+                  "            message=\"The manual record selects an unsupported entity kind.\",\n"
+                  "        )\n"
+                  "    typed_entity_kind = cast(ExtractedEntityKind, entity_kind)\n\n"
+                  "    payload = ExtractedRecordPayload(\n",
+              ),
+              (
+                  "        entity_kind_candidates=(record.expected_entity_kind,),\n",
+                  "        entity_kind_candidates=(typed_entity_kind,),\n",
+              ),
+          )
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"manual-record extraction type target mismatch: {old!r}")
+              text = text.replace(old, new)
+          source.write_text(text, encoding="utf-8")
+
+          test_path = Path("packages/extraction_core/tests/test_manual_record.py")
+          test_text = test_path.read_text(encoding="utf-8")
+          test_case = '''\n\ndef test_rejects_unsupported_manual_record_entity_kind() -> None:\n    document = _document()\n    unsupported = document.model_copy(\n        update={\n            "record": document.record.model_copy(\n                update={"expected_entity_kind": "venue"}\n            )\n        }\n    )\n\n    with pytest.raises(ExtractionError) as error:\n        extract_manual_import_record(unsupported, _request(unsupported))\n\n    assert error.value.code == "MANUAL_RECORD_ENTITY_KIND_UNSUPPORTED"\n'''
+          if "test_rejects_unsupported_manual_record_entity_kind" in test_text:
+              raise SystemExit("manual-record entity-kind negative test already exists")
+          test_path.write_text(test_text.rstrip() + test_case + "\n", encoding="utf-8")
+          PY
+          git diff --check
+
       - name: Restore lock and generated contracts
         shell: bash
         run: |
