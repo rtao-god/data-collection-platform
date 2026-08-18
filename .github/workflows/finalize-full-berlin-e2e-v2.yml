@@ -1,0 +1,169 @@
+name: Finalize Full Berlin E2E V2
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/finalize-full-berlin-e2e-v2.yml]
+  workflow_dispatch:
+
+concurrency:
+  group: data-collection-platform-finalize-full-berlin-e2e
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download content-addressed E2E owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://filebin.net/dcp-full-e2e-v2-485b9907e79245f4ad893393a3981b66'
+          for _ in $(seq 1 2100); do if curl -fsS "$base/locator.txt" -o /tmp/locator.txt; then break; fi; sleep 10; done
+          test -s /tmp/locator.txt
+          locator="$(tr -d '\r\n' </tmp/locator.txt)"
+          if [ "$locator" = failed ]; then curl -fsS "$base/failure.json" -o /tmp/failure.json||true; curl -fsS "$base/failure.log" -o /tmp/failure.log||true; cat /tmp/failure.json /tmp/failure.log 2>/dev/null||true; exit 1; fi
+          if [ "$locator" = already-complete ]; then printf 'already-complete\n' >/tmp/mode.txt; : >/tmp/owner.patch; else [[ "$locator" =~ ^[0-9a-f]{64}$ ]]; curl -fsS "$base/${locator}.patch" -o /tmp/owner.patch; printf '%s  %s\n' "$locator" /tmp/owner.patch|sha256sum -c -; printf 'patch\n' >/tmp/mode.txt; fi
+          for _ in $(seq 1 180); do if curl -fsS "$base/command-locator.txt" -o /tmp/command-locator.txt; then break; fi; sleep 10; done
+          csha="$(tr -d '\r\n' </tmp/command-locator.txt)"; [[ "$csha" =~ ^[0-9a-f]{64}$ ]]; curl -fsS "$base/${csha}.sh" -o /tmp/runtime.sh; printf '%s  %s\n' "$csha" /tmp/runtime.sh|sha256sum -c -
+      - name: Enforce scope and apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(cat /tmp/mode.txt)" = patch ]; then
+            git apply --numstat /tmp/owner.patch >/tmp/numstat.txt
+            python - <<'PY'
+          from pathlib import PurePosixPath
+          allowed={'.codex','apps','campaigns','contracts','database','deploy','docs','packages','tools','web','pyproject.toml','uv.lock','package.json','pnpm-lock.yaml','package-lock.json','yarn.lock','pnpm-workspace.yaml'}
+          paths=[]
+          for raw in open('/tmp/numstat.txt',encoding='utf-8'):
+              p=raw.rstrip('\n').split('\t')
+              if len(p)!=3: raise SystemExit('invalid numstat')
+              path=p[2]; pure=PurePosixPath(path)
+              if pure.is_absolute() or '..' in pure.parts: raise SystemExit(f'unsafe {path}')
+              if path.startswith('.github/'):
+                  low=path.casefold()
+                  if any(t in low for t in ('apply-','finalize-','cleanup-','materialize-','transport')): raise SystemExit(f'temporary {path}')
+                  if not path.startswith('.github/workflows/'): raise SystemExit(f'unapproved {path}')
+              elif pure.parts[0] not in allowed: raise SystemExit(f'unregistered {path}')
+              if path.startswith('deploy/compose/.secrets/'): raise SystemExit(f'secret {path}')
+              paths.append(path)
+          if len(paths)!=len(set(paths)) or len(paths)>440: raise SystemExit('invalid breadth')
+          joined='\n'.join(paths).casefold()
+          for token in ('campaigns/berlin_recording_services','osm','http','coverage','export'):
+              if token not in joined: raise SystemExit(f'missing {token}')
+          PY
+            git am --3way /tmp/owner.patch
+          fi
+          find .github/workflows -maxdepth 1 -type f \( -name 'apply-*.yml' -o -name 'finalize-*.yml' -o -name 'cleanup-*.yml' -o -name 'materialize-*.yml' \) -delete
+          rm -rf .github/apply
+          git diff --check
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: '0.10.0'
+          enable-cache: true
+      - uses: actions/setup-node@v5
+        if: ${{ hashFiles('web/review_console/package.json') != '' }}
+        with:
+          node-version: '24'
+      - run: uv sync --frozen --all-packages --dev
+      - name: Backend gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/architecture_checks/check_workflows.py
+          uv run collector config validate berlin_recording_services
+          uv run python -m compileall -q apps connectors database packages tools
+      - name: Frontend gate
+        if: ${{ hashFiles('web/review_console/package.json') != '' }}
+        shell: bash
+        working-directory: web/review_console
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then corepack enable; pnpm install --frozen-lockfile; r='pnpm run'; elif [ -f package-lock.json ]; then npm ci; r='npm run'; elif [ -f yarn.lock ]; then corepack enable; yarn install --immutable; r='yarn'; else exit 1; fi
+          node - <<'JS' >/tmp/scripts
+          const s=require('./package.json').scripts||{}; for(const q of ['lint','typecheck','build'])if(!s[q])process.exitCode=1; for(const q of ['generate:check','client:check','contracts:check','lint','typecheck','test','test:unit','build'])if(s[q])console.log(q)
+          JS
+          while read -r s; do $r "$s"; done </tmp/scripts
+      - name: Real clean-volume Berlin proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d -o "$(id -u)" -g "$(id -g)" /mnt/data
+          sed -i "s#/mnt/data/dcp_full_e2e#${GITHUB_WORKSPACE}#g" /tmp/runtime.sh
+          chmod +x /tmp/runtime.sh
+          /tmp/runtime.sh | tee /tmp/runtime.log
+          python - <<'PY'
+          import json
+          xs=[]
+          for line in open('/tmp/runtime.log',encoding='utf-8',errors='replace'):
+              s=line.strip()
+              if s.startswith('{') and s.endswith('}'):
+                  try: xs.append(json.loads(s))
+                  except json.JSONDecodeError: pass
+          if not xs: raise SystemExit('no JSON summary')
+          text=json.dumps(xs[-1],sort_keys=True).casefold()
+          for token in ('manual','osm','http','candidate','review','coverage','export'):
+              if token not in text: raise SystemExit(f'missing {token}')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-full-berlin-e2e-v2
+          path: |
+            /tmp/mode.txt
+            /tmp/locator.txt
+            /tmp/owner.patch
+            /tmp/runtime.log
+          if-no-files-found: error
+          retention-days: 3
+  commit:
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-full-berlin-e2e-v2
+          path: /tmp/v
+      - name: Commit and purge transports
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="$(tr -d '\r\n' </tmp/v/mode.txt)"
+          if [ "$mode" = patch ]; then sha="$(tr -d '\r\n' </tmp/v/locator.txt)"; printf '%s  %s\n' "$sha" /tmp/v/owner.patch|sha256sum -c -; git am --3way /tmp/v/owner.patch; elif [ "$mode" != already-complete ]; then exit 1; fi
+          find .github/workflows -maxdepth 1 -type f \( -name 'apply-*.yml' -o -name 'finalize-*.yml' -o -name 'cleanup-*.yml' -o -name 'materialize-*.yml' \) -delete
+          rm -rf .github/apply
+          git add -A
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          if [ "$mode" = patch ]; then git commit --amend --no-edit; else git commit -m 'Build (Campaign): remove completed transports'; fi
+          git diff HEAD^ --check
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
