@@ -7,7 +7,7 @@ This ledger reports only production owners that are present in the registered wo
 | Stage/area | Current owner/result |
 |---|---|
 | Foundation | Python 3.13 `uv` workspace, exact lock, Ruff, strict mypy, pytest, architecture checks, generated-contract drift checks, Alembic, and capability-specific Docker images |
-| Campaign configuration | Strict campaign documents, cross-reference validation, canonical JSON, deterministic SHA-256 bundle identity, readiness blockers, and immutable snapshot publication |
+| Campaign configuration | Strict campaign documents, cross-reference validation, canonical JSON, deterministic SHA-256 bundle identity, readiness blockers, immutable snapshot publication, and the official Berlin geography revision with provenance |
 | Runs and work | Atomic run bootstrap from an exact immutable snapshot; durable stages, semantic work units, attempts, leases, heartbeat, expiry, typed retries, dead letters, worker registration, output compatibility, source permits, run coverage, revisioned pause/resume/cancel, and append-only transition history |
 | Worker boundary | Authenticated Worker Gateway is the only worker-facing state and artifact boundary; source workers have no PostgreSQL or S3 credentials |
 | Object transfer | Lease-scoped pre-signed upload/read, streamed size/digest verification, content-addressed object promotion, ordered artifact bindings, and atomic work completion |
@@ -17,6 +17,7 @@ This ledger reports only production owners that are present in the registered wo
 | Official website HTTP | Strict request/manifest contracts, canonical URL and public-address enforcement, robots/sitemap/page-interest planning, one-request Scrapy execution, conditional `304` reuse, bounded raw acquisition, typed `403`/`429` behavior, isolated worker, generated schemas, and Docker image |
 | Extraction and normalization | Digest-bound extraction requests, JSON-LD/microdata/RDFa and HTML contact/address evidence, bounded evidence spans, typed extracted records, explicit observation states, phone/URL/email/address/money normalization, negative-aware attribute patterns, derived artifacts, and a capability-isolated processing worker |
 | Entity resolution and quality | Canonical candidate batches, bounded deterministic blocking, integer match features, strong-identifier/corroboration rules, name-only and fuzzy-Berlin review gates, immutable manual decisions, transitive separation protection, deterministic reversible clusters, fail-closed cluster quality, synthetic golden data, and a capability-isolated resolution worker |
+| Review backend | Candidate/review contracts, append-only PostgreSQL persistence, optimistic concurrency, authenticated Control API, generated OpenAPI, manual observations, and suppression commands |
 | Database | Fresh PostgreSQL/PostGIS migration through `20260817_0014`, SQLAlchemy metadata, constraints, indexes, immutable review history, and append-only run transition history |
 | Architecture enforcement | Fail-closed workspace/project registry, declared dependency graph, AST import checks, forbidden capability scans, and worker-image isolation checks |
 
@@ -29,27 +30,27 @@ This ledger reports only production owners that are present in the registered wo
 
 ## Explicitly incomplete
 
-- the application Compose contract includes PostgreSQL/PostGIS, SeaweedFS, Control API, Worker Gateway, and capability workers, but a real full campaign run is not yet proven;
-- SeaweedFS compatibility is a permanent dedicated infrastructure proof and remains excluded from ordinary unit execution;
-- the official Berlin boundary and provenance are materialized; no real Berlin collection run or coverage report is proven yet;
-- no review frontend, browser, or export owner;
-- no Dagster composition, source-control API, retention/backup deployable, or complete operational UI;
-- the campaign does not yet bind and execute a complete manual/OSM/website acquisition flow.
+- a real full Berlin campaign run and coverage report are not yet proven;
+- `manual-import-record@1` is materialized, but campaign-owned routing into website/OSM acquisition is not yet implemented;
+- no React review frontend;
+- no browser acquisition owner;
+- no collector export owner, deterministic sealing, download, or verification CLI;
+- no Dagster composition, retention deployable, backup/restore drill, or complete observability profile;
+- application Compose does not yet prove the full manual/OSM/website → observations → candidates → review → export lifecycle.
 
 ## Next owner batch
 
-The next production batch is approved downstream routing for `manual-import-record@1`: exact website or OSM acquisition work must be derived from campaign-owned source bindings, after which the first real Berlin run can produce observations, candidates, review cases, and coverage.
+The next dependency-ordered production owner is approved downstream routing for `manual-import-record@1`. It must derive exact website or OSM acquisition work from the immutable manual record and campaign-owned source bindings, retain the source policy and provenance identities, reject unsupported or ambiguous routes explicitly, and preserve idempotent replay. Once that owner is proven, the first real Berlin vertical can advance through acquisition and processing rather than stopping after seed materialization.
 
 ## Stage 8A — candidate and review foundation
 
-Status: **contracts, pure transitions, and append-only schema implemented; runtime adapter and Control API remain**.
+Status: **contracts, pure transitions, append-only schema, PostgreSQL adapter, and Control API implemented; frontend remains**.
 
 - `review_contracts` owns candidate revisions, review commands/decisions, manual observations, and suppression revisions.
 - `review_core` owns optimistic-concurrency transitions and immutable supersession semantics.
 - Migration `20260814_0010` owns candidate, quality, and review history tables with insert-only enforcement.
 - Manual observations append evidence and never mutate source observations or candidate snapshots.
 - Suppression has explicit discovery, normalization, and export scopes.
-- PostgreSQL command adapter, Control API, authentication, and review UI are not claimed by this block.
 
 ## Stage 8B — review command adapter and Control API
 
@@ -59,20 +60,15 @@ Status: **application, PostgreSQL adapter, authenticated API, generated OpenAPI,
 - Decisions, observations, and suppressions use exact command digests and optimistic concurrency.
 - Review queue pagination uses opaque cursors.
 - Control API startup does not run migrations.
-- The React review console is the next Stage 8 owner.
-
+- The React review console remains the next Stage 8 UI owner.
 
 ## Run Control and campaign-run bootstrap
 
 Status: **application owner, PostgreSQL adapter, authenticated API, generated contract, and migration implemented**.
 
-- `POST /runs` publishes and binds the exact campaign snapshot, then atomically creates source
-  capacities, all stage owners, and typed initial work.
-- Run reads and coverage are derived from canonical run/stage/work rows; missing counts are not
-  represented as successful work, and terminal run/stage/dead-letter/policy blockers are explicit.
+- `POST /runs` publishes and binds the exact campaign snapshot, then atomically creates source capacities, all stage owners, and typed initial work.
+- Run reads and coverage are derived from canonical run/stage/work rows; missing counts are not represented as successful work, and terminal run/stage/dead-letter/policy blockers are explicit.
 - Pause changes only canonical run state, which is already enforced by lease acquisition.
 - Resume requires exact revision and validates that persisted stages remain resumable.
-- Cancel terminalizes pending/retry work but does not forge cancellation of an active lease or
-  rewrite completed evidence.
-- Every operator transition appends actor, reason, correlation, and before/after revisions to
-  `runs.collection_run_transitions`; PostgreSQL rejects update and delete of that history.
+- Cancel terminalizes pending/retry work but does not forge cancellation of an active lease or rewrite completed evidence.
+- Every operator transition appends actor, reason, correlation, and before/after revisions to `runs.collection_run_transitions`; PostgreSQL rejects update and delete of that history.
