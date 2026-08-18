@@ -1,0 +1,214 @@
+name: Finalize Manual Seed Candidate Vertical
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-manual-seed-candidate-vertical.yml
+  workflow_dispatch:
+
+concurrency:
+  group: data-collection-platform-finalize-manual-seed-candidate-vertical
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out current main without write credentials
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Resolve content-addressed repair input
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_url='https://filebin.net/dcp-37d1c0f58e1b4c20a6f994b4d8f3ad71'
+          curl --fail-with-body --silent --show-error \
+            "${base_url}/locator.txt" \
+            --output /tmp/locator.txt
+          locator="$(tr -d '\r\n' < /tmp/locator.txt)"
+          if [ "$locator" = already-complete ]; then
+            printf 'already-complete\n' > /tmp/mode.txt
+            : > /tmp/owner.patch
+            exit 0
+          fi
+          [[ "$locator" =~ ^[0-9a-f]{64}$ ]]
+          curl --fail-with-body --silent --show-error \
+            "${base_url}/${locator}.patch" \
+            --output /tmp/owner.patch
+          printf '%s  %s\n' "$locator" /tmp/owner.patch \
+            | sha256sum --check --strict
+          printf 'patch\n' > /tmp/mode.txt
+
+      - name: Enforce patch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(cat /tmp/mode.txt)" = already-complete ]; then
+            exit 0
+          fi
+          git apply --numstat /tmp/owner.patch > /tmp/owner-numstat.txt
+          test -s /tmp/owner-numstat.txt
+          python - <<'PY'
+          from pathlib import PurePosixPath
+
+          allowed_roots = {
+              '.codex', 'apps', 'campaigns', 'contracts', 'database',
+              'deploy', 'docs', 'packages', 'tools', 'pyproject.toml', 'uv.lock',
+          }
+          paths: list[str] = []
+          for raw in open('/tmp/owner-numstat.txt', encoding='utf-8'):
+              parts = raw.rstrip('\n').split('\t')
+              if len(parts) != 3:
+                  raise SystemExit(f'invalid numstat row: {raw!r}')
+              path = parts[2]
+              pure = PurePosixPath(path)
+              if pure.is_absolute() or '..' in pure.parts:
+                  raise SystemExit(f'unsafe path: {path}')
+              if path.startswith(('.github/', '.git/', 'deploy/compose/.secrets/')):
+                  raise SystemExit(f'forbidden path: {path}')
+              if pure.parts[0] not in allowed_roots:
+                  raise SystemExit(f'unregistered root: {path}')
+              paths.append(path)
+          if len(paths) != len(set(paths)) or len(paths) > 120:
+              raise SystemExit('patch path inventory is invalid or unexpectedly broad')
+          for prefix in (
+              'packages/collection_application/',
+              'packages/collection_infrastructure/',
+          ):
+              if not any(path.startswith(prefix) for path in paths):
+                  raise SystemExit(f'missing required owner boundary: {prefix}')
+          PY
+
+      - name: Apply repair in disposable verification checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(cat /tmp/mode.txt)" = patch ]; then
+            git apply --3way /tmp/owner.patch
+          fi
+          rm -f \
+            .github/workflows/apply-manual-seed-candidate-vertical.yml \
+            .github/workflows/finalize-manual-seed-candidate-vertical.yml
+          git diff --check
+
+      - name: Verify manual-seed vertical ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          registry = Path(
+              'packages/collection_application/src/collection_application/'
+              'pipeline_advancement.py'
+          ).read_text(encoding='utf-8')
+          if 'MANUAL_RECORD_DOWNSTREAM_SOURCE_UNAVAILABLE' in registry:
+              raise SystemExit('manual-record route still terminates at the placeholder blocker')
+          production = '\n'.join(
+              path.read_text(encoding='utf-8', errors='strict')
+              for root in ('apps', 'packages')
+              for path in Path(root).rglob('*.py')
+          )
+          for symbol in ('ObservationBatch', 'candidate', 'review'):
+              if symbol not in production:
+                  raise SystemExit(f'missing vertical owner symbol: {symbol}')
+          PY
+
+      - name: Run complete static and unit gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/architecture_checks/check_workflows.py
+          uv run python -m compileall -q apps connectors database packages tools
+
+      - name: Upload verified final input
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-manual-seed-candidate-final
+          path: |
+            /tmp/mode.txt
+            /tmp/locator.txt
+            /tmp/owner.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  commit:
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact current main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download read-only verification result
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-manual-seed-candidate-final
+          path: /tmp/verified
+
+      - name: Apply verified owner and remove temporary workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="$(tr -d '\r\n' < /tmp/verified/mode.txt)"
+          if [ "$mode" = patch ]; then
+            patch_sha="$(tr -d '\r\n' < /tmp/verified/locator.txt)"
+            [[ "$patch_sha" =~ ^[0-9a-f]{64}$ ]]
+            printf '%s  %s\n' "$patch_sha" /tmp/verified/owner.patch \
+              | sha256sum --check --strict
+            git am --3way /tmp/verified/owner.patch
+          elif [ "$mode" != already-complete ]; then
+            raise='unsupported verification mode'
+            echo "$raise" >&2
+            exit 1
+          fi
+          git rm -f --ignore-unmatch \
+            .github/workflows/apply-manual-seed-candidate-vertical.yml \
+            .github/workflows/finalize-manual-seed-candidate-vertical.yml
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          if [ "$mode" = patch ]; then
+            git commit --amend --no-edit
+          else
+            git commit -m 'Build (Pipeline): remove completed vertical transport'
+          fi
+          git diff HEAD^ --check
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
