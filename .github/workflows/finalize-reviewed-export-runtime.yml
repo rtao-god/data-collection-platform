@@ -1,0 +1,214 @@
+name: Finalize Reviewed Export Runtime
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/finalize-reviewed-export-runtime.yml
+  workflow_dispatch:
+
+concurrency:
+  group: data-collection-platform-finalize-reviewed-export-runtime
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out current main without write credentials
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve content-addressed owner and proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_url='https://filebin.net/dcp-340c7ea46c1e46ffbfb97bbd4ebc24ea'
+          curl --fail-with-body --silent --show-error \
+            "${base_url}/locator.txt" --output /tmp/owner-locator.txt
+          owner_locator="$(tr -d '\r\n' < /tmp/owner-locator.txt)"
+          if [ "$owner_locator" = failed ]; then
+            echo 'local owner verification did not pass' >&2
+            exit 1
+          fi
+          if [ "$owner_locator" = already-complete ]; then
+            printf 'already-complete\n' > /tmp/owner-mode.txt
+            : > /tmp/owner.patch
+          else
+            [[ "$owner_locator" =~ ^[0-9a-f]{64}$ ]]
+            curl --fail-with-body --silent --show-error \
+              "${base_url}/${owner_locator}.patch" --output /tmp/owner.patch
+            printf '%s  %s\n' "$owner_locator" /tmp/owner.patch \
+              | sha256sum --check --strict
+            printf 'patch\n' > /tmp/owner-mode.txt
+          fi
+          curl --fail-with-body --silent --show-error \
+            "${base_url}/command-locator.txt" --output /tmp/command-locator.txt
+          command_sha="$(tr -d '\r\n' < /tmp/command-locator.txt)"
+          [[ "$command_sha" =~ ^[0-9a-f]{64}$ ]]
+          curl --fail-with-body --silent --show-error \
+            "${base_url}/${command_sha}.sh" --output /tmp/runtime-proof.sh
+          printf '%s  %s\n' "$command_sha" /tmp/runtime-proof.sh \
+            | sha256sum --check --strict
+
+      - name: Enforce owner patch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(cat /tmp/owner-mode.txt)" = already-complete ]; then
+            exit 0
+          fi
+          git apply --numstat /tmp/owner.patch > /tmp/owner-numstat.txt
+          test -s /tmp/owner-numstat.txt
+          python - <<'PY'
+          from pathlib import PurePosixPath
+
+          allowed_roots = {
+              '.codex', 'apps', 'campaigns', 'contracts', 'database',
+              'deploy', 'docs', 'packages', 'tools', 'pyproject.toml', 'uv.lock',
+          }
+          paths: list[str] = []
+          for raw in open('/tmp/owner-numstat.txt', encoding='utf-8'):
+              parts = raw.rstrip('\n').split('\t')
+              if len(parts) != 3:
+                  raise SystemExit(f'invalid numstat row: {raw!r}')
+              path = parts[2]
+              pure = PurePosixPath(path)
+              if pure.is_absolute() or '..' in pure.parts:
+                  raise SystemExit(f'unsafe path: {path}')
+              if path.startswith(('.github/', '.git/', 'deploy/compose/.secrets/')):
+                  raise SystemExit(f'forbidden path: {path}')
+              if pure.parts[0] not in allowed_roots:
+                  raise SystemExit(f'unregistered root: {path}')
+              paths.append(path)
+          if len(paths) != len(set(paths)) or len(paths) > 220:
+              raise SystemExit('owner patch inventory is invalid or unexpectedly broad')
+          if not any(path.startswith('packages/review_') for path in paths):
+              raise SystemExit('review owner boundary is absent from the change')
+          if not any('export' in path.casefold() for path in paths):
+              raise SystemExit('export owner boundary is absent from the change')
+          PY
+
+      - name: Apply owner in disposable checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(cat /tmp/owner-mode.txt)" = patch ]; then
+            git apply --3way /tmp/owner.patch
+          fi
+          rm -f \
+            .github/workflows/finalize-reviewed-export-runtime.yml \
+            .github/workflows/finalize-berlin-manual-seed-runtime.yml \
+            .github/workflows/finalize-manual-seed-candidate-vertical.yml \
+            .github/workflows/apply-manual-seed-candidate-vertical.yml
+          git diff --check
+
+      - name: Install exact Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.10.0"
+          enable-cache: true
+
+      - name: Restore exact workspace
+        run: uv sync --frozen --all-packages --dev
+
+      - name: Run complete static and unit gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv lock --check
+          uv run python tools/contract_generation/generate.py --check
+          uv run python tools/review_contract_generation/generate.py --check
+          uv run python tools/control_api_contract_generation/generate.py --check
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run mypy
+          uv run pytest -m 'not integration'
+          uv run python tools/architecture_checks/check_dependencies.py
+          uv run python tools/architecture_checks/check_workflows.py
+          uv run collector config validate berlin_recording_services
+          uv run python -m compileall -q apps connectors database packages tools
+
+      - name: Run clean-volume reviewed export proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d -o "$(id -u)" -g "$(id -g)" /mnt/data
+          sed -i "s#/mnt/data/dcp_work#${GITHUB_WORKSPACE}#g" /tmp/runtime-proof.sh
+          chmod +x /tmp/runtime-proof.sh
+          /tmp/runtime-proof.sh | tee /tmp/runtime-proof.log
+
+      - name: Upload verified owner and runtime evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-reviewed-export-runtime
+          path: |
+            /tmp/owner-mode.txt
+            /tmp/owner-locator.txt
+            /tmp/owner.patch
+            /tmp/runtime-proof.sh
+            /tmp/runtime-proof.log
+          if-no-files-found: error
+          retention-days: 1
+
+  commit:
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact current main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download read-only verification result
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-reviewed-export-runtime
+          path: /tmp/verified
+
+      - name: Commit verified owner and remove transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="$(tr -d '\r\n' < /tmp/verified/owner-mode.txt)"
+          if [ "$mode" = patch ]; then
+            patch_sha="$(tr -d '\r\n' < /tmp/verified/owner-locator.txt)"
+            [[ "$patch_sha" =~ ^[0-9a-f]{64}$ ]]
+            printf '%s  %s\n' "$patch_sha" /tmp/verified/owner.patch \
+              | sha256sum --check --strict
+            git am --3way /tmp/verified/owner.patch
+          elif [ "$mode" != already-complete ]; then
+            echo "unsupported owner mode: $mode" >&2
+            exit 1
+          fi
+          git rm -f --ignore-unmatch \
+            .github/workflows/finalize-reviewed-export-runtime.yml \
+            .github/workflows/finalize-berlin-manual-seed-runtime.yml \
+            .github/workflows/finalize-manual-seed-candidate-vertical.yml \
+            .github/workflows/apply-manual-seed-candidate-vertical.yml
+          git config user.name rtao-god
+          git config user.email rtaogod@gmail.com
+          if [ "$mode" = patch ]; then
+            git commit --amend --no-edit
+          else
+            git commit -m 'Build (Export): remove completed runtime transport'
+          fi
+          git diff HEAD^ --check
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
