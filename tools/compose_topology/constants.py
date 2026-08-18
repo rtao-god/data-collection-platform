@@ -9,6 +9,7 @@ EXPECTED_SERVICES = frozenset(
         "control-api",
         "worker-gateway",
         "manual-import-worker",
+        "manual-record-worker",
         "http-worker",
         "osm-worker",
         "extraction-worker",
@@ -22,6 +23,7 @@ APPLICATION_SERVICES = EXPECTED_SERVICES - INFRASTRUCTURE_SERVICES
 WORKERS = frozenset(
     {
         "manual-import-worker",
+        "manual-record-worker",
         "http-worker",
         "osm-worker",
         "extraction-worker",
@@ -78,11 +80,16 @@ OBJECT_STORE_SECRETS = frozenset(
 )
 TOKEN_CONTRACT = {
     "manual-import-worker": ("MANUAL_IMPORT_WORKER_TOKEN", "manual_import"),
+    "manual-record-worker": ("MANUAL_RECORD_WORKER_TOKEN", "manual_record"),
     "http-worker": ("HTTP_WORKER_TOKEN", "http_fetch"),
     "osm-worker": ("OSM_WORKER_TOKEN", "osm_query"),
     "extraction-worker": ("EXTRACTION_WORKER_TOKEN", "extraction"),
     "normalization-worker": ("NORMALIZATION_WORKER_TOKEN", "normalization"),
     "resolution-worker": ("RESOLUTION_WORKER_TOKEN", "entity_resolution"),
+}
+MANUAL_WORKER_CAPABILITIES = {
+    "manual-import-worker": "manual_import",
+    "manual-record-worker": "manual_record",
 }
 FORBIDDEN_WORKER_ENVIRONMENT = (
     "COLLECTOR_DATABASE_URL",

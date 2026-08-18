@@ -22,6 +22,7 @@ from collection_contracts.manual_import import (
     ManualImportMode,
     ManualImportPlan,
     ManualImportRecord,
+    ManualImportRecordDocument,
 )
 from collection_contracts.observations import (
     BooleanObservationValue,
@@ -114,6 +115,7 @@ __all__ = [
     "ManualImportMode",
     "ManualImportPlan",
     "ManualImportRecord",
+    "ManualImportRecordDocument",
     "ManualSeedRow",
     "MoneyObservationValue",
     "NormalizationFieldRule",

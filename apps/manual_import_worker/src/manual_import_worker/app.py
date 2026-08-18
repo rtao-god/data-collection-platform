@@ -4,9 +4,9 @@ import argparse
 import json
 from collections.abc import Sequence
 
-from manual_import_worker.contracts import ManualImportWorkerSettings
+from manual_import_worker.contracts import ManualWorkerSettings
 from manual_import_worker.gateway import SourceWorkerGatewayAdapter
-from manual_import_worker.worker import ManualImportWorker
+from manual_import_worker.worker import ManualWorker
 from source_connector_sdk import SourceWorkerGateway, WorkerGatewayFailure
 
 
@@ -23,13 +23,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     try:
-        settings = ManualImportWorkerSettings.from_environment()
+        settings = ManualWorkerSettings.from_environment()
         with SourceWorkerGateway(
             base_url=settings.gateway_url,
             token=settings.gateway_token,
             timeout_seconds=settings.transfer_timeout_seconds,
         ) as client:
-            worker = ManualImportWorker(SourceWorkerGatewayAdapter(client), settings)
+            worker = ManualWorker(SourceWorkerGatewayAdapter(client), settings)
             worker.register()
             if arguments.once:
                 result = worker.run_once()
@@ -38,7 +38,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                         {
                             "acquired": result.acquired,
                             "workId": result.work_id,
-                            "planDigest": result.plan_digest,
+                            "capability": result.capability,
+                            "outputContract": result.output_contract,
+                            "outputDigest": result.output_digest,
                         },
                         separators=(",", ":"),
                         sort_keys=True,
@@ -53,7 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             json.dumps(
                 {
-                    "code": "MANUAL_IMPORT_WORKER_FAILED",
+                    "code": "MANUAL_WORKER_FAILED",
                     "message": str(exc),
                     "causeType": type(exc).__name__,
                 },

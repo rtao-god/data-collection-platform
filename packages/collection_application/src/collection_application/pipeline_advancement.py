@@ -18,8 +18,8 @@ _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{0,99}$")
 _TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+/-]{0,199}$")
 _MANUAL_SOURCE_ROLES = (
-    re.compile(r"^manual_source:(csv|json|jsonl):(reject_all|accept_valid)$"),
-    re.compile(r"^manual_import_source:(csv|json|jsonl):(reject_all|accept_valid)$"),
+    re.compile(r"^manual_source:(csv|json|jsonl):(atomic|partial)$"),
+    re.compile(r"^manual_import_source:(csv|json|jsonl):(atomic|partial)$"),
 )
 _ResultT = TypeVar("_ResultT")
 
@@ -336,7 +336,7 @@ class PipelineTransitionRegistry:
                 required_action=(
                     "Bind exactly one canonical manual source artifact and re-run the source work."
                 ),
-                context={"requiredRolePattern": "manual[_import]_source:<format>:<mode>"},
+                context={"requiredRolePattern": "manual[_import]_source:<format>:<atomic|partial>"},
             )
         if len(parents) != 1:
             return self._blocked(

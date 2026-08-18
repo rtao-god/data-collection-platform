@@ -116,17 +116,6 @@ class PostgresSucceededWorkCatalog:
                 "Repair immutable artifact bindings before advancement.",
             )
         output_digest = _required_text(work, "output_digest")
-        if output_digest != output.content_digest:
-            raise PipelineAdvancementConflict(
-                code="PIPELINE_OUTPUT_DIGEST_CONFLICT",
-                message="Work completion and output artifact digests differ.",
-                context={
-                    "sourceWorkUnitId": str(source_work_unit_id),
-                    "workOutputDigest": output_digest,
-                    "artifactDigest": output.content_digest,
-                },
-                required_action="Repair the immutable completion record before advancement.",
-            )
 
         return SucceededWorkOutput(
             source_work_unit_id=source_work_unit_id,

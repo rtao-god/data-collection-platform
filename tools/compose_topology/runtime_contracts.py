@@ -8,6 +8,7 @@ from tools.compose_topology.constants import (
     EXPECTED_SERVICES,
     FORBIDDEN_WORKER_ENVIRONMENT,
     INFRASTRUCTURE_SERVICES,
+    MANUAL_WORKER_CAPABILITIES,
     WORKERS,
 )
 from tools.compose_topology.support import (
@@ -81,6 +82,22 @@ def require_worker_boundaries(services: Mapping[str, object]) -> None:
                 context={"service": name},
                 required_action="Keep workers reachable only through their owned internal path.",
             )
+        expected_manual_capability = MANUAL_WORKER_CAPABILITIES.get(name)
+        if expected_manual_capability is not None:
+            actual_manual_capability = worker_environment.get("MANUAL_WORKER_CAPABILITY")
+            if actual_manual_capability != expected_manual_capability:
+                fail(
+                    code="COMPOSE_MANUAL_WORKER_CAPABILITY_MISMATCH",
+                    message="A manual worker does not declare its exact process capability.",
+                    context={
+                        "service": name,
+                        "expected": expected_manual_capability,
+                        "actual": actual_manual_capability,
+                    },
+                    required_action=(
+                        "Configure one explicit manual capability per worker process."
+                    ),
+                )
 
 
 def require_gateway_boundary(services: Mapping[str, object]) -> None:

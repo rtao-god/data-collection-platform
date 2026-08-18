@@ -17,6 +17,7 @@ _APPLICATION_SERVICES = {
     "control-api",
     "worker-gateway",
     "manual-import-worker",
+    "manual-record-worker",
     "http-worker",
     "osm-worker",
     "extraction-worker",
@@ -26,6 +27,7 @@ _APPLICATION_SERVICES = {
 }
 _WORKERS = {
     "manual-import-worker",
+    "manual-record-worker",
     "http-worker",
     "osm-worker",
     "extraction-worker",
@@ -34,6 +36,7 @@ _WORKERS = {
 }
 _TOKEN_CONTRACT = {
     "manual-import-worker": ("MANUAL_IMPORT_WORKER_TOKEN", "manual_import"),
+    "manual-record-worker": ("MANUAL_RECORD_WORKER_TOKEN", "manual_record"),
     "http-worker": ("HTTP_WORKER_TOKEN", "http_fetch"),
     "osm-worker": ("OSM_WORKER_TOKEN", "osm_query"),
     "extraction-worker": ("EXTRACTION_WORKER_TOKEN", "extraction"),
@@ -192,7 +195,16 @@ def _payload(secret_root: Path, environment: dict[str, str]) -> dict[str, Any]:
         }
     )
     services["manual-import-worker"].update(
-        {"environment": {}, "networks": {"collection-workers": None}}
+        {
+            "environment": {"MANUAL_WORKER_CAPABILITY": "manual_import"},
+            "networks": {"collection-workers": None},
+        }
+    )
+    services["manual-record-worker"].update(
+        {
+            "environment": {"MANUAL_WORKER_CAPABILITY": "manual_record"},
+            "networks": {"collection-workers": None},
+        }
     )
     for name in ("http-worker", "osm-worker"):
         services[name].update(
@@ -319,3 +331,16 @@ def test_mounted_secret_must_remain_read_only(tmp_path: Path) -> None:
 
     assert error.value.code == "COMPOSE_SECRET_SOURCE_MODE_MISMATCH"
     assert stat.S_IMODE(source.stat().st_mode) == 0o600
+
+
+def test_manual_worker_must_declare_exact_process_capability(tmp_path: Path) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    payload["services"]["manual-record-worker"]["environment"]["MANUAL_WORKER_CAPABILITY"] = (
+        "manual_import"
+    )
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_MANUAL_WORKER_CAPABILITY_MISMATCH"
+    assert error.value.context["service"] == "manual-record-worker"

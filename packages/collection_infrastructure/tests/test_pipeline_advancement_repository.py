@@ -59,7 +59,7 @@ def _source() -> SucceededWorkOutput:
         output_contract="manual-import-plan@1",
         output_digest=_OUTPUT_DIGEST,
         output_artifact=_artifact(_OUTPUT_ID, "manual_import_plan"),
-        input_artifacts=(_artifact(_SOURCE_ID, "manual_source:csv:accept_valid"),),
+        input_artifacts=(_artifact(_SOURCE_ID, "manual_source:csv:partial"),),
     )
 
 

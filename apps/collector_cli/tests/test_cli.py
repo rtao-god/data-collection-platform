@@ -28,7 +28,8 @@ def test_digest_command_returns_stable_identity(
     assert exit_code == 0
     assert payload["campaignKey"] == "berlin_recording_services"
     assert payload["bundleDigest"].startswith("sha256:")
-    assert payload["readiness"] == "blocked"
+    assert payload["readiness"] == "ready"
+    assert payload["blockers"] == []
 
 
 def test_missing_campaign_returns_typed_error(

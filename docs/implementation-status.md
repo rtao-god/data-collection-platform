@@ -11,13 +11,13 @@ This ledger reports only production owners that are present in the registered wo
 | Runs and work | Atomic run bootstrap from an exact immutable snapshot; durable stages, semantic work units, attempts, leases, heartbeat, expiry, typed retries, dead letters, worker registration, output compatibility, source permits, run coverage, revisioned pause/resume/cancel, and append-only transition history |
 | Worker boundary | Authenticated Worker Gateway is the only worker-facing state and artifact boundary; source workers have no PostgreSQL or S3 credentials |
 | Object transfer | Lease-scoped pre-signed upload/read, streamed size/digest verification, content-addressed object promotion, ordered artifact bindings, and atomic work completion |
-| Manual import | CSV/JSON/JSONL parsing, exact row/line locators, deterministic plan identity, complete issue ledger, explicit `reject_all`/`accept_valid` semantics, isolated worker, and transactional admission of one child work unit per accepted record |
+| Manual import | CSV/JSON/JSONL parsing, exact row/line locators, deterministic plan identity, complete issue ledger, explicit `atomic`/`partial` semantics, transactional admission of one child work unit per accepted record, and capability-scoped materialization of immutable `manual-import-record@1` artifacts |
 | Artifact cleanup | Grace-period orphan selection, persisted cleanup tombstones, bounded retry, terminal failure, and S3-compatible delete adapter |
 | OSM/Overpass | Query contract and allowlisted grammar, deterministic planning, bounded HTTP adapter, response parsing, provenance/attribution output, isolated worker, and campaign geography evaluation support |
 | Official website HTTP | Strict request/manifest contracts, canonical URL and public-address enforcement, robots/sitemap/page-interest planning, one-request Scrapy execution, conditional `304` reuse, bounded raw acquisition, typed `403`/`429` behavior, isolated worker, generated schemas, and Docker image |
 | Extraction and normalization | Digest-bound extraction requests, JSON-LD/microdata/RDFa and HTML contact/address evidence, bounded evidence spans, typed extracted records, explicit observation states, phone/URL/email/address/money normalization, negative-aware attribute patterns, derived artifacts, and a capability-isolated processing worker |
 | Entity resolution and quality | Canonical candidate batches, bounded deterministic blocking, integer match features, strong-identifier/corroboration rules, name-only and fuzzy-Berlin review gates, immutable manual decisions, transitive separation protection, deterministic reversible clusters, fail-closed cluster quality, synthetic golden data, and a capability-isolated resolution worker |
-| Database | Fresh PostgreSQL/PostGIS migration through `20260815_0012`, SQLAlchemy metadata, constraints, indexes, immutable review history, and append-only run transition history |
+| Database | Fresh PostgreSQL/PostGIS migration through `20260817_0014`, SQLAlchemy metadata, constraints, indexes, immutable review history, and append-only run transition history |
 | Architecture enforcement | Fail-closed workspace/project registry, declared dependency graph, AST import checks, forbidden capability scans, and worker-image isolation checks |
 
 ## Permanent proofs
@@ -29,18 +29,16 @@ This ledger reports only production owners that are present in the registered wo
 
 ## Explicitly incomplete
 
-- the infrastructure Compose contract currently starts PostgreSQL/PostGIS and SeaweedFS only; Worker Gateway and workers are not yet composed into one clean-machine runtime;
+- the application Compose contract includes PostgreSQL/PostGIS, SeaweedFS, Control API, Worker Gateway, and capability workers, but a real full campaign run is not yet proven;
 - SeaweedFS compatibility is a permanent dedicated infrastructure proof and remains excluded from ordinary unit execution;
-- no approved Berlin boundary artifact and no real Berlin collection run or coverage report;
+- the official Berlin boundary and provenance are materialized; no real Berlin collection run or coverage report is proven yet;
 - no review frontend, browser, or export owner;
 - no Dagster composition, source-control API, retention/backup deployable, or complete operational UI;
 - the campaign does not yet bind and execute a complete manual/OSM/website acquisition flow.
 
 ## Next owner batch
 
-The next production batch is pipeline advancement and deterministic collector export: successful
-work must schedule the next typed stage, review-gated candidates must remain explicit, and only
-verified eligible revisions may enter a sealed export.
+The next production batch is approved downstream routing for `manual-import-record@1`: exact website or OSM acquisition work must be derived from campaign-owned source bindings, after which the first real Berlin run can produce observations, candidates, review cases, and coverage.
 
 ## Stage 8A — candidate and review foundation
 

@@ -1,0 +1,195 @@
+{
+  "$defs": {
+    "ManualImportLocator": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "minimum": 1,
+          "title": "Index",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "csv_row",
+            "json_index",
+            "jsonl_line"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "pointer": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Pointer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "index",
+        "pointer"
+      ],
+      "title": "ManualImportLocator",
+      "type": "object"
+    },
+    "ManualSeedRow": {
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "expected_entity_kind": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Expected Entity Kind",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Note"
+        },
+        "osm_id": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Osm Id"
+        },
+        "provenance": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Provenance",
+          "type": "string"
+        },
+        "reference_urls": {
+          "items": {
+            "format": "uri",
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Reference Urls",
+          "type": "array"
+        },
+        "row_number": {
+          "exclusiveMinimum": 0,
+          "title": "Row Number",
+          "type": "integer"
+        },
+        "website": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Website"
+        }
+      },
+      "required": [
+        "row_number",
+        "expected_entity_kind",
+        "display_name",
+        "website",
+        "osm_id",
+        "reference_urls",
+        "note",
+        "provenance"
+      ],
+      "title": "ManualSeedRow",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contentDigest": {
+      "title": "Contentdigest",
+      "type": "string"
+    },
+    "contract": {
+      "const": "collector-manual-import-record",
+      "default": "collector-manual-import-record",
+      "title": "Contract",
+      "type": "string"
+    },
+    "contractRevision": {
+      "const": "manual-import-record-v1",
+      "default": "manual-import-record-v1",
+      "title": "Contractrevision",
+      "type": "string"
+    },
+    "locator": {
+      "$ref": "#/$defs/ManualImportLocator"
+    },
+    "materializerRevision": {
+      "const": "manual-import-record-materializer-v1",
+      "default": "manual-import-record-materializer-v1",
+      "title": "Materializerrevision",
+      "type": "string"
+    },
+    "planArtifactDigest": {
+      "title": "Planartifactdigest",
+      "type": "string"
+    },
+    "planDigest": {
+      "title": "Plandigest",
+      "type": "string"
+    },
+    "planRecordPosition": {
+      "maximum": 99999,
+      "minimum": 0,
+      "title": "Planrecordposition",
+      "type": "integer"
+    },
+    "record": {
+      "$ref": "#/$defs/ManualSeedRow"
+    },
+    "recordDigest": {
+      "title": "Recorddigest",
+      "type": "string"
+    },
+    "sourceArtifactRole": {
+      "pattern": "^(?:manual_source|manual_import_source):(?:csv|json|jsonl):(?:atomic|partial)$",
+      "title": "Sourceartifactrole",
+      "type": "string"
+    },
+    "sourceDigest": {
+      "title": "Sourcedigest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sourceDigest",
+    "sourceArtifactRole",
+    "planDigest",
+    "planArtifactDigest",
+    "planRecordPosition",
+    "locator",
+    "recordDigest",
+    "record",
+    "contentDigest"
+  ],
+  "title": "ManualImportRecordDocument",
+  "type": "object"
+}

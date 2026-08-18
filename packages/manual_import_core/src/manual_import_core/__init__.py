@@ -1,19 +1,43 @@
+from manual_import_core.documents import (
+    MAX_MANUAL_IMPORT_PLAN_BYTES,
+    MAX_MANUAL_IMPORT_RECORD_DOCUMENT_BYTES,
+    ManualImportPlanDocumentError,
+    ManualImportRecordDocumentError,
+    canonical_manual_import_record_json,
+    decode_canonical_manual_import_plan,
+    decode_canonical_manual_import_record,
+    materialize_manual_import_record,
+    parse_manual_import_plan_record_role,
+    verify_manual_import_record_document,
+)
 from manual_import_core.planner import (
     MAX_MANUAL_IMPORT_BYTES,
     MAX_MANUAL_IMPORT_RECORDS,
     ManualImportPlanIntegrityError,
     build_manual_import_plan,
     canonical_manual_import_plan_json,
+    manual_import_record_digest,
     schedulable_manual_import_records,
     verify_manual_import_plan,
 )
 
 __all__ = [
     "MAX_MANUAL_IMPORT_BYTES",
+    "MAX_MANUAL_IMPORT_PLAN_BYTES",
     "MAX_MANUAL_IMPORT_RECORDS",
+    "MAX_MANUAL_IMPORT_RECORD_DOCUMENT_BYTES",
+    "ManualImportPlanDocumentError",
     "ManualImportPlanIntegrityError",
+    "ManualImportRecordDocumentError",
     "build_manual_import_plan",
     "canonical_manual_import_plan_json",
+    "canonical_manual_import_record_json",
+    "decode_canonical_manual_import_plan",
+    "decode_canonical_manual_import_record",
+    "manual_import_record_digest",
+    "materialize_manual_import_record",
+    "parse_manual_import_plan_record_role",
     "schedulable_manual_import_records",
     "verify_manual_import_plan",
+    "verify_manual_import_record_document",
 ]

@@ -16,6 +16,7 @@ from collection_contracts import ErrorEnvelope
 
 type WorkCapability = Literal[
     "manual_import",
+    "manual_record",
     "osm_query",
     "http_fetch",
     "browser_fetch",
@@ -55,6 +56,7 @@ _CONTENT_TYPE_PATTERN = re.compile(
 _WORK_CAPABILITIES = frozenset(
     {
         "manual_import",
+        "manual_record",
         "osm_query",
         "http_fetch",
         "browser_fetch",

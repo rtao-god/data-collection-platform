@@ -106,6 +106,7 @@ jobs:
               control-api \
               worker-gateway \
               manual-import-worker \
+              manual-record-worker \
               http-worker \
               osm-worker \
               extraction-worker \
@@ -196,6 +197,7 @@ jobs:
             control-api worker-gateway
           "${compose[@]}" up --detach --wait --wait-timeout 180 \
             manual-import-worker \
+            manual-record-worker \
             http-worker \
             osm-worker \
             extraction-worker \
@@ -253,7 +255,7 @@ jobs:
               raise SystemExit(f"unexpected Worker Gateway readiness payload: {payload}")
           PY
 
-          expected_registrations=$'extraction-worker-local:extraction\nhttp-worker-local:http_fetch\nmanual-import-worker-local:manual_import\nnormalization-worker-local:normalization\nosm-worker-local:osm_query\nresolution-worker-local:entity_resolution'
+          expected_registrations=$'extraction-worker-local:extraction\nhttp-worker-local:http_fetch\nmanual-import-worker-local:manual_import\nmanual-record-worker-local:manual_record\nnormalization-worker-local:normalization\nosm-worker-local:osm_query\nresolution-worker-local:entity_resolution'
           actual_registrations=''
           for _ in $(seq 1 60); do
             actual_registrations="$(
@@ -272,6 +274,7 @@ jobs:
                     ON capability.worker_id = registration.worker_id
                   WHERE registration.worker_id IN (
                     'manual-import-worker-local',
+                    'manual-record-worker-local',
                     'http-worker-local',
                     'osm-worker-local',
                     'extraction-worker-local',

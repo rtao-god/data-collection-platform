@@ -66,7 +66,7 @@ def _manual_plan_source(
         output_digest=output_digest,
         output_artifact=_artifact(_OUTPUT_ID, output_role, output_digest),
         input_artifacts=(
-            (_artifact(_SOURCE_ID, "manual_source:csv:accept_valid"),)
+            (_artifact(_SOURCE_ID, "manual_source:csv:partial"),)
             if input_artifacts is None
             else input_artifacts
         ),
@@ -100,7 +100,7 @@ def test_manual_import_plan_routes_to_exact_admission_owner() -> None:
 
 
 def test_transition_digest_is_order_independent_but_evidence_bound() -> None:
-    source = _artifact(_SOURCE_ID, "manual_source:csv:accept_valid")
+    source = _artifact(_SOURCE_ID, "manual_source:csv:partial")
     other = _artifact(_OTHER_ID, "manual_import_schema", _DIGEST_C)
     registry = PipelineTransitionRegistry()
 
@@ -109,7 +109,7 @@ def test_transition_digest_is_order_independent_but_evidence_bound() -> None:
     changed = registry.plan(
         _manual_plan_source(
             input_artifacts=(
-                _artifact(_SOURCE_ID, "manual_source:csv:accept_valid", _DIGEST_B),
+                _artifact(_SOURCE_ID, "manual_source:csv:partial", _DIGEST_B),
                 other,
             )
         )
@@ -126,8 +126,8 @@ def test_manual_import_plan_requires_one_canonical_source_binding() -> None:
     conflicting = registry.plan(
         _manual_plan_source(
             input_artifacts=(
-                _artifact(_SOURCE_ID, "manual_source:csv:accept_valid"),
-                _artifact(_OTHER_ID, "manual_import_source:json:accept_valid"),
+                _artifact(_SOURCE_ID, "manual_source:csv:partial"),
+                _artifact(_OTHER_ID, "manual_import_source:json:partial"),
             )
         )
     )
@@ -149,7 +149,7 @@ def test_manual_record_remains_explicitly_blocked_without_source_owner() -> None
         output_contract="manual-import-record@1",
         output_digest=_DIGEST_B,
         output_artifact=_artifact(_OUTPUT_ID, "manual_import_record", _DIGEST_B),
-        input_artifacts=(_artifact(_SOURCE_ID, "manual_source:csv:accept_valid"),),
+        input_artifacts=(_artifact(_SOURCE_ID, "manual_source:csv:partial"),),
     )
 
     plan = PipelineTransitionRegistry().plan(source)

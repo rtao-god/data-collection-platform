@@ -52,7 +52,7 @@ def _source() -> SucceededWorkOutput:
         input_artifacts=(
             ArtifactIdentity(
                 artifact_id=_SOURCE_ID,
-                role="manual_source:csv:accept_valid",
+                role="manual_source:csv:partial",
                 content_digest=_OUTPUT_DIGEST,
                 size_bytes=10,
                 content_type="text/csv",

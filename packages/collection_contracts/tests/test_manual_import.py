@@ -8,6 +8,7 @@ from collection_contracts import (
     ManualImportFormat,
     ManualImportMode,
     ManualImportPlan,
+    ManualImportRecordDocument,
 )
 
 _DIGEST = "sha256:" + "1" * 64
@@ -28,6 +29,31 @@ def _plan(**overrides: object) -> ManualImportPlan:
     }
     payload.update(overrides)
     return ManualImportPlan.model_validate(payload)
+
+
+def _record_document(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "sourceDigest": _DIGEST,
+        "sourceArtifactRole": "manual_source:csv:atomic",
+        "planDigest": _DIGEST,
+        "planArtifactDigest": _DIGEST,
+        "planRecordPosition": 0,
+        "locator": {"kind": "csv_row", "index": 2, "pointer": "line:2"},
+        "recordDigest": _DIGEST,
+        "record": {
+            "row_number": 2,
+            "expected_entity_kind": "place",
+            "display_name": "Studio",
+            "website": None,
+            "osm_id": None,
+            "reference_urls": [],
+            "note": None,
+            "provenance": "test",
+        },
+        "contentDigest": _DIGEST,
+    }
+    payload.update(overrides)
+    return payload
 
 
 def test_manual_import_plan_rejects_inconsistent_counts() -> None:
@@ -57,3 +83,27 @@ def test_manual_import_plan_rejects_unknown_fields() -> None:
                 "unexpected": True,
             }
         )
+
+
+def test_manual_import_record_document_rejects_locator_row_mismatch() -> None:
+    with pytest.raises(ValidationError, match="row number"):
+        ManualImportRecordDocument.model_validate(
+            _record_document(
+                record={
+                    **_record_document()["record"],  # type: ignore[dict-item]
+                    "row_number": 3,
+                }
+            )
+        )
+
+
+def test_manual_import_record_document_rejects_noncanonical_source_role() -> None:
+    with pytest.raises(ValidationError, match="string_pattern_mismatch"):
+        ManualImportRecordDocument.model_validate(
+            _record_document(sourceArtifactRole="manual_source:csv:accept_valid")
+        )
+
+
+def test_manual_import_record_document_rejects_unknown_fields() -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        ManualImportRecordDocument.model_validate({**_record_document(), "unexpected": True})

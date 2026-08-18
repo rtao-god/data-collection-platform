@@ -97,7 +97,7 @@ def test_read_rehydrates_exact_canonical_succeeded_work() -> None:
                 (
                     _artifact(
                         artifact_id=_INPUT_ARTIFACT_ID,
-                        role="manual_source:csv:reject_all",
+                        role="manual_source:csv:atomic",
                         digest=_INPUT_DIGEST,
                     ),
                 )
@@ -142,10 +142,11 @@ def test_read_rejects_work_that_is_not_succeeded() -> None:
     connection.assert_consumed()
 
 
-def test_read_rejects_output_digest_conflict() -> None:
+def test_read_preserves_distinct_semantic_and_artifact_digests() -> None:
+    semantic_digest = f"sha256:{'3' * 64}"
     connection = _Connection(
         (
-            _Result((_work(output_digest=f"sha256:{'3' * 64}"),)),
+            _Result((_work(output_digest=semantic_digest),)),
             _Result((_stage(),)),
             _Result(()),
             _Result(
@@ -160,13 +161,13 @@ def test_read_rejects_output_digest_conflict() -> None:
         )
     )
 
-    with pytest.raises(PipelineAdvancementConflict) as error:
-        PostgresSucceededWorkCatalog(object()).read(  # type: ignore[arg-type]
-            connection,
-            _WORK_ID,
-        )
+    result = PostgresSucceededWorkCatalog(object()).read(  # type: ignore[arg-type]
+        connection,
+        _WORK_ID,
+    )
 
-    assert error.value.code == "PIPELINE_OUTPUT_DIGEST_CONFLICT"
+    assert result.output_digest == semantic_digest
+    assert result.output_artifact.content_digest == _OUTPUT_DIGEST
     connection.assert_consumed()
 
 

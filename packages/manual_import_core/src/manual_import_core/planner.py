@@ -117,13 +117,7 @@ def build_manual_import_plan(
                 )
             )
             continue
-        record_digest = _digest_json(
-            {
-                "sourceDigest": source_digest,
-                "locator": locator.model_dump(mode="json", by_alias=True),
-                "record": row.model_dump(mode="json", by_alias=True),
-            }
-        )
+        record_digest = manual_import_record_digest(source_digest, locator, row)
         records.append(
             ManualImportRecord(
                 locator=locator,
@@ -171,6 +165,37 @@ def verify_manual_import_plan(plan: ManualImportPlan) -> None:
         raise ManualImportPlanIntegrityError(
             "manual import plan digest does not match its canonical content"
         )
+    locators: set[tuple[str, int, str]] = set()
+    for record in plan.records:
+        identity = (record.locator.kind, record.locator.index, record.locator.pointer)
+        if identity in locators:
+            raise ManualImportPlanIntegrityError(
+                "manual import plan contains duplicate record locators"
+            )
+        locators.add(identity)
+        expected_record_digest = manual_import_record_digest(
+            plan.source_digest,
+            record.locator,
+            record.record,
+        )
+        if record.record_digest != expected_record_digest:
+            raise ManualImportPlanIntegrityError(
+                "manual import plan contains an invalid record digest"
+            )
+
+
+def manual_import_record_digest(
+    source_digest: str,
+    locator: ManualImportLocator,
+    record: ManualSeedRow,
+) -> str:
+    return _digest_json(
+        {
+            "sourceDigest": source_digest,
+            "locator": locator.model_dump(mode="json", by_alias=True),
+            "record": record.model_dump(mode="json", by_alias=True),
+        }
+    )
 
 
 def _validate_file_boundary(content: bytes, max_file_bytes: int) -> ManualImportIssue | None:
