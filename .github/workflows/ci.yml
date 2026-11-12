@@ -126,3 +126,9 @@ jobs:
 
       - name: Verify PostgreSQL and PostGIS contract
         run: uv run pytest -m integration database/tests
+
+      # Guards the database contract against order-dependent fixtures. A suite that only
+      # passes on a freshly migrated database reuses deterministic identities and would fail
+      # here on a unique constraint, so this must run against the already migrated database.
+      - name: Verify database contract is repeatable
+        run: uv run pytest -m integration database/tests
