@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - .github/workflows/worker-image-isolation.yml
-      - .python-version
       - pyproject.toml
       - uv.lock
       - apps/manual_import_worker/**
@@ -29,7 +28,6 @@ on:
   pull_request:
     paths:
       - .github/workflows/worker-image-isolation.yml
-      - .python-version
       - pyproject.toml
       - uv.lock
       - apps/manual_import_worker/**

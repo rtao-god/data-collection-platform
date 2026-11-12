@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - .github/workflows/http-worker-isolation.yml
-      - .python-version
       - pyproject.toml
       - uv.lock
       - apps/http_worker/**
@@ -17,7 +16,6 @@ on:
   pull_request:
     paths:
       - .github/workflows/http-worker-isolation.yml
-      - .python-version
       - pyproject.toml
       - uv.lock
       - apps/http_worker/**
