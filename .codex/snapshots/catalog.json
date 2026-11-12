@@ -438,8 +438,8 @@
             "packages/review_infrastructure/src/review_infrastructure/postgres.py",
             "tools/review_contract_generation/generate.py"
           ],
-          "input_digest": "865e277ccb7098582fcf5f629304202cb814322e18c82ecd5b0f48f0d97466b4",
-          "artifact_sha256": "071331ec388f16b55bf38f3c48d7323d3406d7a854d488f98a21d9bf2f869fc7",
+          "input_digest": "56f8293763ecdc46ac6a6d9ab8e561940597eb4ac6b6a742373cba2b9d5cb13a",
+          "artifact_sha256": "5aa01865d6b3a24065cf5b8a8995344781ccabddc8d7f829419ac19b8923fea7",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]
@@ -810,8 +810,8 @@
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
             "tools/control_api_contract_generation/generate.py"
           ],
-          "input_digest": "f488115cc399ceb2ae7f2863aaea32c2bb021a739af942c456e65b88987fd293",
-          "artifact_sha256": "5fcd082a4adc85e78996f7bf89e27a71288f00e280c8125202dff161a7122e33",
+          "input_digest": "1f7868df3fe996adf310eb4cad9d19cf02b484ede997b03a8129fca5eb538099",
+          "artifact_sha256": "cf09c78b0888f9e9a3419292156e56ddc9f1dba640f7b42cfe7d0e1d35c81844",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         },
         {

@@ -86,21 +86,26 @@ def render() -> dict[str, str]:
     }
 
 
+def check_outputs(output_directory: Path, expected: dict[str, str] | None = None) -> None:
+    rendered = render() if expected is None else expected
+    drift = [
+        name
+        for name, content in rendered.items()
+        if not (output_directory / name).exists()
+        or (output_directory / name).read_text(encoding="utf-8") != content
+    ]
+    if drift:
+        raise SystemExit("Control API contract drift: " + ", ".join(drift))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    expected = render()
     if args.check:
-        drift = [
-            name
-            for name, content in expected.items()
-            if not (OUTPUT / name).exists()
-            or (OUTPUT / name).read_text(encoding="utf-8") != content
-        ]
-        if drift:
-            raise SystemExit("Control API contract drift: " + ", ".join(drift))
+        check_outputs(OUTPUT)
         return 0
+    expected = render()
     OUTPUT.mkdir(parents=True, exist_ok=True)
     for name, content in expected.items():
         (OUTPUT / name).write_text(content, encoding="utf-8")
