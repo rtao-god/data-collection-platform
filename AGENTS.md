@@ -30,6 +30,12 @@ Always read `D:\tools\Agents_Rules\Backend.md`.
 - Repository checks and generators: `tools/`
 - Temporary local artifacts: `.tmp/` only; never commit them.
 
+# Тесты
+
+Тесты лежат рядом с владельцем, в `<package-or-app>/tests/`: один пакет — один каталог тестов. Отдельного `Tests/` нет, бизнес-модуль не является каталогом — модуль покрывает несколько пакетов, поэтому его тестовые каталоги перечислены в описании модуля (`.codex/Features/<module>.md`).
+
+Запуск: `uv run pytest <path>` гоняет тесты одного владельца. Маркеры `integration` и `object_store_integration` требуют явной инфраструктуры и не входят в `verify`.
+
 # Бизнес модули
 
 Модуль Campaign configuration
