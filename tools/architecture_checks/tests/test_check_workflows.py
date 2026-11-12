@@ -43,8 +43,11 @@ def _messages(root: Path) -> tuple[str, ...]:
     return tuple(violation.message for violation in find_violations(root))
 
 
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+
+
 def test_current_repository_workflows_are_registered_and_read_only() -> None:
-    assert not find_violations(Path.cwd())
+    assert not find_violations(_REPOSITORY_ROOT)
 
 
 def test_unregistered_yaml_workflow_is_rejected(tmp_path: Path) -> None:

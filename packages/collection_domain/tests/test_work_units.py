@@ -6,7 +6,6 @@ from collection_domain import (
     InvalidWorkUnitTransition,
     WorkUnitLifecycle,
     WorkUnitState,
-    allowed_transitions,
 )
 
 
@@ -41,19 +40,29 @@ def test_terminal_state_rejects_every_transition(terminal_state: WorkUnitState) 
     lifecycle = WorkUnitLifecycle(state=terminal_state, revision=1)
 
     for requested in WorkUnitState:
-        with pytest.raises(InvalidWorkUnitTransition):
+        with pytest.raises(InvalidWorkUnitTransition) as failure:
             lifecycle.transition(requested)
+        assert (failure.value.current, failure.value.requested) == (terminal_state, requested)
 
 
 def test_retry_wait_returns_only_to_explicit_eligible_states() -> None:
-    assert allowed_transitions(WorkUnitState.RETRY_WAIT) == frozenset(
-        {
-            WorkUnitState.PENDING,
-            WorkUnitState.BLOCKED_BY_POLICY,
-            WorkUnitState.CANCELLED,
-            WorkUnitState.SUPERSEDED,
-        }
-    )
+    """Retry-wait must never silently resume leasing or reach a succeeded terminal state."""
+    for forbidden in (WorkUnitState.LEASED, WorkUnitState.SUCCEEDED, WorkUnitState.RETRY_WAIT):
+        with pytest.raises(InvalidWorkUnitTransition):
+            WorkUnitLifecycle(state=WorkUnitState.RETRY_WAIT, revision=1).transition(forbidden)
+
+    for permitted in (
+        WorkUnitState.PENDING,
+        WorkUnitState.BLOCKED_BY_POLICY,
+        WorkUnitState.CANCELLED,
+        WorkUnitState.SUPERSEDED,
+    ):
+        assert (
+            WorkUnitLifecycle(state=WorkUnitState.RETRY_WAIT, revision=1)
+            .transition(permitted)
+            .state
+            is permitted
+        )
 
 
 def test_negative_revision_is_invalid() -> None:

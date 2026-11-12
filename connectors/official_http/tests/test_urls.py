@@ -22,11 +22,23 @@ def test_url_normalization_preserves_meaning_and_removes_only_allowlisted_tracki
     assert normalize_http_url(normalized, tracking_parameters=("utm_source",)) == normalized
 
 
-def test_url_normalization_rejects_credentials_and_non_http_schemes() -> None:
-    with pytest.raises(OfficialHttpError):
-        normalize_http_url("file:///etc/passwd")
-    with pytest.raises(OfficialHttpError):
-        normalize_http_url("https://user:secret@example.com/")
+@pytest.mark.parametrize(
+    ("url", "expected_code"),
+    [
+        ("file:///etc/passwd", "OFFICIAL_HTTP_URL_SCHEME_FORBIDDEN"),
+        ("https://user:secret@example.com/", "OFFICIAL_HTTP_URL_USERINFO_FORBIDDEN"),
+        ("https://example.com:99999/", "OFFICIAL_HTTP_URL_PORT_INVALID"),
+        ("", "OFFICIAL_HTTP_URL_INVALID"),
+    ],
+)
+def test_url_normalization_rejects_forbidden_shapes_with_exact_cause(
+    url: str,
+    expected_code: str,
+) -> None:
+    with pytest.raises(OfficialHttpError) as failure:
+        normalize_http_url(url)
+
+    assert failure.value.code == expected_code
 
 
 def test_resolution_rejects_private_or_mixed_address_sets() -> None:
