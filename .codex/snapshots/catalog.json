@@ -1,0 +1,869 @@
+{
+  "project_root": "D:\\Aggregator\\data-collection-platform",
+  "rules_revision": "0f436068d07123da9e89ba66369ac12b1e17c5f7a31fe9be232f88a01c736779",
+  "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c",
+  "excluded_sources": [
+    {
+      "path": ".dockerignore",
+      "reason": "Docker build context filter; no collection behavior."
+    },
+    {
+      "path": "apps/collector_cli/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/collector_cli/src/collector_cli/__main__.py",
+      "reason": "Two-line module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/control_api/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/control_api/src/control_api/__main__.py",
+      "reason": "Module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/http_worker/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/http_worker/src/http_worker/__init__.py",
+      "reason": "Docstring-only package initializer (68 bytes); no behavior."
+    },
+    {
+      "path": "apps/http_worker/src/http_worker/__main__.py",
+      "reason": "Module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/manual_import_worker/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/manual_import_worker/src/manual_import_worker/__main__.py",
+      "reason": "Module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/migration/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/migration/src/collection_migration/__init__.py",
+      "reason": "Docstring-only package initializer; no behavior."
+    },
+    {
+      "path": "apps/migration/src/collection_migration/__main__.py",
+      "reason": "Module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/migration/src/collection_migration/app.py",
+      "reason": "Migration CLI host: parses arguments and delegates to the Alembic runner; the schema meaning lives in migration revisions."
+    },
+    {
+      "path": "apps/osm_worker/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/osm_worker/src/osm_worker/__init__.py",
+      "reason": "Docstring-only package initializer (47 bytes); no behavior."
+    },
+    {
+      "path": "apps/osm_worker/src/osm_worker/__main__.py",
+      "reason": "Module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/processing_worker/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/processing_worker/src/processing_worker/__main__.py",
+      "reason": "Module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/resolution_worker/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "apps/resolution_worker/src/resolution_worker/__main__.py",
+      "reason": "Module entry shim that only calls main(); no behavior."
+    },
+    {
+      "path": "apps/worker_gateway/pyproject.toml",
+      "reason": "Deployable build manifest; no collection behavior."
+    },
+    {
+      "path": "connectors/official_http/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "connectors/osm_overpass/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "database/alembic.ini",
+      "reason": "Alembic runner configuration; Alembic is a migration mechanism, not a collection business outcome."
+    },
+    {
+      "path": "database/migrations/env.py",
+      "reason": "Alembic environment bootstrap for the migration mechanism."
+    },
+    {
+      "path": "deploy/compose/.env.example",
+      "reason": "Deployment environment template; no collection behavior."
+    },
+    {
+      "path": "deploy/compose/application.yaml",
+      "reason": "Deployment composition; runtime representation of services, not business rules."
+    },
+    {
+      "path": "deploy/compose/infrastructure.yaml",
+      "reason": "Deployment composition; infrastructure topology, not business rules."
+    },
+    {
+      "path": "packages/collection_application/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/collection_contracts/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/collection_domain/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/collection_infrastructure/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/collection_infrastructure/src/collection_infrastructure/postgres/migrations.py",
+      "reason": "Alembic runner adapter (upgrade_database); mechanism, not business behavior. Table meaning lives in metadata.py and revision files."
+    },
+    {
+      "path": "packages/entity_resolution_core/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/extraction_core/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/manual_import_core/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/normalization_core/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/quality_core/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/resolution_contracts/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/review_application/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/review_contracts/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/review_core/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/review_infrastructure/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "packages/source_connector_sdk/pyproject.toml",
+      "reason": "Package build manifest; no collection behavior."
+    },
+    {
+      "path": "pyproject.toml",
+      "reason": "Workspace build manifest (tool config and dependency pins); carries no collection behavior an agent reads to change a feature."
+    },
+    {
+      "path": "tools/__init__.py",
+      "reason": "One-line package docstring for repository tooling; no behavior."
+    },
+    {
+      "path": "tools/architecture_checks/check_dependencies.py",
+      "reason": "Repository dependency-direction gate; verification infrastructure, not a business outcome."
+    },
+    {
+      "path": "tools/architecture_checks/check_workflows.py",
+      "reason": "Repository workflow-inventory gate; verification infrastructure, not a business outcome."
+    },
+    {
+      "path": "tools/architecture_checks/workflows.toml",
+      "reason": "Data for the workflow-inventory gate; verification infrastructure."
+    },
+    {
+      "path": "tools/check.ps1",
+      "reason": "Repository verification entrypoint that runs the existing project checks in order; verification infrastructure, not a collection business outcome."
+    },
+    {
+      "path": "tools/compose_secrets/materialize.py",
+      "reason": "Compose secret materialization for local deployment; operational tooling, not business behavior."
+    },
+    {
+      "path": "tools/compose_topology/constants.py",
+      "reason": "Compose topology expectations; deployment verification infrastructure."
+    },
+    {
+      "path": "tools/compose_topology/network_contracts.py",
+      "reason": "Compose network contract checks; deployment verification infrastructure."
+    },
+    {
+      "path": "tools/compose_topology/runtime_contracts.py",
+      "reason": "Compose runtime contract checks; deployment verification infrastructure."
+    },
+    {
+      "path": "tools/compose_topology/secret_contracts.py",
+      "reason": "Compose secret contract checks; deployment verification infrastructure."
+    },
+    {
+      "path": "tools/compose_topology/support.py",
+      "reason": "Shared helper for Compose topology verification; deployment infrastructure."
+    },
+    {
+      "path": "tools/compose_topology/verify.py",
+      "reason": "Compose topology verifier entry point; deployment verification infrastructure."
+    },
+    {
+      "path": "tools/control_api_contract_generation/__init__.py",
+      "reason": "One-line package docstring for a contract generator; no behavior."
+    },
+    {
+      "path": "tools/git_hooks/commit_message.py",
+      "reason": "Git commit-message policy hook; repository tooling, not business behavior."
+    },
+    {
+      "path": "tools/git_hooks/configure.py",
+      "reason": "Git hook path configuration; repository tooling."
+    },
+    {
+      "path": "tools/git_hooks/pre_commit.py",
+      "reason": "Git pre-commit path policy hook; repository tooling, not business behavior."
+    },
+    {
+      "path": "tools/live_collection/__init__.py",
+      "reason": "One-line package docstring for live-proof tooling; no behavior."
+    },
+    {
+      "path": "tools/live_collection/run_bounded_live_proof.py",
+      "reason": "Bounded live end-to-end proof harness that drives deployed services; verification tooling, not collection business behavior."
+    },
+    {
+      "path": "tools/review_contract_generation/__init__.py",
+      "reason": "One-line package docstring for a contract generator; no behavior."
+    }
+  ],
+  "modules": [
+    {
+      "id": "campaign-config",
+      "description": "Authoring, validation, canonical compilation, and immutable sealing of campaign configuration.",
+      "parts": [
+        {
+          "id": "authoring-inputs",
+          "description": "Authored campaign YAML, boundary provenance, and the tools that prepare source geography.",
+          "include": [
+            "campaigns/berlin_recording_services/attributes.yaml",
+            "campaigns/berlin_recording_services/campaign.yaml",
+            "campaigns/berlin_recording_services/entity_kinds.yaml",
+            "campaigns/berlin_recording_services/geography.yaml",
+            "campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json",
+            "campaigns/berlin_recording_services/source_bindings.yaml",
+            "campaigns/berlin_recording_services/source_policies/manual_seed_policy.yaml",
+            "campaigns/berlin_recording_services/taxonomy.yaml",
+            "packages/collection_application/src/collection_application/geography.py",
+            "tools/live_collection/berlin_boundary.py",
+            "tools/live_collection/berlin_boundary_portal.py",
+            "tools/live_collection/select_source_inputs.py"
+          ],
+          "source_paths": [
+            "campaigns/berlin_recording_services/attributes.yaml",
+            "campaigns/berlin_recording_services/campaign.yaml",
+            "campaigns/berlin_recording_services/entity_kinds.yaml",
+            "campaigns/berlin_recording_services/geography.yaml",
+            "campaigns/berlin_recording_services/geography/berlin-boundary.provenance.json",
+            "campaigns/berlin_recording_services/source_bindings.yaml",
+            "campaigns/berlin_recording_services/source_policies/manual_seed_policy.yaml",
+            "campaigns/berlin_recording_services/taxonomy.yaml",
+            "packages/collection_application/src/collection_application/geography.py",
+            "tools/live_collection/berlin_boundary.py",
+            "tools/live_collection/berlin_boundary_portal.py",
+            "tools/live_collection/select_source_inputs.py"
+          ],
+          "input_digest": "23f347067151d51ed1e555ac249d1b9264f73c21b13517576b12c7f053ae557c",
+          "artifact_sha256": "ca0ff75cbed3f8b183703850d80c250f6c18dac7bb84d941b1eb00f687c64f57",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        },
+        {
+          "id": "snapshot-compilation",
+          "description": "Strict document parsing, cross-reference validation, canonical digests, snapshot sealing, and the CLI that runs it.",
+          "include": [
+            "apps/collector_cli/src/collector_cli/__init__.py",
+            "apps/collector_cli/src/collector_cli/app.py",
+            "contracts/json_schema/attributes.schema.json",
+            "contracts/json_schema/campaign-document.schema.json",
+            "contracts/json_schema/campaign-snapshot.schema.json",
+            "contracts/json_schema/entity-kinds.schema.json",
+            "contracts/json_schema/geography-document.schema.json",
+            "contracts/json_schema/manifest.json",
+            "contracts/json_schema/source-bindings.schema.json",
+            "contracts/json_schema/source-policy.schema.json",
+            "contracts/json_schema/taxonomy.schema.json",
+            "database/migrations/versions/20260804_0001_config_bundles.py",
+            "database/schema_docs/config.md",
+            "packages/collection_application/src/collection_application/__init__.py",
+            "packages/collection_application/src/collection_application/campaign_documents.py",
+            "packages/collection_application/src/collection_application/campaign_publication.py",
+            "packages/collection_application/src/collection_application/campaign_snapshot_service.py",
+            "packages/collection_application/src/collection_application/campaign_validation.py",
+            "packages/collection_application/src/collection_application/canonicalization.py",
+            "packages/collection_application/src/collection_application/compiled_campaign.py",
+            "packages/collection_application/src/collection_application/geography.py",
+            "packages/collection_application/src/collection_application/ports.py",
+            "packages/collection_contracts/src/collection_contracts/__init__.py",
+            "packages/collection_contracts/src/collection_contracts/campaign_config.py",
+            "packages/collection_contracts/src/collection_contracts/errors.py",
+            "packages/collection_contracts/src/collection_contracts/snapshot.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/__init__.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/filesystem_campaign_source.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/__init__.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/campaign_snapshot_store.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/geography.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/metadata.py",
+            "tools/contract_generation/generate.py"
+          ],
+          "source_paths": [
+            "apps/collector_cli/src/collector_cli/__init__.py",
+            "apps/collector_cli/src/collector_cli/app.py",
+            "contracts/json_schema/attributes.schema.json",
+            "contracts/json_schema/campaign-document.schema.json",
+            "contracts/json_schema/campaign-snapshot.schema.json",
+            "contracts/json_schema/entity-kinds.schema.json",
+            "contracts/json_schema/geography-document.schema.json",
+            "contracts/json_schema/manifest.json",
+            "contracts/json_schema/source-bindings.schema.json",
+            "contracts/json_schema/source-policy.schema.json",
+            "contracts/json_schema/taxonomy.schema.json",
+            "database/migrations/versions/20260804_0001_config_bundles.py",
+            "database/schema_docs/config.md",
+            "packages/collection_application/src/collection_application/__init__.py",
+            "packages/collection_application/src/collection_application/campaign_documents.py",
+            "packages/collection_application/src/collection_application/campaign_publication.py",
+            "packages/collection_application/src/collection_application/campaign_snapshot_service.py",
+            "packages/collection_application/src/collection_application/campaign_validation.py",
+            "packages/collection_application/src/collection_application/canonicalization.py",
+            "packages/collection_application/src/collection_application/compiled_campaign.py",
+            "packages/collection_application/src/collection_application/geography.py",
+            "packages/collection_application/src/collection_application/ports.py",
+            "packages/collection_contracts/src/collection_contracts/__init__.py",
+            "packages/collection_contracts/src/collection_contracts/campaign_config.py",
+            "packages/collection_contracts/src/collection_contracts/errors.py",
+            "packages/collection_contracts/src/collection_contracts/snapshot.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/__init__.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/filesystem_campaign_source.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/__init__.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/campaign_snapshot_store.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/geography.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/metadata.py",
+            "tools/contract_generation/generate.py"
+          ],
+          "input_digest": "4185bdd86ccc95599e805aa0c7f828247373bce19e91c39a9a29e8aed218e284",
+          "artifact_sha256": "a21867bb97fd4eaee3b7d56837c5e83db066340db18d551d9e89fbe816fee47a",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "candidate-review",
+      "description": "Append-only review decisions, manual observations, suppression, and candidate revisions.",
+      "parts": [
+        {
+          "id": "review-decisions",
+          "description": "Review contracts, pure transitions, application service, PostgreSQL persistence, and generated review contract.",
+          "include": [
+            "contracts/review/candidate-revision.schema.json",
+            "contracts/review/manifest.json",
+            "contracts/review/manual-observation.schema.json",
+            "contracts/review/review-case.schema.json",
+            "contracts/review/review-decision-command.schema.json",
+            "contracts/review/review-decision.schema.json",
+            "contracts/review/suppression-command.schema.json",
+            "contracts/review/suppression-revision.schema.json",
+            "database/migrations/versions/20260814_0010_candidate_review_foundation.py",
+            "packages/review_application/src/review_application/__init__.py",
+            "packages/review_application/src/review_application/cursors.py",
+            "packages/review_application/src/review_application/errors.py",
+            "packages/review_application/src/review_application/models.py",
+            "packages/review_application/src/review_application/ports.py",
+            "packages/review_application/src/review_application/service.py",
+            "packages/review_contracts/src/review_contracts/__init__.py",
+            "packages/review_contracts/src/review_contracts/contracts.py",
+            "packages/review_core/src/review_core/__init__.py",
+            "packages/review_core/src/review_core/transitions.py",
+            "packages/review_infrastructure/src/review_infrastructure/__init__.py",
+            "packages/review_infrastructure/src/review_infrastructure/postgres.py",
+            "tools/review_contract_generation/generate.py"
+          ],
+          "source_paths": [
+            "contracts/review/candidate-revision.schema.json",
+            "contracts/review/manifest.json",
+            "contracts/review/manual-observation.schema.json",
+            "contracts/review/review-case.schema.json",
+            "contracts/review/review-decision-command.schema.json",
+            "contracts/review/review-decision.schema.json",
+            "contracts/review/suppression-command.schema.json",
+            "contracts/review/suppression-revision.schema.json",
+            "database/migrations/versions/20260814_0010_candidate_review_foundation.py",
+            "packages/review_application/src/review_application/__init__.py",
+            "packages/review_application/src/review_application/cursors.py",
+            "packages/review_application/src/review_application/errors.py",
+            "packages/review_application/src/review_application/models.py",
+            "packages/review_application/src/review_application/ports.py",
+            "packages/review_application/src/review_application/service.py",
+            "packages/review_contracts/src/review_contracts/__init__.py",
+            "packages/review_contracts/src/review_contracts/contracts.py",
+            "packages/review_core/src/review_core/__init__.py",
+            "packages/review_core/src/review_core/transitions.py",
+            "packages/review_infrastructure/src/review_infrastructure/__init__.py",
+            "packages/review_infrastructure/src/review_infrastructure/postgres.py",
+            "tools/review_contract_generation/generate.py"
+          ],
+          "input_digest": "865e277ccb7098582fcf5f629304202cb814322e18c82ecd5b0f48f0d97466b4",
+          "artifact_sha256": "071331ec388f16b55bf38f3c48d7323d3406d7a854d488f98a21d9bf2f869fc7",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "entity-resolution",
+      "description": "Deterministic candidate matching, clustering, and fail-closed export quality.",
+      "parts": [
+        {
+          "id": "resolution-and-quality",
+          "description": "Resolution contracts and engine, quality gating, resolution worker, and golden data.",
+          "include": [
+            "apps/resolution_worker/src/resolution_worker/__init__.py",
+            "apps/resolution_worker/src/resolution_worker/app.py",
+            "apps/resolution_worker/src/resolution_worker/contracts.py",
+            "apps/resolution_worker/src/resolution_worker/gateway.py",
+            "apps/resolution_worker/src/resolution_worker/snapshot.py",
+            "apps/resolution_worker/src/resolution_worker/worker.py",
+            "contracts/json_schema/resolution-batch.schema.json",
+            "contracts/json_schema/resolution-snapshot.schema.json",
+            "datasets/entity_resolution/golden-batch.json",
+            "datasets/entity_resolution/golden-snapshot.json",
+            "packages/entity_resolution_core/src/entity_resolution_core/__init__.py",
+            "packages/entity_resolution_core/src/entity_resolution_core/engine.py",
+            "packages/quality_core/src/quality_core/__init__.py",
+            "packages/quality_core/src/quality_core/evaluator.py",
+            "packages/resolution_contracts/src/resolution_contracts/__init__.py",
+            "packages/resolution_contracts/src/resolution_contracts/identity.py",
+            "packages/resolution_contracts/src/resolution_contracts/models.py",
+            "packages/resolution_contracts/src/resolution_contracts/serialization.py"
+          ],
+          "source_paths": [
+            "apps/resolution_worker/src/resolution_worker/__init__.py",
+            "apps/resolution_worker/src/resolution_worker/app.py",
+            "apps/resolution_worker/src/resolution_worker/contracts.py",
+            "apps/resolution_worker/src/resolution_worker/gateway.py",
+            "apps/resolution_worker/src/resolution_worker/snapshot.py",
+            "apps/resolution_worker/src/resolution_worker/worker.py",
+            "contracts/json_schema/resolution-batch.schema.json",
+            "contracts/json_schema/resolution-snapshot.schema.json",
+            "datasets/entity_resolution/golden-batch.json",
+            "datasets/entity_resolution/golden-snapshot.json",
+            "packages/entity_resolution_core/src/entity_resolution_core/__init__.py",
+            "packages/entity_resolution_core/src/entity_resolution_core/engine.py",
+            "packages/quality_core/src/quality_core/__init__.py",
+            "packages/quality_core/src/quality_core/evaluator.py",
+            "packages/resolution_contracts/src/resolution_contracts/__init__.py",
+            "packages/resolution_contracts/src/resolution_contracts/identity.py",
+            "packages/resolution_contracts/src/resolution_contracts/models.py",
+            "packages/resolution_contracts/src/resolution_contracts/serialization.py"
+          ],
+          "input_digest": "651e6f0224fa05c644c0a2be730279eefab2c4533584b442beb0e000bcc4598f",
+          "artifact_sha256": "46b3651885a71d5da7d229b76935f9abccdedb88ce01d66907ebee893bf1c912",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "evidence-processing",
+      "description": "Evidence-backed extraction and typed normalization of acquired source content.",
+      "parts": [
+        {
+          "id": "extraction-normalization",
+          "description": "Extraction and normalization engines, observation contracts, and the processing worker host.",
+          "include": [
+            "apps/processing_worker/src/processing_worker/__init__.py",
+            "apps/processing_worker/src/processing_worker/app.py",
+            "apps/processing_worker/src/processing_worker/contracts.py",
+            "apps/processing_worker/src/processing_worker/gateway.py",
+            "apps/processing_worker/src/processing_worker/worker.py",
+            "contracts/json_schema/extracted-record.schema.json",
+            "contracts/json_schema/extraction-request.schema.json",
+            "contracts/json_schema/normalization-profile.schema.json",
+            "contracts/json_schema/observation-batch.schema.json",
+            "database/migrations/versions/20260814_0009_derived_artifacts.py",
+            "packages/collection_contracts/src/collection_contracts/observations.py",
+            "packages/extraction_core/src/extraction_core/__init__.py",
+            "packages/extraction_core/src/extraction_core/extractor.py",
+            "packages/normalization_core/src/normalization_core/__init__.py",
+            "packages/normalization_core/src/normalization_core/normalizer.py"
+          ],
+          "source_paths": [
+            "apps/processing_worker/src/processing_worker/__init__.py",
+            "apps/processing_worker/src/processing_worker/app.py",
+            "apps/processing_worker/src/processing_worker/contracts.py",
+            "apps/processing_worker/src/processing_worker/gateway.py",
+            "apps/processing_worker/src/processing_worker/worker.py",
+            "contracts/json_schema/extracted-record.schema.json",
+            "contracts/json_schema/extraction-request.schema.json",
+            "contracts/json_schema/normalization-profile.schema.json",
+            "contracts/json_schema/observation-batch.schema.json",
+            "database/migrations/versions/20260814_0009_derived_artifacts.py",
+            "packages/collection_contracts/src/collection_contracts/observations.py",
+            "packages/extraction_core/src/extraction_core/__init__.py",
+            "packages/extraction_core/src/extraction_core/extractor.py",
+            "packages/normalization_core/src/normalization_core/__init__.py",
+            "packages/normalization_core/src/normalization_core/normalizer.py"
+          ],
+          "input_digest": "e7bf226a474d799c344ee4e2fb185f839eca986783ac509616dc19ca8b9f4638",
+          "artifact_sha256": "bcef06680bcee7b3dd547afb35fa86cb48ba7da78c1e131a06fae44a3d74398d",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "http-acquisition",
+      "description": "Policy-safe official website HTTP acquisition producing raw evidence artifacts.",
+      "parts": [
+        {
+          "id": "connector-and-worker",
+          "description": "HTTP request contracts, URL policy, page planning, Scrapy execution, and the HTTP worker host.",
+          "include": [
+            "apps/http_worker/src/http_worker/app.py",
+            "apps/http_worker/src/http_worker/gateway.py",
+            "apps/http_worker/src/http_worker/worker.py",
+            "connectors/official_http/src/official_http/__init__.py",
+            "connectors/official_http/src/official_http/contracts.py",
+            "connectors/official_http/src/official_http/errors.py",
+            "connectors/official_http/src/official_http/fetch.py",
+            "connectors/official_http/src/official_http/planning.py",
+            "connectors/official_http/src/official_http/scrapy_child.py",
+            "connectors/official_http/src/official_http/urls.py",
+            "contracts/json_schema/official-http-acquisition.schema.json",
+            "contracts/json_schema/official-http-request.schema.json"
+          ],
+          "source_paths": [
+            "apps/http_worker/src/http_worker/app.py",
+            "apps/http_worker/src/http_worker/gateway.py",
+            "apps/http_worker/src/http_worker/worker.py",
+            "connectors/official_http/src/official_http/__init__.py",
+            "connectors/official_http/src/official_http/contracts.py",
+            "connectors/official_http/src/official_http/errors.py",
+            "connectors/official_http/src/official_http/fetch.py",
+            "connectors/official_http/src/official_http/planning.py",
+            "connectors/official_http/src/official_http/scrapy_child.py",
+            "connectors/official_http/src/official_http/urls.py",
+            "contracts/json_schema/official-http-acquisition.schema.json",
+            "contracts/json_schema/official-http-request.schema.json"
+          ],
+          "input_digest": "61e8fb0e003775f965d3303a950bc9dfdef5fa501355820eabfc3f9f91188b6d",
+          "artifact_sha256": "401baf3d55b2b6e9ddeb53cfd3f67ffcfd30068dcb2d8cc3c94d54fb4d2559d0",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "manual-import",
+      "description": "Operator-authored seed files as validated, immutable, admitted collection work.",
+      "parts": [
+        {
+          "id": "admission",
+          "description": "Manual seed parsing, plan admission, per-record work units, and the manual import worker hosts.",
+          "include": [
+            "apps/manual_import_worker/src/manual_import_worker/__init__.py",
+            "apps/manual_import_worker/src/manual_import_worker/app.py",
+            "apps/manual_import_worker/src/manual_import_worker/contracts.py",
+            "apps/manual_import_worker/src/manual_import_worker/gateway.py",
+            "apps/manual_import_worker/src/manual_import_worker/worker.py",
+            "contracts/json_schema/manual-import-plan.schema.json",
+            "contracts/json_schema/manual-import-record.schema.json",
+            "contracts/json_schema/manual-seed-row.schema.json",
+            "database/migrations/versions/20260813_0008_manual_import_and_cleanup.py",
+            "database/migrations/versions/20260817_0014_manual_import_admission_contract.py",
+            "packages/collection_application/src/collection_application/manual_import_admission.py",
+            "packages/collection_application/src/collection_application/manual_import_plan_document.py",
+            "packages/collection_application/src/collection_application/manual_seed.py",
+            "packages/collection_contracts/src/collection_contracts/manual_import.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_admission.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_child_writer.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_metadata.py",
+            "packages/manual_import_core/src/manual_import_core/__init__.py",
+            "packages/manual_import_core/src/manual_import_core/documents.py",
+            "packages/manual_import_core/src/manual_import_core/planner.py"
+          ],
+          "source_paths": [
+            "apps/manual_import_worker/src/manual_import_worker/__init__.py",
+            "apps/manual_import_worker/src/manual_import_worker/app.py",
+            "apps/manual_import_worker/src/manual_import_worker/contracts.py",
+            "apps/manual_import_worker/src/manual_import_worker/gateway.py",
+            "apps/manual_import_worker/src/manual_import_worker/worker.py",
+            "contracts/json_schema/manual-import-plan.schema.json",
+            "contracts/json_schema/manual-import-record.schema.json",
+            "contracts/json_schema/manual-seed-row.schema.json",
+            "database/migrations/versions/20260813_0008_manual_import_and_cleanup.py",
+            "database/migrations/versions/20260817_0014_manual_import_admission_contract.py",
+            "packages/collection_application/src/collection_application/manual_import_admission.py",
+            "packages/collection_application/src/collection_application/manual_import_plan_document.py",
+            "packages/collection_application/src/collection_application/manual_seed.py",
+            "packages/collection_contracts/src/collection_contracts/manual_import.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_admission.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_child_writer.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_metadata.py",
+            "packages/manual_import_core/src/manual_import_core/__init__.py",
+            "packages/manual_import_core/src/manual_import_core/documents.py",
+            "packages/manual_import_core/src/manual_import_core/planner.py"
+          ],
+          "input_digest": "d84ee1e1d783b6fecd6265ef93ff37f0185ce68b7acacfb860233a66831dcbd5",
+          "artifact_sha256": "cb2edeaeb0f1e1a22e9ae0fbd3f0f233d98006660642c3293b7d500ef50d7d26",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "osm-acquisition",
+      "description": "Overpass acquisition of OpenStreetMap evidence for the configured market area.",
+      "parts": [
+        {
+          "id": "connector-and-worker",
+          "description": "Overpass request planning, response interpretation, and the OSM worker host.",
+          "include": [
+            "apps/osm_worker/src/osm_worker/app.py",
+            "apps/osm_worker/src/osm_worker/gateway.py",
+            "apps/osm_worker/src/osm_worker/worker.py",
+            "connectors/osm_overpass/src/osm_overpass/__init__.py",
+            "connectors/osm_overpass/src/osm_overpass/contracts.py",
+            "connectors/osm_overpass/src/osm_overpass/http.py",
+            "connectors/osm_overpass/src/osm_overpass/input.py",
+            "connectors/osm_overpass/src/osm_overpass/planning.py",
+            "connectors/osm_overpass/src/osm_overpass/query.py",
+            "connectors/osm_overpass/src/osm_overpass/response.py"
+          ],
+          "source_paths": [
+            "apps/osm_worker/src/osm_worker/app.py",
+            "apps/osm_worker/src/osm_worker/gateway.py",
+            "apps/osm_worker/src/osm_worker/worker.py",
+            "connectors/osm_overpass/src/osm_overpass/__init__.py",
+            "connectors/osm_overpass/src/osm_overpass/contracts.py",
+            "connectors/osm_overpass/src/osm_overpass/http.py",
+            "connectors/osm_overpass/src/osm_overpass/input.py",
+            "connectors/osm_overpass/src/osm_overpass/planning.py",
+            "connectors/osm_overpass/src/osm_overpass/query.py",
+            "connectors/osm_overpass/src/osm_overpass/response.py"
+          ],
+          "input_digest": "5c26af63d5ca1db98978f684fe97bebfa22ba44b6f7e0e12b9244e605241b256",
+          "artifact_sha256": "487de02abbfb6622faf1e081ceed59a9993e894d0829e221a47579e80b6ef4c4",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "pipeline-advancement",
+      "description": "Durable interpretation of one succeeded work output into one explicit next action.",
+      "parts": [
+        {
+          "id": "advancement",
+          "description": "Advancement planning, supervision, succeeded-output catalog, and the schema that durably records it.",
+          "include": [
+            "database/migrations/versions/20260815_0013_pipeline_advancement.py",
+            "packages/collection_application/src/collection_application/pipeline_advancement.py",
+            "packages/collection_application/src/collection_application/pipeline_supervision.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py"
+          ],
+          "source_paths": [
+            "database/migrations/versions/20260815_0013_pipeline_advancement.py",
+            "packages/collection_application/src/collection_application/pipeline_advancement.py",
+            "packages/collection_application/src/collection_application/pipeline_supervision.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py"
+          ],
+          "input_digest": "c1296b7d0d2083ac3ae4ba741777e24ede6c37544380868fd2d048279982f2f8",
+          "artifact_sha256": "da8dba7b6c60e8671a99b24b2dba156f3ed2186aec08b4a2beca3f3604f3f205",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    },
+    {
+      "id": "work-engine",
+      "description": "Durable collection runs: creation and control, work execution and leases, and artifact lifecycle.",
+      "parts": [
+        {
+          "id": "artifact-lifecycle",
+          "description": "Artifact upload, verification, role binding, content-addressed storage, cleanup, and orphan handling.",
+          "include": [
+            "apps/collector_cli/src/collector_cli/artifact_cleanup.py",
+            "apps/collector_cli/src/collector_cli/object_store_bootstrap.py",
+            "database/migrations/versions/20260811_0005_artifact_transfer.py",
+            "database/migrations/versions/20260812_0006_artifact_bindings.py",
+            "database/migrations/versions/20260812_0007_artifact_storage_references.py",
+            "database/migrations/versions/20260815_0011_owned_artifacts.py",
+            "packages/collection_application/src/collection_application/artifact_cleanup.py",
+            "packages/collection_application/src/collection_application/artifacts.py",
+            "packages/collection_application/src/collection_application/owned_artifacts.py",
+            "packages/collection_application/src/collection_application/work_artifacts.py",
+            "packages/collection_domain/src/collection_domain/work_artifacts.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/artifact_cleanup_object_store.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/object_store/__init__.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/object_store/s3.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_cleanup.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_metadata.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_transfer.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/owned_artifact_publisher.py"
+          ],
+          "source_paths": [
+            "apps/collector_cli/src/collector_cli/artifact_cleanup.py",
+            "apps/collector_cli/src/collector_cli/object_store_bootstrap.py",
+            "database/migrations/versions/20260811_0005_artifact_transfer.py",
+            "database/migrations/versions/20260812_0006_artifact_bindings.py",
+            "database/migrations/versions/20260812_0007_artifact_storage_references.py",
+            "database/migrations/versions/20260815_0011_owned_artifacts.py",
+            "packages/collection_application/src/collection_application/artifact_cleanup.py",
+            "packages/collection_application/src/collection_application/artifacts.py",
+            "packages/collection_application/src/collection_application/owned_artifacts.py",
+            "packages/collection_application/src/collection_application/work_artifacts.py",
+            "packages/collection_domain/src/collection_domain/work_artifacts.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/artifact_cleanup_object_store.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/object_store/__init__.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/object_store/s3.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_cleanup.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_metadata.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_transfer.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/owned_artifact_publisher.py"
+          ],
+          "input_digest": "d086eb1641d5f953c463d1ff5b9942c2554889a70c0fadd46a635ac918eacf77",
+          "artifact_sha256": "5a749929b59e3c5e123920ae16100962fb395d2aa40a5cbb5469815eceffb7b9",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        },
+        {
+          "id": "run-control",
+          "description": "Run creation, run and stage state, operator pause/resume/cancel, coverage reporting, and the operator HTTP surface.",
+          "include": [
+            "apps/control_api/src/control_api/__init__.py",
+            "apps/control_api/src/control_api/app.py",
+            "apps/control_api/src/control_api/auth.py",
+            "apps/control_api/src/control_api/main.py",
+            "apps/control_api/src/control_api/schemas.py",
+            "contracts/control_api/openapi.json",
+            "contracts/control_api/operation-inventory.json",
+            "contracts/json_schema/error-envelope.schema.json",
+            "database/migrations/versions/20260811_0002_work_engine.py",
+            "database/migrations/versions/20260815_0012_run_control.py",
+            "packages/collection_application/src/collection_application/campaign_runs.py",
+            "packages/collection_application/src/collection_application/run_control.py",
+            "packages/collection_application/src/collection_application/work_engine.py",
+            "packages/collection_domain/src/collection_domain/__init__.py",
+            "packages/collection_domain/src/collection_domain/runs.py",
+            "packages/collection_domain/src/collection_domain/work_units.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/campaign_run_store.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/run_control.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
+            "tools/control_api_contract_generation/generate.py"
+          ],
+          "source_paths": [
+            "apps/control_api/src/control_api/__init__.py",
+            "apps/control_api/src/control_api/app.py",
+            "apps/control_api/src/control_api/auth.py",
+            "apps/control_api/src/control_api/main.py",
+            "apps/control_api/src/control_api/schemas.py",
+            "contracts/control_api/openapi.json",
+            "contracts/control_api/operation-inventory.json",
+            "contracts/json_schema/error-envelope.schema.json",
+            "database/migrations/versions/20260811_0002_work_engine.py",
+            "database/migrations/versions/20260815_0012_run_control.py",
+            "packages/collection_application/src/collection_application/campaign_runs.py",
+            "packages/collection_application/src/collection_application/run_control.py",
+            "packages/collection_application/src/collection_application/work_engine.py",
+            "packages/collection_domain/src/collection_domain/__init__.py",
+            "packages/collection_domain/src/collection_domain/runs.py",
+            "packages/collection_domain/src/collection_domain/work_units.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/campaign_run_store.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_run_control.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/run_control.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
+            "tools/control_api_contract_generation/generate.py"
+          ],
+          "input_digest": "f488115cc399ceb2ae7f2863aaea32c2bb021a739af942c456e65b88987fd293",
+          "artifact_sha256": "5fcd082a4adc85e78996f7bf89e27a71288f00e280c8125202dff161a7122e33",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        },
+        {
+          "id": "work-execution",
+          "description": "Work-unit semantics, leases and heartbeats, retry classification, source capacity, and the worker gateway protocol.",
+          "include": [
+            "apps/worker_gateway/src/worker_gateway/__init__.py",
+            "apps/worker_gateway/src/worker_gateway/__main__.py",
+            "apps/worker_gateway/src/worker_gateway/app.py",
+            "apps/worker_gateway/src/worker_gateway/auth.py",
+            "apps/worker_gateway/src/worker_gateway/contracts.py",
+            "contracts/openapi/worker-gateway.openapi.json",
+            "database/migrations/versions/20260811_0003_source_capability.py",
+            "database/migrations/versions/20260811_0004_worker_compatibility_and_failure_budget.py",
+            "packages/collection_application/src/collection_application/work_engine.py",
+            "packages/collection_domain/src/collection_domain/__init__.py",
+            "packages/collection_domain/src/collection_domain/source_capacity.py",
+            "packages/collection_domain/src/collection_domain/work_leases.py",
+            "packages/collection_domain/src/collection_domain/work_retry.py",
+            "packages/collection_domain/src/collection_domain/work_units.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_source_constraints.py",
+            "packages/source_connector_sdk/src/source_connector_sdk/__init__.py",
+            "packages/source_connector_sdk/src/source_connector_sdk/gateway.py"
+          ],
+          "source_paths": [
+            "apps/worker_gateway/src/worker_gateway/__init__.py",
+            "apps/worker_gateway/src/worker_gateway/__main__.py",
+            "apps/worker_gateway/src/worker_gateway/app.py",
+            "apps/worker_gateway/src/worker_gateway/auth.py",
+            "apps/worker_gateway/src/worker_gateway/contracts.py",
+            "contracts/openapi/worker-gateway.openapi.json",
+            "database/migrations/versions/20260811_0003_source_capability.py",
+            "database/migrations/versions/20260811_0004_worker_compatibility_and_failure_budget.py",
+            "packages/collection_application/src/collection_application/work_engine.py",
+            "packages/collection_domain/src/collection_domain/__init__.py",
+            "packages/collection_domain/src/collection_domain/source_capacity.py",
+            "packages/collection_domain/src/collection_domain/work_leases.py",
+            "packages/collection_domain/src/collection_domain/work_retry.py",
+            "packages/collection_domain/src/collection_domain/work_units.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_source_constraints.py",
+            "packages/source_connector_sdk/src/source_connector_sdk/__init__.py",
+            "packages/source_connector_sdk/src/source_connector_sdk/gateway.py"
+          ],
+          "input_digest": "736a230c7559e6716ba993904c2bd3a4774554e855dab17c78a2ad7c9f5f9731",
+          "artifact_sha256": "f796eb4716770ef5431c7bc13bf264a0159bb9a5449ed0bff6628578131ff223",
+          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+        }
+      ]
+    }
+  ]
+}

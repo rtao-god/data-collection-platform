@@ -43,3 +43,67 @@ Frontend rules are not routed by this file until review-console implementation b
 - Architecture and operator documentation: `docs/`
 - Repository checks and generators: `tools/`
 - Temporary local artifacts: `.tmp/` only; never commit them.
+
+## Бизнес модули
+
+Модуль Campaign configuration
+
+Превращает авторские YAML в проверенную конфигурацию кампании и неизменяемый снапшот с каноническими digest'ами. Runtime читает только снапшот, а не изменяемые файлы; заблокированная готовность остаётся заблокированной.
+
+`.codex/Features/campaign-config.md`
+
+Модуль Work engine
+
+Доводит запрос до управляемого запуска, выполняет семантические работы под арендой и сохраняет неизменяемые артефакты как доказательство. Точно разделяет аренду, попытку и артефакт; worker'ы не получают доступа к базе или объектному хранилищу.
+
+`.codex/Features/work-engine.md`
+
+Модуль Manual import
+
+Превращает авторские seed-файлы оператора в проверенные неизменяемые записи и ставит их как семантическую работу. Atomic mode не планирует ничего при любом issue.
+
+`.codex/Features/manual-import.md`
+
+Модуль OSM acquisition
+
+Получает данные OpenStreetMap по настроенной рыночной области с сохранённым provenance.
+
+`.codex/Features/osm-acquisition.md`
+
+Модуль HTTP acquisition
+
+Получает содержимое официальных сайтов с соблюдением политики и оставляет неизменяемое сырое доказательство. Каждый ответ — либо доказательство, либо типизированный отказ.
+
+`.codex/Features/http-acquisition.md`
+
+Модуль Evidence processing
+
+Извлекает из сырого доказательства типизированные наблюдения с явными состояниями. Отсутствие, запрет и недопустимое значение не подменяются пустым успехом.
+
+`.codex/Features/evidence-processing.md`
+
+Модуль Entity resolution
+
+Детерминированно сопоставляет кандидатов, строит обратимые кластеры и выносит fail-closed вердикт качества. Сомнение трактуется как ревью, не как совпадение.
+
+`.codex/Features/entity-resolution.md`
+
+Модуль Candidate review
+
+Принимает и сохраняет редакционные решения, ручные исправления и подавления. Решения append-only: повторное решение создаёт новую ревизию, а не изменяет прежнюю.
+
+`.codex/Features/candidate-review.md`
+
+Модуль Pipeline advancement
+
+Превращает один успешный выход работы в одно явное следующее действие, сохраняя это решение долговечно. Неизвестный переход блокирует с контекстом владельца, не пропускается молча.
+
+`.codex/Features/pipeline-advancement.md`
+
+## Commands
+
+`pwsh -NoProfile -File D:\tools\utils\business-module-scanner\maintenance\Invoke-ProjectCommand.ps1 D:\Aggregator\data-collection-platform pwsh -NoProfile -File tools/check.ps1 verify` is the single source-verification entrypoint. It runs generated-contract drift checks, formatting, lint, strict typing, architecture boundaries, non-integration tests, and the first campaign snapshot validation in order, and stops at the first failure.
+
+Scoped variants and remaining commands: `.codex/Commands/COMMON_COMMANDS.md`.
+
+Bootstrap: `uv sync --frozen --all-packages --dev`, then `python tools/git_hooks/configure.py`.

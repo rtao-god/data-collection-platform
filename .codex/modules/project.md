@@ -22,5 +22,5 @@ Dagster orchestration, and the review frontend. The authenticated Control API, r
 suppression, run creation, coverage, and revisioned run control are implemented. Do not create
 placeholders; add each owner with its first complete production path and proof.
 
-- `.codex/modules/processing.md` — evidence-backed extraction and typed normalization.
-- `.codex/modules/entity-resolution.md` — deterministic matching, clustering, and quality.
+Business-module technical descriptions live in `.codex/Features/`. This note holds only repository-level
+status and proof scope, which belongs to no business module.
