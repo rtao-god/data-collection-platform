@@ -53,6 +53,10 @@ COLLECTOR_DATABASE_URL=<runtime secret> uv run collection-migrate upgrade head
 Migration is an explicit state-changing operation. No API, worker, readiness check, or image startup
 runs it.
 
+Integration tests are repeatable against one migrated database: every fixture derives per-run unique
+identities, so rerunning the suite must not need a fresh database. CI runs the database contract twice
+against the same instance to keep that property enforced.
+
 # Runtime
 
 Worker Gateway needs exact object-store configuration and mounted secret files:
