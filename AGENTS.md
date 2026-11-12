@@ -95,6 +95,6 @@ Always read `D:\tools\Agents_Rules\Backend.md`.
 # Commands
 `pwsh -NoProfile -File D:\tools\utils\business-module-scanner\maintenance\Invoke-ProjectCommand.ps1 D:\Aggregator\data-collection-platform pwsh -NoProfile -File tools/check.ps1 verify` is single source-verification entrypoint. It runs generated-contract drift checks, formatting, lint, strict typing, architecture boundaries, non-integration tests, and first campaign snapshot validation in order, and stops at first failure.
 
-Scoped variants and remaining commands: `.codex/Commands/COMMON_COMMANDS.md`.
+`.codex/Commands/COMMON_COMMANDS.md` holds the scoped `tools/check.ps1` steps, the scoped test run, campaign authoring commands, and the exact environment integration tests and Worker Gateway need.
 
 Bootstrap: `uv sync --frozen --all-packages --dev`, then `python tools/git_hooks/configure.py`.
