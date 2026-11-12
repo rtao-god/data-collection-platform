@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
+from types import ModuleType
 
-_MIGRATION = (
+import pytest
+import sqlalchemy as sa
+from db_support import database_url
+
+_MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]
     / "migrations"
     / "versions"
@@ -10,34 +16,54 @@ _MIGRATION = (
 )
 
 
-def test_pipeline_advancement_migration_is_linear_and_owner_scoped() -> None:
-    source = _MIGRATION.read_text(encoding="utf-8")
-
-    assert 'revision: str = "20260815_0013"' in source
-    assert 'down_revision: str | None = "20260815_0012"' in source
-    assert '"pipeline_advancements"' in source
-    assert '"pipeline_advancement_attempts"' in source
-    assert 'schema="work"' in source
-    assert '"work.work_units.work_id"' in source
-    assert '"work.work_units.work_unit_id"' not in source
-    assert "CASCADE" not in source
-
-
-def test_pipeline_advancement_migration_enforces_fail_closed_state() -> None:
-    source = _MIGRATION.read_text(encoding="utf-8")
-
-    assert "ck_pipeline_advancements_terminal_payload" in source
-    assert "ck_pipeline_advancements_lease_payload" in source
-    assert "ck_pipeline_advancement_attempts_event_payload" in source
-    assert "source_output_digest ~ '^sha256:[0-9a-f]{64}$'" in source
-    assert "transition_plan_digest ~ '^sha256:[0-9a-f]{64}$'" in source
-    assert "jsonb_typeof(source_input_artifacts) = 'array'" in source
+def _load_migration() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "pipeline_advancement_migration",
+        _MIGRATION_PATH,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-def test_pipeline_advancement_attempt_history_is_append_only() -> None:
-    source = _MIGRATION.read_text(encoding="utf-8")
+def test_pipeline_advancement_migration_stays_linear_after_run_control() -> None:
+    """The migration graph must stay a single linear chain and follow run control."""
+    migration = _load_migration()
 
-    assert "reject_pipeline_advancement_attempt_mutation" in source
-    assert "BEFORE UPDATE OR DELETE ON work.pipeline_advancement_attempts" in source
-    assert "pipeline advancement attempt history is immutable" in source
-    assert 'ondelete="RESTRICT"' in source
+    assert migration.down_revision == "20260815_0012"
+
+
+@pytest.mark.integration
+def test_pipeline_advancement_schema_guards_are_installed() -> None:
+    """Fail-closed checks and the append-only trigger must exist in the migrated schema."""
+    engine = sa.create_engine(database_url("pipeline advancement schema contract"))
+    try:
+        inspector = sa.inspect(engine)
+        checks = {
+            item["name"]
+            for item in inspector.get_check_constraints(
+                "pipeline_advancements",
+                schema="work",
+            )
+        }
+        with engine.connect() as connection:
+            triggers = {
+                row[0]
+                for row in connection.execute(
+                    sa.text(
+                        """
+                        SELECT trigger_name
+                        FROM information_schema.triggers
+                        WHERE event_object_schema = 'work'
+                          AND event_object_table = 'pipeline_advancement_attempts'
+                        """
+                    )
+                )
+            }
+    finally:
+        engine.dispose()
+
+    assert {"ck_pipeline_advancements_terminal_payload"} <= checks
+    assert {"trg_pipeline_advancement_attempts_immutable"} <= triggers

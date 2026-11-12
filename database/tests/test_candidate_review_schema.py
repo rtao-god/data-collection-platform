@@ -1,31 +1,29 @@
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
+from db_support import database_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
 
 pytestmark = pytest.mark.integration
 
 NOW = datetime(2026, 8, 14, 8, 0, tzinfo=UTC)
-DIGEST_A = "sha256:" + "a" * 64
-DIGEST_B = "sha256:" + "b" * 64
-DIGEST_C = "sha256:" + "c" * 64
+_RUN = uuid4().hex
 
 
-def database_url() -> str:
-    value = os.getenv("COLLECTOR_DATABASE_URL", "").strip()
-    if not value:
-        pytest.fail("COLLECTOR_DATABASE_URL is required")
-    return value
+def _digest(prefix: str) -> str:
+    """Per-run digest so repeated runs against one migrated database stay isolated."""
+    return "sha256:" + f"{prefix}{_RUN}".ljust(64, "0")[:64]
 
 
 def test_candidate_review_schema_is_exact_and_restrictive() -> None:
-    engine = sa.create_engine(database_url(), poolclass=NullPool)
+    engine = sa.create_engine(
+        database_url("candidate review integration tests"), poolclass=NullPool
+    )
     inspector = sa.inspect(engine)
     assert set(inspector.get_table_names(schema="candidates")) == {
         "candidate_revision_evidence",
@@ -56,7 +54,9 @@ def test_candidate_review_schema_is_exact_and_restrictive() -> None:
 
 
 def test_candidate_review_history_is_append_only_and_plain_text() -> None:
-    engine = sa.create_engine(database_url(), poolclass=NullPool)
+    engine = sa.create_engine(
+        database_url("candidate review integration tests"), poolclass=NullPool
+    )
     candidate_id = uuid4()
     cluster_id = uuid4()
     case_id = uuid4()
@@ -92,8 +92,8 @@ def test_candidate_review_history_is_append_only_and_plain_text() -> None:
             {
                 "candidate_id": candidate_id,
                 "cluster_id": cluster_id,
-                "snapshot_digest": DIGEST_A,
-                "lineage_digest": DIGEST_B,
+                "snapshot_digest": _digest("a"),
+                "lineage_digest": _digest("b"),
                 "payload": '{"displayName":"Studio"}',
                 "now_utc": NOW,
             },
@@ -140,8 +140,8 @@ def test_candidate_review_history_is_append_only_and_plain_text() -> None:
             {
                 "decision_id": decision_id,
                 "case_id": case_id,
-                "evidence": DIGEST_A,
-                "command_digest": DIGEST_B,
+                "evidence": _digest("a"),
+                "command_digest": _digest("b"),
                 "now_utc": NOW,
             },
         )
@@ -164,8 +164,8 @@ def test_candidate_review_history_is_append_only_and_plain_text() -> None:
             {
                 "observation_id": observation_id,
                 "candidate_id": candidate_id,
-                "value_digest": DIGEST_A,
-                "command_digest": DIGEST_C,
+                "value_digest": _digest("a"),
+                "command_digest": _digest("c"),
                 "now_utc": NOW,
             },
         )
@@ -187,8 +187,8 @@ def test_candidate_review_history_is_append_only_and_plain_text() -> None:
             {
                 "suppression_id": suppression_id,
                 "target_id": str(candidate_id),
-                "evidence": DIGEST_A,
-                "command_digest": "sha256:" + "d" * 64,
+                "evidence": _digest("a"),
+                "command_digest": _digest("d"),
                 "now_utc": NOW,
             },
         )
@@ -223,8 +223,8 @@ def test_candidate_review_history_is_append_only_and_plain_text() -> None:
             {
                 "observation_id": uuid4(),
                 "candidate_id": candidate_id,
-                "value_digest": DIGEST_A,
-                "command_digest": "sha256:" + "e" * 64,
+                "value_digest": _digest("a"),
+                "command_digest": _digest("e"),
                 "now_utc": NOW,
             },
         )

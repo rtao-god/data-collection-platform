@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 import sqlalchemy as sa
+from db_support import database_url, unique_label
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
 
@@ -17,13 +17,6 @@ from collection_infrastructure.postgres import PostgresRunControlRepository
 pytestmark = pytest.mark.integration
 
 _NOW = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)
-
-
-def _database_url() -> str:
-    value = os.environ.get("COLLECTOR_DATABASE_URL", "").strip()
-    if not value:
-        pytest.fail("COLLECTOR_DATABASE_URL is required for work-engine integration tests.")
-    return value
 
 
 def _digest(value: str) -> str:
@@ -321,7 +314,7 @@ def _insert_work(connection: sa.Connection, values: dict[str, object]) -> None:
 
 
 def test_fresh_migration_creates_exact_work_engine_contract() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    engine = sa.create_engine(database_url("work-engine integration tests"), poolclass=NullPool)
     inspector = sa.inspect(engine)
 
     assert set(inspector.get_table_names(schema="runs")) == {
@@ -420,8 +413,8 @@ def test_fresh_migration_creates_exact_work_engine_contract() -> None:
 
 
 def test_run_control_persists_revisioned_transitions_and_cancels_pending_work() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
-    label = "run-control-transition"
+    engine = sa.create_engine(database_url("work-engine integration tests"), poolclass=NullPool)
+    label = unique_label("run-control-transition")
     changed_at_utc = _NOW + timedelta(minutes=1)
 
     with engine.begin() as connection:
@@ -500,10 +493,10 @@ def test_run_control_persists_revisioned_transitions_and_cancels_pending_work() 
 
 
 def test_worker_output_contract_identity_is_fail_closed() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    engine = sa.create_engine(database_url("work-engine integration tests"), poolclass=NullPool)
 
     with engine.begin() as connection:
-        worker_id = _insert_worker(connection, "worker-contract", "extraction")
+        worker_id = _insert_worker(connection, unique_label("worker-contract"), "extraction")
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
         _insert(
@@ -515,16 +508,17 @@ def test_worker_output_contract_identity_is_fail_closed() -> None:
 
 
 def test_failure_budget_is_independent_from_safe_attempts() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    engine = sa.create_engine(database_url("work-engine integration tests"), poolclass=NullPool)
 
+    label = unique_label("safe-attempt-budget")
     with engine.begin() as connection:
         run_id, stage_run_id = _insert_run_stage(
             connection,
-            "safe-attempt-budget",
+            label,
             stage="extraction",
         )
         values = _pending_work_values(
-            "safe-attempt-budget",
+            label,
             run_id=run_id,
             stage_run_id=stage_run_id,
             stage="extraction",
@@ -537,19 +531,20 @@ def test_failure_budget_is_independent_from_safe_attempts() -> None:
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
         invalid = dict(values)
-        invalid["work_id"] = _id("safe-attempt-budget:invalid")
-        invalid["semantic_key"] = _digest("safe-attempt-budget:invalid")
+        invalid["work_id"] = _id(f"{label}:invalid")
+        invalid["semantic_key"] = _digest(f"{label}:invalid")
         invalid["failure_count"] = 6
         _insert_work(connection, invalid)
 
 
 def test_source_capability_contract_rejects_missing_or_extraneous_source() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    engine = sa.create_engine(database_url("work-engine integration tests"), poolclass=NullPool)
 
+    label = unique_label("missing-source")
     with engine.begin() as connection:
         run_id, stage_run_id = _insert_run_stage(
             connection,
-            "missing-source",
+            label,
             stage="acquisition",
         )
 
@@ -557,7 +552,7 @@ def test_source_capability_contract_rejects_missing_or_extraneous_source() -> No
         _insert_work(
             connection,
             _pending_work_values(
-                "missing-source",
+                label,
                 run_id=run_id,
                 stage_run_id=stage_run_id,
                 stage="acquisition",
@@ -566,19 +561,20 @@ def test_source_capability_contract_rejects_missing_or_extraneous_source() -> No
             ),
         )
 
+    label = unique_label("extraneous-source")
     with engine.begin() as connection:
         run_id, stage_run_id = _insert_run_stage(
             connection,
-            "extraneous-source",
+            label,
             stage="extraction",
         )
-        source_key, _ = _insert_source(connection, "extraneous-source")
+        source_key, _ = _insert_source(connection, label)
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
         _insert_work(
             connection,
             _pending_work_values(
-                "extraneous-source",
+                label,
                 run_id=run_id,
                 stage_run_id=stage_run_id,
                 stage="extraction",
@@ -589,12 +585,13 @@ def test_source_capability_contract_rejects_missing_or_extraneous_source() -> No
 
 
 def test_work_unit_rejects_stage_mismatch_and_duplicate_semantic_identity() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    engine = sa.create_engine(database_url("work-engine integration tests"), poolclass=NullPool)
 
+    label = unique_label("stage-mismatch")
     with engine.begin() as connection:
         run_id, stage_run_id = _insert_run_stage(
             connection,
-            "stage-mismatch",
+            label,
             stage="extraction",
         )
 
@@ -602,7 +599,7 @@ def test_work_unit_rejects_stage_mismatch_and_duplicate_semantic_identity() -> N
         _insert_work(
             connection,
             _pending_work_values(
-                "stage-mismatch",
+                label,
                 run_id=run_id,
                 stage_run_id=stage_run_id,
                 stage="extraction",
@@ -611,14 +608,15 @@ def test_work_unit_rejects_stage_mismatch_and_duplicate_semantic_identity() -> N
             ),
         )
 
+    identity_label = unique_label("semantic-identity")
     with engine.begin() as connection:
         run_id, stage_run_id = _insert_run_stage(
             connection,
-            "semantic-identity",
+            identity_label,
             stage="extraction",
         )
         values = _pending_work_values(
-            "semantic-identity",
+            identity_label,
             run_id=run_id,
             stage_run_id=stage_run_id,
             stage="extraction",
@@ -628,14 +626,14 @@ def test_work_unit_rejects_stage_mismatch_and_duplicate_semantic_identity() -> N
         _insert_work(connection, values)
 
     duplicate = dict(values)
-    duplicate["work_id"] = _id("semantic-identity:duplicate-work")
+    duplicate["work_id"] = _id(f"{identity_label}:duplicate-work")
     with pytest.raises(IntegrityError), engine.begin() as connection:
         _insert_work(connection, duplicate)
 
 
 def test_leased_work_and_attempt_result_shapes_fail_closed() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
-    label = "lease-shape"
+    engine = sa.create_engine(database_url("work-engine integration tests"), poolclass=NullPool)
+    label = unique_label("lease-shape")
 
     with engine.begin() as connection:
         run_id, stage_run_id = _insert_run_stage(connection, label, stage="acquisition")

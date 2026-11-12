@@ -1,24 +1,15 @@
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
+from db_support import database_url, digest, unique_label
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.pool import NullPool
 
 pytestmark = pytest.mark.integration
-
-
-def _database_url() -> str:
-    value = os.environ.get("COLLECTOR_DATABASE_URL", "").strip()
-    if not value:
-        pytest.fail(
-            "COLLECTOR_DATABASE_URL is required for the PostgreSQL/PostGIS integration contract."
-        )
-    return value
 
 
 def _insert_component(connection: sa.Connection, bundle_digest: str, position: int = 0) -> None:
@@ -179,7 +170,9 @@ def _insert_bundle(
 
 
 def test_fresh_migration_creates_exact_config_owner_contract() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    engine = sa.create_engine(
+        database_url("the PostgreSQL/PostGIS integration contract"), poolclass=NullPool
+    )
     inspector = sa.inspect(engine)
 
     assert set(inspector.get_table_names(schema="config")) == {
@@ -238,8 +231,10 @@ def test_fresh_migration_creates_exact_config_owner_contract() -> None:
 
 
 def test_config_bundle_is_atomically_sealed_and_immutable() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
-    bundle_digest = "sha256:" + ("a" * 64)
+    engine = sa.create_engine(
+        database_url("the PostgreSQL/PostGIS integration contract"), poolclass=NullPool
+    )
+    bundle_digest = digest(unique_label("sealed-bundle"), "config")
 
     with engine.begin() as connection:
         _insert_component(connection, bundle_digest)
@@ -273,7 +268,9 @@ def test_config_bundle_is_atomically_sealed_and_immutable() -> None:
 
 
 def test_config_bundle_rejects_incomplete_or_inconsistent_insert() -> None:
-    engine = sa.create_engine(_database_url(), poolclass=NullPool)
+    engine = sa.create_engine(
+        database_url("the PostgreSQL/PostGIS integration contract"), poolclass=NullPool
+    )
 
     with pytest.raises(IntegrityError), engine.begin() as connection:
         _insert_bundle(connection, "sha256:" + ("b" * 64), readiness="ready")

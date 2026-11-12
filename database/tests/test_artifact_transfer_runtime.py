@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -11,8 +10,8 @@ from uuid import UUID, uuid4
 import pytest
 import sqlalchemy as sa
 from botocore.exceptions import ClientError
+from db_support import digest, engine_fixture, insert_config_artifact, unique_label
 from sqlalchemy.engine import Engine
-from sqlalchemy.pool import NullPool
 
 from collection_application import (
     ArtifactKind,
@@ -50,6 +49,13 @@ pytestmark = pytest.mark.integration
 _NOW = datetime(2026, 8, 12, 6, 0, tzinfo=UTC)
 _BODY = b"atomic artifact body"
 _DIGEST = f"sha256:{sha256(_BODY).hexdigest()}"
+
+
+@pytest.fixture
+def engine() -> Iterator[Engine]:
+    yield from engine_fixture("artifact runtime tests")
+
+
 _CONTENT_TYPE = "text/html"
 
 
@@ -161,106 +167,11 @@ def _missing_key(key: str) -> ClientError:
     )
 
 
-def _database_url() -> str:
-    value = os.environ.get("COLLECTOR_DATABASE_URL", "").strip()
-    if not value:
-        pytest.fail("COLLECTOR_DATABASE_URL is required for artifact runtime tests.")
-    return value
-
-
-@pytest.fixture
-def engine() -> Iterator[Engine]:
-    value = sa.create_engine(_database_url(), poolclass=NullPool)
-    try:
-        yield value
-    finally:
-        value.dispose()
-
-
-def _label(prefix: str) -> str:
-    return f"{prefix}_{uuid4().hex}"
-
-
-def _digest(*parts: str) -> str:
-    return f"sha256:{sha256(':'.join(parts).encode()).hexdigest()}"
-
-
-def _insert_config_artifact(
-    connection: sa.Connection,
-    bundle_digest: str,
-    *,
-    recorded_at_utc: datetime | str,
-) -> None:
-    object_id = uuid4()
-    artifact_id = uuid4()
-    operation_id = uuid4()
-    digest_value = bundle_digest.removeprefix("sha256:")
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO sources.artifact_objects (
-                object_id, artifact_kind, content_digest, size_bytes, storage_reference,
-                verified_at_utc, recorded_at_utc, correlation_id
-            ) VALUES (
-                :object_id, 'config_bundle', :bundle_digest, 1, :storage_reference,
-                :recorded_at_utc, :recorded_at_utc, 'integration-config-artifact'
-            )
-            """
-        ),
-        {
-            "object_id": object_id,
-            "bundle_digest": bundle_digest,
-            "storage_reference": (
-                f"config-bundles/sha256/{digest_value[:2]}/{digest_value[2:4]}/{digest_value}"
-            ),
-            "recorded_at_utc": recorded_at_utc,
-        },
-    )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO sources.artifact_records (
-                artifact_id, object_id, upload_id, work_id, attempt_id, worker_id,
-                producer_kind, producer_identity, owner_operation_id, content_type,
-                source_policy_digest, recorded_at_utc, correlation_id
-            ) VALUES (
-                :artifact_id, :object_id, NULL, NULL, NULL, NULL,
-                'control_plane', 'integration-test', :operation_id, 'application/json',
-                NULL, :recorded_at_utc, 'integration-config-artifact'
-            )
-            """
-        ),
-        {
-            "artifact_id": artifact_id,
-            "object_id": object_id,
-            "operation_id": operation_id,
-            "recorded_at_utc": recorded_at_utc,
-        },
-    )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO config.config_bundle_artifacts (
-                bundle_digest, artifact_id, recorded_at_utc, correlation_id
-            ) VALUES (
-                :bundle_digest, :artifact_id, :recorded_at_utc,
-                'integration-config-artifact'
-            )
-            """
-        ),
-        {
-            "bundle_digest": bundle_digest,
-            "artifact_id": artifact_id,
-            "recorded_at_utc": recorded_at_utc,
-        },
-    )
-
-
 def _insert_snapshot(engine: Engine, label: str) -> tuple[str, str]:
     campaign_key = f"campaign_{label}"
-    bundle_digest = _digest(label, "bundle")
+    bundle_digest = digest(label, "bundle")
     with engine.begin() as connection:
-        _insert_config_artifact(
+        insert_config_artifact(
             connection,
             bundle_digest,
             recorded_at_utc=_NOW,
@@ -283,7 +194,7 @@ def _insert_snapshot(engine: Engine, label: str) -> tuple[str, str]:
             ),
             {
                 "bundle_digest": bundle_digest,
-                "component_digest": _digest(label, "component"),
+                "component_digest": digest(label, "component"),
             },
         )
         connection.execute(
@@ -359,7 +270,7 @@ def _harness(engine: Engine, label: str) -> RuntimeHarness:
     work_engine.configure_source(
         SourceCapacitySpec(
             source_key=source_key,
-            policy_digest=_digest(label, "policy"),
+            policy_digest=digest(label, "policy"),
             state=SourceOperationalState.ACTIVE,
             max_active_requests=1,
             minimum_interval_milliseconds=0,
@@ -401,8 +312,8 @@ def _enqueue_acquisition(harness: RuntimeHarness, suffix: str) -> WorkUnitSpec:
         stage=WorkStage.ACQUISITION,
         capability=WorkCapability.HTTP_FETCH,
         source_key=harness.source_key,
-        semantic_key=_digest(harness.label, suffix, "semantic"),
-        input_digest=_digest(harness.label, suffix, "input"),
+        semantic_key=digest(harness.label, suffix, "semantic"),
+        input_digest=digest(harness.label, suffix, "input"),
         expected_output_contract=harness.output_contract,
         priority=0,
         retry_policy=RetryPolicy(
@@ -471,7 +382,7 @@ def _complete(harness: RuntimeHarness, lease, upload_id: UUID):
         worker_id=harness.worker_id,
         input_digest=lease.input_digest,
         output_contract=harness.output_contract,
-        output_digest=_digest(harness.label, str(lease.work_id), "output"),
+        output_digest=digest(harness.label, str(lease.work_id), "output"),
         worker_build_identity=harness.worker_build,
         correlation_id=f"correlation-{harness.label}",
         output_artifacts=(WorkOutputArtifact(upload_id=upload_id, role="response_body"),),
@@ -482,7 +393,7 @@ def _complete(harness: RuntimeHarness, lease, upload_id: UUID):
 def test_verified_output_is_committed_atomically_and_becomes_scoped_input(
     engine: Engine,
 ) -> None:
-    harness = _harness(engine, _label("artifact_flow"))
+    harness = _harness(engine, unique_label("artifact_flow"))
     _enqueue_acquisition(harness, "first")
     lease = _lease(harness)
     upload_id = uuid4()
@@ -554,8 +465,8 @@ def test_verified_output_is_committed_atomically_and_becomes_scoped_input(
         stage=WorkStage.EXTRACTION,
         capability=WorkCapability.EXTRACTION,
         source_key=None,
-        semantic_key=_digest(harness.label, "extraction", "semantic"),
-        input_digest=_digest(harness.label, "extraction", "input"),
+        semantic_key=digest(harness.label, "extraction", "semantic"),
+        input_digest=digest(harness.label, "extraction", "input"),
         expected_output_contract=extraction_contract,
         priority=0,
         retry_policy=RetryPolicy(
@@ -614,7 +525,7 @@ def test_verified_output_is_committed_atomically_and_becomes_scoped_input(
 
 
 def test_unverified_output_cannot_partially_complete_work(engine: Engine) -> None:
-    harness = _harness(engine, _label("artifact_unverified"))
+    harness = _harness(engine, unique_label("artifact_unverified"))
     work = _enqueue_acquisition(harness, "first")
     lease = _lease(harness)
     upload_id = uuid4()
@@ -668,7 +579,7 @@ def test_unverified_output_cannot_partially_complete_work(engine: Engine) -> Non
 
 
 def test_duplicate_content_reuses_object_and_preserves_distinct_records(engine: Engine) -> None:
-    harness = _harness(engine, _label("artifact_dedup"))
+    harness = _harness(engine, unique_label("artifact_dedup"))
     upload_ids: list[UUID] = []
     for suffix in ("first", "second"):
         _enqueue_acquisition(harness, suffix)

@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from hashlib import sha256
 from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
+from db_support import digest, engine_fixture, insert_config_artifact, unique_label
 from sqlalchemy.engine import Engine, RowMapping
-from sqlalchemy.pool import NullPool
 
 from collection_application import (
     CollectionRunSpec,
@@ -43,6 +41,11 @@ from collection_infrastructure import PostgresWorkEngine
 pytestmark = pytest.mark.integration
 
 _START = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture
+def engine() -> Iterator[Engine]:
+    yield from engine_fixture("Work Engine runtime tests")
 
 
 @dataclass(slots=True)
@@ -76,102 +79,6 @@ class Harness:
     label: str
 
 
-def _database_url() -> str:
-    value = os.environ.get("COLLECTOR_DATABASE_URL", "").strip()
-    if not value:
-        pytest.fail("COLLECTOR_DATABASE_URL is required for Work Engine runtime tests.")
-    return value
-
-
-@pytest.fixture
-def engine() -> Iterator[Engine]:
-    value = sa.create_engine(_database_url(), poolclass=NullPool)
-    try:
-        yield value
-    finally:
-        value.dispose()
-
-
-def _label(prefix: str) -> str:
-    return f"{prefix}_{uuid4().hex}"
-
-
-def _digest(*parts: str) -> str:
-    payload = ":".join(parts).encode("utf-8")
-    return f"sha256:{sha256(payload).hexdigest()}"
-
-
-def _insert_config_artifact(
-    connection: sa.Connection,
-    bundle_digest: str,
-    *,
-    recorded_at_utc: datetime | str,
-) -> None:
-    object_id = uuid4()
-    artifact_id = uuid4()
-    operation_id = uuid4()
-    digest_value = bundle_digest.removeprefix("sha256:")
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO sources.artifact_objects (
-                object_id, artifact_kind, content_digest, size_bytes, storage_reference,
-                verified_at_utc, recorded_at_utc, correlation_id
-            ) VALUES (
-                :object_id, 'config_bundle', :bundle_digest, 1, :storage_reference,
-                :recorded_at_utc, :recorded_at_utc, 'integration-config-artifact'
-            )
-            """
-        ),
-        {
-            "object_id": object_id,
-            "bundle_digest": bundle_digest,
-            "storage_reference": (
-                f"config-bundles/sha256/{digest_value[:2]}/{digest_value[2:4]}/{digest_value}"
-            ),
-            "recorded_at_utc": recorded_at_utc,
-        },
-    )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO sources.artifact_records (
-                artifact_id, object_id, upload_id, work_id, attempt_id, worker_id,
-                producer_kind, producer_identity, owner_operation_id, content_type,
-                source_policy_digest, recorded_at_utc, correlation_id
-            ) VALUES (
-                :artifact_id, :object_id, NULL, NULL, NULL, NULL,
-                'control_plane', 'integration-test', :operation_id, 'application/json',
-                NULL, :recorded_at_utc, 'integration-config-artifact'
-            )
-            """
-        ),
-        {
-            "artifact_id": artifact_id,
-            "object_id": object_id,
-            "operation_id": operation_id,
-            "recorded_at_utc": recorded_at_utc,
-        },
-    )
-    connection.execute(
-        sa.text(
-            """
-            INSERT INTO config.config_bundle_artifacts (
-                bundle_digest, artifact_id, recorded_at_utc, correlation_id
-            ) VALUES (
-                :bundle_digest, :artifact_id, :recorded_at_utc,
-                'integration-config-artifact'
-            )
-            """
-        ),
-        {
-            "bundle_digest": bundle_digest,
-            "artifact_id": artifact_id,
-            "recorded_at_utc": recorded_at_utc,
-        },
-    )
-
-
 def _insert_snapshot(
     engine: Engine,
     label: str,
@@ -180,9 +87,9 @@ def _insert_snapshot(
     blocker_code: str | None = None,
 ) -> tuple[str, str]:
     campaign_key = f"campaign_{label}"
-    bundle_digest = _digest(label, "bundle")
+    bundle_digest = digest(label, "bundle")
     with engine.begin() as connection:
-        _insert_config_artifact(
+        insert_config_artifact(
             connection,
             bundle_digest,
             recorded_at_utc=_START,
@@ -205,7 +112,7 @@ def _insert_snapshot(
             ),
             {
                 "bundle_digest": bundle_digest,
-                "component_digest": _digest(label, "component"),
+                "component_digest": digest(label, "component"),
             },
         )
         if blocker_code is not None:
@@ -298,7 +205,7 @@ def _create_harness(
         adapter.configure_source(
             SourceCapacitySpec(
                 source_key=source_key,
-                policy_digest=_digest(label, "policy"),
+                policy_digest=digest(label, "policy"),
                 state=SourceOperationalState.ACTIVE,
                 max_active_requests=source_max_active,
                 minimum_interval_milliseconds=0,
@@ -380,8 +287,8 @@ def _enqueue_work(
         stage=harness.stage,
         capability=harness.capability,
         source_key=harness.source_key,
-        semantic_key=_digest(harness.label, suffix, "semantic"),
-        input_digest=_digest(harness.label, suffix, "input"),
+        semantic_key=digest(harness.label, suffix, "semantic"),
+        input_digest=digest(harness.label, suffix, "input"),
         expected_output_contract=harness.output_contract,
         priority=priority,
         retry_policy=RetryPolicy(
@@ -456,7 +363,7 @@ def _source_active_requests(engine: Engine, source_key: str) -> int:
 
 
 def test_run_admission_requires_an_exact_ready_snapshot(engine: Engine) -> None:
-    ready_label = _label("ready")
+    ready_label = unique_label("ready")
     campaign_key, bundle_digest = _insert_snapshot(engine, ready_label)
     adapter = PostgresWorkEngine(engine, clock=MutableClock(_START))
     run_id = uuid4()
@@ -478,7 +385,7 @@ def test_run_admission_requires_an_exact_ready_snapshot(engine: Engine) -> None:
         ).scalar_one()
     assert count == 1
 
-    blocked_label = _label("blocked")
+    blocked_label = unique_label("blocked")
     blocked_campaign, blocked_digest = _insert_snapshot(
         engine,
         blocked_label,
@@ -503,8 +410,8 @@ def test_run_admission_requires_an_exact_ready_snapshot(engine: Engine) -> None:
         adapter.create_run(
             CollectionRunSpec(
                 run_id=uuid4(),
-                campaign_key=f"campaign_{_label('missing')}",
-                config_bundle_digest=_digest("missing", uuid4().hex),
+                campaign_key=f"campaign_{unique_label('missing')}",
+                config_bundle_digest=digest("missing", uuid4().hex),
                 initial_state=CollectionRunState.RUNNING,
                 correlation_id="correlation-missing-snapshot",
             )
@@ -514,7 +421,7 @@ def test_run_admission_requires_an_exact_ready_snapshot(engine: Engine) -> None:
 
 
 def test_worker_registration_is_idempotent_and_contract_exact(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("registration"))
+    harness = _create_harness(engine, unique_label("registration"))
     worker, first_status = _register_worker(harness, "one")
 
     repeated = harness.adapter.register_worker(
@@ -541,7 +448,7 @@ def test_worker_registration_is_idempotent_and_contract_exact(engine: Engine) ->
 
 
 def test_worker_output_contract_gates_leasing(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("compatibility"))
+    harness = _create_harness(engine, unique_label("compatibility"))
     incompatible, _ = _register_worker(
         harness,
         "incompatible",
@@ -560,7 +467,7 @@ def test_worker_output_contract_gates_leasing(engine: Engine) -> None:
 
 
 def test_concurrent_workers_cannot_lease_the_same_work(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("concurrent"))
+    harness = _create_harness(engine, unique_label("concurrent"))
     first_worker, _ = _register_worker(harness, "first")
     second_worker, _ = _register_worker(harness, "second")
     work = _enqueue_work(harness, "single")
@@ -586,7 +493,7 @@ def test_concurrent_workers_cannot_lease_the_same_work(engine: Engine) -> None:
 
 
 def test_worker_concurrency_is_released_after_completion(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("worker_capacity"))
+    harness = _create_harness(engine, unique_label("worker_capacity"))
     worker, _ = _register_worker(harness, "one", max_concurrency=1)
     first_work = _enqueue_work(harness, "first", priority=10)
     _enqueue_work(harness, "second")
@@ -604,7 +511,7 @@ def test_worker_concurrency_is_released_after_completion(engine: Engine) -> None
             worker_id=worker.worker_id,
             input_digest=first_lease.input_digest,
             output_contract=harness.output_contract,
-            output_digest=_digest(harness.label, "first", "output"),
+            output_digest=digest(harness.label, "first", "output"),
             worker_build_identity=worker.build_identity,
             correlation_id=f"correlation-{harness.label}",
         )
@@ -617,7 +524,7 @@ def test_worker_concurrency_is_released_after_completion(engine: Engine) -> None
 def test_source_capacity_is_released_after_completion(engine: Engine) -> None:
     harness = _create_harness(
         engine,
-        _label("source_capacity"),
+        unique_label("source_capacity"),
         stage=WorkStage.ACQUISITION,
         capability=WorkCapability.HTTP_FETCH,
         source_max_active=1,
@@ -642,7 +549,7 @@ def test_source_capacity_is_released_after_completion(engine: Engine) -> None:
             worker_id=first_worker.worker_id,
             input_digest=first_lease.input_digest,
             output_contract=harness.output_contract,
-            output_digest=_digest(harness.label, "source", "output"),
+            output_digest=digest(harness.label, "source", "output"),
             worker_build_identity=first_worker.build_identity,
             correlation_id=f"correlation-{harness.label}",
         )
@@ -653,7 +560,7 @@ def test_source_capacity_is_released_after_completion(engine: Engine) -> None:
 
 
 def test_heartbeat_and_completion_are_owner_checked_and_idempotent(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("completion"))
+    harness = _create_harness(engine, unique_label("completion"))
     worker, _ = _register_worker(harness, "one")
     work = _enqueue_work(harness, "one")
     lease = harness.adapter.acquire_lease(_lease_request(harness, worker))
@@ -684,7 +591,7 @@ def test_heartbeat_and_completion_are_owner_checked_and_idempotent(engine: Engin
                 worker_id=worker.worker_id,
                 input_digest=lease.input_digest,
                 output_contract="wrong-output-contract",
-                output_digest=_digest(harness.label, "wrong-output"),
+                output_digest=digest(harness.label, "wrong-output"),
                 worker_build_identity=worker.build_identity,
                 correlation_id=f"correlation-{harness.label}",
             )
@@ -698,7 +605,7 @@ def test_heartbeat_and_completion_are_owner_checked_and_idempotent(engine: Engin
         worker_id=worker.worker_id,
         input_digest=lease.input_digest,
         output_contract=harness.output_contract,
-        output_digest=_digest(harness.label, "output"),
+        output_digest=digest(harness.label, "output"),
         worker_build_identity=worker.build_identity,
         correlation_id=f"correlation-{harness.label}",
     )
@@ -712,7 +619,7 @@ def test_heartbeat_and_completion_are_owner_checked_and_idempotent(engine: Engin
 
 
 def test_safe_release_does_not_consume_failure_budget(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("release"))
+    harness = _create_harness(engine, unique_label("release"))
     worker, _ = _register_worker(harness, "one")
     work = _enqueue_work(harness, "one", max_attempts=1)
     first_lease = harness.adapter.acquire_lease(_lease_request(harness, worker))
@@ -743,7 +650,7 @@ def test_safe_release_does_not_consume_failure_budget(engine: Engine) -> None:
 
 
 def test_transient_failures_respect_retry_budget_and_dead_letter(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("retry"))
+    harness = _create_harness(engine, unique_label("retry"))
     worker, _ = _register_worker(harness, "one")
     work = _enqueue_work(harness, "one", max_attempts=2)
     first_lease = harness.adapter.acquire_lease(_lease_request(harness, worker))
@@ -816,7 +723,7 @@ def test_transient_failures_respect_retry_budget_and_dead_letter(engine: Engine)
 
 
 def test_expiry_requeues_and_stale_completion_commits_dead_letter(engine: Engine) -> None:
-    harness = _create_harness(engine, _label("expiry"))
+    harness = _create_harness(engine, unique_label("expiry"))
     worker, _ = _register_worker(harness, "one")
     work = _enqueue_work(harness, "one", max_attempts=2)
     first_lease = harness.adapter.acquire_lease(
@@ -861,7 +768,7 @@ def test_expiry_requeues_and_stale_completion_commits_dead_letter(engine: Engine
                 worker_id=worker.worker_id,
                 input_digest=second_lease.input_digest,
                 output_contract=harness.output_contract,
-                output_digest=_digest(harness.label, "late-output"),
+                output_digest=digest(harness.label, "late-output"),
                 worker_build_identity=worker.build_identity,
                 correlation_id=f"correlation-{harness.label}",
             )

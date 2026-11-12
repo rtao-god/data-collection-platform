@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
+from db_support import database_url
 from sqlalchemy.pool import NullPool
 
 from review_application import ReviewConflict, ReviewerPrincipal, ReviewService
@@ -23,13 +23,6 @@ NOW = datetime(2026, 8, 14, 9, 0, tzinfo=UTC)
 DIGEST_A = "sha256:" + "a" * 64
 DIGEST_B = "sha256:" + "b" * 64
 DIGEST_C = "sha256:" + "c" * 64
-
-
-def database_url() -> str:
-    value = os.getenv("COLLECTOR_DATABASE_URL", "").strip()
-    if not value:
-        pytest.fail("COLLECTOR_DATABASE_URL is required")
-    return value
 
 
 def seed_review_case(engine: sa.Engine):
@@ -177,7 +170,9 @@ def principal() -> ReviewerPrincipal:
 
 
 def test_review_repository_is_atomic_idempotent_and_revision_guarded() -> None:
-    engine = sa.create_engine(database_url(), poolclass=NullPool)
+    engine = sa.create_engine(
+        database_url("review repository integration tests"), poolclass=NullPool
+    )
     candidate, case = seed_review_case(engine)
     service = ReviewService(PostgresReviewRepository(engine), clock=lambda: NOW)
 
