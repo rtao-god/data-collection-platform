@@ -18,3 +18,5 @@
 - worker не получает учётные данные PostgreSQL или S3.
 
 Философия: каждое поле наблюдения должно указывать на доказательство. Derived артефакт — новый смысл, а не копия сырых байтов.
+
+Tests: `packages/extraction_core/tests`, `packages/normalization_core/tests`, `packages/collection_contracts/tests`, `database/tests`, `apps/processing_worker/tests`.

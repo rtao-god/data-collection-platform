@@ -30,3 +30,5 @@
 - метаданные БД не имитируют артефакт объектного хранилища: runtime-writer отсутствует, пока владелец загрузки и верификации не реализован.
 
 Философия: конфигурация — данные, не код; один канонический digest владеет идентичностью снапшота. Снапшот не правится после публикации и не подменяется молчаливым fallback'ом.
+
+Tests: `packages/collection_contracts/tests`, `packages/collection_application/tests`, `packages/collection_infrastructure/tests`, `database/tests`, `apps/collector_cli/tests`, `tools/contract_generation/tests`, `tools/live_collection/tests`.

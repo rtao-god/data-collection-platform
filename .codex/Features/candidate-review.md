@@ -20,3 +20,5 @@
 - оператор аутентифицирован; actor берётся только из аутентифицированной идентичности.
 
 Философия: решение проверяющего — факт, который нельзя переписать. Повторное решение создаёт новую ревизию, а не изменяет прежнюю.
+
+Tests: `packages/review_core/tests`, `packages/review_contracts/tests`, `packages/review_application/tests`, `database/tests`, `tools/review_contract_generation/tests`.

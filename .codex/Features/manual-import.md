@@ -21,3 +21,5 @@ Seed-файл → UTF-8 → план + локаторы → валидация �
 Философия: план переиспользуем только после проверки его канонической смысловой и артефактной идентичности. Proof-строка не является записью.
 
 Артефакт записи сохраняет роль источника, digest источника, digest плана, digest артефакта плана, выбранную позицию, локатор и digest записи. Каждый процесс регистрирует ровно одну capability: `manual_import` или `manual_record`.
+
+Tests: `packages/manual_import_core/tests`, `packages/collection_contracts/tests`, `packages/collection_application/tests`, `packages/collection_infrastructure/tests`, `database/tests`, `apps/manual_import_worker/tests`.

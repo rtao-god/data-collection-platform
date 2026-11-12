@@ -23,3 +23,5 @@
 - география кампании принадлежит `campaign-config`; резолюция потребляет точную ревизию и digest и не пересчитывает покрытие.
 
 Философия: сомнение трактуется как ревью, не как совпадение. Golden-данные — тестовое доказательство и не делают реальную кампанию Берлина запускаемой.
+
+Tests: `packages/entity_resolution_core/tests`, `packages/quality_core/tests`, `packages/resolution_contracts/tests`, `apps/resolution_worker/tests`.

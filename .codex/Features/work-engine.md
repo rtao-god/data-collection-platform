@@ -43,3 +43,5 @@ Worker → регистрация → аренда (`FOR UPDATE ... SKIP LOCKED`
 - `work.worker_registrations`, `work.worker_capabilities`, `work.worker_output_contracts`, `work.worker_heartbeats`;
 - `work.work_units`, `work.work_attempts`, `work.dead_letters`;
 - `work.work_input_artifacts`, `work.work_output_artifacts`.
+
+Tests: `packages/collection_domain/tests`, `packages/collection_application/tests`, `packages/collection_infrastructure/tests`, `packages/source_connector_sdk/tests`, `database/tests`, `apps/control_api/tests`, `apps/worker_gateway/tests`, `apps/collector_cli/tests`, `tools/control_api_contract_generation/tests`.
