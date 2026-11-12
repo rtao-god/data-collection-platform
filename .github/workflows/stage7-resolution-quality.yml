@@ -12,7 +12,7 @@ on:
       - packages/entity_resolution_core/**
       - packages/quality_core/**
       - contracts/resolution/**
-      - tools/resolution_contract_generation/**
+      - tools/contract_generation/**
       - tools/architecture_checks/**
   pull_request:
     paths:
@@ -23,7 +23,7 @@ on:
       - packages/entity_resolution_core/**
       - packages/quality_core/**
       - contracts/resolution/**
-      - tools/resolution_contract_generation/**
+      - tools/contract_generation/**
       - tools/architecture_checks/**
   workflow_dispatch:
 
@@ -48,7 +48,7 @@ jobs:
         run: uv sync --frozen --all-packages --dev
 
       - name: Verify resolution contract drift
-        run: uv run python tools/resolution_contract_generation/generate.py --check
+        run: uv run python tools/contract_generation/generate.py --check
 
       - name: Run Stage 7 owner tests
         run: >-
@@ -56,7 +56,6 @@ jobs:
           packages/resolution_contracts/tests
           packages/entity_resolution_core/tests
           packages/quality_core/tests
-          tools/resolution_contract_generation/tests
 
       - name: Verify dependency boundaries
         run: uv run python tools/architecture_checks/check_dependencies.py
