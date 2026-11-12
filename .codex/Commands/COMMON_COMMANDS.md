@@ -31,6 +31,10 @@ pwsh -NoProfile -File tools/check.ps1 campaign
 
 Use a scoped command during a single-owner edit; `verify` is the task-stage gate, not a post-edit tax.
 
+Scoped test runs select by path, node id, `-k`, or marker: `uv run pytest packages/collection_domain`
+runs one owner's suite in well under a second. `tools/check.ps1 tests` is the whole non-integration
+suite and only belongs at the task-stage gate.
+
 `tests` excludes every integration marker. PostgreSQL, PostGIS, object storage, and container proof
 need explicit infrastructure and are never part of `verify`.
 
