@@ -14,7 +14,7 @@ Always read `D:\tools\Agents_Rules\Backend.md`.
 
 - Python 3.13 and one `uv` workspace own backend and pipeline dependencies.
 - Campaign configuration is declarative data, never executable code.
-- Workers must not receive Collection DB credentials; Worker Gateway is future runtime boundary.
+- Workers must not receive Collection DB credentials; Worker Gateway owns the authenticated runtime boundary for workers and Dagster Pipeline Advancement calls.
 - Database migrations run only through dedicated migration composition root.
 - current implementation must fail explicitly on incomplete or invalid owner state.
 - A collector-owned sealed export is repository boundary; no temporary Aggregator DTO is allowed.
@@ -88,7 +88,7 @@ Always read `D:\tools\Agents_Rules\Backend.md`.
 
 Модуль Pipeline advancement
 
-Превращает один успешный выход работы в одно явное следующее действие, сохраняя это решение долговечно. Неизвестный переход блокирует с контекстом владельца, не пропускается молча.
+Превращает проверенный выход работы в одно явное следующее действие и связывает field observations с неизменяемой кандидатской ревизией и входом resolution, сохраняя точный provenance. Неизвестное состояние блокирует с контекстом владельца; география без проверенной provenance остаётся `unknown`.
 
 `.codex/Features/pipeline-advancement.md`
 

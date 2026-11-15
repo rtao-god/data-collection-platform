@@ -130,3 +130,36 @@ def test_invalid_state_requires_evidence_and_typed_invalid_detail() -> None:
             normalizer_revision="website-normalizer@1",
             confidence=Decimal("1"),
         )
+
+
+def test_batch_sealing_rejects_observation_with_forged_identity() -> None:
+    observation = seal_field_observation(
+        FieldObservationPayload(
+            source_record_id="source-record-example",
+            field_key="display_name",
+            state=ObservationState.OBSERVED,
+            value=TextObservationValue(
+                original="Example Studio",
+                normalized="example studio",
+            ),
+            evidence=_evidence(),
+            source_policy_digest=_DIGEST,
+            normalizer_revision="website-normalizer@1",
+            confidence=Decimal("1"),
+        )
+    )
+    forged = observation.model_copy(update={"observation_id": f"sha256:{'9' * 64}"})
+    payload = ObservationBatchPayload.model_construct(
+        source_record_id="source-record-example",
+        extracted_record_digest=f"sha256:{'3' * 64}",
+        raw_artifact_digest=_DIGEST,
+        source_policy_digest=f"sha256:{'4' * 64}",
+        normalizer_revision="website-normalizer@1",
+        observations=(forged,),
+        issues=(),
+    )
+
+    with pytest.raises(
+        ValidationError, match="field observation identity does not match canonical content"
+    ):
+        seal_observation_batch(payload)

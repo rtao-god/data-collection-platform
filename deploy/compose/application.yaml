@@ -129,6 +129,7 @@ services:
       COLLECTOR_OBJECT_STORE_SECRET_KEY_FILE: /run/secrets/collector-object-store-secret-key
       COLLECTOR_OBJECT_STORE_REGION: ${COLLECTOR_OBJECT_STORE_REGION:?COLLECTOR_OBJECT_STORE_REGION is required}
       WORKER_GATEWAY_TOKEN_FILE: /run/secrets/worker-gateway-credentials
+      PIPELINE_ADVANCEMENT_TOKEN_FILE: /run/secrets/pipeline-advancement-token
       WORKER_GATEWAY_BIND_MODE: container
       WORKER_GATEWAY_HOST: 0.0.0.0
       WORKER_GATEWAY_PORT: 8080
@@ -138,6 +139,7 @@ services:
       - collector-object-store-access-key
       - collector-object-store-secret-key
       - worker-gateway-credentials
+      - pipeline-advancement-token
     depends_on:
       collector-postgres:
         condition: service_healthy
@@ -148,8 +150,99 @@ services:
     networks:
       - collection-infrastructure
       - collection-workers
+      - collection-orchestration
     mem_limit: 512m
     cpus: 1.0
+
+  dagster-webserver:
+    <<: *runtime-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/dagster-orchestrator.Dockerfile
+    environment:
+      DAGSTER_HOME: /var/lib/dagster
+      COLLECTOR_BUILD_IDENTITY: ${COLLECTOR_BUILD_IDENTITY:-local}
+      DAGSTER_POSTGRES_HOST: dagster-postgres
+      DAGSTER_POSTGRES_DB: dagster_metadata
+      DAGSTER_POSTGRES_USER: dagster_runtime
+      DAGSTER_POSTGRES_PASSWORD_FILE: /run/secrets/dagster-postgres-password
+    command:
+      - dagster-webserver
+      - -h
+      - 0.0.0.0
+      - -p
+      - "3000"
+      - -w
+      - /opt/dagster/workspace.yaml
+    secrets:
+      - dagster-postgres-password
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/server_info', timeout=2)
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    ports:
+      - 127.0.0.1:${DAGSTER_WEB_PORT:-3000}:3000
+    networks:
+      - dagster-metadata
+      - collection-dagster-loopback
+    volumes:
+      - dagster-storage:/var/lib/dagster/storage
+    mem_limit: 768m
+    cpus: 1.5
+
+  dagster-daemon:
+    <<: *runtime-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/dagster-orchestrator.Dockerfile
+    command:
+      - dagster-daemon
+      - run
+      - -w
+      - /opt/dagster/workspace.yaml
+    environment:
+      DAGSTER_HOME: /var/lib/dagster
+      COLLECTOR_BUILD_IDENTITY: ${COLLECTOR_BUILD_IDENTITY:-local}
+      DAGSTER_POSTGRES_HOST: dagster-postgres
+      DAGSTER_POSTGRES_DB: dagster_metadata
+      DAGSTER_POSTGRES_USER: dagster_runtime
+      DAGSTER_POSTGRES_PASSWORD_FILE: /run/secrets/dagster-postgres-password
+      PIPELINE_ADVANCEMENT_GATEWAY_URL: http://worker-gateway:8080
+      PIPELINE_ADVANCEMENT_TOKEN_FILE: /run/secrets/pipeline-advancement-token
+    secrets:
+      - dagster-postgres-password
+      - pipeline-advancement-token
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+      worker-gateway:
+        condition: service_healthy
+    networks:
+      - dagster-metadata
+      - collection-orchestration
+    volumes:
+      - dagster-storage:/var/lib/dagster/storage
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import os; os.kill(1, 0)
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 1.5
 
   manual-import-worker:
     <<: *worker-service
@@ -304,9 +397,18 @@ networks:
   collection-workers:
     driver: bridge
     internal: true
+  collection-orchestration:
+    driver: bridge
+    internal: true
   collection-acquisition-egress:
     driver: bridge
   collection-control-loopback:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
+  collection-dagster-loopback:
     driver: bridge
     driver_opts:
       com.docker.network.bridge.enable_icc: "false"
@@ -320,3 +422,8 @@ secrets:
     file: ${COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE:?COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE is required}
   worker-gateway-credentials:
     file: ${WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE:?WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE is required}
+  pipeline-advancement-token:
+    file: ${PIPELINE_ADVANCEMENT_TOKEN_SOURCE_FILE:?PIPELINE_ADVANCEMENT_TOKEN_SOURCE_FILE is required}
+
+volumes:
+  dagster-storage:

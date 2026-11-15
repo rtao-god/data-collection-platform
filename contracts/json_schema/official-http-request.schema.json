@@ -194,6 +194,19 @@
       "default": null,
       "title": "Robotsdecisiondigest"
     },
+    "robotsManifestDigest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotsmanifestdigest"
+    },
     "sourceKey": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
       "title": "Sourcekey",

@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Engine, RowMapping
 from sqlalchemy.exc import IntegrityError
 
+from collection_contracts import CandidateEvidence, CandidateRevision
 from review_application import (
     ReviewCaseDetail,
     ReviewCaseSummary,
@@ -16,8 +17,6 @@ from review_application import (
     ReviewQueuePage,
 )
 from review_contracts import (
-    CandidateEvidence,
-    CandidateRevision,
     ManualObservation,
     ManualObservationCommand,
     QualityRecord,

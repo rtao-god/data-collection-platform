@@ -3,16 +3,19 @@ from __future__ import annotations
 import contextlib
 import threading
 from dataclasses import dataclass
+from hashlib import sha256
 from time import sleep
 
 from pydantic import ValidationError
 
 from collection_contracts import (
     ExtractionRequest,
+    ManualRecordLineage,
     NormalizationProfile,
     canonical_extracted_record_json,
     canonical_observation_batch_json,
     decode_extracted_record,
+    decode_manual_record_lineage,
 )
 from extraction_core import EmbeddedMetadataExtractor, ExtractionError, extract_html_document
 from normalization_core import NormalizationError, normalize_extracted_record
@@ -108,6 +111,10 @@ class ProcessingWorker:
         )
         heartbeat.raise_if_failed()
         request = ExtractionRequest.model_validate_json(request_content)
+        if any(item.role == "manual_record_lineage" for item in lease.input_artifacts):
+            lineage = self._read_manual_record_lineage(heartbeat)
+            if lineage.manual_record_content_digest != request.source_record_id:
+                raise ValueError("manual-record lineage does not match the extraction request")
         record = extract_html_document(
             raw_content,
             request,
@@ -137,6 +144,10 @@ class ProcessingWorker:
         )
         heartbeat.raise_if_failed()
         record = decode_extracted_record(record_content)
+        if any(item.role == "manual_record_lineage" for item in lease.input_artifacts):
+            lineage = self._read_manual_record_lineage(heartbeat)
+            if lineage.manual_record_content_digest != record.source_record_id:
+                raise ValueError("manual-record lineage does not match the extracted record")
         profile = NormalizationProfile.model_validate_json(profile_content)
         batch = normalize_extracted_record(record, profile)
         return (
@@ -145,6 +156,28 @@ class ProcessingWorker:
             "field_observation_batch",
             batch.content_digest,
         )
+
+    def _read_manual_record_lineage(self, heartbeat: _LeaseHeartbeat) -> ManualRecordLineage:
+        lease = heartbeat.current()
+        artifact = next(
+            item for item in lease.input_artifacts if item.role == "manual_record_lineage"
+        )
+        content = self._gateway.read_input(
+            lease,
+            role="manual_record_lineage",
+            maximum_bytes=min(self._settings.maximum_input_bytes, 64 * 1024),
+        )
+        if (
+            artifact.content_digest is None
+            or artifact.size_bytes is None
+            or artifact.content_type != "application/vnd.collection.manual-record-lineage+json"
+            or len(content) != artifact.size_bytes
+            or f"sha256:{sha256(content).hexdigest()}" != artifact.content_digest
+        ):
+            raise ValueError(
+                "manual-record lineage differs from its exact leased artifact identity"
+            )
+        return decode_manual_record_lineage(content)
 
 
 class _LeaseHeartbeat:
@@ -217,7 +250,11 @@ def _validate_lease(settings: ProcessingWorkerSettings, lease: WorkerLease) -> N
         else _NORMALIZATION_INPUT_ROLES
     )
     actual_roles = frozenset(item.role for item in lease.input_artifacts)
-    if actual_roles != expected_roles or len(lease.input_artifacts) != len(expected_roles):
+    valid_roles = actual_roles == expected_roles or (
+        settings.capability in {"extraction", "normalization"}
+        and actual_roles == expected_roles | {"manual_record_lineage"}
+    )
+    if not valid_roles or len(lease.input_artifacts) != len(actual_roles):
         raise ValueError("processing lease input artifact roles are incomplete or unexpected")
 
 

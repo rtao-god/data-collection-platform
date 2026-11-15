@@ -363,6 +363,23 @@ class SourcePermitResponse(WorkerWireModel):
 class WorkInputArtifactResponse(WorkerWireModel):
     artifact_id: UUID = Field(alias="artifactId", serialization_alias="artifactId")
     role: str = Field(pattern=_ROLE_PATTERN)
+    content_digest: str | None = Field(
+        default=None,
+        alias="contentDigest",
+        serialization_alias="contentDigest",
+        pattern=_DIGEST_PATTERN,
+    )
+    size_bytes: int | None = Field(
+        default=None,
+        ge=1,
+        alias="sizeBytes",
+        serialization_alias="sizeBytes",
+    )
+    content_type: str | None = Field(
+        default=None,
+        alias="contentType",
+        serialization_alias="contentType",
+    )
 
 
 class WorkLeaseResponse(WorkerWireModel):
@@ -422,7 +439,13 @@ class WorkLeaseResponse(WorkerWireModel):
             heartbeat_deadline_utc=lease.heartbeat_deadline_utc,
             source_permit=source_permit,
             input_artifacts=tuple(
-                WorkInputArtifactResponse(artifact_id=binding.artifact_id, role=binding.role)
+                WorkInputArtifactResponse(
+                    artifact_id=binding.artifact_id,
+                    role=binding.role,
+                    content_digest=binding.content_digest,
+                    size_bytes=binding.size_bytes,
+                    content_type=binding.content_type,
+                )
                 for binding in lease.input_artifacts
             ),
             correlation_id=lease.correlation_id,

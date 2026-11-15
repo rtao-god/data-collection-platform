@@ -339,6 +339,96 @@ class S3ArtifactObjectStore:
             verified_at_utc=now_utc,
         )
 
+    def read_verified(
+        self,
+        *,
+        storage_reference: str,
+        expected_digest: str,
+        expected_size_bytes: int,
+        expected_content_type: str,
+        maximum_bytes: int,
+    ) -> bytes:
+        if not 1 <= maximum_bytes <= 64 * 1024 * 1024:
+            raise ValueError("verified artifact read limit is outside the supported range")
+        if expected_size_bytes < 1 or expected_size_bytes > maximum_bytes:
+            raise ArtifactObjectStoreError(
+                code="ARTIFACT_READ_SIZE_INVALID",
+                message="The immutable artifact exceeds its owner read boundary.",
+                context={"expectedBytes": expected_size_bytes, "maximumBytes": maximum_bytes},
+                required_action="Inspect the artifact identity and use its owning bounded reader.",
+            )
+        try:
+            response = self._client.get_object(Bucket=self._bucket, Key=storage_reference)
+        except Exception as exc:
+            raise ArtifactObjectStoreError(
+                code="ARTIFACT_READ_FAILED",
+                message="The immutable artifact could not be read from object storage.",
+                context={"storageReference": storage_reference, "causeType": type(exc).__name__},
+                required_action="Restore object storage and retry reading the exact artifact.",
+            ) from exc
+        try:
+            content_length = _required_int(response, "ContentLength")
+            content_type = _required_string(response, "ContentType")
+        except ArtifactObjectStoreError:
+            _close_response_body(response)
+            raise
+        if content_length != expected_size_bytes or content_type != expected_content_type:
+            _close_response_body(response)
+            raise _integrity_error(storage_reference, "metadata_mismatch")
+        metadata = response.get("Metadata")
+        if not isinstance(metadata, Mapping) or metadata.get(
+            "sha256"
+        ) != expected_digest.removeprefix("sha256:"):
+            _close_response_body(response)
+            raise _integrity_error(storage_reference, "metadata_digest_mismatch")
+        body = response.get("Body")
+        if body is None or not hasattr(body, "read") or not hasattr(body, "close"):
+            raise _integrity_error(storage_reference, "body_missing")
+        stream = cast(StreamingBody, body)
+        content = bytearray()
+        digest = sha256()
+        read_error: Exception | None = None
+        try:
+            while True:
+                chunk = stream.read(min(_CHUNK_BYTES, maximum_bytes + 1 - len(content)))
+                if not chunk:
+                    break
+                content.extend(chunk)
+                digest.update(chunk)
+                if len(content) > maximum_bytes:
+                    raise ArtifactObjectStoreError(
+                        code="ARTIFACT_READ_SIZE_INVALID",
+                        message="The immutable artifact exceeded its owner read boundary.",
+                        context={"maximumBytes": maximum_bytes},
+                        required_action=(
+                            "Inspect the artifact identity and use its owning bounded reader."
+                        ),
+                    )
+        except Exception as exc:
+            read_error = exc
+        try:
+            stream.close()
+        except Exception as exc:
+            if read_error is None:
+                read_error = exc
+        if read_error is not None:
+            if isinstance(read_error, ArtifactObjectStoreError):
+                raise read_error
+            raise ArtifactObjectStoreError(
+                code="ARTIFACT_READ_FAILED",
+                message="The immutable artifact stream failed during bounded reading.",
+                context={
+                    "storageReference": storage_reference,
+                    "causeType": type(read_error).__name__,
+                },
+                required_action="Restore object storage and retry reading the exact artifact.",
+            ) from read_error
+        if len(content) != expected_size_bytes:
+            raise _integrity_error(storage_reference, "streamed_size_mismatch")
+        if f"sha256:{digest.hexdigest()}" != expected_digest:
+            raise _integrity_error(storage_reference, "content_digest_mismatch")
+        return bytes(content)
+
     def prepare_read(
         self,
         *,
@@ -482,6 +572,12 @@ def _required_string(response: Mapping[str, object], key: str) -> str:
     if not isinstance(value, str) or not value:
         raise _response_contract_error(key, "non-empty string")
     return value
+
+
+def _close_response_body(response: Mapping[str, object]) -> None:
+    body = response.get("Body")
+    if body is not None and hasattr(body, "close"):
+        cast(StreamingBody, body).close()
 
 
 def _response_contract_error(field: str, expected_type: str) -> ArtifactObjectStoreError:

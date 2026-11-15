@@ -7,6 +7,7 @@ from collection_infrastructure.postgres.pipeline_advancement import _secret_dige
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
     PIPELINE_ADVANCEMENT_TABLES,
     pipeline_advancement_attempts,
+    pipeline_advancement_discovery_cursor,
     pipeline_advancements,
 )
 
@@ -15,13 +16,19 @@ def test_pipeline_advancement_metadata_has_exact_owner_tables() -> None:
     assert (
         pipeline_advancements,
         pipeline_advancement_attempts,
+        pipeline_advancement_discovery_cursor,
     ) == PIPELINE_ADVANCEMENT_TABLES
     assert pipeline_advancements.schema == "work"
     assert pipeline_advancement_attempts.schema == "work"
+    assert pipeline_advancement_discovery_cursor.schema == "work"
     assert pipeline_advancements.primary_key.columns.keys() == ["advancement_id"]
     assert pipeline_advancement_attempts.primary_key.columns.keys() == ["event_id"]
     assert pipeline_advancements.c.source_work_unit_id.unique is True
     assert pipeline_advancements.c.source_input_artifacts.type.__class__.__name__ == "JSONB"
+    assert pipeline_advancements.c.source_binding_key.nullable is True
+    assert "ck_pipeline_advancements_source_binding_key_format" in {
+        constraint.name for constraint in pipeline_advancements.constraints
+    }
     assert pipeline_advancement_attempts.c.blocker_context.type.__class__.__name__ == "JSONB"
 
 

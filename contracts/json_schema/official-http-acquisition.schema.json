@@ -238,6 +238,18 @@
       "default": null,
       "title": "Robotsdecisiondigest"
     },
+    "robotsTargetUrl": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Robotstargeturl"
+    },
     "sourceKey": {
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,199}$",
       "title": "Sourcekey",

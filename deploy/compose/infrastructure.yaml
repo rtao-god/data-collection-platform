@@ -27,6 +27,31 @@ services:
       - collection-infrastructure
       - collection-postgres-loopback
 
+  dagster-postgres:
+    image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+    environment:
+      POSTGRES_DB: dagster_metadata
+      POSTGRES_USER: dagster_runtime
+      POSTGRES_PASSWORD_FILE: /run/secrets/dagster-postgres-password
+    secrets:
+      - dagster-postgres-password
+    volumes:
+      - dagster-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready
+          -U "$${POSTGRES_USER}"
+          -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - dagster-metadata
+
   seaweedfs:
     image: chrislusf/seaweedfs:4.40
     command:
@@ -59,6 +84,9 @@ networks:
   collection-infrastructure:
     driver: bridge
     internal: true
+  dagster-metadata:
+    driver: bridge
+    internal: true
   collection-postgres-loopback:
     driver: bridge
     driver_opts:
@@ -75,3 +103,8 @@ networks:
 volumes:
   collector-postgres-data:
   seaweedfs-data:
+  dagster-postgres-data:
+
+secrets:
+  dagster-postgres-password:
+    file: ${DAGSTER_POSTGRES_PASSWORD_SOURCE_FILE:?DAGSTER_POSTGRES_PASSWORD_SOURCE_FILE is required}

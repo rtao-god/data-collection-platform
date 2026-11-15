@@ -130,6 +130,12 @@ def test_work_availability_requires_utc() -> None:
         _work_unit(available_at_utc=datetime(2026, 8, 11, 12, 0))
 
 
+def test_source_binding_key_accepts_single_character_without_source_permit() -> None:
+    work = _work_unit(source_binding_key="x")
+
+    assert work.source_binding_key == "x"
+
+
 def test_worker_registration_requires_capability() -> None:
     with pytest.raises(ValueError, match="at least one capability"):
         WorkerRegistration(

@@ -40,6 +40,8 @@ def _environment(*, suffix: str = "one") -> dict[str, str]:
             },
             separators=(",", ":"),
         ),
+        "PIPELINE_ADVANCEMENT_TOKEN": f"pipeline-service-{suffix}-0000000000000000000000",
+        "DAGSTER_POSTGRES_PASSWORD": f"dagster-password-{suffix}-000000000000000000000",
     }
 
 
@@ -53,6 +55,8 @@ def test_materialize_writes_exact_read_only_mounted_files(tmp_path: Path) -> Non
         "COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE",
         "COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE",
         "WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE",
+        "PIPELINE_ADVANCEMENT_TOKEN_SOURCE_FILE",
+        "DAGSTER_POSTGRES_PASSWORD_SOURCE_FILE",
     }
     assert paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE"].name == (
         "collector-object-store-access-key"
@@ -60,14 +64,20 @@ def test_materialize_writes_exact_read_only_mounted_files(tmp_path: Path) -> Non
     assert paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE"].name == (
         "collector-object-store-secret-key"
     )
-    assert paths["WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE"].name == ("worker-gateway-credentials")
-    assert (
-        paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE"].read_text(encoding="utf-8")
-        == "access-one"
+    assert paths["WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE"].name == "worker-gateway-credentials"
+    assert paths["PIPELINE_ADVANCEMENT_TOKEN_SOURCE_FILE"].name == "pipeline-advancement-token"
+    assert paths["DAGSTER_POSTGRES_PASSWORD_SOURCE_FILE"].name == "dagster-postgres-password"
+    assert paths["COLLECTOR_OBJECT_STORE_ACCESS_KEY_SOURCE_FILE"].read_text(encoding="utf-8") == (
+        "access-one"
     )
-    assert (
-        paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE"].read_text(encoding="utf-8")
-        == "secret-one"
+    assert paths["COLLECTOR_OBJECT_STORE_SECRET_KEY_SOURCE_FILE"].read_text(encoding="utf-8") == (
+        "secret-one"
+    )
+    assert paths["PIPELINE_ADVANCEMENT_TOKEN_SOURCE_FILE"].read_text(encoding="utf-8") == (
+        "pipeline-service-one-0000000000000000000000"
+    )
+    assert paths["DAGSTER_POSTGRES_PASSWORD_SOURCE_FILE"].read_text(encoding="utf-8") == (
+        "dagster-password-one-000000000000000000000"
     )
     credential_path = paths["WORKER_GATEWAY_CREDENTIALS_SOURCE_FILE"]
     assert json.loads(credential_path.read_text(encoding="utf-8"))["contract"] == (
@@ -102,23 +112,7 @@ def test_run_reads_secret_sources_from_environment_file(
     environment = _environment(suffix="file")
     environment_file = tmp_path / ".env.local"
     environment_file.write_text(
-        "\n".join(
-            (
-                (
-                    "COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID="
-                    f"{environment['COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID']}"
-                ),
-                "UNRELATED_VALUE=ignored",
-                (
-                    "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY="
-                    f"{environment['COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY']}"
-                ),
-                (
-                    "WORKER_GATEWAY_CREDENTIALS_JSON='"
-                    f"{environment['WORKER_GATEWAY_CREDENTIALS_JSON']}'"
-                ),
-            )
-        ),
+        "\n".join(f"{key}='{value}'" for key, value in environment.items()),
         encoding="utf-8",
     )
     output = tmp_path / "compose-secrets"
@@ -141,6 +135,12 @@ def test_run_reads_secret_sources_from_environment_file(
     assert payload["status"] == "materialized"
     assert (output / "collector-object-store-access-key").read_text(encoding="utf-8") == (
         "access-file"
+    )
+    assert (output / "pipeline-advancement-token").read_text(encoding="utf-8") == (
+        environment["PIPELINE_ADVANCEMENT_TOKEN"]
+    )
+    assert (output / "dagster-postgres-password").read_text(encoding="utf-8") == (
+        environment["DAGSTER_POSTGRES_PASSWORD"]
     )
     assert (
         json.loads((output / "worker-gateway-credentials").read_text(encoding="utf-8"))[

@@ -2,11 +2,13 @@
 
 Цель: получить содержимое официальных сайтов с соблюдением политики, оставив неизменяемое сырое доказательство.
 
-`http-acquisition/connector-and-worker` — строгие контракты запроса и манифеста, нормализация URL, проверка публичной адресуемости, интерпретация robots/sitemap, планирование интересных страниц, условные запросы, ограниченная декомпрессия и один Scrapy-запуск.
+`http-acquisition/connector-and-worker` — строгие контракты запроса и manifest, включая typed seed-specific robots decision и evidence identity; нормализация URL, проверка публичной адресуемости, robots/sitemap, планирование страниц, условные запросы, ограниченная декомпрессия и один Scrapy-запуск.
 
 Цепочки:
 
 URL источника → политика origins → планирование → один `http_request` артефакт → Scrapy child → 2xx: raw артефакт + acquisition manifest; 304: только манифест с точным прежним входом; 403: policy-blocked; 429: типизированный transient с Retry-After.
+
+Сохранённый route context → robots-запрос → решение в manifest для точного seed URL → page-работа только при typed-разрешении; запрет не создаёт page-работу.
 
 Границы:
 

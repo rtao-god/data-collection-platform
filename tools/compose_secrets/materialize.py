@@ -31,6 +31,18 @@ _SECRET_SPECS = (
         "worker-gateway-credentials",
         1_048_576,
     ),
+    (
+        "PIPELINE_ADVANCEMENT_TOKEN",
+        "PIPELINE_ADVANCEMENT_TOKEN_SOURCE_FILE",
+        "pipeline-advancement-token",
+        4_096,
+    ),
+    (
+        "DAGSTER_POSTGRES_PASSWORD",
+        "DAGSTER_POSTGRES_PASSWORD_SOURCE_FILE",
+        "dagster-postgres-password",
+        4_096,
+    ),
 )
 _SECRET_SOURCE_VARIABLES = frozenset(spec[0] for spec in _SECRET_SPECS)
 

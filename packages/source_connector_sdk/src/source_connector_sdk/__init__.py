@@ -1,3 +1,8 @@
+from collection_contracts import (
+    WebsiteRouteContext,
+    decode_manual_record_lineage,
+    decode_website_route_context,
+)
 from source_connector_sdk.gateway import (
     ArtifactKind,
     LeaseArtifact,
@@ -24,6 +29,7 @@ __all__ = [
     "SourcePermit",
     "SourceWorkerGateway",
     "VerifiedUpload",
+    "WebsiteRouteContext",
     "WorkCapability",
     "WorkCompletionResult",
     "WorkFailureKind",
@@ -32,4 +38,6 @@ __all__ = [
     "WorkerGatewayFailure",
     "WorkerLease",
     "WorkerRegistrationResult",
+    "decode_manual_record_lineage",
+    "decode_website_route_context",
 ]

@@ -16,6 +16,8 @@ from pydantic import (
     model_validator,
 )
 
+from collection_contracts.observations import NormalizationProfile
+
 Key = Annotated[
     str,
     StringConstraints(
@@ -288,6 +290,21 @@ CrawlBudget = Annotated[
 ]
 
 
+class NormalizationProfileDefinition(StrictContract):
+    key: Key
+    profile: NormalizationProfile
+
+
+class NormalizationProfilesDocument(StrictContract):
+    schema_revision: Revision
+    items: tuple[NormalizationProfileDefinition, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_unique_items(self) -> NormalizationProfilesDocument:
+        _require_unique("normalization profile keys", tuple(item.key for item in self.items))
+        return self
+
+
 class SourceBinding(StrictContract):
     key: Key
     source_key: Key
@@ -303,6 +320,7 @@ class SourceBinding(StrictContract):
     crawl_budget: CrawlBudget
     schedule_enabled: bool
     extraction_profile: Revision
+    normalization_profile: Key | None = None
 
     @model_validator(mode="after")
     def validate_capability_contract(self) -> SourceBinding:
@@ -316,9 +334,83 @@ class SourceBinding(StrictContract):
         return self
 
 
+class SeedRoutePageInterest(StrictContract):
+    key: Key
+    tokens: tuple[str, ...] = Field(min_length=1)
+    priority: PositiveInt
+
+    @field_validator("tokens")
+    @classmethod
+    def validate_tokens(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        normalized = tuple(sorted({token.casefold() for token in value if token.strip()}))
+        if not normalized or normalized != value:
+            raise ValueError(
+                "page-interest tokens must be non-empty, unique, case-folded, and sorted"
+            )
+        return value
+
+
+class SeedWebsiteRoute(StrictContract):
+    key: Key
+    source_field: Literal["website"]
+    source_binding: Key
+    target_binding: Key
+    route_kind: Literal["official_website_page"]
+    selection: Literal["exclusive", "fan_out"]
+    page_interests: tuple[SeedRoutePageInterest, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_unique_interests(self) -> SeedWebsiteRoute:
+        _require_unique("page-interest keys", tuple(item.key for item in self.page_interests))
+        return self
+
+
+class SeedRoutingNotConfigured(StrictContract):
+    state: Literal["not_configured"]
+
+
+class SeedRoutingConfigured(StrictContract):
+    state: Literal["configured"]
+    routes: tuple[SeedWebsiteRoute, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_routes(self) -> SeedRoutingConfigured:
+        _require_unique("seed route keys", tuple(item.key for item in self.routes))
+        routes_by_source: dict[tuple[str, str], list[SeedWebsiteRoute]] = {}
+        for route in self.routes:
+            routes_by_source.setdefault((route.source_binding, route.source_field), []).append(
+                route
+            )
+        for (source_binding, field_key), routes in routes_by_source.items():
+            if len(routes) > 1 and any(route.selection != "fan_out" for route in routes):
+                raise ValueError(
+                    f"multiple routes for {source_binding}.{field_key} require explicit "
+                    "fan_out selection"
+                )
+        return self
+
+    def routes_for_source(
+        self, source_binding: str, source_field: str
+    ) -> tuple[SeedWebsiteRoute, ...]:
+        return tuple(
+            route
+            for route in self.routes
+            if route.source_binding == source_binding and route.source_field == source_field
+        )
+
+
+SeedRouting = Annotated[
+    SeedRoutingNotConfigured | SeedRoutingConfigured,
+    Field(discriminator="state"),
+]
+
+
 class SourceBindingsDocument(StrictContract):
     schema_revision: Revision
     items: tuple[SourceBinding, ...] = Field(min_length=1)
+    seed_routing: SeedRouting = Field(
+        default_factory=lambda: SeedRoutingNotConfigured(state="not_configured")
+    )
 
     @model_validator(mode="after")
     def validate_unique_items(self) -> SourceBindingsDocument:
@@ -379,6 +471,28 @@ class ManualAccess(StrictContract):
         return self
 
 
+class UserAgentConfigured(StrictContract):
+    state: Literal["configured"]
+    value: Annotated[str, StringConstraints(min_length=1, max_length=512)]
+
+    @field_validator("value")
+    @classmethod
+    def validate_value(cls, value: str) -> str:
+        if "\r" in value or "\n" in value:
+            raise ValueError("user agent contains a forbidden line break")
+        return value
+
+
+class UserAgentNotConfigured(StrictContract):
+    state: Literal["not_configured"]
+
+
+UserAgentSetting = Annotated[
+    UserAgentConfigured | UserAgentNotConfigured,
+    Field(discriminator="state"),
+]
+
+
 class NetworkAccess(StrictContract):
     kind: Literal["network"]
     allowed_methods: tuple[Literal["GET", "HEAD", "POST"], ...] = Field(min_length=1)
@@ -390,6 +504,9 @@ class NetworkAccess(StrictContract):
     max_encoded_bytes: PositiveInt
     max_decoded_bytes: PositiveInt
     content_type_allowlist: tuple[str, ...] = Field(min_length=1)
+    user_agent: UserAgentSetting = Field(
+        default_factory=lambda: UserAgentNotConfigured(state="not_configured")
+    )
     redirect_limit: NonNegativeInt
 
     @model_validator(mode="after")

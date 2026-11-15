@@ -28,10 +28,22 @@ from collection_infrastructure.postgres.metadata import (
     config_bundles,
 )
 from collection_infrastructure.postgres.migrations import upgrade_database
+from collection_infrastructure.postgres.normalization_applier import (
+    PostgresNormalizationApplier,
+    normalization_transition_appliers,
+)
 from collection_infrastructure.postgres.owned_artifact_publisher import (
     PostgresOwnedArtifactPublisher,
 )
+from collection_infrastructure.postgres.page_extraction_applier import (
+    PostgresPageExtractionApplier,
+    page_extraction_transition_appliers,
+)
 from collection_infrastructure.postgres.run_control import PostgresRunControlRepository
+from collection_infrastructure.postgres.website_route_applier import (
+    PostgresWebsiteRouteApplier,
+    website_route_transition_appliers,
+)
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import (
     RUN_TABLES,
@@ -74,8 +86,11 @@ __all__ = [
     "PostgresArtifactTransfer",
     "PostgresCampaignRunStore",
     "PostgresCampaignSnapshotStore",
+    "PostgresNormalizationApplier",
     "PostgresOwnedArtifactPublisher",
+    "PostgresPageExtractionApplier",
     "PostgresRunControlRepository",
+    "PostgresWebsiteRouteApplier",
     "PostgresWorkEngine",
     "artifact_cleanup_tombstones",
     "artifact_objects",
@@ -89,11 +104,14 @@ __all__ = [
     "config_bundle_components",
     "config_bundles",
     "dead_letters",
+    "normalization_transition_appliers",
+    "page_extraction_transition_appliers",
     "plan_admission_items",
     "plan_admissions",
     "source_capacity_states",
     "stage_runs",
     "upgrade_database",
+    "website_route_transition_appliers",
     "work_attempts",
     "work_input_artifacts",
     "work_output_artifacts",

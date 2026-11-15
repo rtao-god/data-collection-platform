@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+import pytest
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -12,6 +14,7 @@ from collection_application.pipeline_advancement import (
     ApplyPipelineAdvancement,
     ArtifactIdentity,
     ClaimPipelineAdvancement,
+    PipelineAdvancementConflict,
     PipelineAdvancementState,
     PipelineTransitionRegistry,
     SucceededWorkOutput,
@@ -60,6 +63,7 @@ def _source() -> SucceededWorkOutput:
         output_digest=_OUTPUT_DIGEST,
         output_artifact=_artifact(_OUTPUT_ID, "manual_import_plan"),
         input_artifacts=(_artifact(_SOURCE_ID, "manual_source:csv:partial"),),
+        source_binding_key="manual_seed_import",
     )
 
 
@@ -193,6 +197,8 @@ def test_repository_register_claim_and_apply_share_one_durable_checkpoint() -> N
     )
 
     assert registered.state is PipelineAdvancementState.PENDING
+    assert engine.connection.row is not None
+    assert engine.connection.row["source_binding_key"] == "manual_seed_import"
     assert lease.source_work_unit_id == _WORK_ID
     assert applied.state is PipelineAdvancementState.APPLIED
     assert applied.result_digest == _RESULT_DIGEST
@@ -203,3 +209,75 @@ def test_repository_register_claim_and_apply_share_one_durable_checkpoint() -> N
         engine.connection,
         engine.connection,
     ]
+
+
+def test_repository_rechecks_lease_after_transition_applier_finishes() -> None:
+    engine = FakeEngine()
+    source = _source()
+    plan = PipelineTransitionRegistry().plan(source)
+    current_time = [_NOW]
+
+    def applier(_connection, _source, _plan, *, correlation_id):
+        assert correlation_id == "pipeline-test"
+        current_time[0] = _NOW + timedelta(minutes=6)
+        return _RESULT_DIGEST
+
+    identifiers = iter(UUID(f"00000000-0000-0000-0000-{value:012d}") for value in range(310, 314))
+    repository = PostgresPipelineAdvancementRepository(
+        engine,  # type: ignore[arg-type]
+        source_reader=lambda _connection, _work_id: source,
+        transition_appliers={"manual-import-plan-admission": applier},
+        clock=lambda: current_time[0],
+        uuid_factory=lambda: next(identifiers),
+        lease_token_factory=lambda: "pipeline-lease-token",
+    )
+    repository.register(source, plan, correlation_id="pipeline-test")
+    lease = repository.claim(
+        ClaimPipelineAdvancement(
+            worker_id="pipeline-supervisor-1",
+            dagster_execution_id="dagster-run-1",
+            dagster_build_id="build-1",
+            lease_duration=timedelta(minutes=5),
+            correlation_id="pipeline-test",
+        )
+    )
+    assert lease is not None
+
+    with pytest.raises(PipelineAdvancementConflict) as raised:
+        repository.apply(
+            ApplyPipelineAdvancement(
+                advancement_id=lease.advancement_id,
+                expected_revision=lease.revision,
+                lease_id=lease.lease_id,
+                lease_token=lease.lease_token,
+                dagster_execution_id=lease.dagster_execution_id,
+                transition_plan_digest=lease.transition_plan_digest,
+                result_digest=_RESULT_DIGEST,
+                correlation_id="pipeline-test",
+            )
+        )
+
+    assert raised.value.code == "PIPELINE_LEASE_EXPIRED"
+    assert engine.connection.row is not None
+    assert engine.connection.row["state"] == "leased"
+    assert [event["event_kind"] for event in engine.connection.events] == ["leased"]
+
+
+def test_repository_rejects_changed_binding_provenance_before_registration() -> None:
+    source = _source()
+    changed_source = replace(source, source_binding_key="another_binding")
+    repository = PostgresPipelineAdvancementRepository(
+        FakeEngine(),  # type: ignore[arg-type]
+        source_reader=lambda connection, work_id: changed_source,
+        transition_appliers={},
+        clock=lambda: _NOW,
+    )
+
+    with pytest.raises(PipelineAdvancementConflict) as raised:
+        repository.register(
+            source,
+            PipelineTransitionRegistry().plan(source),
+            correlation_id="pipeline-test",
+        )
+
+    assert raised.value.code == "PIPELINE_SOURCE_OUTPUT_CONFLICT"

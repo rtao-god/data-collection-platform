@@ -18,13 +18,34 @@ from collection_application.pipeline_advancement import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class PipelineDiscoveryFailure:
+    source_work_unit_id: UUID
+    code: str
+    message: str
+    required_action: str
+    context: Mapping[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class SuccessfulWorkDiscoveryBatch:
+    outputs: tuple[SucceededWorkOutput, ...]
+    failures: tuple[PipelineDiscoveryFailure, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineSynchronizationResult:
+    registered: tuple[PipelineAdvancementStatus, ...]
+    discovery_failures: tuple[PipelineDiscoveryFailure, ...]
+
+
 class SuccessfulWorkDiscoveryPort(Protocol):
     def list_unregistered_succeeded(
         self,
         *,
         limit: int,
         correlation_id: str,
-    ) -> tuple[SucceededWorkOutput, ...]: ...
+    ) -> SuccessfulWorkDiscoveryBatch: ...
 
 
 class PipelineTransitionPreviewer(Protocol):
@@ -48,6 +69,7 @@ class PipelineSupervisorTick:
     registered_count: int
     claimed_advancement_id: UUID | None
     terminal_status: PipelineAdvancementStatus | None
+    discovery_failures: tuple[PipelineDiscoveryFailure, ...] = ()
 
     def __post_init__(self) -> None:
         if self.registered_count < 0:
@@ -80,19 +102,29 @@ class PipelineSupervisorService:
         *,
         limit: int,
         correlation_id: str,
-    ) -> tuple[PipelineAdvancementStatus, ...]:
+    ) -> PipelineSynchronizationResult:
         _require_limit(limit)
-        sources = self._discovery.list_unregistered_succeeded(
+        batch = self._discovery.list_unregistered_succeeded(
             limit=limit,
             correlation_id=correlation_id,
         )
-        if len(sources) > limit:
+        if len(batch.outputs) + len(batch.failures) > limit:
             raise ValueError("successful work discovery exceeded its requested limit")
-        source_ids = tuple(item.source_work_unit_id for item in sources)
-        if len(source_ids) != len(set(source_ids)):
+        source_ids = tuple(item.source_work_unit_id for item in batch.outputs)
+        failure_ids = tuple(item.source_work_unit_id for item in batch.failures)
+        if len(source_ids) != len(set(source_ids)) or len(failure_ids) != len(set(failure_ids)):
             raise ValueError("successful work discovery returned duplicate work identities")
-        return tuple(
-            self._advancement.register(source, correlation_id=correlation_id) for source in sources
+        if set(source_ids) & set(failure_ids):
+            raise ValueError(
+                "successful work discovery reported one identity as both output and failure"
+            )
+        statuses = tuple(
+            self._advancement.register(source, correlation_id=correlation_id)
+            for source in batch.outputs
+        )
+        return PipelineSynchronizationResult(
+            registered=statuses,
+            discovery_failures=batch.failures,
         )
 
     def run_once(
@@ -105,10 +137,11 @@ class PipelineSupervisorService:
         lease_duration: timedelta,
         correlation_id: str,
     ) -> PipelineSupervisorTick:
-        registered = self.synchronize(
+        synchronization = self.synchronize(
             limit=registration_limit,
             correlation_id=correlation_id,
         )
+        registered = synchronization.registered
         lease = self._advancement.claim(
             ClaimPipelineAdvancement(
                 worker_id=worker_id,
@@ -123,6 +156,7 @@ class PipelineSupervisorService:
                 registered_count=len(registered),
                 claimed_advancement_id=None,
                 terminal_status=None,
+                discovery_failures=synchronization.discovery_failures,
             )
         previewer = self._previewers.get(lease.transition_key)
         if previewer is None:
@@ -150,6 +184,7 @@ class PipelineSupervisorService:
                 registered_count=len(registered),
                 claimed_advancement_id=lease.advancement_id,
                 terminal_status=status,
+                discovery_failures=synchronization.discovery_failures,
             )
         try:
             result_digest = previewer.preview_result_digest(
@@ -187,6 +222,7 @@ class PipelineSupervisorService:
             registered_count=len(registered),
             claimed_advancement_id=lease.advancement_id,
             terminal_status=status,
+            discovery_failures=synchronization.discovery_failures,
         )
 
 

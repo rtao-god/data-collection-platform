@@ -4,8 +4,10 @@ from collections.abc import Mapping
 
 from tools.compose_topology.constants import (
     APPLICATION_SERVICES,
+    DAGSTER_SERVICES,
     EXPECTED_PROFILES,
     EXPECTED_SERVICES,
+    FORBIDDEN_DAGSTER_ENVIRONMENT,
     FORBIDDEN_WORKER_ENVIRONMENT,
     INFRASTRUCTURE_SERVICES,
     MANUAL_WORKER_CAPABILITIES,
@@ -127,6 +129,125 @@ def require_gateway_boundary(services: Mapping[str, object]) -> None:
             message="Worker Gateway does not use its explicit container bind contract.",
             context={"mismatches": mismatches},
             required_action="Restore the exact internal container bind configuration.",
+        )
+
+
+def require_dagster_boundary(services: Mapping[str, object]) -> None:
+    expected = {
+        "dagster-webserver": {
+            "DAGSTER_HOME": "/var/lib/dagster",
+            "DAGSTER_POSTGRES_HOST": "dagster-postgres",
+            "DAGSTER_POSTGRES_DB": "dagster_metadata",
+            "DAGSTER_POSTGRES_USER": "dagster_runtime",
+            "DAGSTER_POSTGRES_PASSWORD_FILE": "/run/secrets/dagster-postgres-password",
+        },
+        "dagster-daemon": {
+            "DAGSTER_HOME": "/var/lib/dagster",
+            "DAGSTER_POSTGRES_HOST": "dagster-postgres",
+            "DAGSTER_POSTGRES_DB": "dagster_metadata",
+            "DAGSTER_POSTGRES_USER": "dagster_runtime",
+            "DAGSTER_POSTGRES_PASSWORD_FILE": "/run/secrets/dagster-postgres-password",
+            "PIPELINE_ADVANCEMENT_GATEWAY_URL": "http://worker-gateway:8080",
+            "PIPELINE_ADVANCEMENT_TOKEN_FILE": "/run/secrets/pipeline-advancement-token",
+        },
+    }
+    build_identities: set[str] = set()
+    for name in sorted(DAGSTER_SERVICES):
+        service = mapping(services[name], owner=f"services.{name}")
+        environment = mapping(service.get("environment", {}), owner=f"services.{name}.environment")
+        forbidden = sorted(
+            key
+            for key in environment
+            if any(
+                key == prefix or key.startswith(prefix) for prefix in FORBIDDEN_DAGSTER_ENVIRONMENT
+            )
+            or key in {"COLLECTOR_DATABASE_URL", "DAGSTER_POSTGRES_PASSWORD"}
+        )
+        if forbidden:
+            fail(
+                code="COMPOSE_DAGSTER_COLLECTION_CREDENTIAL_EXPOSED",
+                message="Dagster contains Collection DB or direct credential values.",
+                context={"service": name, "environmentVariables": forbidden},
+                required_action=(
+                    "Keep Collection DB credentials in Collection-owned services and mount only "
+                    "file-backed Dagster metadata credentials."
+                ),
+            )
+        mismatches = {
+            key: {"expected": value, "actual": environment.get(key)}
+            for key, value in expected[name].items()
+            if environment.get(key) != value
+        }
+        if mismatches:
+            fail(
+                code="COMPOSE_DAGSTER_RUNTIME_CONTRACT_MISMATCH",
+                message="Dagster runtime configuration differs from its isolated gateway contract.",
+                context={"service": name, "mismatches": mismatches},
+                required_action=(
+                    "Use the dedicated metadata DB and grant Gateway access only to the daemon."
+                ),
+            )
+        build_identities.add(_dagster_build_identity(name, environment))
+        _require_dagster_workspace_command(name, service)
+        if name == "dagster-webserver" and any(
+            key.startswith("PIPELINE_ADVANCEMENT_") for key in environment
+        ):
+            fail(
+                code="COMPOSE_DAGSTER_CAPABILITY_EXPOSED",
+                message="Dagster webserver has the daemon's Worker Gateway capability.",
+                context={"service": name},
+                required_action="Keep the advancement service token on the daemon only.",
+            )
+        if not service.get("image") and not service.get("build"):
+            service_failure(name, "build", "dedicated Dagster runtime image")
+    if len(build_identities) != 1:
+        fail(
+            code="COMPOSE_DAGSTER_BUILD_IDENTITY_MISMATCH",
+            message="Dagster processes do not report one consistent build identity.",
+            context={"identities": sorted(build_identities)},
+            required_action=(
+                "Set the same COLLECTOR_BUILD_IDENTITY for Dagster webserver and daemon."
+            ),
+        )
+
+
+def _dagster_build_identity(name: str, environment: Mapping[str, object]) -> str:
+    value = environment.get("COLLECTOR_BUILD_IDENTITY")
+    if not isinstance(value, str) or not value.strip():
+        fail(
+            code="COMPOSE_DAGSTER_BUILD_IDENTITY_MISSING",
+            message="A Dagster process may execute a run without build identity metadata.",
+            context={"service": name},
+            required_action="Set COLLECTOR_BUILD_IDENTITY on both Dagster runtime processes.",
+        )
+    return value.strip()
+
+
+def _require_dagster_workspace_command(name: str, service: Mapping[str, object]) -> None:
+    expected = {
+        "dagster-webserver": (
+            "dagster-webserver",
+            "-h",
+            "0.0.0.0",  # noqa: S104 -- container-internal listener
+            "-p",
+            "3000",
+            "-w",
+            "/opt/dagster/workspace.yaml",
+        ),
+        "dagster-daemon": (
+            "dagster-daemon",
+            "run",
+            "-w",
+            "/opt/dagster/workspace.yaml",
+        ),
+    }
+    actual = tuple(strings(service.get("command", ()), owner=f"{name}.command"))
+    if actual != expected[name]:
+        fail(
+            code="COMPOSE_DAGSTER_WORKSPACE_COMMAND_MISMATCH",
+            message="A Dagster process is not explicitly loading the shipped workspace.",
+            context={"service": name, "expected": list(expected[name]), "actual": list(actual)},
+            required_action="Pass /opt/dagster/workspace.yaml to both Dagster commands.",
         )
 
 

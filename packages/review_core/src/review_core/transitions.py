@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from collection_contracts import CandidateRevision, canonical_digest
 from review_contracts import (
-    CandidateRevision,
     ManualObservation,
     ManualObservationCommand,
     ReviewCase,
@@ -11,7 +11,6 @@ from review_contracts import (
     ReviewDecisionCommand,
     SuppressionCommand,
     SuppressionRevision,
-    canonical_digest,
     deterministic_case_id,
     deterministic_decision_id,
     deterministic_manual_observation_id,

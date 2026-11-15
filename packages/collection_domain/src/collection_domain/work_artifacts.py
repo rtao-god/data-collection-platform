@@ -14,9 +14,26 @@ class WorkInputArtifact:
 
     artifact_id: UUID
     role: str
+    content_digest: str | None = None
+    size_bytes: int | None = None
+    content_type: str | None = None
 
     def __post_init__(self) -> None:
         require_artifact_role(self.role)
+        metadata = (self.content_digest, self.size_bytes, self.content_type)
+        if any(item is not None for item in metadata) and not all(
+            item is not None for item in metadata
+        ):
+            raise ValueError("work input artifact metadata must be complete")
+        if (
+            self.content_digest is not None
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", self.content_digest) is None
+        ):
+            raise ValueError("work input artifact digest must be canonical SHA-256")
+        if self.size_bytes is not None and self.size_bytes < 1:
+            raise ValueError("work input artifact size must be positive")
+        if self.content_type is not None and not self.content_type.strip():
+            raise ValueError("work input artifact content type cannot be empty")
 
 
 def validate_artifact_binding_identity(

@@ -30,6 +30,43 @@ def _valid_files() -> dict[str, bytes]:
     }
 
 
+def _with_normalization_profile(
+    files: dict[str, bytes],
+    *,
+    target_field: str = "website",
+    value_kind: str = "url",
+    prohibited_fields: tuple[str, ...] = (),
+) -> dict[str, bytes]:
+    import yaml
+
+    bindings = yaml.safe_load(files["source_bindings.yaml"])
+    bindings["items"][0]["normalization_profile"] = "website_profile"
+    files["source_bindings.yaml"] = yaml.safe_dump(bindings, sort_keys=False).encode()
+    files["normalization_profiles.yaml"] = yaml.safe_dump(
+        {
+            "schema_revision": "normalization-profiles-v1",
+            "items": [
+                {
+                    "key": "website_profile",
+                    "profile": {
+                        "normalizer_revision": "website-normalizer-v1",
+                        "field_rules": [
+                            {
+                                "source_field": "website",
+                                "target_field": target_field,
+                                "value_kind": value_kind,
+                            }
+                        ],
+                        "prohibited_fields": list(prohibited_fields),
+                    },
+                }
+            ],
+        },
+        sort_keys=False,
+    ).encode()
+    return files
+
+
 def test_snapshot_is_deterministic_and_preserves_ready_state() -> None:
     service = CampaignSnapshotService(InMemorySource(_valid_files()))
 
@@ -121,6 +158,106 @@ def test_manual_seed_declared_format_must_be_policy_approved() -> None:
         )
 
     assert captured.value.envelope.code == "MANUAL_SEED_FORMAT_FORBIDDEN"
+
+
+def test_normalization_profile_is_reference_bound_and_included_in_snapshot() -> None:
+    files = _with_normalization_profile(_valid_files())
+
+    compiled = CampaignSnapshotService(InMemorySource(files)).compile(
+        "berlin_recording_services",
+        "correlation-normalization-profile",
+    )
+
+    assert compiled.documents.source_bindings.items[0].normalization_profile == "website_profile"
+    assert compiled.documents.normalization_profiles is not None
+    assert compiled.documents.normalization_profiles.items[0].profile.normalizer_revision == (
+        "website-normalizer-v1"
+    )
+    component_paths = {component.path for component in compiled.snapshot.components}
+    assert "normalization_profiles.yaml" in component_paths
+    assert compiled.canonical_documents["normalization_profiles.yaml"]["items"][0]["key"] == (
+        "website_profile"
+    )
+
+
+def test_missing_normalization_profile_reference_blocks_snapshot() -> None:
+    files = _valid_files()
+    files["source_bindings.yaml"] = files["source_bindings.yaml"].replace(
+        b"    extraction_profile: manual-seed-v1\n",
+        b"    extraction_profile: manual-seed-v1\n    normalization_profile: missing_profile\n",
+    )
+
+    with pytest.raises(OwnerContextError) as captured:
+        CampaignSnapshotService(InMemorySource(files)).create(
+            "berlin_recording_services",
+            "correlation-normalization-profile-missing",
+        )
+
+    assert captured.value.envelope.code == "CAMPAIGN_REFERENCE_INVALID"
+    assert any(
+        item["reference"] == "binding.manual_seed_import.normalization_profile"
+        and item["reason"] == "missing"
+        for item in captured.value.envelope.context["violations"]
+    )
+
+
+def test_normalization_profile_value_kind_must_match_attribute_type() -> None:
+    files = _with_normalization_profile(_valid_files(), value_kind="boolean")
+
+    with pytest.raises(OwnerContextError) as captured:
+        CampaignSnapshotService(InMemorySource(files)).create(
+            "berlin_recording_services",
+            "correlation-normalization-profile-type-mismatch",
+        )
+
+    assert captured.value.envelope.code == "CAMPAIGN_REFERENCE_INVALID"
+    assert any(
+        item["reason"] == "normalization_type_mismatch"
+        and item["value"] == "website"
+        and item["normalizationKind"] == "boolean"
+        and item["attributeValueType"] == "url"
+        for item in captured.value.envelope.context["violations"]
+    )
+
+
+def test_normalization_profile_targets_must_be_allowed_by_source_policy() -> None:
+    import yaml
+
+    files = _with_normalization_profile(_valid_files())
+    policy_path = "source_policies/manual_seed_policy.yaml"
+    policy = yaml.safe_load(files[policy_path])
+    policy["allowed_fields"].remove("website")
+    files[policy_path] = yaml.safe_dump(policy, sort_keys=False).encode()
+
+    with pytest.raises(OwnerContextError) as captured:
+        CampaignSnapshotService(InMemorySource(files)).create(
+            "berlin_recording_services",
+            "correlation-normalization-profile-policy",
+        )
+
+    assert captured.value.envelope.code == "CAMPAIGN_REFERENCE_INVALID"
+    assert any(
+        item["reference"] == "binding.manual_seed_import.normalization_profile.allowed_fields"
+        and item["value"] == "website"
+        and item["reason"] == "missing"
+        for item in captured.value.envelope.context["violations"]
+    )
+
+
+def test_normalization_profile_rejects_prohibited_target_field() -> None:
+    files = _with_normalization_profile(_valid_files(), prohibited_fields=("website",))
+
+    with pytest.raises(OwnerContextError) as captured:
+        CampaignSnapshotService(InMemorySource(files)).create(
+            "berlin_recording_services",
+            "correlation-normalization-profile-prohibited",
+        )
+
+    assert captured.value.envelope.code == "CAMPAIGN_REFERENCE_INVALID"
+    assert any(
+        item["reason"] == "normalization_target_is_prohibited"
+        for item in captured.value.envelope.context["violations"]
+    )
 
 
 def test_ready_campaign_requires_exact_geography_revision() -> None:

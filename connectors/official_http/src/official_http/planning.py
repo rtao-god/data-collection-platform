@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from hashlib import sha256
 from html.parser import HTMLParser
 from typing import Literal
 from urllib.parse import urljoin, urlsplit
@@ -11,9 +13,10 @@ from defusedxml.ElementTree import (  # Hardened parser for untrusted WFS XML.
     fromstring,
 )
 
-from official_http.contracts import DiscoveredResource, OfficialHttpRequest
+from official_http.contracts import OfficialHttpRequest
 from official_http.errors import OfficialHttpError
 from official_http.urls import canonical_origin, normalize_http_url
+from official_http_contracts import DiscoveredResource
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +24,8 @@ class RobotsEvaluation:
     allowed: bool
     sitemap_urls: tuple[str, ...]
     crawl_delay_seconds: float | None
+    target_url: str
+    decision_digest: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,13 +34,43 @@ class PagePlan:
     canonical_observation: str | None
 
 
-def evaluate_robots(body: bytes, *, request: OfficialHttpRequest) -> RobotsEvaluation:
+def evaluate_robots(
+    body: bytes,
+    *,
+    request: OfficialHttpRequest,
+    target_url: str | None = None,
+) -> RobotsEvaluation:
     text = _decode_text(body, owner="robots.txt")
     parser = RobotFileParser()
     parser.set_url(request.url)
     parser.parse(text.splitlines())
-    allowed = parser.can_fetch(request.user_agent, request.allowed_origin + "/")
+    normalized_target = normalize_http_url(
+        target_url or request.allowed_origin + "/",
+        tracking_parameters=request.tracking_query_parameters,
+    )
+    if canonical_origin(normalized_target) != request.allowed_origin:
+        raise OfficialHttpError(
+            code="OFFICIAL_HTTP_ROBOTS_TARGET_ORIGIN_MISMATCH",
+            message="The robots decision target must match the exact request origin.",
+            kind="policy_blocked",
+        )
+    allowed = parser.can_fetch(request.user_agent, normalized_target)
     delay = parser.crawl_delay(request.user_agent)
+    decision_payload = json.dumps(
+        {
+            "robotsContentDigest": f"sha256:{sha256(body).hexdigest()}",
+            "robotsRequestUrl": request.url,
+            "targetUrl": normalized_target,
+            "userAgent": request.user_agent,
+            "sourcePolicyDigest": request.source_policy_digest,
+            "allowed": allowed,
+        },
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    decision_digest = f"sha256:{sha256(decision_payload).hexdigest()}"
     sitemaps: list[str] = []
     for line in text.splitlines():
         name, separator, value = line.partition(":")
@@ -47,6 +82,8 @@ def evaluate_robots(body: bytes, *, request: OfficialHttpRequest) -> RobotsEvalu
         allowed=allowed,
         sitemap_urls=tuple(sorted(set(sitemaps))),
         crawl_delay_seconds=float(delay) if delay is not None else None,
+        target_url=normalized_target,
+        decision_digest=decision_digest,
     )
 
 

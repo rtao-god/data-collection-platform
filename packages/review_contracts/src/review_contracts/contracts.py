@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
-from hashlib import sha256
 from typing import Annotated, Literal, Self
 from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from collection_contracts.canonical import canonical_digest
+
 Digest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 Code = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Z][A-Z0-9_]*$")]
 Key = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-z][a-z0-9_]*$")]
 PlainText = Annotated[str, Field(min_length=1, max_length=4000)]
-CandidateResolutionState = Literal["resolved", "review", "blocked"]
 ReviewCaseState = Literal["open", "decided"]
 ReviewOutcome = Literal[
     "accept_candidate",
@@ -34,17 +33,6 @@ _SUPPRESSION_NAMESPACE = UUID("8d4d7db5-f641-44de-8606-fe2976495957")
 
 class StrictContract(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-def canonical_digest(value: object) -> str:
-    payload = json.dumps(
-        value,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-        default=str,
-    ).encode("utf-8")
-    return f"sha256:{sha256(payload).hexdigest()}"
 
 
 def deterministic_case_id(
@@ -108,53 +96,6 @@ def _require_plain_text(value: str) -> str:
     if any(ord(character) < 32 and character not in "\n\r\t" for character in value):
         raise ValueError("plain text contains a forbidden control character")
     return value
-
-
-class CandidateEvidence(StrictContract):
-    position: Annotated[int, Field(ge=0)]
-    evidence_kind: Literal["source_observation", "manual_observation", "artifact"]
-    evidence_digest: Digest
-
-
-class CandidateRevision(StrictContract):
-    candidate_id: UUID
-    revision: Annotated[int, Field(ge=0)]
-    entity_kind: Key
-    cluster_id: UUID
-    resolution_state: CandidateResolutionState
-    snapshot_digest: Digest
-    source_lineage_digest: Digest
-    normalized_payload: dict[str, object]
-    evidence: tuple[CandidateEvidence, ...]
-    recorded_at_utc: datetime
-    correlation_id: Annotated[str, Field(min_length=1, max_length=200)]
-
-    @field_validator("recorded_at_utc")
-    @classmethod
-    def require_utc(cls, value: datetime) -> datetime:
-        return _require_aware_utc(value)
-
-    @model_validator(mode="after")
-    def require_canonical_evidence(self) -> Self:
-        positions = tuple(item.position for item in self.evidence)
-        if positions != tuple(range(len(self.evidence))):
-            raise ValueError("candidate evidence positions must be contiguous")
-        digests = tuple(item.evidence_digest for item in self.evidence)
-        if len(digests) != len(set(digests)):
-            raise ValueError("candidate evidence digests must be unique")
-        expected = candidate_snapshot_digest(
-            candidate_id=self.candidate_id,
-            revision=self.revision,
-            entity_kind=self.entity_kind,
-            cluster_id=self.cluster_id,
-            resolution_state=self.resolution_state,
-            normalized_payload=self.normalized_payload,
-            evidence=self.evidence,
-            source_lineage_digest=self.source_lineage_digest,
-        )
-        if self.snapshot_digest != expected:
-            raise ValueError("snapshot_digest does not match candidate revision content")
-        return self
 
 
 class QualityRecord(StrictContract):
@@ -452,31 +393,6 @@ class SuppressionRevision(StrictContract):
         if self.expires_at_utc is not None and self.expires_at_utc <= self.starts_at_utc:
             raise ValueError("suppression expiry must follow activation")
         return self
-
-
-def candidate_snapshot_digest(
-    *,
-    candidate_id: UUID,
-    revision: int,
-    entity_kind: str,
-    cluster_id: UUID,
-    resolution_state: str,
-    normalized_payload: dict[str, object],
-    evidence: tuple[CandidateEvidence, ...],
-    source_lineage_digest: str,
-) -> str:
-    return canonical_digest(
-        {
-            "candidateId": str(candidate_id),
-            "clusterId": str(cluster_id),
-            "entityKind": entity_kind,
-            "evidence": [item.model_dump(mode="json") for item in evidence],
-            "normalizedPayload": normalized_payload,
-            "resolutionState": resolution_state,
-            "revision": revision,
-            "sourceLineageDigest": source_lineage_digest,
-        }
-    )
 
 
 def review_decision_command_digest(

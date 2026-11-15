@@ -41,12 +41,14 @@ def contract_targets() -> tuple[ContractTarget, ...]:
         ManualImportRecordDocument,
         ManualSeedRow,
         NormalizationProfile,
+        NormalizationProfilesDocument,
         ObservationBatch,
         SourceBindingsDocument,
         SourcePolicy,
         TaxonomyDocument,
     )
-    from official_http import HttpAcquisitionManifest, OfficialHttpRequest
+    from official_http import OfficialHttpRequest
+    from official_http_contracts import HttpAcquisitionManifest
     from resolution_contracts import ResolutionBatch, ResolutionSnapshot
 
     return (
@@ -61,6 +63,7 @@ def contract_targets() -> tuple[ContractTarget, ...]:
         ContractTarget("manual-import-plan.schema.json", ManualImportPlan),
         ContractTarget("manual-import-record.schema.json", ManualImportRecordDocument),
         ContractTarget("normalization-profile.schema.json", NormalizationProfile),
+        ContractTarget("normalization-profiles.schema.json", NormalizationProfilesDocument),
         ContractTarget("observation-batch.schema.json", ObservationBatch),
         ContractTarget("official-http-acquisition.schema.json", HttpAcquisitionManifest),
         ContractTarget("official-http-request.schema.json", OfficialHttpRequest),

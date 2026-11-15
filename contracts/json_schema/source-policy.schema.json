@@ -121,6 +121,24 @@
           "minimum": 0,
           "title": "Redirect Limit",
           "type": "integer"
+        },
+        "user_agent": {
+          "discriminator": {
+            "mapping": {
+              "configured": "#/$defs/UserAgentConfigured",
+              "not_configured": "#/$defs/UserAgentNotConfigured"
+            },
+            "propertyName": "state"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserAgentConfigured"
+            },
+            {
+              "$ref": "#/$defs/UserAgentNotConfigured"
+            }
+          ],
+          "title": "User Agent"
         }
       },
       "required": [
@@ -200,6 +218,43 @@
         "reason"
       ],
       "title": "TermsNotApplicable",
+      "type": "object"
+    },
+    "UserAgentConfigured": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "configured",
+          "title": "State",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "value"
+      ],
+      "title": "UserAgentConfigured",
+      "type": "object"
+    },
+    "UserAgentNotConfigured": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "not_configured",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "UserAgentNotConfigured",
       "type": "object"
     }
   },

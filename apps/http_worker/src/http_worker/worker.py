@@ -23,7 +23,14 @@ from official_http import (
     plan_sitemap,
     selected_header,
 )
-from source_connector_sdk import WorkerLease, WorkFailureKind
+from source_connector_sdk import (
+    LeaseArtifact,
+    WebsiteRouteContext,
+    WorkerLease,
+    WorkFailureKind,
+    decode_manual_record_lineage,
+    decode_website_route_context,
+)
 
 _OUTPUT_CONTRACT = "official-http-acquisition@1"
 
@@ -46,9 +53,25 @@ class HttpGateway(Protocol):
 
     def read_request(self, lease: WorkerLease, *, maximum_bytes: int) -> bytes: ...
 
+    def read_website_route_context(
+        self,
+        lease: WorkerLease,
+        *,
+        maximum_bytes: int,
+    ) -> bytes | None: ...
+
+    def read_manual_record_lineage(
+        self,
+        lease: WorkerLease,
+        *,
+        maximum_bytes: int,
+    ) -> tuple[LeaseArtifact, bytes] | None: ...
+
     def previous_artifact_id(self, lease: WorkerLease) -> UUID | None: ...
 
     def robots_artifact_id(self, lease: WorkerLease) -> UUID | None: ...
+
+    def read_robots_manifest(self, lease: WorkerLease, *, maximum_bytes: int) -> bytes | None: ...
 
     def publish(
         self,
@@ -113,12 +136,15 @@ class HttpWorker:
             return False
         with _HeartbeatPump(self._gateway, lease, policy=self._policy) as heartbeat:
             try:
-                request = self._validate_and_read(heartbeat.lease)
+                request, route_context = self._validate_and_read(heartbeat.lease)
                 result = self._fetcher.fetch(request)
                 manifest, raw_body, content_type = _build_manifest(
                     request,
                     result,
                     previous_artifact_id=self._gateway.previous_artifact_id(heartbeat.lease),
+                    robots_target_url=(
+                        str(route_context.source_url) if route_context is not None else None
+                    ),
                 )
                 heartbeat.raise_if_failed()
                 self._gateway.publish(
@@ -151,7 +177,10 @@ class HttpWorker:
             if not self.run_once():
                 sleep(self._policy.poll_interval_seconds)
 
-    def _validate_and_read(self, lease: WorkerLease) -> OfficialHttpRequest:
+    def _validate_and_read(
+        self,
+        lease: WorkerLease,
+    ) -> tuple[OfficialHttpRequest, WebsiteRouteContext | None]:
         if lease.stage != "acquisition" or lease.capability != "http_fetch":
             raise OfficialHttpError(
                 code="OFFICIAL_HTTP_LEASE_CAPABILITY_INVALID",
@@ -173,6 +202,26 @@ class HttpWorker:
             maximum_bytes=self._policy.maximum_request_bytes,
         )
         request = decode_http_request(body, maximum_bytes=self._policy.maximum_request_bytes)
+        route_context_bytes = self._gateway.read_website_route_context(
+            lease,
+            maximum_bytes=self._policy.maximum_request_bytes,
+        )
+        route_context = (
+            decode_website_route_context(
+                route_context_bytes,
+                maximum_bytes=self._policy.maximum_request_bytes,
+            )
+            if route_context_bytes is not None
+            else None
+        )
+        if route_context is not None:
+            _validate_manual_record_lineage(
+                self._gateway,
+                lease,
+                route_context,
+                maximum_bytes=self._policy.maximum_request_bytes,
+            )
+            self._validate_website_route_context(request, body, route_context)
         if (
             request.source_key != lease.source_permit.source_key
             or request.source_policy_digest != lease.source_permit.policy_digest
@@ -190,12 +239,101 @@ class HttpWorker:
                 kind="policy_blocked",
             )
         previous = self._gateway.previous_artifact_id(lease)
+        if request.request_kind == "page" and (
+            route_context is not None or request.robots_manifest_digest is not None
+        ):
+            if route_context is None or request.robots_manifest_digest is None:
+                raise OfficialHttpError(
+                    code="OFFICIAL_HTTP_ROBOTS_EVIDENCE_MISSING",
+                    message=(
+                        "Page work requires its exact leased robots manifest and route context."
+                    ),
+                    kind="policy_blocked",
+                )
+            robots_manifest_bytes = self._gateway.read_robots_manifest(
+                lease, maximum_bytes=2 * 1024 * 1024
+            )
+            if robots_manifest_bytes is None:
+                raise OfficialHttpError(
+                    code="OFFICIAL_HTTP_ROBOTS_EVIDENCE_MISSING",
+                    message="The leased robots manifest could not be read.",
+                    kind="policy_blocked",
+                )
+            try:
+                robots_manifest = HttpAcquisitionManifest.model_validate_json(
+                    robots_manifest_bytes, strict=True
+                )
+            except ValueError as exc:
+                raise OfficialHttpError(
+                    code="OFFICIAL_HTTP_ROBOTS_EVIDENCE_INVALID",
+                    message="The leased robots manifest violates its producer contract.",
+                    kind="policy_blocked",
+                ) from exc
+            if (
+                f"sha256:{sha256(robots_manifest_bytes).hexdigest()}"
+                != request.robots_manifest_digest
+                or robots_manifest.request_kind != "robots"
+                or robots_manifest.outcome not in {"fetched", "empty"}
+                or robots_manifest.robots_target_url != str(route_context.source_url)
+                or robots_manifest.robots_allowed is not True
+                or robots_manifest.robots_decision_digest != request.robots_decision_digest
+                or robots_manifest.source_key != request.source_key
+                or robots_manifest.source_policy_digest != request.source_policy_digest
+            ):
+                raise OfficialHttpError(
+                    code="OFFICIAL_HTTP_ROBOTS_EVIDENCE_MISMATCH",
+                    message=(
+                        "The leased robots manifest does not bind the exact page seed, "
+                        "source policy, and decision digest."
+                    ),
+                    kind="policy_blocked",
+                )
         if request.prior_artifact_id != previous:
             raise OfficialHttpError(
                 code="OFFICIAL_HTTP_PRIOR_ARTIFACT_MISMATCH",
                 message="The HTTP conditional request does not match the leased prior artifact.",
             )
-        return request
+        return request, route_context
+
+    @staticmethod
+    def _validate_website_route_context(
+        request: OfficialHttpRequest,
+        request_payload: bytes,
+        context: WebsiteRouteContext,
+    ) -> None:
+        base_identity_matches = (
+            context.request_id == request.request_id
+            and context.request_digest == f"sha256:{sha256(request_payload).hexdigest()}"
+            and context.source_key == request.source_key
+            and context.source_policy_digest == request.source_policy_digest
+            and canonical_origin(str(context.source_url)) == request.allowed_origin
+        )
+        if request.request_kind == "robots":
+            request_kind_matches = request.url == f"{request.allowed_origin}/robots.txt"
+        else:
+            expected_interests = tuple(
+                (item.key, item.tokens, item.priority) for item in context.page_interests
+            )
+            actual_interests = tuple(
+                (item.key, item.tokens, item.priority) for item in request.page_interests
+            )
+            request_kind_matches = (
+                request.url == str(context.source_url)
+                and request.robots_allowed is True
+                and request.robots_artifact_id is not None
+                and request.robots_decision_digest is not None
+                and expected_interests == actual_interests
+            )
+        context_matches = base_identity_matches and request_kind_matches
+        if not context_matches:
+            raise OfficialHttpError(
+                code="OFFICIAL_HTTP_WEBSITE_ROUTE_CONTEXT_MISMATCH",
+                message=(
+                    "The website route context does not bind to this exact robots request, "
+                    "source policy, and target origin."
+                ),
+                kind="policy_blocked",
+            )
 
 
 def _build_manifest(
@@ -203,6 +341,7 @@ def _build_manifest(
     result: HttpFetchResult,
     *,
     previous_artifact_id: UUID | None,
+    robots_target_url: str | None = None,
 ) -> tuple[HttpAcquisitionManifest, bytes | None, str]:
     status = result.status_code
     content_type = (
@@ -214,7 +353,8 @@ def _build_manifest(
     if not content_type or "/" not in content_type:
         content_type = "application/octet-stream"
     discovered: tuple[DiscoveredResource, ...] = ()
-    robots_allowed: bool | None = None
+    robots_allowed: bool | None = request.robots_allowed
+    robots_decision_digest: str | None = None
     raw_digest = None
     reused_id = None
     reused_digest = None
@@ -225,8 +365,13 @@ def _build_manifest(
         raw_body = result.body or None
         raw_digest = f"sha256:{sha256(result.body).hexdigest()}" if result.body else None
         if request.request_kind == "robots":
-            evaluation = evaluate_robots(result.body, request=request)
+            evaluation = evaluate_robots(
+                result.body,
+                request=request,
+                target_url=robots_target_url,
+            )
             robots_allowed = evaluation.allowed
+            robots_decision_digest = evaluation.decision_digest
             discovered = tuple(
                 DiscoveredResource(
                     url=url,
@@ -323,7 +468,8 @@ def _build_manifest(
         discovered_resources=discovered,
         robots_allowed=robots_allowed,
         robots_artifact_id=request.robots_artifact_id,
-        robots_decision_digest=request.robots_decision_digest,
+        robots_decision_digest=(robots_decision_digest or request.robots_decision_digest),
+        robots_target_url=robots_target_url,
     )
     return manifest, raw_body, content_type
 
@@ -334,6 +480,46 @@ def _retry_after_seconds(value: str | None) -> int | None:
     if value.isdigit():
         return min(int(value), 86_400)
     return None
+
+
+def _validate_manual_record_lineage(
+    gateway: HttpGateway,
+    lease: WorkerLease,
+    route_context: WebsiteRouteContext,
+    *,
+    maximum_bytes: int,
+) -> None:
+    binding = gateway.read_manual_record_lineage(lease, maximum_bytes=maximum_bytes)
+    if binding is None:
+        raise OfficialHttpError(
+            code="OFFICIAL_HTTP_MANUAL_RECORD_LINEAGE_MISSING",
+            message="Routed HTTP work requires its exact manual-record lineage artifact.",
+        )
+    artifact, content = binding
+    if (
+        artifact.role != "manual_record_lineage"
+        or artifact.content_digest is None
+        or artifact.size_bytes is None
+        or artifact.content_type != "application/vnd.collection.manual-record-lineage+json"
+        or len(content) != artifact.size_bytes
+        or f"sha256:{sha256(content).hexdigest()}" != artifact.content_digest
+    ):
+        raise OfficialHttpError(
+            code="OFFICIAL_HTTP_MANUAL_RECORD_LINEAGE_INVALID",
+            message="Transferred lineage bytes differ from their exact leased artifact identity.",
+        )
+    try:
+        lineage = decode_manual_record_lineage(content)
+    except ValueError as exc:
+        raise OfficialHttpError(
+            code="OFFICIAL_HTTP_MANUAL_RECORD_LINEAGE_INVALID",
+            message="Transferred manual-record lineage violates its canonical contract.",
+        ) from exc
+    if lineage.manual_record_content_digest != route_context.record_digest:
+        raise OfficialHttpError(
+            code="OFFICIAL_HTTP_MANUAL_RECORD_LINEAGE_MISMATCH",
+            message="Route context is not bound to the transferred manual-record lineage.",
+        )
 
 
 class _HeartbeatPump:

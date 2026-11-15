@@ -9,6 +9,7 @@ from collection_application.campaign_documents import (
     CAMPAIGN_DOCUMENT,
     ENTITY_KINDS_DOCUMENT,
     GEOGRAPHY_DOCUMENT,
+    NORMALIZATION_PROFILES_DOCUMENT,
     SOURCE_BINDINGS_DOCUMENT,
     TAXONOMY_DOCUMENT,
     ParsedCampaignDocuments,
@@ -27,6 +28,10 @@ def canonical_documents(
         ATTRIBUTES_DOCUMENT: documents.attributes.model_dump(mode="json"),
         SOURCE_BINDINGS_DOCUMENT: documents.source_bindings.model_dump(mode="json"),
     }
+    if documents.normalization_profiles is not None:
+        result[NORMALIZATION_PROFILES_DOCUMENT] = documents.normalization_profiles.model_dump(
+            mode="json"
+        )
     if documents.geography is not None:
         result[GEOGRAPHY_DOCUMENT] = documents.geography.model_dump(mode="json")
         result.update(documents.geography_artifacts)

@@ -65,6 +65,36 @@ class PostgresOwnedArtifactPublisher:
             )
         )
 
+    def publish_in_transaction(
+        self,
+        connection: Connection,
+        command: PublishOwnedArtifact,
+    ) -> PublishedOwnedArtifact:
+        now_utc = self._now_utc()
+        try:
+            stored = self._object_store.store_bytes(
+                artifact_kind=command.artifact_kind,
+                content=command.content,
+                content_type=command.content_type,
+                now_utc=now_utc,
+            )
+        except ArtifactObjectStoreError as exc:
+            raise OwnedArtifactPublishConflict(
+                code=exc.code,
+                message=exc.message,
+                context=exc.context,
+                required_action=exc.required_action,
+            ) from exc
+        return self._record(
+            connection,
+            command,
+            content_digest=stored.content_digest,
+            size_bytes=stored.size_bytes,
+            storage_reference=stored.final_reference,
+            verified_at_utc=stored.verified_at_utc,
+            recorded_at_utc=now_utc,
+        )
+
     def _record(
         self,
         connection: Connection,

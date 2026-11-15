@@ -5,9 +5,11 @@ from hashlib import sha256
 from uuid import UUID
 
 from official_http import HttpAcquisitionManifest
-from source_connector_sdk import SourceWorkerGateway, WorkerLease, WorkFailureKind
+from source_connector_sdk import LeaseArtifact, SourceWorkerGateway, WorkerLease, WorkFailureKind
 
 _REQUEST_ROLE = "http_request"
+_WEBSITE_ROUTE_CONTEXT_ROLE = "website_route_context"
+_MANUAL_RECORD_LINEAGE_ROLE = "manual_record_lineage"
 _PREVIOUS_RAW_ROLE = "previous_raw_artifact"
 _ROBOTS_DECISION_ROLE = "robots_decision"
 _RAW_ROLE = "http_raw_response"
@@ -65,11 +67,63 @@ class SdkHttpWorkerGateway:
             maximum_bytes=maximum_bytes,
         )
 
+    def read_website_route_context(
+        self,
+        lease: WorkerLease,
+        *,
+        maximum_bytes: int,
+    ) -> bytes | None:
+        matches = tuple(
+            artifact
+            for artifact in lease.input_artifacts
+            if artifact.role == _WEBSITE_ROUTE_CONTEXT_ROLE
+        )
+        if len(matches) > 1:
+            raise ValueError("HTTP lease contains duplicate website route contexts")
+        if not matches:
+            return None
+        return self._client.read_artifact(
+            lease,
+            artifact_id=matches[0].artifact_id,
+            maximum_bytes=maximum_bytes,
+        )
+
+    def read_manual_record_lineage(
+        self,
+        lease: WorkerLease,
+        *,
+        maximum_bytes: int,
+    ) -> tuple[LeaseArtifact, bytes] | None:
+        matches = tuple(
+            artifact
+            for artifact in lease.input_artifacts
+            if artifact.role == _MANUAL_RECORD_LINEAGE_ROLE
+        )
+        if len(matches) > 1:
+            raise ValueError("HTTP lease contains duplicate manual-record lineage artifacts")
+        if not matches:
+            return None
+        artifact = matches[0]
+        content = self._client.read_artifact(
+            lease,
+            artifact_id=artifact.artifact_id,
+            maximum_bytes=maximum_bytes,
+        )
+        return artifact, content
+
     def previous_artifact_id(self, lease: WorkerLease) -> UUID | None:
         return _optional_artifact_id(lease, _PREVIOUS_RAW_ROLE)
 
     def robots_artifact_id(self, lease: WorkerLease) -> UUID | None:
         return _optional_artifact_id(lease, _ROBOTS_DECISION_ROLE)
+
+    def read_robots_manifest(self, lease: WorkerLease, *, maximum_bytes: int) -> bytes | None:
+        artifact_id = self.robots_artifact_id(lease)
+        if artifact_id is None:
+            return None
+        return self._client.read_artifact(
+            lease, artifact_id=artifact_id, maximum_bytes=maximum_bytes
+        )
 
     def publish(
         self,

@@ -652,9 +652,10 @@ def seal_field_observation(payload: FieldObservationPayload) -> FieldObservation
 
 
 def seal_observation_batch(payload: ObservationBatchPayload) -> ObservationBatch:
+    validated = ObservationBatchPayload.model_validate(payload.model_dump(mode="python"))
     return ObservationBatch(
-        **payload.model_dump(mode="python"),
-        content_digest=_digest_model(payload),
+        **validated.model_dump(mode="python"),
+        content_digest=_digest_model(validated),
     )
 
 

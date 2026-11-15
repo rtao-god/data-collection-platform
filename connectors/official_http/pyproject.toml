@@ -5,6 +5,7 @@ description = "Strict official-website HTTP acquisition contracts and one-shot S
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "source-connector-sdk",
+  "official-http-contracts",
   "defusedxml==0.7.1",
   "pydantic==2.13.4",
   "scrapy==2.17.0",
@@ -19,3 +20,4 @@ packages = ["src/official_http"]
 
 [tool.uv.sources]
 source-connector-sdk = { workspace = true }
+official-http-contracts = { workspace = true }

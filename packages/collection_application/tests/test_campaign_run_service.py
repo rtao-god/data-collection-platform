@@ -93,4 +93,147 @@ def test_ready_manual_campaign_builds_one_atomic_bootstrap_plan(tmp_path: Path) 
     assert len(store.plan.initial_work) == 1
     work = store.plan.initial_work[0]
     assert work.expected_output_contract == "manual-import-plan@1"
+    assert work.source_binding_key == "manual_seed_import"
     assert work.input_artifacts[0].role == "manual_source:csv:atomic"
+
+
+def test_ready_routed_website_campaign_creates_capacity_without_http_work(tmp_path: Path) -> None:
+    campaign = tmp_path / "ready_routed_campaign"
+    campaign.mkdir()
+    source = Path("campaigns/berlin_recording_services")
+    for path in source.rglob("*"):
+        if path.is_file():
+            target = campaign / path.relative_to(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(path.read_bytes())
+
+    campaign_yaml = (campaign / "campaign.yaml").read_text(encoding="utf-8")
+    campaign_yaml = campaign_yaml.replace(
+        "berlin_recording_services", "ready_routed_campaign"
+    ).replace(
+        "enabled_source_bindings:\n- manual_seed_import",
+        "enabled_source_bindings:\n- manual_seed_import\n- official_website",
+    )
+    campaign_yaml = campaign_yaml.split("readiness:", 1)[0] + "readiness:\n  state: ready\n"
+    (campaign / "campaign.yaml").write_text(campaign_yaml, encoding="utf-8")
+    (campaign / "discovery/manual_seeds.csv").write_text(
+        "expected_entity_kind,display_name,website,osm_id,reference_urls,note,provenance\n"
+        "place,Example Studio,https://example.invalid,,,,operator\n",
+        encoding="utf-8",
+    )
+    (campaign / "source_bindings.yaml").write_text(
+        """schema_revision: source-bindings-v1
+items:
+  - key: manual_seed_import
+    source_key: manual_seed
+    connector_key: manual_seed
+    source_policy_key: manual_seed_policy
+    capability: manual_import
+    seed_provider:
+      kind: file
+      path: discovery/manual_seeds.csv
+      format: csv
+    crawl_budget:
+      state: not_applicable
+    schedule_enabled: false
+    extraction_profile: manual-seed-v1
+  - key: official_website
+    source_key: official_website
+    connector_key: official_http
+    source_policy_key: website_policy
+    capability: http_fetch
+    seed_provider:
+      kind: not_applicable
+    crawl_budget:
+      state: defined
+      max_work_units: 10
+      max_total_bytes: 1000000
+    schedule_enabled: false
+    extraction_profile: website-test-v1
+seed_routing:
+  state: configured
+  routes:
+    - key: manual_website
+      source_field: website
+      source_binding: manual_seed_import
+      target_binding: official_website
+      route_kind: official_website_page
+      selection: exclusive
+      page_interests:
+        - key: contact
+          tokens: [contact, kontakt]
+          priority: 80
+""",
+        encoding="utf-8",
+    )
+    (campaign / "source_policies/website_policy.yaml").write_text(
+        """schema_revision: source-policy-v1
+policy_key: website_policy
+policy_revision: website-test-v1
+source_key: official_website
+source_type: official_website
+legal_status: approved
+terms_review:
+  state: reviewed
+  terms_url: https://example.invalid/terms
+  reviewed_at: 2026-01-01
+  expires_at: 2099-01-01
+  reviewer: test-reviewer
+access:
+  kind: network
+  allowed_methods: [GET]
+  allowed_host_patterns: [example.invalid]
+  max_requests_per_second: 1
+  max_concurrency: 2
+  connect_timeout_seconds: 10
+  read_timeout_seconds: 20
+  max_encoded_bytes: 1000000
+  max_decoded_bytes: 2000000
+  content_type_allowlist: [text/html]
+  user_agent:
+    state: configured
+    value: CollectorTest/1.0 (+https://example.invalid/contact)
+  redirect_limit: 3
+storage_class: test-raw-v1
+retention_days: 30
+allowed_fields: [website]
+prohibited_fields: [review_text]
+attribution_required: false
+browser: forbidden
+screenshots: forbidden
+retry_budget: 2
+stop_on_status_codes: [401, 403, 429]
+reviewer: test-reviewer
+approver: test-reviewer
+""",
+        encoding="utf-8",
+    )
+
+    artifacts = OwnedArtifactPublisherService(ArtifactPort())
+    publication = CampaignSnapshotPublicationService(
+        CampaignSnapshotService(FilesystemCampaignBundleSource(tmp_path)),
+        artifacts,
+        SnapshotStore(),
+    )
+    store = RunStore()
+    service = CampaignRunService(publication, artifacts, store, clock=lambda: _NOW)
+    run_id = UUID("00000000-0000-0000-0000-000000000112")
+
+    result = service.create(
+        CreateCampaignRun(
+            run_id=run_id,
+            campaign_key="ready_routed_campaign",
+            correlation_id="test-routed-run",
+        )
+    )
+
+    assert result.run_id == run_id
+    assert len(store.plan.sources) == 2
+    website_capacity = next(
+        item for item in store.plan.sources if item.source_key == "official_website"
+    )
+    assert website_capacity.max_active_requests == 2
+    assert website_capacity.minimum_interval_milliseconds == 1000
+    assert len(store.plan.initial_work) == 1
+    assert store.plan.initial_work[0].capability.value == "manual_import"
+    assert all(item.capability.value != "http_fetch" for item in store.plan.initial_work)

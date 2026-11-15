@@ -17,6 +17,7 @@ from collection_contracts import (
     EntityKindsDocument,
     GeographyDocument,
     GeographyProvenanceDocument,
+    NormalizationProfilesDocument,
     SourceBindingsDocument,
     SourcePolicy,
     TaxonomyDocument,
@@ -28,6 +29,7 @@ ENTITY_KINDS_DOCUMENT = "entity_kinds.yaml"
 TAXONOMY_DOCUMENT = "taxonomy.yaml"
 ATTRIBUTES_DOCUMENT = "attributes.yaml"
 SOURCE_BINDINGS_DOCUMENT = "source_bindings.yaml"
+NORMALIZATION_PROFILES_DOCUMENT = "normalization_profiles.yaml"
 GEOGRAPHY_DOCUMENT = "geography.yaml"
 REQUIRED_DOCUMENTS = frozenset(
     {
@@ -47,6 +49,7 @@ class ParsedCampaignDocuments:
     taxonomy: TaxonomyDocument
     attributes: AttributesDocument
     source_bindings: SourceBindingsDocument
+    normalization_profiles: NormalizationProfilesDocument | None
     source_policies: dict[str, SourcePolicy]
     geography: GeographyDocument | None
     geography_artifacts: dict[str, object]
@@ -112,6 +115,16 @@ def parse_campaign_documents(
             SOURCE_BINDINGS_DOCUMENT,
             SourceBindingsDocument,
             correlation_id,
+        ),
+        normalization_profiles=(
+            _load_model(
+                bundle,
+                NORMALIZATION_PROFILES_DOCUMENT,
+                NormalizationProfilesDocument,
+                correlation_id,
+            )
+            if NORMALIZATION_PROFILES_DOCUMENT in bundle.files
+            else None
         ),
         source_policies=_load_source_policies(bundle, correlation_id),
         geography=geography,

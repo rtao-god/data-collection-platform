@@ -49,6 +49,8 @@ pipeline_advancements = sa.Table(
         postgresql.JSONB(astext_type=sa.Text()),
         nullable=False,
     ),
+    sa.Column("source_binding_key", sa.Text(), nullable=True),
+    sa.Column("source_config_bundle_digest", sa.Text(), nullable=True),
     sa.Column("transition_key", sa.Text(), nullable=False),
     sa.Column("transition_plan_digest", sa.Text(), nullable=False),
     sa.Column("state", sa.Text(), nullable=False),
@@ -93,6 +95,15 @@ pipeline_advancements = sa.Table(
     sa.CheckConstraint(
         "jsonb_typeof(source_input_artifacts) = 'array'",
         name="ck_pipeline_advancements_input_artifacts",
+    ),
+    sa.CheckConstraint(
+        "source_binding_key IS NULL OR source_binding_key ~ '^[a-z][a-z0-9_]{0,79}$'",
+        name="ck_pipeline_advancements_source_binding_key_format",
+    ),
+    sa.CheckConstraint(
+        "source_config_bundle_digest IS NULL OR "
+        "source_config_bundle_digest ~ '^sha256:[0-9a-f]{64}$'",
+        name="ck_pipeline_advancements_config_digest_format",
     ),
     sa.CheckConstraint(
         "state IN ('pending', 'leased', 'applied', 'blocked')",
@@ -165,7 +176,32 @@ sa.Index(
     pipeline_advancement_attempts.c.occurred_at_utc,
 )
 
+pipeline_advancement_discovery_cursor = sa.Table(
+    "pipeline_advancement_discovery_cursor",
+    pipeline_advancement_metadata,
+    sa.Column("cursor_id", sa.SmallInteger(), primary_key=True),
+    sa.Column("last_scanned_updated_at_utc", sa.DateTime(timezone=True), nullable=True),
+    sa.Column("last_scanned_work_id", sa.Uuid(), nullable=True),
+    sa.Column("cycle_max_updated_at_utc", sa.DateTime(timezone=True), nullable=True),
+    sa.Column("cycle_max_work_id", sa.Uuid(), nullable=True),
+    sa.CheckConstraint("cursor_id = 1", name="ck_pipeline_advancement_discovery_cursor_singleton"),
+    sa.CheckConstraint(
+        "(last_scanned_updated_at_utc IS NULL) = (last_scanned_work_id IS NULL)",
+        name="ck_pipeline_advancement_discovery_cursor_pair",
+    ),
+    sa.CheckConstraint(
+        "(cycle_max_updated_at_utc IS NULL) = (cycle_max_work_id IS NULL)",
+        name="ck_pipeline_advancement_discovery_cursor_cycle_pair",
+    ),
+    sa.CheckConstraint(
+        "last_scanned_updated_at_utc IS NULL OR cycle_max_updated_at_utc IS NOT NULL",
+        name="ck_pipeline_advancement_discovery_cursor_active_cycle",
+    ),
+    schema="work",
+)
+
 PIPELINE_ADVANCEMENT_TABLES = (
     pipeline_advancements,
     pipeline_advancement_attempts,
+    pipeline_advancement_discovery_cursor,
 )

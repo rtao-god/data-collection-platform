@@ -13,3 +13,5 @@ items:
       state: not_applicable
     schedule_enabled: false
     extraction_profile: manual-seed-v1
+seed_routing:
+  state: not_configured

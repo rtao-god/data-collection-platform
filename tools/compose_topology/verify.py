@@ -17,6 +17,7 @@ from tools.compose_topology.network_contracts import (  # noqa: E402
     require_port_inventory,
 )
 from tools.compose_topology.runtime_contracts import (  # noqa: E402
+    require_dagster_boundary,
     require_gateway_boundary,
     require_process_hardening,
     require_profiles_and_images,
@@ -24,6 +25,7 @@ from tools.compose_topology.runtime_contracts import (  # noqa: E402
     require_worker_boundaries,
 )
 from tools.compose_topology.secret_contracts import (  # noqa: E402
+    require_dagster_credentials,
     require_secret_inventory,
     require_worker_credentials,
 )
@@ -42,11 +44,13 @@ def verify_topology(
     require_process_hardening(services)
     require_worker_boundaries(services)
     require_gateway_boundary(services)
+    require_dagster_boundary(services)
     require_network_topology(services, networks)
     require_port_inventory(services, environment)
     require_profiles_and_images(services)
     require_secret_inventory(payload, services, secret_root, environment)
     require_worker_credentials(environment)
+    require_dagster_credentials(environment)
 
 
 def _parser() -> argparse.ArgumentParser:

@@ -14,12 +14,18 @@ _MIGRATION_PATH = (
     / "versions"
     / "20260815_0013_pipeline_advancement.py"
 )
+_CURSOR_MIGRATION_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "migrations"
+    / "versions"
+    / "20260820_0017_pipeline_advancement_discovery_cursor.py"
+)
 
 
-def _load_migration() -> ModuleType:
+def _load_migration(path: Path = _MIGRATION_PATH) -> ModuleType:
     spec = importlib.util.spec_from_file_location(
-        "pipeline_advancement_migration",
-        _MIGRATION_PATH,
+        f"pipeline_advancement_migration_{path.stem}",
+        path,
     )
     assert spec is not None
     assert spec.loader is not None
@@ -29,10 +35,13 @@ def _load_migration() -> ModuleType:
 
 
 def test_pipeline_advancement_migration_stays_linear_after_run_control() -> None:
-    """The migration graph must stay a single linear chain and follow run control."""
-    migration = _load_migration()
+    """Pipeline Advancement migrations remain in one ordered chain."""
+    advancement_migration = _load_migration()
+    cursor_migration = _load_migration(_CURSOR_MIGRATION_PATH)
 
-    assert migration.down_revision == "20260815_0012"
+    assert advancement_migration.down_revision == "20260815_0012"
+    assert cursor_migration.revision == "20260820_0017"
+    assert cursor_migration.down_revision == "20260819_0016"
 
 
 @pytest.mark.integration
@@ -45,6 +54,20 @@ def test_pipeline_advancement_schema_guards_are_installed() -> None:
             item["name"]
             for item in inspector.get_check_constraints(
                 "pipeline_advancements",
+                schema="work",
+            )
+        }
+        cursor_columns = {
+            item["name"]
+            for item in inspector.get_columns(
+                "pipeline_advancement_discovery_cursor",
+                schema="work",
+            )
+        }
+        cursor_checks = {
+            item["name"]
+            for item in inspector.get_check_constraints(
+                "pipeline_advancement_discovery_cursor",
                 schema="work",
             )
         }
@@ -62,8 +85,25 @@ def test_pipeline_advancement_schema_guards_are_installed() -> None:
                     )
                 )
             }
+            cursor_count = connection.execute(
+                sa.text("SELECT count(*) FROM work.pipeline_advancement_discovery_cursor")
+            ).scalar_one()
     finally:
         engine.dispose()
 
     assert {"ck_pipeline_advancements_terminal_payload"} <= checks
+    assert cursor_columns == {
+        "cursor_id",
+        "last_scanned_updated_at_utc",
+        "last_scanned_work_id",
+        "cycle_max_updated_at_utc",
+        "cycle_max_work_id",
+    }
+    assert {
+        "ck_pipeline_advancement_discovery_cursor_singleton",
+        "ck_pipeline_advancement_discovery_cursor_pair",
+        "ck_pipeline_advancement_discovery_cursor_cycle_pair",
+        "ck_pipeline_advancement_discovery_cursor_active_cycle",
+    } <= cursor_checks
+    assert cursor_count == 1
     assert {"trg_pipeline_advancement_attempts_immutable"} <= triggers

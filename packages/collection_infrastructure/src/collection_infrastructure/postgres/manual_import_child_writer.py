@@ -22,7 +22,7 @@ from collection_infrastructure.postgres.manual_import_admission import (
     ManualImportAdmissionConflict,
 )
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
-from collection_infrastructure.postgres.work_metadata import stage_runs
+from collection_infrastructure.postgres.work_metadata import stage_runs, work_units
 
 
 class PostgresManualImportChildWorkWriter:
@@ -44,6 +44,11 @@ class PostgresManualImportChildWorkWriter:
         children: Sequence[ManualImportChildWork],
     ) -> tuple[UUID, ...]:
         stage_run_id = _stage_run_id(connection, command)
+        source_binding_key = connection.execute(
+            sa.select(work_units.c.source_binding_key).where(
+                work_units.c.work_id == command.parent_work_id
+            )
+        ).scalar_one_or_none()
         available_at_utc = self._now_utc()
         for child in children:
             artifacts = (
@@ -63,6 +68,7 @@ class PostgresManualImportChildWorkWriter:
                 stage=MANUAL_RECORD_STAGE,
                 capability=MANUAL_RECORD_CAPABILITY,
                 source_key=None,
+                source_binding_key=source_binding_key,
                 semantic_key=child.semantic_key,
                 input_digest=child.input_digest,
                 expected_output_contract=command.target_output_contract,

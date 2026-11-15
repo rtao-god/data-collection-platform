@@ -94,6 +94,13 @@ def test_worker_gateway_openapi_is_deterministic_and_owner_scoped() -> None:
     assert "security" not in document["paths"]["/health/live"]["get"]
 
 
+def test_official_http_reexports_the_single_producer_owned_manifest_model() -> None:
+    from official_http import HttpAcquisitionManifest as ConnectorManifest
+    from official_http_contracts import HttpAcquisitionManifest as ContractManifest
+
+    assert ConnectorManifest is ContractManifest
+
+
 def test_check_reports_missing_stale_and_unexpected_files(tmp_path: Path) -> None:
     generator = _load_generator()
     outputs = generator.build_outputs(_targets(generator))

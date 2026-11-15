@@ -7,8 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from collection_contracts import CandidateRevision
 from review_contracts import (
-    CandidateRevision,
     ManualObservation,
     ReviewCase,
     ReviewDecision,

@@ -696,6 +696,7 @@ class PostgresWorkEngine:
                 stage=command.stage.value,
                 capability=command.capability.value,
                 source_key=command.source_key,
+                source_binding_key=command.source_binding_key,
                 semantic_key=command.semantic_key,
                 input_digest=command.input_digest,
                 expected_output_contract=command.expected_output_contract,
@@ -776,6 +777,18 @@ class PostgresWorkEngine:
                 sa.select(
                     work_input_artifacts.c.artifact_id,
                     work_input_artifacts.c.role,
+                    artifact_objects.c.content_digest,
+                    artifact_objects.c.size_bytes,
+                    artifact_records.c.content_type,
+                )
+                .select_from(
+                    work_input_artifacts.outerjoin(
+                        artifact_records,
+                        artifact_records.c.artifact_id == work_input_artifacts.c.artifact_id,
+                    ).outerjoin(
+                        artifact_objects,
+                        artifact_objects.c.object_id == artifact_records.c.object_id,
+                    )
                 )
                 .where(work_input_artifacts.c.work_id == work_id)
                 .order_by(work_input_artifacts.c.position)
@@ -783,8 +796,32 @@ class PostgresWorkEngine:
             .mappings()
             .all()
         )
+        incomplete = tuple(
+            str(row["artifact_id"])
+            for row in rows
+            if (
+                row["content_digest"] is None
+                or row["size_bytes"] is None
+                or row["content_type"] is None
+            )
+        )
+        if incomplete:
+            raise _conflict(
+                code="WORK_INPUT_ARTIFACT_IDENTITY_MISSING",
+                message="A leased work input has no complete immutable artifact identity.",
+                context={"workId": str(work_id), "artifactIds": incomplete},
+                required_action=(
+                    "Restore the exact artifact record/object binding before leasing work."
+                ),
+            )
         return tuple(
-            WorkInputArtifact(artifact_id=UUID(str(row["artifact_id"])), role=str(row["role"]))
+            WorkInputArtifact(
+                artifact_id=UUID(str(row["artifact_id"])),
+                role=str(row["role"]),
+                content_digest=str(row["content_digest"]),
+                size_bytes=int(row["size_bytes"]),
+                content_type=str(row["content_type"]),
+            )
             for row in rows
         )
 
@@ -1903,6 +1940,7 @@ def _same_work_identity(
         and existing["stage"] == command.stage.value
         and existing["capability"] == command.capability.value
         and existing["source_key"] == command.source_key
+        and existing["source_binding_key"] == command.source_binding_key
         and existing["semantic_key"] == command.semantic_key
         and existing["input_digest"] == command.input_digest
         and existing["expected_output_contract"] == command.expected_output_contract

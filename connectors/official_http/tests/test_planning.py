@@ -50,6 +50,34 @@ def test_robots_evaluation_is_explicit_and_discovers_same_origin_sitemap() -> No
     assert result.sitemap_urls == ("https://example.com/sitemap.xml",)
 
 
+def test_robots_decision_targets_seed_path_not_only_origin_root() -> None:
+    request = _request("robots")
+    body = b"User-agent: *\nDisallow: /studios/private\n"
+
+    root = evaluate_robots(body, request=request, target_url="https://example.com/")
+    seed = evaluate_robots(
+        body,
+        request=request,
+        target_url="https://example.com/studios/private?room=1",
+    )
+
+    assert root.allowed is True
+    assert seed.allowed is False
+    assert seed.target_url == "https://example.com/studios/private?room=1"
+    assert seed.decision_digest != root.decision_digest
+
+
+def test_robots_decision_rejects_cross_origin_target() -> None:
+    with pytest.raises(OfficialHttpError) as failure:
+        evaluate_robots(
+            b"User-agent: *\\nAllow: /\\n",
+            request=_request("robots"),
+            target_url="https://other.example/private",
+        )
+
+    assert failure.value.code == "OFFICIAL_HTTP_ROBOTS_TARGET_ORIGIN_MISMATCH"
+
+
 def test_sitemap_planning_is_same_origin_bounded_and_deterministic() -> None:
     body = b"""<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url><loc>https://example.com/contact?utm_source=x</loc></url>

@@ -17,6 +17,7 @@ from collection_application.pipeline_advancement import (
 from collection_application.pipeline_supervision import (
     PipelinePreviewBlocked,
     PipelineSupervisorService,
+    SuccessfulWorkDiscoveryBatch,
 )
 from collection_domain import WorkStage
 
@@ -116,7 +117,7 @@ class Discovery:
     def list_unregistered_succeeded(self, *, limit, correlation_id):
         assert limit == 25
         assert correlation_id == "pipeline-test"
-        return self.sources
+        return SuccessfulWorkDiscoveryBatch(outputs=self.sources)
 
 
 class Port:

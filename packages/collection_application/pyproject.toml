@@ -5,6 +5,7 @@ description = "Application use cases for the Data Collection Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "collection-contracts",
+  "official-http-contracts",
   "collection-domain",
   "manual-import-core",
   "pydantic==2.13.4",
@@ -20,5 +21,6 @@ packages = ["src/collection_application"]
 
 [tool.uv.sources]
 collection-contracts = { workspace = true }
+official-http-contracts = { workspace = true }
 collection-domain = { workspace = true }
 manual-import-core = { workspace = true }

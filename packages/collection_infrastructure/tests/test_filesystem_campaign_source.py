@@ -40,6 +40,21 @@ def test_campaign_key_cannot_escape_root(tmp_path: Path) -> None:
     assert captured.value.envelope.code == "CAMPAIGN_KEY_INVALID"
 
 
+def test_normalization_profiles_document_is_allowlisted(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaigns" / "example"
+    campaign.mkdir(parents=True)
+    profile_path = campaign / "normalization_profiles.yaml"
+    profile_path.write_text(
+        "schema_revision: normalization-profiles-v1\nitems: []\n",
+        encoding="utf-8",
+    )
+    source = FilesystemCampaignBundleSource(tmp_path / "campaigns")
+
+    bundle = source.read("example", "correlation-normalization-profile")
+
+    assert bundle.files["normalization_profiles.yaml"] == profile_path.read_bytes()
+
+
 def test_unexpected_file_is_rejected(tmp_path: Path) -> None:
     campaign = tmp_path / "campaigns" / "example"
     campaign.mkdir(parents=True)

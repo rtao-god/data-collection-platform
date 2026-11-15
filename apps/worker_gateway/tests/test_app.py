@@ -42,6 +42,16 @@ from collection_application import (
     WorkUnitSpec,
     WorkUnitState,
 )
+from collection_application.pipeline_advancement import (
+    PipelineAdvancementState,
+    PipelineAdvancementStatus,
+    PipelineBlocker,
+)
+from collection_application.pipeline_supervision import (
+    PipelineDiscoveryFailure,
+    PipelineSupervisorService,
+    PipelineSupervisorTick,
+)
 from worker_gateway import (
     GatewayDependencies,
     WorkerAuthenticator,
@@ -56,9 +66,13 @@ _WORK_ID = UUID("019c0000-0000-7000-8000-000000000002")
 _LEASE_TOKEN = UUID("019c0000-0000-7000-8000-000000000003")
 _UPLOAD_ID = UUID("019c0000-0000-7000-8000-000000000004")
 _ARTIFACT_ID = UUID("019c0000-0000-7000-8000-000000000005")
+_ROUTE_CONTEXT_ID = UUID("019c0000-0000-7000-8000-000000000006")
 _NOW = datetime(2026, 8, 11, 12, 0, tzinfo=UTC)
 _DIGEST = "sha256:" + ("a" * 64)
 _OUTPUT_DIGEST = "sha256:" + ("b" * 64)
+_PIPELINE_TOKEN = "pipeline-service-token-0000000000000001"
+_ADVANCEMENT_ID = UUID("019c0000-0000-7000-8000-000000000007")
+_RUN_ID = UUID("019c0000-0000-7000-8000-000000000008")
 
 
 class FakePort:
@@ -185,6 +199,32 @@ class FakeArtifactPort:
         )
 
 
+class FakePipelineSupervisor(PipelineSupervisorService):
+    def __init__(self, tick: PipelineSupervisorTick) -> None:
+        self.tick = tick
+        self.invocation: dict[str, object] | None = None
+
+    def run_once(
+        self,
+        *,
+        registration_limit: int,
+        worker_id: str,
+        dagster_execution_id: str,
+        dagster_build_id: str,
+        lease_duration: timedelta,
+        correlation_id: str,
+    ) -> PipelineSupervisorTick:
+        self.invocation = {
+            "registration_limit": registration_limit,
+            "worker_id": worker_id,
+            "dagster_execution_id": dagster_execution_id,
+            "dagster_build_id": dagster_build_id,
+            "lease_duration": lease_duration,
+            "correlation_id": correlation_id,
+        }
+        return self.tick
+
+
 def _lease(*, source_permit: bool = False, input_artifact: bool = False) -> WorkLease:
     return WorkLease(
         lease_id=_LEASE_ID,
@@ -209,7 +249,13 @@ def _lease(*, source_permit: bool = False, input_artifact: bool = False) -> Work
         ),
         correlation_id="lease-correlation",
         input_artifacts=(
-            (WorkInputArtifact(artifact_id=_ARTIFACT_ID, role="raw_document"),)
+            (
+                WorkInputArtifact(artifact_id=_ARTIFACT_ID, role="http_request"),
+                WorkInputArtifact(
+                    artifact_id=_ROUTE_CONTEXT_ID,
+                    role="website_route_context",
+                ),
+            )
             if input_artifact
             else ()
         ),
@@ -221,6 +267,8 @@ def _client(
     *,
     artifact_port: FakeArtifactPort | None = None,
     readiness_probe: Callable[[], None] | None = None,
+    pipeline_supervisor: PipelineSupervisorService | None = None,
+    pipeline_service_token: str | None = None,
 ) -> TestClient:
     probe = readiness_probe or (lambda: None)
     authenticator = WorkerAuthenticator.from_plaintext_credentials(
@@ -239,6 +287,8 @@ def _client(
                 authenticator=authenticator,
                 readiness_probe=probe,
                 expiry_interval_seconds=0,
+                pipeline_supervisor=pipeline_supervisor,
+                pipeline_service_token=pipeline_service_token,
             )
         ),
         raise_server_exceptions=False,
@@ -249,6 +299,87 @@ def _headers(correlation_id: str = "request-correlation") -> dict[str, str]:
     return {
         "Authorization": f"Bearer {_TOKEN}",
         "X-Correlation-Id": correlation_id,
+    }
+
+
+def test_pipeline_advancement_gateway_serializes_real_nested_tick_models() -> None:
+    blocker = PipelineBlocker(
+        owner="PipelineAdvancement",
+        code="PIPELINE_WEBSITE_ROBOTS_DISALLOWED",
+        message="The exact seed URL is disallowed by robots policy.",
+        required_action="Keep page work blocked and inspect the saved robots decision.",
+        context={"seedUrl": "https://studio.example/contact"},
+    )
+    terminal_status = PipelineAdvancementStatus(
+        advancement_id=_ADVANCEMENT_ID,
+        source_work_unit_id=_WORK_ID,
+        run_id=_RUN_ID,
+        state=PipelineAdvancementState.BLOCKED,
+        transition_key="official_http_robots_route_v1",
+        transition_plan_digest=_DIGEST,
+        revision=4,
+        attempt_count=1,
+        result_digest=None,
+        blocker=blocker,
+        created_at_utc=_NOW,
+        updated_at_utc=_NOW + timedelta(seconds=1),
+    )
+    discovery_failure = PipelineDiscoveryFailure(
+        source_work_unit_id=UUID("019c0000-0000-7000-8000-000000000009"),
+        code="SUCCEEDED_WORK_ARTIFACT_MISSING",
+        message="The successful work output has no canonical artifact metadata.",
+        required_action="Repair the owning completion record before retrying discovery.",
+        context={"artifactRole": "http_request"},
+    )
+    supervisor = FakePipelineSupervisor(
+        PipelineSupervisorTick(
+            registered_count=1,
+            claimed_advancement_id=_ADVANCEMENT_ID,
+            terminal_status=terminal_status,
+            discovery_failures=(discovery_failure,),
+        )
+    )
+
+    with _client(
+        FakePort(),
+        pipeline_supervisor=supervisor,
+        pipeline_service_token=_PIPELINE_TOKEN,
+    ) as client:
+        response = client.post(
+            "/internal/pipeline-advancement/run-once",
+            headers={"Authorization": f"Bearer {_PIPELINE_TOKEN}"},
+            json={
+                "contract": "worker-gateway-pipeline-advancement-run",
+                "contractRevision": "pipeline-advancement-run-v1",
+                "dagsterExecutionId": "dagster-execution-1",
+                "dagsterBuildId": "build-1",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["contract"] == "worker-gateway-pipeline-advancement-tick"
+    assert payload["registeredCount"] == 1
+    assert payload["claimedAdvancementId"] == str(_ADVANCEMENT_ID)
+    assert payload["terminalStatus"]["state"] == "blocked"
+    assert payload["terminalStatus"]["blocker"]["code"] == ("PIPELINE_WEBSITE_ROBOTS_DISALLOWED")
+    assert payload["terminalStatus"]["blocker"]["requiredAction"].startswith("Keep page work")
+    assert payload["discoveryFailures"] == [
+        {
+            "sourceWorkUnitId": "019c0000-0000-7000-8000-000000000009",
+            "code": "SUCCEEDED_WORK_ARTIFACT_MISSING",
+            "message": "The successful work output has no canonical artifact metadata.",
+            "requiredAction": "Repair the owning completion record before retrying discovery.",
+            "context": {"artifactRole": "http_request"},
+        }
+    ]
+    assert supervisor.invocation == {
+        "registration_limit": 100,
+        "worker_id": "dagster-pipeline-advancement",
+        "dagster_execution_id": "dagster-execution-1",
+        "dagster_build_id": "build-1",
+        "lease_duration": timedelta(seconds=300),
+        "correlation_id": response.headers["X-Correlation-Id"],
     }
 
 
@@ -336,7 +467,20 @@ def test_lease_acquisition_distinguishes_no_work_from_an_acquired_lease() -> Non
     assert body["lease"]["workId"] == str(_WORK_ID)
     assert body["lease"]["sourcePermit"]["sourceKey"] == "official_website"
     assert body["lease"]["inputArtifacts"] == [
-        {"artifactId": str(_ARTIFACT_ID), "role": "raw_document"}
+        {
+            "artifactId": str(_ARTIFACT_ID),
+            "role": "http_request",
+            "contentDigest": None,
+            "sizeBytes": None,
+            "contentType": None,
+        },
+        {
+            "artifactId": str(_ROUTE_CONTEXT_ID),
+            "role": "website_route_context",
+            "contentDigest": None,
+            "sizeBytes": None,
+            "contentType": None,
+        },
     ]
     assert port.lease_request is not None
     assert port.lease_request.worker_id == _WORKER_ID

@@ -1,6 +1,10 @@
-from review_contracts.contracts import (
+from collection_contracts import (
     CandidateEvidence,
     CandidateRevision,
+    candidate_snapshot_digest,
+    canonical_digest,
+)
+from review_contracts.contracts import (
     ManualObservation,
     ManualObservationCommand,
     QualityRecord,
@@ -12,8 +16,6 @@ from review_contracts.contracts import (
     SuppressionRevision,
     SuppressionScope,
     SuppressionTargetKind,
-    candidate_snapshot_digest,
-    canonical_digest,
     deterministic_case_id,
     deterministic_decision_id,
     deterministic_manual_observation_id,

@@ -96,6 +96,12 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         ),
         allowed_external_imports=frozenset({"fastapi", "pydantic", "sqlalchemy", "uvicorn"}),
     ),
+    "collector_orchestrator": OwnerPolicy(
+        project_path="apps/dagster_orchestrator",
+        distribution_name="collector-dagster-orchestrator",
+        allowed_internal_imports=("collection_contracts",),
+        allowed_external_imports=frozenset({"dagster", "httpx"}),
+    ),
     "collection_migration": OwnerPolicy(
         project_path="apps/migration",
         distribution_name="collection-migration",
@@ -127,7 +133,7 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
     "official_http": OwnerPolicy(
         project_path="connectors/official_http",
         distribution_name="official-http-connector",
-        allowed_internal_imports=("source_connector_sdk",),
+        allowed_internal_imports=("official_http_contracts", "source_connector_sdk"),
         allowed_external_imports=frozenset({"defusedxml", "pydantic", "scrapy"}),
     ),
     "osm_overpass": OwnerPolicy(
@@ -139,25 +145,26 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
     "review_application": OwnerPolicy(
         project_path="packages/review_application",
         distribution_name="review-application",
-        allowed_internal_imports=("review_contracts",),
+        allowed_internal_imports=("collection_contracts", "review_contracts"),
         allowed_external_imports=frozenset(),
     ),
     "review_contracts": OwnerPolicy(
         project_path="packages/review_contracts",
         distribution_name="review-contracts",
-        allowed_internal_imports=(),
+        allowed_internal_imports=("collection_contracts",),
         allowed_external_imports=frozenset({"pydantic"}),
     ),
     "review_core": OwnerPolicy(
         project_path="packages/review_core",
         distribution_name="review-core",
-        allowed_internal_imports=("review_contracts",),
+        allowed_internal_imports=("collection_contracts", "review_contracts"),
         allowed_external_imports=frozenset(),
     ),
     "review_infrastructure": OwnerPolicy(
         project_path="packages/review_infrastructure",
         distribution_name="review-infrastructure",
         allowed_internal_imports=(
+            "collection_contracts",
             "review_application",
             "review_contracts",
             "review_core",
@@ -170,6 +177,7 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         allowed_internal_imports=(
             "collection_application",
             "collection_contracts",
+            "official_http_contracts",
         ),
         allowed_external_imports=frozenset(
             {"alembic", "boto3", "botocore", "psycopg", "sqlalchemy"}
@@ -180,10 +188,20 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         distribution_name="collection-application",
         allowed_internal_imports=(
             "collection_contracts",
+            "official_http_contracts",
             "collection_domain",
             "manual_import_core",
         ),
         allowed_external_imports=frozenset({"pydantic", "yaml"}),
+    ),
+    "candidate_materialization": OwnerPolicy(
+        project_path="packages/candidate_materialization",
+        distribution_name="candidate-materialization",
+        allowed_internal_imports=(
+            "collection_contracts",
+            "resolution_contracts",
+        ),
+        allowed_external_imports=frozenset(),
     ),
     "extraction_core": OwnerPolicy(
         project_path="packages/extraction_core",
@@ -236,6 +254,12 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
     "collection_contracts": OwnerPolicy(
         project_path="packages/collection_contracts",
         distribution_name="collection-contracts",
+        allowed_internal_imports=(),
+        allowed_external_imports=frozenset({"pydantic"}),
+    ),
+    "official_http_contracts": OwnerPolicy(
+        project_path="packages/official_http_contracts",
+        distribution_name="official-http-contracts",
         allowed_internal_imports=(),
         allowed_external_imports=frozenset({"pydantic"}),
     ),

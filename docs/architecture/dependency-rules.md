@@ -14,17 +14,19 @@ by the normal architecture check.
 | `processing_worker` | `apps/processing_worker` | `collection_contracts`, `extraction_core`, `normalization_core`, `source_connector_sdk` | `pydantic` |
 | `resolution_worker` | `apps/resolution_worker` | `entity_resolution_core`, `quality_core`, `resolution_contracts`, `source_connector_sdk` | none |
 | `worker_gateway` | `apps/worker_gateway` | `collection_application`, `collection_contracts`, `collection_infrastructure` | `fastapi`, `pydantic`, `sqlalchemy`, `uvicorn` |
+| `collector_orchestrator` | `apps/dagster_orchestrator` | `collection_contracts` | `dagster`, `httpx` |
 | `collection_migration` | `apps/migration` | `collection_contracts`, `collection_infrastructure` | none |
 | `manual_import_worker` | `apps/manual_import_worker` | `collection_contracts`, `manual_import_core`, `source_connector_sdk` | `httpx` |
 | `osm_worker` | `apps/osm_worker` | `osm_overpass`, `source_connector_sdk` | none |
-| `official_http` | `connectors/official_http` | `source_connector_sdk` | `defusedxml`, `pydantic`, `scrapy` |
+| `official_http` | `connectors/official_http` | `official_http_contracts`, `source_connector_sdk` | `defusedxml`, `pydantic`, `scrapy` |
 | `osm_overpass` | `connectors/osm_overpass` | none | `httpx` |
-| `review_application` | `packages/review_application` | `review_contracts` | none |
-| `review_contracts` | `packages/review_contracts` | none | `pydantic` |
-| `review_core` | `packages/review_core` | `review_contracts` | none |
-| `review_infrastructure` | `packages/review_infrastructure` | `review_application`, `review_contracts`, `review_core` | `sqlalchemy` |
-| `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
-| `collection_application` | `packages/collection_application` | `collection_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
+| `review_application` | `packages/review_application` | `collection_contracts`, `review_contracts` | none |
+| `review_contracts` | `packages/review_contracts` | `collection_contracts` | `pydantic` |
+| `review_core` | `packages/review_core` | `collection_contracts`, `review_contracts` | none |
+| `review_infrastructure` | `packages/review_infrastructure` | `collection_contracts`, `review_application`, `review_contracts`, `review_core` | `sqlalchemy` |
+| `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts`, `official_http_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
+| `collection_application` | `packages/collection_application` | `collection_contracts`, `official_http_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
+| `candidate_materialization` | `packages/candidate_materialization` | `collection_contracts`, `resolution_contracts` | none |
 | `extraction_core` | `packages/extraction_core` | `collection_contracts` | `extruct`, `lxml` |
 | `normalization_core` | `packages/normalization_core` | `collection_contracts` | `phonenumbers`, `tldextract` |
 | `entity_resolution_core` | `packages/entity_resolution_core` | `resolution_contracts` | none |
@@ -34,6 +36,7 @@ by the normal architecture check.
 | `source_connector_sdk` | `packages/source_connector_sdk` | `collection_contracts` | `httpx` |
 | `collection_domain` | `packages/collection_domain` | none | none |
 | `collection_contracts` | `packages/collection_contracts` | none | `pydantic` |
+| `official_http_contracts` | `packages/official_http_contracts` | none | `pydantic` |
 <!-- dependency-policy:end -->
 
 The checker is fail-closed for Python production projects under `apps/`, `packages/`, and

@@ -15,6 +15,7 @@ _ROOT_FILES = frozenset(
         "campaign.yaml",
         "entity_kinds.yaml",
         "geography.yaml",
+        "normalization_profiles.yaml",
         "source_bindings.yaml",
         "taxonomy.yaml",
     }

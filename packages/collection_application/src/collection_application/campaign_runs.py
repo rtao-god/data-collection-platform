@@ -24,7 +24,7 @@ from collection_application.work_engine import (
     StageRunSpec,
     WorkUnitSpec,
 )
-from collection_contracts import SourceBinding, SourcePolicy, owner_error
+from collection_contracts import SourceBinding, SourceBindingsDocument, SourcePolicy, owner_error
 from collection_domain import (
     CollectionRunState,
     RetryPolicy,
@@ -119,6 +119,12 @@ class CampaignRunService:
         sources: list[SourceCapacitySpec] = []
         initial_work: list[WorkUnitSpec] = []
         enabled = set(compiled.documents.campaign.enabled_source_bindings)
+        routed_http_bindings = _routed_http_bindings(
+            compiled.documents.source_bindings,
+            enabled=enabled,
+            campaign_key=command.campaign_key,
+            correlation_id=command.correlation_id,
+        )
         for binding in compiled.documents.source_bindings.items:
             if binding.key not in enabled:
                 continue
@@ -153,7 +159,7 @@ class CampaignRunService:
                         now_utc,
                     )
                 )
-            else:
+            elif binding.capability != "http_fetch" or binding.key not in routed_http_bindings:
                 raise owner_error(
                     error_type="collection/source-bootstrap-unsupported",
                     owner="CampaignRun",
@@ -230,6 +236,7 @@ class CampaignRunService:
             stage=WorkStage.DISCOVERY,
             capability=WorkCapability.MANUAL_IMPORT,
             source_key=binding.source_key,
+            source_binding_key=binding.key,
             semantic_key=semantic_key,
             input_digest=semantic_key,
             expected_output_contract="manual-import-plan@1",
@@ -255,6 +262,53 @@ class CampaignRunService:
         if value.tzinfo is None or value.utcoffset() != timedelta(0):
             raise ValueError("campaign run clock must return timezone-aware UTC")
         return value
+
+
+def _routed_http_bindings(
+    source_bindings: SourceBindingsDocument,
+    *,
+    enabled: set[str],
+    campaign_key: str,
+    correlation_id: str,
+) -> frozenset[str]:
+    routing = source_bindings.seed_routing
+    routes = routing.routes if routing.state == "configured" else ()
+    target_keys = {route.target_binding for route in routes if route.source_binding in enabled}
+    routed_http = frozenset(
+        binding.key
+        for binding in source_bindings.items
+        if binding.key in enabled
+        and binding.key in target_keys
+        and binding.capability == "http_fetch"
+    )
+    unsupported = next(
+        (
+            binding
+            for binding in source_bindings.items
+            if binding.key in enabled
+            and binding.capability != "manual_import"
+            and binding.key not in routed_http
+        ),
+        None,
+    )
+    if unsupported is not None:
+        raise owner_error(
+            error_type="collection/source-bootstrap-unsupported",
+            owner="CampaignRun",
+            code="SOURCE_BOOTSTRAP_UNSUPPORTED",
+            message="The enabled source binding has no run bootstrap owner.",
+            context={
+                "campaignKey": campaign_key,
+                "sourceBinding": unsupported.key,
+                "capability": unsupported.capability,
+            },
+            required_action=(
+                "Configure a supported manual import or route the HTTP binding from a source "
+                "that has a run bootstrap owner."
+            ),
+            correlation_id=correlation_id,
+        )
+    return routed_http
 
 
 def _source_spec(

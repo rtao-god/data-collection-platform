@@ -10,8 +10,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from official_http.contracts import OfficialHttpRequest, ResponseHeader
+from official_http.contracts import OfficialHttpRequest
 from official_http.errors import OfficialHttpError
+from official_http_contracts import ResponseHeader
 
 
 @dataclass(frozen=True, slots=True)

@@ -71,6 +71,18 @@ def test_non_robots_request_requires_explicit_allowed_decision() -> None:
     assert failure.value.code == "OFFICIAL_HTTP_REQUEST_CONTRACT_INVALID"
 
 
+def test_sitemap_rejects_unverified_robots_manifest_digest() -> None:
+    with pytest.raises(OfficialHttpError) as failure:
+        decode_http_request(
+            _body(
+                requestKind="sitemap",
+                pageInterests=[],
+                robotsManifestDigest="sha256:" + "9" * 64,
+            )
+        )
+    assert failure.value.code == "OFFICIAL_HTTP_REQUEST_CONTRACT_INVALID"
+
+
 def test_conditional_request_requires_exact_prior_artifact_pair() -> None:
     with pytest.raises(OfficialHttpError):
         decode_http_request(_body(ifNoneMatch='"etag"'))

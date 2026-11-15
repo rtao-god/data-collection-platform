@@ -4,7 +4,7 @@
 
 `work-engine/run-control` — создание запусков и стадий, управление запуском оператором, coverage и операторская HTTP-граница.
 
-`work-engine/work-execution` — семантика work unit, lease и heartbeat, классификация retry, ёмкость источника и протокол worker gateway.
+`work-engine/work-execution` — семантика work unit, lease и heartbeat, классификация retry, ёмкость источника, протокол Worker Gateway и его Collection-owned runtime composition.
 
 `work-engine/artifact-lifecycle` — загрузка, проверка, привязка ролей, content-addressed хранение, очистка и обработка сирот.
 
@@ -21,6 +21,7 @@ Worker → регистрация → аренда (`FOR UPDATE ... SKIP LOCKED`
 Границы:
 
 - Collection DB — единственный владелец atomic checkpoint; пауза блокирует новые аренды через каноническое состояние запуска, без второго флага планировщика;
+- Dagster вызывает Pipeline Advancement через закрытый authenticated Worker Gateway endpoint; Gateway собирает существующих Collection owners, Dagster не получает Collection DB credentials;
 - завершение требует точных ID работы, аренды, токена, worker'а, build identity, входного digest и привязок выходных артефактов;
 - `attempt_count` считает каждую аренду, retry-budget расходует только `failure_count`, поэтому безопасное освобождение не становится сбоем;
 - физический контент переиспользуется по kind и digest, но каждая завершённая работа создаёт отдельную неизменяемую запись артефакта;

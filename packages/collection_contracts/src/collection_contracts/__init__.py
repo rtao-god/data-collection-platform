@@ -7,12 +7,21 @@ from collection_contracts.campaign_config import (
     GeographyDocument,
     GeographyProvenanceDocument,
     ManualSeedRow,
+    NetworkAccess,
+    NormalizationProfileDefinition,
+    NormalizationProfilesDocument,
     SourceBinding,
     SourceBindingsDocument,
     SourcePolicy,
     TaxonomyCategory,
     TaxonomyDocument,
 )
+from collection_contracts.candidate import (
+    CandidateEvidence,
+    CandidateRevision,
+    candidate_snapshot_digest,
+)
+from collection_contracts.canonical import canonical_digest
 from collection_contracts.errors import ErrorEnvelope, OwnerContextError, owner_error
 from collection_contracts.manual_import import (
     ManualImportDisposition,
@@ -23,6 +32,11 @@ from collection_contracts.manual_import import (
     ManualImportPlan,
     ManualImportRecord,
     ManualImportRecordDocument,
+)
+from collection_contracts.manual_record_lineage import (
+    ManualRecordLineage,
+    canonical_manual_record_lineage_bytes,
+    decode_manual_record_lineage,
 )
 from collection_contracts.observations import (
     BooleanObservationValue,
@@ -73,6 +87,11 @@ from collection_contracts.observations import (
     verify_observation_batch,
 )
 from collection_contracts.snapshot import CampaignSnapshot, ComponentDigest, SnapshotBlocker
+from collection_contracts.website_route import (
+    WebsitePageInterest,
+    WebsiteRouteContext,
+    decode_website_route_context,
+)
 
 __all__ = [
     "AttributeDefinition",
@@ -81,6 +100,8 @@ __all__ = [
     "BooleanPatternRule",
     "CampaignDocument",
     "CampaignSnapshot",
+    "CandidateEvidence",
+    "CandidateRevision",
     "ComponentDigest",
     "EmailObservationValue",
     "EntityKind",
@@ -116,10 +137,14 @@ __all__ = [
     "ManualImportPlan",
     "ManualImportRecord",
     "ManualImportRecordDocument",
+    "ManualRecordLineage",
     "ManualSeedRow",
     "MoneyObservationValue",
+    "NetworkAccess",
     "NormalizationFieldRule",
     "NormalizationProfile",
+    "NormalizationProfileDefinition",
+    "NormalizationProfilesDocument",
     "ObservationBatch",
     "ObservationBatchPayload",
     "ObservationIssue",
@@ -138,10 +163,17 @@ __all__ = [
     "TaxonomyDocument",
     "TextObservationValue",
     "UrlObservationValue",
+    "WebsitePageInterest",
+    "WebsiteRouteContext",
+    "candidate_snapshot_digest",
+    "canonical_digest",
     "canonical_extracted_record_json",
+    "canonical_manual_record_lineage_bytes",
     "canonical_observation_batch_json",
     "decode_extracted_record",
+    "decode_manual_record_lineage",
     "decode_observation_batch",
+    "decode_website_route_context",
     "owner_error",
     "seal_extracted_record",
     "seal_field_observation",

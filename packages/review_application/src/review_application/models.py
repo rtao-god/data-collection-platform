@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from collection_contracts import CandidateRevision
 from review_contracts import (
-    CandidateRevision,
     ManualObservation,
     QualityRecord,
     ReviewCase,

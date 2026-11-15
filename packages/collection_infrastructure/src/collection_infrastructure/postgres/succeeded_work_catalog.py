@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -9,21 +12,44 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import Select
 
 from collection_application import WorkStage
+from collection_application.canonicalization import sha256_json
 from collection_application.pipeline_advancement import (
     ArtifactIdentity,
     PipelineAdvancementConflict,
     SucceededWorkOutput,
 )
+from collection_application.pipeline_supervision import (
+    PipelineDiscoveryFailure,
+    SuccessfulWorkDiscoveryBatch,
+)
+from collection_contracts import (
+    CampaignDocument,
+    NormalizationProfile,
+    NormalizationProfilesDocument,
+    SourceBindingsDocument,
+    SourcePolicy,
+    canonical_observation_batch_json,
+    decode_extracted_record,
+    decode_observation_batch,
+)
+from collection_infrastructure.object_store import ArtifactObjectStoreError, S3ArtifactObjectStore
 from collection_infrastructure.postgres.artifact_metadata import (
     artifact_objects,
     artifact_records,
     work_input_artifacts,
     work_output_artifacts,
 )
+from collection_infrastructure.postgres.metadata import (
+    config_bundle_artifacts,
+    config_bundle_components,
+    config_bundles,
+)
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
+    pipeline_advancement_discovery_cursor,
     pipeline_advancements,
 )
-from collection_infrastructure.postgres.work_metadata import stage_runs, work_units
+from collection_infrastructure.postgres.work_metadata import collection_runs, stage_runs, work_units
+from official_http_contracts import HttpAcquisitionManifest
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,8 +61,14 @@ class _BoundArtifact:
 class PostgresSucceededWorkCatalog:
     """Read canonical succeeded-work output and discover unregistered work."""
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        object_store: S3ArtifactObjectStore | None = None,
+    ) -> None:
         self._engine = engine
+        self._object_store = object_store
 
     def __call__(
         self,
@@ -92,23 +124,175 @@ class PostgresSucceededWorkCatalog:
 
         inputs = _load_artifacts(connection, work_input_artifacts, source_work_unit_id)
         outputs = _load_artifacts(connection, work_output_artifacts, source_work_unit_id)
-        if len(outputs) != 1:
-            raise PipelineAdvancementConflict(
-                code="PIPELINE_OUTPUT_ARTIFACT_CARDINALITY",
-                message="Successful work must bind exactly one canonical output artifact.",
-                context={
-                    "sourceWorkUnitId": str(source_work_unit_id),
-                    "outputArtifactCount": len(outputs),
-                },
-                required_action=(
-                    "Repair work completion so the exact output contract has one "
-                    "canonical artifact."
-                ),
+        lineage_bindings = tuple(
+            item.artifact for item in inputs if item.artifact.role == "manual_record_lineage"
+        )
+        if len(lineage_bindings) > 1:
+            raise _catalog_conflict(
+                "PIPELINE_MANUAL_RECORD_LINEAGE_BINDINGS_INVALID",
+                "Work has duplicate manual-record lineage input artifacts.",
+                source_work_unit_id,
+                "Repair the exact lineage input binding at the work producer.",
             )
+        manual_record_lineage_content = (
+            self._read_artifact_content(
+                connection,
+                lineage_bindings[0],
+                source_work_unit_id,
+                maximum_bytes=64 * 1024,
+            )
+            if lineage_bindings
+            else None
+        )
+        capability = _required_text(work, "capability")
+        output_contract = _required_text(work, "output_contract")
+        http_request_content = None
+        normalization_profile_content = None
+        is_normalization = (
+            capability == "normalization" and output_contract == "field-observation-batch@1"
+        )
+        website_route_context_content = None
+        extraction_request_content = None
+        needs_page_snapshot = False
+        needs_extraction_snapshot = False
+        is_official_http = (
+            capability == "http_fetch" and output_contract == "official-http-acquisition@1"
+        )
+        is_extracted_record = capability == "extraction" and output_contract == "extracted-record@1"
+        if is_official_http:
+            by_role = {item.artifact.role: item.artifact for item in outputs}
+            if (
+                len(outputs) not in {1, 2}
+                or len(by_role) != len(outputs)
+                or "http_acquisition_manifest" not in by_role
+                or set(by_role) - {"http_acquisition_manifest", "http_raw_response"}
+            ):
+                raise _catalog_conflict(
+                    "PIPELINE_HTTP_OUTPUT_BINDINGS_INVALID",
+                    "Official HTTP success must bind one manifest and at most one raw response.",
+                    source_work_unit_id,
+                    "Repair successful HTTP completion with its canonical manifest/raw roles.",
+                )
+            output = by_role["http_acquisition_manifest"]
+            raw_output = by_role.get("http_raw_response")
+            manifest_content = self._read_artifact_content(
+                connection,
+                output,
+                source_work_unit_id,
+                maximum_bytes=2 * 1024 * 1024,
+            )
+            manifest = _verify_official_http_bindings(
+                manifest_content,
+                output_digest=_required_text(work, "output_digest"),
+                manifest_digest=output.content_digest,
+                raw_output=raw_output,
+                input_artifacts=inputs,
+                source_work_unit_id=source_work_unit_id,
+            )
+            output_content = manifest_content
+            context_bindings = tuple(
+                item.artifact for item in inputs if item.artifact.role == "website_route_context"
+            )
+            needs_page_snapshot = manifest.request_kind == "page" and len(context_bindings) == 1
+            request_bindings = tuple(
+                item.artifact for item in inputs if item.artifact.role == "http_request"
+            )
+            if len(request_bindings) != 1 or (context_bindings and len(context_bindings) != 1):
+                raise _catalog_conflict(
+                    "PIPELINE_WEBSITE_ROUTE_BINDINGS_INVALID",
+                    "HTTP work must bind one request and, when routed, one route context.",
+                    source_work_unit_id,
+                    "Repair the exact HTTP request and optional route-context artifact roles.",
+                )
+            http_request_content = self._read_artifact_content(
+                connection,
+                request_bindings[0],
+                source_work_unit_id,
+                maximum_bytes=1024 * 1024,
+            )
+            if context_bindings:
+                website_route_context_content = self._read_artifact_content(
+                    connection,
+                    context_bindings[0],
+                    source_work_unit_id,
+                    maximum_bytes=256 * 1024,
+                )
+            related_output_artifacts = (raw_output,) if raw_output is not None else ()
+        elif is_extracted_record:
+            by_role = {item.artifact.role: item.artifact for item in outputs}
+            raw_inputs = tuple(
+                item.artifact for item in inputs if item.artifact.role == "raw_source_document"
+            )
+            request_inputs = tuple(
+                item.artifact for item in inputs if item.artifact.role == "extraction_request"
+            )
+            if (
+                len(outputs) != 1
+                or len(by_role) != 1
+                or "extracted_record" not in by_role
+                or len(inputs) != 2
+                or len(raw_inputs) != 1
+                or len(request_inputs) != 1
+            ):
+                raise _catalog_conflict(
+                    "PIPELINE_EXTRACTION_OUTPUT_BINDINGS_INVALID",
+                    "Extraction success must bind one extracted record, one raw source, "
+                    "and one request.",
+                    source_work_unit_id,
+                    "Repair the exact extraction output and its immutable request/raw input roles.",
+                )
+            output = by_role["extracted_record"]
+            if output.content_type != "application/vnd.collection.extracted-record+json":
+                raise _catalog_conflict(
+                    "PIPELINE_EXTRACTION_OUTPUT_CONTRACT_INVALID",
+                    "The extracted-record artifact content type is unsupported.",
+                    source_work_unit_id,
+                    "Republish the extracted record using its declared JSON content type.",
+                )
+            output_content = self._read_artifact_content(
+                connection,
+                output,
+                source_work_unit_id,
+                maximum_bytes=64 * 1024 * 1024,
+            )
+            extraction_request_content = self._read_artifact_content(
+                connection,
+                request_inputs[0],
+                source_work_unit_id,
+                maximum_bytes=1024 * 1024,
+            )
+            needs_extraction_snapshot = True
+            related_output_artifacts = ()
+        elif is_normalization:
+            output, output_content, normalization_profile_content = self._read_normalization_output(
+                connection,
+                source_work_unit_id,
+                outputs=outputs,
+                inputs=inputs,
+                output_digest=_required_text(work, "output_digest"),
+            )
+            needs_extraction_snapshot = True
+            related_output_artifacts = ()
+        else:
+            if len(outputs) != 1:
+                raise PipelineAdvancementConflict(
+                    code="PIPELINE_OUTPUT_ARTIFACT_CARDINALITY",
+                    message="Successful work must bind exactly one canonical output artifact.",
+                    context={
+                        "sourceWorkUnitId": str(source_work_unit_id),
+                        "outputArtifactCount": len(outputs),
+                    },
+                    required_action=(
+                        "Repair work completion so the exact output contract has one "
+                        "canonical artifact."
+                    ),
+                )
+            output = outputs[0].artifact
+            output_content = None
+            related_output_artifacts = ()
 
         input_ids = {item.artifact.artifact_id for item in inputs}
-        output = outputs[0].artifact
-        if output.artifact_id in input_ids:
+        if any(item.artifact_id in input_ids for item in (output, *related_output_artifacts)):
             raise _catalog_conflict(
                 "PIPELINE_ARTIFACT_DIRECTION_CONFLICT",
                 "One artifact is bound as both pipeline input and output.",
@@ -116,7 +300,56 @@ class PostgresSucceededWorkCatalog:
                 "Repair immutable artifact bindings before advancement.",
             )
         output_digest = _required_text(work, "output_digest")
-
+        run = (
+            connection.execute(sa.select(collection_runs).where(collection_runs.c.run_id == run_id))
+            .mappings()
+            .one_or_none()
+        )
+        if run is None:
+            raise _catalog_conflict(
+                "PIPELINE_RUN_OWNER_NOT_FOUND",
+                "The successful work has no canonical collection run owner.",
+                source_work_unit_id,
+                "Repair the run ownership before advancing the successful output.",
+            )
+        config_bundle_digest = _required_text(run, "config_bundle_digest")
+        campaign_key = _required_text(run, "campaign_key")
+        campaign_bundle_content = None
+        is_manual_record = (
+            capability == "manual_record" and output_contract == "manual-import-record@1"
+        )
+        if is_manual_record or needs_page_snapshot or needs_extraction_snapshot:
+            campaign_bundle_content = self._read_campaign_bundle(
+                connection,
+                config_bundle_digest,
+                source_work_unit_id,
+                expected_campaign_key=campaign_key,
+            )
+        if is_manual_record:
+            output_content = self._read_artifact_content(
+                connection,
+                output,
+                source_work_unit_id,
+                maximum_bytes=4 * 1024 * 1024,
+            )
+        source_binding_key = (
+            str(work["source_binding_key"]) if work["source_binding_key"] is not None else None
+        )
+        if is_normalization:
+            if campaign_bundle_content is None or normalization_profile_content is None:
+                raise _catalog_conflict(
+                    "PIPELINE_NORMALIZATION_SNAPSHOT_MISSING",
+                    "Normalization profile provenance requires the exact run snapshot.",
+                    source_work_unit_id,
+                    "Restore the run-bound snapshot and profile artifact before candidate intake.",
+                )
+            self._verify_normalization_profile_snapshot(
+                source_work_unit_id,
+                snapshot_content=campaign_bundle_content,
+                source_binding_key=source_binding_key,
+                profile_content=normalization_profile_content,
+                batch_content=output_content,
+            )
         return SucceededWorkOutput(
             source_work_unit_id=source_work_unit_id,
             run_id=run_id,
@@ -126,27 +359,382 @@ class PostgresSucceededWorkCatalog:
             output_contract=_required_text(work, "output_contract"),
             output_digest=output_digest,
             output_artifact=output,
+            source_binding_key=source_binding_key,
+            config_bundle_digest=config_bundle_digest,
+            campaign_bundle_content=campaign_bundle_content,
+            output_content=output_content,
             input_artifacts=tuple(item.artifact for item in inputs),
+            related_output_artifacts=related_output_artifacts,
+            http_request_content=http_request_content,
+            website_route_context_content=website_route_context_content,
+            extraction_request_content=extraction_request_content,
+            normalization_profile_content=normalization_profile_content,
+            manual_record_lineage_content=manual_record_lineage_content,
         )
+
+    @staticmethod
+    def _verify_normalization_profile_snapshot(
+        source_work_unit_id: UUID,
+        *,
+        snapshot_content: bytes,
+        source_binding_key: str | None,
+        profile_content: bytes,
+        batch_content: bytes | None,
+    ) -> None:
+        try:
+            if source_binding_key is None or batch_content is None:
+                raise ValueError("normalization binding or output is missing")
+            snapshot = json.loads(snapshot_content)
+            components = {item["path"]: item["content"] for item in snapshot["components"]}
+            campaign = CampaignDocument.model_validate(components["campaign.yaml"])
+            bindings = SourceBindingsDocument.model_validate(components["source_bindings.yaml"])
+            matching_bindings = tuple(
+                item for item in bindings.items if item.key == source_binding_key
+            )
+            if len(matching_bindings) != 1:
+                raise ValueError("source binding is absent or ambiguous in the run snapshot")
+            binding = matching_bindings[0]
+            if binding.normalization_profile is None:
+                raise ValueError("source binding has no normalization profile")
+            profiles = NormalizationProfilesDocument.model_validate(
+                components["normalization_profiles.yaml"]
+            )
+            matching_profiles = tuple(
+                item for item in profiles.items if item.key == binding.normalization_profile
+            )
+            if len(matching_profiles) != 1:
+                raise ValueError("binding profile is absent or ambiguous in the run snapshot")
+            profile = matching_profiles[0].profile
+            expected_profile_bytes = json.dumps(
+                profile.model_dump(mode="json", by_alias=True),
+                ensure_ascii=False,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+            batch = decode_observation_batch(batch_content)
+            policy_document = components[f"source_policies/{binding.source_policy_key}.yaml"]
+            policy = SourcePolicy.model_validate(policy_document)
+            source_fields = {rule.source_field for rule in profile.field_rules}
+            target_fields = {
+                *(rule.target_field for rule in profile.field_rules),
+                *(rule.target_field for rule in profile.boolean_pattern_rules),
+            }
+            if (
+                expected_profile_bytes != profile_content
+                or batch.normalizer_revision != profile.normalizer_revision
+                or batch.source_policy_digest != sha256_json(policy.model_dump(mode="json"))
+                or policy.source_key != binding.source_key
+                or policy.policy_key != binding.source_policy_key
+                or campaign.campaign_key != snapshot["campaignKey"]
+                or binding.key not in campaign.enabled_source_bindings
+                or not source_fields.issubset(policy.allowed_fields)
+                or not target_fields.issubset(policy.allowed_fields)
+                or target_fields.intersection(policy.prohibited_fields)
+                or target_fields.intersection(profile.prohibited_fields)
+            ):
+                raise ValueError("normalization profile differs from exact run snapshot policy")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise _catalog_conflict(
+                "PIPELINE_NORMALIZATION_PROFILE_SNAPSHOT_MISMATCH",
+                "The normalization profile artifact is not the exact profile authorized by "
+                "the run snapshot.",
+                source_work_unit_id,
+                "Re-run normalization using the exact immutable snapshot profile and "
+                "source policy.",
+            ) from exc
+
+    def _read_normalization_output(
+        self,
+        connection: Connection,
+        source_work_unit_id: UUID,
+        *,
+        outputs: tuple[_BoundArtifact, ...],
+        inputs: tuple[_BoundArtifact, ...],
+        output_digest: str,
+    ) -> tuple[ArtifactIdentity, bytes, bytes]:
+        output_bindings = {item.artifact.role: item.artifact for item in outputs}
+        input_bindings = {item.artifact.role: item.artifact for item in inputs}
+        if (
+            len(outputs) != 1
+            or set(output_bindings) != {"field_observation_batch"}
+            or len(inputs) != 2
+            or set(input_bindings) != {"extracted_record", "normalization_profile"}
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_NORMALIZATION_ARTIFACT_BINDINGS_INVALID",
+                "Normalization success must bind one observation batch, extracted record, "
+                "and profile.",
+                source_work_unit_id,
+                "Repair the exact normalization artifact roles before advancement.",
+            )
+        output = output_bindings["field_observation_batch"]
+        extracted_artifact = input_bindings["extracted_record"]
+        profile_artifact = input_bindings["normalization_profile"]
+        if (
+            output.content_type != "application/vnd.collection.field-observation-batch+json"
+            or extracted_artifact.content_type != "application/vnd.collection.extracted-record+json"
+            or profile_artifact.content_type
+            != "application/vnd.collection.normalization-profile+json"
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_NORMALIZATION_ARTIFACT_CONTRACT_INVALID",
+                "Normalization artifact content types do not match their exact roles.",
+                source_work_unit_id,
+                "Repair the immutable normalization output and input artifact metadata.",
+            )
+        batch_content = self._read_artifact_content(
+            connection, output, source_work_unit_id, maximum_bytes=16 * 1024 * 1024
+        )
+        extracted_content = self._read_artifact_content(
+            connection, extracted_artifact, source_work_unit_id, maximum_bytes=64 * 1024 * 1024
+        )
+        profile_content = self._read_artifact_content(
+            connection, profile_artifact, source_work_unit_id, maximum_bytes=1024 * 1024
+        )
+        try:
+            batch = decode_observation_batch(batch_content)
+            extracted = decode_extracted_record(extracted_content)
+            profile = NormalizationProfile.model_validate_json(profile_content, strict=True)
+            canonical_profile = json.dumps(
+                profile.model_dump(mode="json", by_alias=True),
+                ensure_ascii=False,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise _catalog_conflict(
+                "PIPELINE_NORMALIZATION_ARTIFACT_INVALID",
+                "The exact batch, extracted record, or normalization profile violates "
+                "its contract.",
+                source_work_unit_id,
+                "Repair the immutable normalization producer artifacts before advancement.",
+            ) from exc
+        if (
+            canonical_observation_batch_json(batch).encode("utf-8") != batch_content
+            or batch.content_digest != output_digest
+            or canonical_profile != profile_content
+            or batch.source_record_id != extracted.source_record_id
+            or batch.extracted_record_digest != extracted.content_digest
+            or batch.raw_artifact_digest != extracted.raw_artifact_digest
+            or batch.source_policy_digest != extracted.source_policy_digest
+            or batch.normalizer_revision != profile.normalizer_revision
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_NORMALIZATION_LINEAGE_MISMATCH",
+                "The normalized batch, extracted record, profile, and work output do not "
+                "share exact lineage.",
+                source_work_unit_id,
+                "Repair the exact upstream artifact bindings; do not infer normalization "
+                "provenance.",
+            )
+        return output, batch_content, profile_content
+
+    def _read_campaign_bundle(
+        self,
+        connection: Connection,
+        bundle_digest: str,
+        source_work_unit_id: UUID,
+        *,
+        expected_campaign_key: str,
+    ) -> bytes:
+        if self._object_store is None:
+            raise _catalog_conflict(
+                "PIPELINE_ARTIFACT_READER_UNAVAILABLE",
+                "The succeeded-work catalog cannot read immutable snapshot content.",
+                source_work_unit_id,
+                (
+                    "Configure the verified object-store reader before "
+                    "registering pipeline advancement."
+                ),
+            )
+        bundle = (
+            connection.execute(
+                sa.select(config_bundles).where(config_bundles.c.bundle_digest == bundle_digest)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        components = tuple(
+            connection.execute(
+                sa.select(
+                    config_bundle_components.c.path,
+                    config_bundle_components.c.component_digest,
+                )
+                .where(config_bundle_components.c.bundle_digest == bundle_digest)
+                .order_by(config_bundle_components.c.position)
+            ).all()
+        )
+        artifact_ids = tuple(
+            connection.execute(
+                sa.select(config_bundle_artifacts.c.artifact_id).where(
+                    config_bundle_artifacts.c.bundle_digest == bundle_digest
+                )
+            ).scalars()
+        )
+        if (
+            bundle is None
+            or bundle["readiness"] != "ready"
+            or bundle["campaign_key"] != expected_campaign_key
+            or len(artifact_ids) != 1
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_SNAPSHOT_IDENTITY_INVALID",
+                "The run's immutable campaign snapshot has incomplete canonical metadata.",
+                source_work_unit_id,
+                "Repair the exact campaign snapshot metadata before advancing its work.",
+            )
+        content, artifact_kind = self._read_artifact_identity(
+            connection,
+            artifact_ids[0],
+            source_work_unit_id,
+            maximum_bytes=16 * 1024 * 1024,
+        )
+        if artifact_kind != "config_bundle" or _content_digest(content) != bundle_digest:
+            raise _catalog_conflict(
+                "PIPELINE_SNAPSHOT_ARTIFACT_CONFLICT",
+                "The run snapshot artifact does not match its immutable bundle identity.",
+                source_work_unit_id,
+                "Repair the snapshot artifact binding and preserve the exact run digest.",
+            )
+        try:
+            document = json.loads(content.decode("utf-8"))
+            components_in_artifact = tuple(
+                (item["path"], item["digest"]) for item in document["components"]
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise _catalog_conflict(
+                "PIPELINE_SNAPSHOT_ARTIFACT_INVALID",
+                "The exact campaign snapshot artifact has no valid component ledger.",
+                source_work_unit_id,
+                (
+                    "Repair the immutable snapshot content through its owner; "
+                    "do not rebuild it during read."
+                ),
+            ) from exc
+        expected_components = tuple((row.path, row.component_digest) for row in components)
+        if (
+            document.get("campaignKey") != bundle["campaign_key"]
+            or components_in_artifact != expected_components
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_SNAPSHOT_METADATA_CONFLICT",
+                "Snapshot bytes and canonical component metadata disagree.",
+                source_work_unit_id,
+                "Repair the immutable snapshot owner metadata before advancing work.",
+            )
+        return content
+
+    def _read_artifact_content(
+        self,
+        connection: Connection,
+        identity: ArtifactIdentity,
+        source_work_unit_id: UUID,
+        *,
+        maximum_bytes: int,
+    ) -> bytes:
+        content, _ = self._read_artifact_identity(
+            connection,
+            identity.artifact_id,
+            source_work_unit_id,
+            maximum_bytes=maximum_bytes,
+            expected_identity=identity,
+        )
+        return content
+
+    def _read_artifact_identity(
+        self,
+        connection: Connection,
+        artifact_id: UUID,
+        source_work_unit_id: UUID,
+        *,
+        maximum_bytes: int,
+        expected_identity: ArtifactIdentity | None = None,
+    ) -> tuple[bytes, str]:
+        if self._object_store is None:
+            raise _catalog_conflict(
+                "PIPELINE_ARTIFACT_READER_UNAVAILABLE",
+                "The succeeded-work catalog cannot read immutable artifact content.",
+                source_work_unit_id,
+                (
+                    "Configure the verified object-store reader before "
+                    "registering pipeline advancement."
+                ),
+            )
+        row = (
+            connection.execute(
+                sa.select(
+                    artifact_records.c.content_type,
+                    artifact_objects.c.artifact_kind,
+                    artifact_objects.c.content_digest,
+                    artifact_objects.c.size_bytes,
+                    artifact_objects.c.storage_reference,
+                )
+                .select_from(
+                    artifact_records.join(
+                        artifact_objects,
+                        artifact_objects.c.object_id == artifact_records.c.object_id,
+                    )
+                )
+                .where(artifact_records.c.artifact_id == artifact_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            raise _catalog_conflict(
+                "PIPELINE_ARTIFACT_METADATA_NOT_FOUND",
+                "The exact immutable artifact has no canonical metadata owner.",
+                source_work_unit_id,
+                "Repair the artifact binding before pipeline advancement.",
+            )
+        if expected_identity is not None and (
+            row["content_digest"] != expected_identity.content_digest
+            or row["size_bytes"] != expected_identity.size_bytes
+            or row["content_type"] != expected_identity.content_type
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_ARTIFACT_IDENTITY_CONFLICT",
+                "Artifact metadata differs from the successful work binding.",
+                source_work_unit_id,
+                "Repair the immutable artifact binding before pipeline advancement.",
+            )
+        try:
+            content = self._object_store.read_verified(
+                storage_reference=_required_text(row, "storage_reference"),
+                expected_digest=_required_text(row, "content_digest"),
+                expected_size_bytes=_non_negative_int(row["size_bytes"], "artifact size"),
+                expected_content_type=_required_text(row, "content_type"),
+                maximum_bytes=maximum_bytes,
+            )
+        except ArtifactObjectStoreError as exc:
+            raise PipelineAdvancementConflict(
+                code=exc.code,
+                message=exc.message,
+                context={
+                    "sourceWorkUnitId": str(source_work_unit_id),
+                    **dict(exc.context),
+                },
+                required_action=exc.required_action,
+            ) from exc
+        return content, _required_text(row, "artifact_kind")
 
     def list_unregistered_succeeded(
         self,
         *,
         limit: int,
         correlation_id: str,
-    ) -> tuple[SucceededWorkOutput, ...]:
-        del correlation_id
+    ) -> SuccessfulWorkDiscoveryBatch:
         if not 1 <= limit <= 1_000:
             raise ValueError("successful work discovery limit must be between 1 and 1000")
         try:
-            with self._engine.connect() as connection:
-                work_ids = tuple(
-                    _uuid_value(value)
-                    for value in connection.execute(
-                        _unregistered_succeeded_statement(limit)
-                    ).scalars()
-                )
-                return tuple(self.read(connection, work_id) for work_id in work_ids)
+            candidates = _advance_discovery_cursor(
+                self._engine,
+                limit=limit,
+                correlation_id=correlation_id,
+            )
+            return _rehydrate_discovery_candidates(self, candidates, correlation_id)
         except PipelineAdvancementConflict:
             raise
         except SQLAlchemyError as exc:
@@ -156,6 +744,207 @@ class PostgresSucceededWorkCatalog:
                 context={"causeType": type(exc).__name__},
                 required_action="Inspect PostgreSQL owner state and retry exact discovery.",
             ) from exc
+
+
+def _advance_discovery_cursor(
+    engine: Engine,
+    *,
+    limit: int,
+    correlation_id: str,
+) -> tuple[RowMapping, ...]:
+    with engine.begin() as connection:
+        cursor_row = (
+            connection.execute(
+                sa.select(
+                    pipeline_advancement_discovery_cursor.c.last_scanned_updated_at_utc,
+                    pipeline_advancement_discovery_cursor.c.last_scanned_work_id,
+                    pipeline_advancement_discovery_cursor.c.cycle_max_updated_at_utc,
+                    pipeline_advancement_discovery_cursor.c.cycle_max_work_id,
+                )
+                .where(pipeline_advancement_discovery_cursor.c.cursor_id == 1)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if cursor_row is None:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_DISCOVERY_CURSOR_MISSING",
+                message="The canonical succeeded-work discovery cursor is unavailable.",
+                context={"correlationId": correlation_id},
+                required_action="Apply the Pipeline Advancement discovery-cursor migration.",
+            )
+        cursor_time = cursor_row["last_scanned_updated_at_utc"]
+        cursor_id = cursor_row["last_scanned_work_id"]
+        cycle_max_time = cursor_row["cycle_max_updated_at_utc"]
+        cycle_max_id = cursor_row["cycle_max_work_id"]
+        if not _valid_discovery_cursor(cursor_time, cursor_id, cycle_max_time, cycle_max_id):
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_DISCOVERY_CURSOR_INVALID",
+                message="The succeeded-work discovery cursor is incomplete or invalid.",
+                context={"correlationId": correlation_id},
+                required_action="Repair the Pipeline Advancement discovery cursor under its owner.",
+            )
+        after_work_id = _cursor_uuid(cursor_id, correlation_id)
+        upper_work_id = _cursor_uuid(cycle_max_id, correlation_id)
+        if cycle_max_time is None:
+            upper_row = (
+                connection.execute(_unregistered_succeeded_high_water_statement())
+                .mappings()
+                .one_or_none()
+            )
+            if upper_row is None:
+                _store_discovery_cursor(connection, None, None, None, None, correlation_id)
+                return ()
+            cycle_max_time = upper_row["updated_at_utc"]
+            cycle_max_id = upper_row["work_id"]
+            if not isinstance(cycle_max_time, datetime):
+                raise PipelineAdvancementConflict(
+                    code="PIPELINE_DISCOVERY_CANDIDATE_INVALID",
+                    message="The succeeded-work high-water candidate has no valid timestamp.",
+                    context={"correlationId": correlation_id},
+                    required_action="Inspect canonical work-unit timestamps under their owner.",
+                )
+            upper_work_id = _cursor_uuid(cycle_max_id, correlation_id)
+        candidates = tuple(
+            connection.execute(
+                _unregistered_succeeded_statement(
+                    limit,
+                    after_updated_at_utc=cursor_time,
+                    after_work_id=after_work_id,
+                    through_updated_at_utc=cycle_max_time,
+                    through_work_id=upper_work_id,
+                )
+            )
+            .mappings()
+            .all()
+        )
+        finished_cycle = len(candidates) < limit or bool(
+            candidates
+            and candidates[-1]["updated_at_utc"] == cycle_max_time
+            and candidates[-1]["work_id"] == upper_work_id
+        )
+        if finished_cycle:
+            _store_discovery_cursor(connection, None, None, None, None, correlation_id)
+        else:
+            last = candidates[-1]
+            last_time = last["updated_at_utc"]
+            if not isinstance(last_time, datetime):
+                raise PipelineAdvancementConflict(
+                    code="PIPELINE_DISCOVERY_CANDIDATE_INVALID",
+                    message="A succeeded-work candidate has no valid update timestamp.",
+                    context={"correlationId": correlation_id},
+                    required_action="Inspect the canonical work-unit timestamp under its owner.",
+                )
+            _store_discovery_cursor(
+                connection,
+                last_time,
+                _cursor_uuid(last["work_id"], correlation_id),
+                cycle_max_time,
+                upper_work_id,
+                correlation_id,
+            )
+    return candidates
+
+
+def _valid_discovery_cursor(
+    cursor_time: object,
+    cursor_id: object,
+    cycle_max_time: object,
+    cycle_max_id: object,
+) -> bool:
+    return (
+        (cursor_time is None) == (cursor_id is None)
+        and (cycle_max_time is None) == (cycle_max_id is None)
+        and (cursor_time is None or isinstance(cursor_time, datetime))
+        and (cycle_max_time is None or isinstance(cycle_max_time, datetime))
+        and (cursor_time is None or cycle_max_time is not None)
+    )
+
+
+def _cursor_uuid(value: object, correlation_id: str) -> UUID | None:
+    if value is None:
+        return None
+    try:
+        return _uuid_value(value)
+    except (TypeError, ValueError) as exc:
+        raise PipelineAdvancementConflict(
+            code="PIPELINE_DISCOVERY_CURSOR_INVALID",
+            message="The succeeded-work discovery cursor contains an invalid work ID.",
+            context={"correlationId": correlation_id},
+            required_action="Repair the Pipeline Advancement discovery cursor under its owner.",
+        ) from exc
+
+
+def _store_discovery_cursor(
+    connection: Connection,
+    cursor_time: datetime | None,
+    cursor_id: UUID | None,
+    cycle_max_time: datetime | None,
+    cycle_max_id: UUID | None,
+    correlation_id: str,
+) -> None:
+    update = connection.execute(
+        sa.update(pipeline_advancement_discovery_cursor)
+        .where(pipeline_advancement_discovery_cursor.c.cursor_id == 1)
+        .values(
+            last_scanned_updated_at_utc=cursor_time,
+            last_scanned_work_id=cursor_id,
+            cycle_max_updated_at_utc=cycle_max_time,
+            cycle_max_work_id=cycle_max_id,
+        )
+    )
+    if update.rowcount != 1:
+        raise PipelineAdvancementConflict(
+            code="PIPELINE_DISCOVERY_CURSOR_UPDATE_CONFLICT",
+            message="The succeeded-work discovery cursor changed unexpectedly.",
+            context={"correlationId": correlation_id},
+            required_action="Inspect Pipeline Advancement cursor ownership and retry discovery.",
+        )
+
+
+def _rehydrate_discovery_candidates(
+    catalog: PostgresSucceededWorkCatalog,
+    candidates: tuple[RowMapping, ...],
+    correlation_id: str,
+) -> SuccessfulWorkDiscoveryBatch:
+    outputs: list[SucceededWorkOutput] = []
+    failures: list[PipelineDiscoveryFailure] = []
+    with catalog._engine.connect() as connection:
+        for row in candidates:
+            work_id = _uuid_value(row["work_id"])
+            try:
+                outputs.append(catalog.read(connection, work_id))
+            except PipelineAdvancementConflict as exc:
+                failures.append(
+                    PipelineDiscoveryFailure(
+                        source_work_unit_id=work_id,
+                        code=exc.code,
+                        message=exc.message,
+                        required_action=exc.required_action,
+                        context={"correlationId": correlation_id, **dict(exc.context)},
+                    )
+                )
+            except (TypeError, ValueError) as exc:
+                failures.append(
+                    PipelineDiscoveryFailure(
+                        source_work_unit_id=work_id,
+                        code="PIPELINE_DISCOVERY_OUTPUT_INVALID",
+                        message="The succeeded work output could not be rehydrated.",
+                        required_action=(
+                            "Inspect the exact work, snapshot, and artifact owners; repair invalid "
+                            "metadata before retrying advancement."
+                        ),
+                        context={
+                            "correlationId": correlation_id,
+                            "causeType": type(exc).__name__,
+                        },
+                    )
+                )
+    return SuccessfulWorkDiscoveryBatch(
+        outputs=tuple(outputs),
+        failures=tuple(failures),
+    )
 
 
 def _work_statement(source_work_unit_id: UUID) -> Select[tuple[object, ...]]:
@@ -193,9 +982,9 @@ def _artifact_statement(
     )
 
 
-def _unregistered_succeeded_statement(limit: int) -> Select[tuple[UUID]]:
+def _unregistered_succeeded_high_water_statement() -> Select[tuple[UUID, datetime]]:
     return (
-        sa.select(work_units.c.work_id)
+        sa.select(work_units.c.work_id, work_units.c.updated_at_utc)
         .where(
             work_units.c.state == "succeeded",
             ~sa.exists(
@@ -204,9 +993,52 @@ def _unregistered_succeeded_statement(limit: int) -> Select[tuple[UUID]]:
                 )
             ),
         )
-        .order_by(work_units.c.updated_at_utc, work_units.c.work_id)
-        .limit(limit)
+        .order_by(work_units.c.updated_at_utc.desc(), work_units.c.work_id.desc())
+        .limit(1)
     )
+
+
+def _unregistered_succeeded_statement(
+    limit: int,
+    *,
+    after_updated_at_utc: datetime | None,
+    after_work_id: UUID | None,
+    through_updated_at_utc: datetime | None,
+    through_work_id: UUID | None,
+) -> Select[tuple[UUID, datetime]]:
+    if (after_updated_at_utc is None) != (after_work_id is None):
+        raise ValueError("discovery cursor time and work ID must both be set or both be absent")
+    if (through_updated_at_utc is None) != (through_work_id is None):
+        raise ValueError("discovery high-water time and work ID must both be set or both be absent")
+    statement = sa.select(work_units.c.work_id, work_units.c.updated_at_utc).where(
+        work_units.c.state == "succeeded",
+        ~sa.exists(
+            sa.select(sa.literal(1)).where(
+                pipeline_advancements.c.source_work_unit_id == work_units.c.work_id
+            )
+        ),
+    )
+    if after_updated_at_utc is not None and after_work_id is not None:
+        statement = statement.where(
+            sa.or_(
+                work_units.c.updated_at_utc > after_updated_at_utc,
+                sa.and_(
+                    work_units.c.updated_at_utc == after_updated_at_utc,
+                    work_units.c.work_id > after_work_id,
+                ),
+            )
+        )
+    if through_updated_at_utc is not None and through_work_id is not None:
+        statement = statement.where(
+            sa.or_(
+                work_units.c.updated_at_utc < through_updated_at_utc,
+                sa.and_(
+                    work_units.c.updated_at_utc == through_updated_at_utc,
+                    work_units.c.work_id <= through_work_id,
+                ),
+            )
+        )
+    return statement.order_by(work_units.c.updated_at_utc, work_units.c.work_id).limit(limit)
 
 
 def _load_artifacts(
@@ -283,6 +1115,88 @@ def _text_value(value: object, meaning: str) -> str:
     if not isinstance(value, str) or not value:
         raise TypeError(f"persisted {meaning} is not non-empty text")
     return value
+
+
+def _content_digest(value: bytes) -> str:
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def _verify_official_http_bindings(
+    manifest_content: bytes,
+    *,
+    output_digest: str,
+    manifest_digest: str,
+    raw_output: ArtifactIdentity | None,
+    input_artifacts: tuple[_BoundArtifact, ...],
+    source_work_unit_id: UUID,
+) -> HttpAcquisitionManifest:
+    try:
+        envelope = json.loads(manifest_content)
+        if not isinstance(envelope, dict) or not {
+            "contract",
+            "contractRevision",
+        }.issubset(envelope):
+            raise ValueError("required manifest discriminators are missing")
+        manifest = HttpAcquisitionManifest.model_validate_json(manifest_content, strict=True)
+    except ValueError as exc:
+        raise _catalog_conflict(
+            "PIPELINE_HTTP_MANIFEST_INVALID",
+            "The official HTTP manifest violates its typed producer contract.",
+            source_work_unit_id,
+            "Repair the producer-owned official HTTP output before advancement.",
+        ) from exc
+
+    if (manifest.raw_artifact_digest is not None) != (raw_output is not None):
+        raise _catalog_conflict(
+            "PIPELINE_HTTP_RAW_BINDING_CARDINALITY",
+            "The manifest raw-artifact reference does not match the bound output roles.",
+            source_work_unit_id,
+            "Bind exactly the raw artifact declared by the typed manifest.",
+        )
+    if raw_output is not None and manifest.raw_artifact_digest != raw_output.content_digest:
+        raise _catalog_conflict(
+            "PIPELINE_HTTP_RAW_MANIFEST_CONFLICT",
+            "The raw artifact binding does not match the official HTTP manifest.",
+            source_work_unit_id,
+            "Repair the exact raw artifact identity and manifest digest relationship.",
+        )
+
+    raw_or_reused_digest = manifest.raw_artifact_digest
+    if manifest.outcome == "unchanged":
+        previous_artifacts = tuple(
+            item.artifact
+            for item in input_artifacts
+            if item.artifact.role == "previous_raw_artifact"
+        )
+        if len(previous_artifacts) != 1 or (
+            previous_artifacts[0].artifact_id != manifest.reused_artifact_id
+            or previous_artifacts[0].content_digest != manifest.reused_content_digest
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_HTTP_REUSED_ARTIFACT_CONFLICT",
+                "The unchanged result does not reference the exact previous raw artifact input.",
+                source_work_unit_id,
+                "Bind the exact prior raw artifact under previous_raw_artifact before completion.",
+            )
+        raw_or_reused_digest = manifest.reused_content_digest
+
+    payload = json.dumps(
+        {
+            "contract": "official-http-acquisition@1",
+            "manifestDigest": manifest_digest,
+            "rawOrReusedDigest": raw_or_reused_digest,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if output_digest != _content_digest(payload):
+        raise _catalog_conflict(
+            "PIPELINE_HTTP_OUTPUT_DIGEST_CONFLICT",
+            "The successful HTTP result digest does not bind its manifest and raw content.",
+            source_work_unit_id,
+            "Repair the canonical completion digest through the Worker Gateway owner.",
+        )
+    return manifest
 
 
 def _non_negative_int(value: object, meaning: str) -> int:

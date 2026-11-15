@@ -1,0 +1,13 @@
+[project]
+name = "official-http-contracts"
+version = "0.1.0"
+description = "Producer-owned typed manifest contract for official HTTP acquisition"
+requires-python = ">=3.13,<3.14"
+dependencies = ["pydantic==2.13.4"]
+
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/official_http_contracts"]

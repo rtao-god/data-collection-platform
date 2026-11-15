@@ -64,19 +64,24 @@
       "sha256": "sha256:209d20f108cde566144cca4c242f0ece9eac95abc8aef4caf98e42ba7d7f2584"
     },
     {
+      "file": "normalization-profiles.schema.json",
+      "model": "collection_contracts.campaign_config.NormalizationProfilesDocument",
+      "sha256": "sha256:291e8fe5c226681608d61f7b683cf80d6775741d058238a29e037352fd4eb186"
+    },
+    {
       "file": "observation-batch.schema.json",
       "model": "collection_contracts.observations.ObservationBatch",
       "sha256": "sha256:5bbfcdb6c9af60da8acbf45f54ebd8adbaaad0b49a5bdeef02db612dc207fa91"
     },
     {
       "file": "official-http-acquisition.schema.json",
-      "model": "official_http.contracts.HttpAcquisitionManifest",
-      "sha256": "sha256:35a01a7abc62b516e2b16d9c4d3a711c0167d111400562e20f8318ee2c80a59e"
+      "model": "official_http_contracts.manifest.HttpAcquisitionManifest",
+      "sha256": "sha256:16b45224c22bce98af7bb67a88c0c5d85ab578cb789f43c632c1ef5b9378214b"
     },
     {
       "file": "official-http-request.schema.json",
       "model": "official_http.contracts.OfficialHttpRequest",
-      "sha256": "sha256:579063e4dbd6a3bb94eaab07cc584b9d3afada81ada1bebda2c6e63f84a65eed"
+      "sha256": "sha256:76d14e84c08123a6b49b453edc7517e22b8e4960e3fd5a0e99bb55d1ffac3a89"
     },
     {
       "file": "resolution-batch.schema.json",
@@ -91,12 +96,12 @@
     {
       "file": "source-bindings.schema.json",
       "model": "collection_contracts.campaign_config.SourceBindingsDocument",
-      "sha256": "sha256:3f95b9d955b0f1baee5ffd55f064ac33b8dfcf8ad9dfc5c87c6124fadfe2d733"
+      "sha256": "sha256:735be71b5a58e91526afe2d755c88615285460f38005ca59fdc387f5733c12d7"
     },
     {
       "file": "source-policy.schema.json",
       "model": "collection_contracts.campaign_config.SourcePolicy",
-      "sha256": "sha256:6332b447bc7a0171292f241270b3e560ca4b0eb9a009979c7cb66f2d599f903f"
+      "sha256": "sha256:6cd04480c58f89cb19c6210596c6c3986aa1840e4d8f6710f9f83e19332eadf4"
     },
     {
       "file": "taxonomy.schema.json",

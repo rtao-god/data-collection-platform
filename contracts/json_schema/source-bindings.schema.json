@@ -90,6 +90,140 @@
       "title": "SeedNotApplicable",
       "type": "object"
     },
+    "SeedRoutePageInterest": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "priority": {
+          "exclusiveMinimum": 0,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "tokens": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Tokens",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "tokens",
+        "priority"
+      ],
+      "title": "SeedRoutePageInterest",
+      "type": "object"
+    },
+    "SeedRoutingConfigured": {
+      "additionalProperties": false,
+      "properties": {
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/SeedWebsiteRoute"
+          },
+          "minItems": 1,
+          "title": "Routes",
+          "type": "array"
+        },
+        "state": {
+          "const": "configured",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "routes"
+      ],
+      "title": "SeedRoutingConfigured",
+      "type": "object"
+    },
+    "SeedRoutingNotConfigured": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "const": "not_configured",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "SeedRoutingNotConfigured",
+      "type": "object"
+    },
+    "SeedWebsiteRoute": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "page_interests": {
+          "items": {
+            "$ref": "#/$defs/SeedRoutePageInterest"
+          },
+          "minItems": 1,
+          "title": "Page Interests",
+          "type": "array"
+        },
+        "route_kind": {
+          "const": "official_website_page",
+          "title": "Route Kind",
+          "type": "string"
+        },
+        "selection": {
+          "enum": [
+            "exclusive",
+            "fan_out"
+          ],
+          "title": "Selection",
+          "type": "string"
+        },
+        "source_binding": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Source Binding",
+          "type": "string"
+        },
+        "source_field": {
+          "const": "website",
+          "title": "Source Field",
+          "type": "string"
+        },
+        "target_binding": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Target Binding",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "source_field",
+        "source_binding",
+        "target_binding",
+        "route_kind",
+        "selection",
+        "page_interests"
+      ],
+      "title": "SeedWebsiteRoute",
+      "type": "object"
+    },
     "SourceBinding": {
       "additionalProperties": false,
       "properties": {
@@ -141,6 +275,21 @@
           "pattern": "^[a-z][a-z0-9_]*$",
           "title": "Key",
           "type": "string"
+        },
+        "normalization_profile": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 2,
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalization Profile"
         },
         "schedule_enabled": {
           "title": "Schedule Enabled",
@@ -211,6 +360,24 @@
       "pattern": "^[a-z0-9][a-z0-9._-]*$",
       "title": "Schema Revision",
       "type": "string"
+    },
+    "seed_routing": {
+      "discriminator": {
+        "mapping": {
+          "configured": "#/$defs/SeedRoutingConfigured",
+          "not_configured": "#/$defs/SeedRoutingNotConfigured"
+        },
+        "propertyName": "state"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SeedRoutingNotConfigured"
+        },
+        {
+          "$ref": "#/$defs/SeedRoutingConfigured"
+        }
+      ],
+      "title": "Seed Routing"
     }
   },
   "required": [

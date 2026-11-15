@@ -1,11 +1,4 @@
-from official_http.contracts import (
-    DiscoveredResource,
-    HttpAcquisitionManifest,
-    OfficialHttpRequest,
-    PageInterestRule,
-    ResponseHeader,
-    decode_http_request,
-)
+from official_http.contracts import OfficialHttpRequest, PageInterestRule, decode_http_request
 from official_http.errors import OfficialHttpError
 from official_http.fetch import HttpFetchResult, ScrapyChildFetcher, selected_header
 from official_http.planning import (
@@ -21,6 +14,11 @@ from official_http.urls import (
     require_public_address,
     require_same_origin,
     resolve_public_addresses,
+)
+from official_http_contracts import (
+    DiscoveredResource,
+    HttpAcquisitionManifest,
+    ResponseHeader,
 )
 
 __all__ = [

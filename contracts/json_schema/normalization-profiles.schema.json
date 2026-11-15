@@ -1,0 +1,210 @@
+{
+  "$defs": {
+    "BooleanPatternRule": {
+      "additionalProperties": false,
+      "properties": {
+        "locale": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locale"
+        },
+        "negativePatterns": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Negativepatterns",
+          "type": "array"
+        },
+        "positivePatterns": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Positivepatterns",
+          "type": "array"
+        },
+        "targetField": {
+          "title": "Targetfield",
+          "type": "string"
+        }
+      },
+      "required": [
+        "targetField",
+        "positivePatterns"
+      ],
+      "title": "BooleanPatternRule",
+      "type": "object"
+    },
+    "NormalizationFieldRule": {
+      "additionalProperties": false,
+      "properties": {
+        "locale": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locale"
+        },
+        "sourceField": {
+          "title": "Sourcefield",
+          "type": "string"
+        },
+        "targetField": {
+          "title": "Targetfield",
+          "type": "string"
+        },
+        "valueKind": {
+          "enum": [
+            "text",
+            "boolean",
+            "url",
+            "email",
+            "phone",
+            "structured_address",
+            "money",
+            "string_set"
+          ],
+          "title": "Valuekind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sourceField",
+        "targetField",
+        "valueKind"
+      ],
+      "title": "NormalizationFieldRule",
+      "type": "object"
+    },
+    "NormalizationProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "booleanPatternRules": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/BooleanPatternRule"
+          },
+          "maxItems": 256,
+          "title": "Booleanpatternrules",
+          "type": "array"
+        },
+        "contract": {
+          "const": "collector-normalization-profile",
+          "default": "collector-normalization-profile",
+          "title": "Contract",
+          "type": "string"
+        },
+        "contractRevision": {
+          "const": "normalization-profile@1",
+          "default": "normalization-profile@1",
+          "title": "Contractrevision",
+          "type": "string"
+        },
+        "defaultPhoneRegion": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Defaultphoneregion"
+        },
+        "fieldRules": {
+          "items": {
+            "$ref": "#/$defs/NormalizationFieldRule"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Fieldrules",
+          "type": "array"
+        },
+        "normalizerRevision": {
+          "title": "Normalizerrevision",
+          "type": "string"
+        },
+        "prohibitedFields": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Prohibitedfields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "normalizerRevision",
+        "fieldRules"
+      ],
+      "title": "NormalizationProfile",
+      "type": "object"
+    },
+    "NormalizationProfileDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/NormalizationProfile"
+        }
+      },
+      "required": [
+        "key",
+        "profile"
+      ],
+      "title": "NormalizationProfileDefinition",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/NormalizationProfileDefinition"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "schema_revision": {
+      "maxLength": 100,
+      "minLength": 3,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Schema Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_revision",
+    "items"
+  ],
+  "title": "NormalizationProfilesDocument",
+  "type": "object"
+}

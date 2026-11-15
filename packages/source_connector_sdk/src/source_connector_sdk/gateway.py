@@ -102,9 +102,23 @@ _MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024
 class LeaseArtifact:
     artifact_id: UUID
     role: str
+    content_digest: str | None = None
+    size_bytes: int | None = None
+    content_type: str | None = None
 
     def __post_init__(self) -> None:
         _require_role(self.role)
+        metadata = (self.content_digest, self.size_bytes, self.content_type)
+        if any(item is not None for item in metadata) and not all(
+            item is not None for item in metadata
+        ):
+            raise ValueError("lease artifact metadata must be complete")
+        if self.content_digest is not None:
+            _require_digest("lease artifact content digest", self.content_digest)
+        if self.size_bytes is not None and self.size_bytes < 1:
+            raise ValueError("lease artifact size must be positive")
+        if self.content_type is not None:
+            _require_content_type(self.content_type)
 
 
 @dataclass(frozen=True, slots=True)
@@ -940,11 +954,17 @@ def _parse_lease(payload: Mapping[str, object]) -> WorkerLease:
     artifacts: list[LeaseArtifact] = []
     for value in artifact_values:
         item = _as_object(value, "inputArtifacts[]")
-        _require_exact_keys(item, {"artifactId", "role"})
+        _require_exact_keys(
+            item,
+            {"artifactId", "role", "contentDigest", "sizeBytes", "contentType"},
+        )
         artifacts.append(
             LeaseArtifact(
                 artifact_id=_require_uuid(item, "artifactId"),
                 role=_require_role_value(item, "role"),
+                content_digest=cast(str | None, item["contentDigest"]),
+                size_bytes=cast(int | None, item["sizeBytes"]),
+                content_type=cast(str | None, item["contentType"]),
             )
         )
     return WorkerLease(

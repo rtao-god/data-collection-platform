@@ -11,6 +11,7 @@ package = false
 [tool.uv.workspace]
 members = [
   "apps/collector_cli",
+  "apps/dagster_orchestrator",
   "apps/control_api",
   "apps/http_worker",
   "apps/manual_import_worker",
@@ -22,7 +23,9 @@ members = [
   "connectors/official_http",
   "connectors/osm_overpass",
   "packages/collection_application",
+  "packages/candidate_materialization",
   "packages/collection_contracts",
+  "packages/official_http_contracts",
   "packages/collection_domain",
   "packages/collection_infrastructure",
   "packages/entity_resolution_core",
@@ -61,7 +64,7 @@ testpaths = [
   "tools",
 ]
 markers = [
-  "integration: requires explicit PostgreSQL/PostGIS infrastructure",
+  "integration: requires explicit external database, object-store, or process-backed service infrastructure",
   "object_store_integration: requires explicit SeaweedFS S3 infrastructure",
 ]
 
@@ -78,10 +81,13 @@ src = [
   "apps/processing_worker/src",
   "apps/resolution_worker/src",
   "apps/worker_gateway/src",
+  "apps/dagster_orchestrator/src",
   "connectors/official_http/src",
   "connectors/osm_overpass/src",
   "packages/collection_application/src",
+  "packages/candidate_materialization/src",
   "packages/collection_contracts/src",
+  "packages/official_http_contracts/src",
   "packages/collection_domain/src",
   "packages/collection_infrastructure/src",
   "packages/entity_resolution_core/src",
@@ -129,10 +135,13 @@ files = [
   "apps/processing_worker/src",
   "apps/resolution_worker/src",
   "apps/worker_gateway/src",
+  "apps/dagster_orchestrator/src",
   "connectors/official_http/src",
   "connectors/osm_overpass/src",
   "packages/collection_application/src",
+  "packages/candidate_materialization/src",
   "packages/collection_contracts/src",
+  "packages/official_http_contracts/src",
   "packages/collection_domain/src",
   "packages/collection_infrastructure/src",
   "packages/entity_resolution_core/src",

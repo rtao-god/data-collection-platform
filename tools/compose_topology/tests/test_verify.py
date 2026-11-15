@@ -16,6 +16,8 @@ _APPLICATION_SERVICES = {
     "migration",
     "control-api",
     "worker-gateway",
+    "dagster-webserver",
+    "dagster-daemon",
     "manual-import-worker",
     "manual-record-worker",
     "http-worker",
@@ -77,6 +79,15 @@ def _environment() -> dict[str, str]:
     ]
     return {
         "CONTROL_API_PORT": "8081",
+        "DAGSTER_WEB_PORT": "3000",
+        "COLLECTOR_BUILD_IDENTITY": "local",
+        "COLLECTOR_POSTGRES_DB": "collector_core",
+        "COLLECTOR_POSTGRES_USER": "collector_migrator",
+        "COLLECTOR_POSTGRES_PASSWORD": "collector-db-password-local-0000000000000001",
+        "DAGSTER_POSTGRES_DB": "dagster_metadata",
+        "DAGSTER_POSTGRES_USER": "dagster_runtime",
+        "DAGSTER_POSTGRES_PASSWORD": "dagster-metadata-password-0000000000000001",
+        "PIPELINE_ADVANCEMENT_TOKEN": "pipeline-advancement-token-000000000001",
         "COLLECTOR_POSTGRES_PORT": "5432",
         "SEAWEEDFS_S3_PORT": "8333",
         "SEAWEEDFS_MASTER_PORT": "9333",
@@ -122,6 +133,11 @@ def _payload(secret_root: Path, environment: dict[str, str]) -> dict[str, Any]:
                 "protocol": "tcp",
             }
         ],
+    }
+    services["dagster-postgres"] = {
+        "image": "postgis/postgis:18-3.6@sha256:test",
+        "networks": {"dagster-metadata": None},
+        "secrets": [{"source": "dagster-postgres-password"}],
     }
     services["seaweedfs"] = {
         "image": "chrislusf/seaweedfs:4.40",
@@ -186,11 +202,75 @@ def _payload(secret_root: Path, environment: dict[str, str]) -> dict[str, Any]:
             "networks": {
                 "collection-infrastructure": None,
                 "collection-workers": None,
+                "collection-orchestration": None,
             },
             "secrets": [
                 {"source": "collector-object-store-access-key"},
                 {"source": "collector-object-store-secret-key"},
                 {"source": "worker-gateway-credentials"},
+                {"source": "pipeline-advancement-token"},
+            ],
+        }
+    )
+    services["dagster-webserver"].update(
+        {
+            "command": [
+                "dagster-webserver",
+                "-h",
+                _ALL_INTERFACES,
+                "-p",
+                "3000",
+                "-w",
+                "/opt/dagster/workspace.yaml",
+            ],
+            "environment": {
+                "DAGSTER_HOME": "/var/lib/dagster",
+                "COLLECTOR_BUILD_IDENTITY": "local",
+                "DAGSTER_POSTGRES_HOST": "dagster-postgres",
+                "DAGSTER_POSTGRES_DB": "dagster_metadata",
+                "DAGSTER_POSTGRES_USER": "dagster_runtime",
+                "DAGSTER_POSTGRES_PASSWORD_FILE": "/run/secrets/dagster-postgres-password",
+            },
+            "networks": {
+                "dagster-metadata": None,
+                "collection-dagster-loopback": None,
+            },
+            "ports": [
+                {
+                    "host_ip": "127.0.0.1",
+                    "published": "3000",
+                    "target": 3000,
+                    "protocol": "tcp",
+                }
+            ],
+            "secrets": [{"source": "dagster-postgres-password"}],
+        }
+    )
+    services["dagster-daemon"].update(
+        {
+            "command": [
+                "dagster-daemon",
+                "run",
+                "-w",
+                "/opt/dagster/workspace.yaml",
+            ],
+            "environment": {
+                "DAGSTER_HOME": "/var/lib/dagster",
+                "COLLECTOR_BUILD_IDENTITY": "local",
+                "DAGSTER_POSTGRES_HOST": "dagster-postgres",
+                "DAGSTER_POSTGRES_DB": "dagster_metadata",
+                "DAGSTER_POSTGRES_USER": "dagster_runtime",
+                "DAGSTER_POSTGRES_PASSWORD_FILE": "/run/secrets/dagster-postgres-password",
+                "PIPELINE_ADVANCEMENT_GATEWAY_URL": "http://worker-gateway:8080",
+                "PIPELINE_ADVANCEMENT_TOKEN_FILE": "/run/secrets/pipeline-advancement-token",
+            },
+            "networks": {
+                "dagster-metadata": None,
+                "collection-orchestration": None,
+            },
+            "secrets": [
+                {"source": "dagster-postgres-password"},
+                {"source": "pipeline-advancement-token"},
             ],
         }
     )
@@ -235,6 +315,14 @@ def _payload(secret_root: Path, environment: dict[str, str]) -> dict[str, Any]:
             "WORKER_GATEWAY_CREDENTIALS_JSON",
             "worker-gateway-credentials",
         ),
+        "pipeline-advancement-token": (
+            "PIPELINE_ADVANCEMENT_TOKEN",
+            "pipeline-advancement-token",
+        ),
+        "dagster-postgres-password": (
+            "DAGSTER_POSTGRES_PASSWORD",
+            "dagster-postgres-password",
+        ),
     }
     secrets: dict[str, dict[str, str]] = {}
     for secret_name, (variable, filename) in secret_files.items():
@@ -250,10 +338,16 @@ def _payload(secret_root: Path, environment: dict[str, str]) -> dict[str, Any]:
         "services": services,
         "networks": {
             "collection-infrastructure": {"driver": "bridge", "internal": True},
+            "dagster-metadata": {"driver": "bridge", "internal": True},
             "collection-operator": {"driver": "bridge", "internal": True},
             "collection-workers": {"driver": "bridge", "internal": True},
+            "collection-orchestration": {"driver": "bridge", "internal": True},
             "collection-acquisition-egress": {"driver": "bridge"},
             "collection-control-loopback": {
+                "driver": "bridge",
+                "driver_opts": dict(_LOOPBACK_OPTIONS),
+            },
+            "collection-dagster-loopback": {
                 "driver": "bridge",
                 "driver_opts": dict(_LOOPBACK_OPTIONS),
             },
@@ -279,10 +373,128 @@ def _case(tmp_path: Path) -> tuple[ModuleType, dict[str, str], Path, dict[str, A
     return verifier, environment, secret_root, payload
 
 
+def _set_secret_source(
+    environment: dict[str, str], secret_root: Path, secret_name: str, variable: str, value: str
+) -> None:
+    environment[variable] = value
+    source = secret_root / secret_name
+    if os.name != "nt":
+        source.chmod(0o600)
+    source.write_text(value, encoding="utf-8")
+    if os.name != "nt":
+        source.chmod(0o444)
+
+
 def test_valid_topology_passes(tmp_path: Path) -> None:
     verifier, environment, secret_root, payload = _case(tmp_path)
 
     verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+
+def test_dagster_daemon_must_load_explicit_workspace(tmp_path: Path) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    payload["services"]["dagster-daemon"]["command"] = ["dagster-daemon", "run"]
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_DAGSTER_WORKSPACE_COMMAND_MISMATCH"
+    assert error.value.context["service"] == "dagster-daemon"
+
+
+def test_dagster_process_requires_build_identity(tmp_path: Path) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    payload["services"]["dagster-daemon"]["environment"].pop("COLLECTOR_BUILD_IDENTITY")
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_DAGSTER_BUILD_IDENTITY_MISSING"
+    assert error.value.context["service"] == "dagster-daemon"
+
+
+def test_dagster_pipeline_token_must_be_long_enough(tmp_path: Path) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    _set_secret_source(
+        environment,
+        secret_root,
+        "pipeline-advancement-token",
+        "PIPELINE_ADVANCEMENT_TOKEN",
+        "short-token",
+    )
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_PIPELINE_ADVANCEMENT_CREDENTIAL_INVALID"
+    assert error.value.context["minimumCharacters"] == 32
+
+
+def test_dagster_pipeline_token_cannot_reuse_worker_credential(tmp_path: Path) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    _set_secret_source(
+        environment,
+        secret_root,
+        "pipeline-advancement-token",
+        "PIPELINE_ADVANCEMENT_TOKEN",
+        environment["HTTP_WORKER_TOKEN"],
+    )
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_PIPELINE_ADVANCEMENT_CREDENTIAL_INVALID"
+    assert error.value.context["reusedWorkerCredential"] is True
+
+
+@pytest.mark.parametrize(
+    ("variable", "source_variable"),
+    [
+        ("DAGSTER_POSTGRES_PASSWORD", "COLLECTOR_POSTGRES_PASSWORD"),
+        ("DAGSTER_POSTGRES_USER", "COLLECTOR_POSTGRES_USER"),
+        ("DAGSTER_POSTGRES_DB", "COLLECTOR_POSTGRES_DB"),
+    ],
+)
+def test_dagster_metadata_credentials_must_be_separate(
+    tmp_path: Path, variable: str, source_variable: str
+) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    value = environment[source_variable]
+    if variable == "DAGSTER_POSTGRES_PASSWORD":
+        _set_secret_source(environment, secret_root, "dagster-postgres-password", variable, value)
+    else:
+        environment[variable] = value
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_DAGSTER_METADATA_CREDENTIALS_INVALID"
+
+
+def test_dagster_webserver_cannot_mount_advancement_service_token(tmp_path: Path) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    payload["services"]["dagster-webserver"]["secrets"].append(
+        {"source": "pipeline-advancement-token"}
+    )
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_SECRET_SCOPE_MISMATCH"
+    assert error.value.context["service"] == "dagster-webserver"
+
+
+def test_dagster_cannot_receive_collection_database_credentials(tmp_path: Path) -> None:
+    verifier, environment, secret_root, payload = _case(tmp_path)
+    payload["services"]["dagster-daemon"]["environment"]["COLLECTOR_DATABASE_URL"] = (
+        "postgresql://invalid:invalid@collector-postgres/collector_core"
+    )
+
+    with pytest.raises(verifier.ComposeTopologyError) as error:
+        verifier.verify_topology(payload, secret_root=secret_root, environment=environment)
+
+    assert error.value.code == "COMPOSE_DAGSTER_COLLECTION_CREDENTIAL_EXPOSED"
+    assert error.value.context["service"] == "dagster-daemon"
 
 
 def test_loopback_network_must_disable_ip_masquerade(tmp_path: Path) -> None:

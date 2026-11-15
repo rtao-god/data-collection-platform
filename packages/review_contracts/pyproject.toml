@@ -4,12 +4,16 @@ version = "0.1.0"
 description = "Typed contracts for the Data Collection Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+  "collection-contracts",
   "pydantic==2.13.4",
 ]
 
 [build-system]
 requires = ["hatchling==1.31.0"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+collection-contracts = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/review_contracts"]

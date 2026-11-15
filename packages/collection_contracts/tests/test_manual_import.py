@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
 from pydantic import ValidationError
 
@@ -9,6 +11,9 @@ from collection_contracts import (
     ManualImportMode,
     ManualImportPlan,
     ManualImportRecordDocument,
+    ManualRecordLineage,
+    canonical_manual_record_lineage_bytes,
+    decode_manual_record_lineage,
 )
 
 _DIGEST = "sha256:" + "1" * 64
@@ -107,3 +112,43 @@ def test_manual_import_record_document_rejects_noncanonical_source_role() -> Non
 def test_manual_import_record_document_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
         ManualImportRecordDocument.model_validate({**_record_document(), "unexpected": True})
+
+
+def test_manual_record_lineage_canonical_round_trip() -> None:
+    lineage = ManualRecordLineage(
+        runId=UUID(int=1),
+        manualRecordWorkId=UUID(int=2),
+        manualRecordArtifactId=UUID(int=3),
+        manualRecordArtifactDigest=_DIGEST,
+        manualRecordContentDigest=_DIGEST,
+        recordDigest=_DIGEST,
+        expectedEntityKind="place",
+        sourceArtifactId=UUID(int=4),
+        sourceArtifactDigest=_DIGEST,
+    )
+
+    encoded = canonical_manual_record_lineage_bytes(lineage)
+
+    assert decode_manual_record_lineage(encoded) == lineage
+    with pytest.raises(ValueError, match="canonical JSON"):
+        decode_manual_record_lineage(encoded + b" ")
+
+
+def test_manual_record_lineage_rejects_invalid_digest_and_entity_kind() -> None:
+    payload = {
+        "runId": str(UUID(int=1)),
+        "manualRecordWorkId": str(UUID(int=2)),
+        "manualRecordArtifactId": str(UUID(int=3)),
+        "manualRecordArtifactDigest": _DIGEST,
+        "manualRecordContentDigest": _DIGEST,
+        "recordDigest": _DIGEST,
+        "expectedEntityKind": "Place",
+        "sourceArtifactId": str(UUID(int=4)),
+        "sourceArtifactDigest": _DIGEST,
+    }
+    with pytest.raises(ValidationError):
+        ManualRecordLineage.model_validate(payload)
+    with pytest.raises(ValidationError):
+        ManualRecordLineage.model_validate(
+            {**payload, "expectedEntityKind": "place", "recordDigest": "invalid"}
+        )

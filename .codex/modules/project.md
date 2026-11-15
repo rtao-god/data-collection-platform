@@ -16,11 +16,9 @@ transfer, manual import, orphan cleanup, OSM/Overpass, official HTTP acquisition
 normalization, deterministic entity resolution, reversible clusters, fail-closed quality, generated
 contracts, capability-specific images, PostgreSQL/PostGIS migrations, and permanent CI gates.
 
-Still incomplete: clean-machine full Compose, real Berlin boundary/run coverage, browser
-acquisition, deterministic sealed export, source operational controls, retention/backup owners,
-Dagster orchestration, and the review frontend. The authenticated Control API, review persistence,
-suppression, run creation, coverage, and revisioned run control are implemented. Do not create
-placeholders; add each owner with its first complete production path and proof.
+Still incomplete: clean-machine full Compose; real Berlin boundary/run coverage; routed robots→page→worker end-to-end proof; browser acquisition; deterministic sealed export; source operational controls; retention/backup owners; real PostgreSQL migration upgrade/downgrade.
+
+Dagster invokes Pipeline Advancement through authenticated Worker Gateway and has process-backed tests; full Compose runtime acceptance remains unverified. Review frontend is excluded now; backend/API remains required. The authenticated Control API, review persistence, suppression, run creation, coverage, and revisioned run control are implemented. Do not create placeholders; add each owner with its first complete production path and proof.
 
 Business-module technical descriptions live in `.codex/Features/`. This note holds only repository-level
 status and proof scope, which belongs to no business module.

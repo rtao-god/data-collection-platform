@@ -40,6 +40,12 @@ class Body:
         self.closed = True
 
 
+class FailingReadBody(Body):
+    def read(self, amount: int = -1) -> bytes:
+        del amount
+        raise OSError("stream interrupted")
+
+
 @dataclass(slots=True)
 class StoredObject:
     content: bytes
@@ -54,6 +60,9 @@ class FakeS3Client:
         self.copy_calls: list[tuple[str, str]] = []
         self.deleted: list[str] = []
         self.head_bucket_error: Exception | None = None
+        self.read_body: Body | None = None
+        self.omit_read_response_fields: set[str] = set()
+        self.override_read_response_fields: dict[str, object] = {}
 
     def generate_presigned_url(
         self,
@@ -71,12 +80,16 @@ class FakeS3Client:
         stored = self.objects.get(key)
         if stored is None:
             raise _missing_key(key)
-        return {
-            "Body": Body(stored.content),
+        response: dict[str, object] = {
+            "Body": self.read_body or Body(stored.content),
             "ContentLength": len(stored.content),
             "ContentType": stored.content_type,
             "Metadata": dict(stored.metadata),
         }
+        for field in self.omit_read_response_fields:
+            response.pop(field, None)
+        response.update(self.override_read_response_fields)
+        return response
 
     def head_bucket(self, **kwargs: object) -> Mapping[str, object]:
         assert kwargs == {"Bucket": "collector-artifacts"}
@@ -173,6 +186,101 @@ def test_prepare_upload_signs_exact_content_identity() -> None:
     assert parameters["ContentLength"] == len(_BODY)
     assert expiry == 300
     assert http_method == "PUT"
+
+
+def test_read_verified_returns_only_exact_bounded_content() -> None:
+    client = FakeS3Client()
+    client.objects[_final_key()] = _uploaded()
+
+    content = _store(client).read_verified(
+        storage_reference=_final_key(),
+        expected_digest=_DIGEST,
+        expected_size_bytes=len(_BODY),
+        expected_content_type="text/html",
+        maximum_bytes=1_024,
+    )
+
+    assert content == _BODY
+
+
+def test_read_verified_reports_stream_read_failure_as_owner_error() -> None:
+    client = FakeS3Client()
+    client.objects[_final_key()] = _uploaded()
+    body = FailingReadBody(_BODY)
+    client.read_body = body
+
+    with pytest.raises(ArtifactObjectStoreError) as raised:
+        _store(client).read_verified(
+            storage_reference=_final_key(),
+            expected_digest=_DIGEST,
+            expected_size_bytes=len(_BODY),
+            expected_content_type="text/html",
+            maximum_bytes=1_024,
+        )
+
+    assert raised.value.code == "ARTIFACT_READ_FAILED"
+    assert raised.value.context["causeType"] == "OSError"
+    assert body.closed is True
+
+
+@pytest.mark.parametrize(
+    ("field", "omit", "override"),
+    (
+        ("ContentLength", True, None),
+        ("ContentLength", False, "invalid"),
+        ("ContentType", True, None),
+        ("ContentType", False, 42),
+    ),
+)
+def test_read_verified_closes_body_for_invalid_response_metadata(
+    field: str,
+    omit: bool,
+    override: object,
+) -> None:
+    client = FakeS3Client()
+    client.objects[_final_key()] = _uploaded()
+    body = Body(_BODY)
+    client.read_body = body
+    if omit:
+        client.omit_read_response_fields.add(field)
+    else:
+        client.override_read_response_fields[field] = override
+
+    with pytest.raises(ArtifactObjectStoreError) as raised:
+        _store(client).read_verified(
+            storage_reference=_final_key(),
+            expected_digest=_DIGEST,
+            expected_size_bytes=len(_BODY),
+            expected_content_type="text/html",
+            maximum_bytes=1_024,
+        )
+
+    assert raised.value.code == "ARTIFACT_OBJECT_STORE_RESPONSE_INVALID"
+    assert raised.value.context["field"] == field
+    assert body.closed is True
+
+
+def test_read_verified_rejects_mismatched_digest_and_oversize_before_read() -> None:
+    client = FakeS3Client()
+    client.objects[_final_key()] = _uploaded()
+
+    with pytest.raises(ArtifactObjectStoreError, match="content identity"):
+        _store(client).read_verified(
+            storage_reference=_final_key(),
+            expected_digest="sha256:" + "0" * 64,
+            expected_size_bytes=len(_BODY),
+            expected_content_type="text/html",
+            maximum_bytes=1_024,
+        )
+    with pytest.raises(ArtifactObjectStoreError) as raised:
+        _store(client).read_verified(
+            storage_reference=_final_key(),
+            expected_digest=_DIGEST,
+            expected_size_bytes=len(_BODY),
+            expected_content_type="text/html",
+            maximum_bytes=1,
+        )
+    assert raised.value.code == "ARTIFACT_READ_SIZE_INVALID"
 
 
 def test_verify_streams_promotes_and_preserves_retryable_staging() -> None:

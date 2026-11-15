@@ -2,17 +2,43 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Protocol, TypeVar
-from uuid import UUID
+from typing import Literal, NamedTuple, Protocol, TypeVar, cast
+from urllib.parse import urlsplit
+from uuid import UUID, uuid5
 
-from collection_contracts import owner_error
+from collection_application.canonicalization import sha256_json
+from collection_contracts import (
+    ExtractedRecord,
+    ExtractionRequest,
+    ManualRecordLineage,
+    NormalizationProfile,
+    NormalizationProfilesDocument,
+    WebsiteRouteContext,
+    canonical_extracted_record_json,
+    canonical_manual_record_lineage_bytes,
+    decode_extracted_record,
+    owner_error,
+)
+from collection_contracts.campaign_config import (
+    CampaignDocument,
+    NetworkAccess,
+    SeedRoutingConfigured,
+    SourceBinding,
+    SourceBindingsDocument,
+    SourcePolicy,
+    UserAgentConfigured,
+)
+from collection_contracts.website_route import decode_website_route_context
 from collection_domain import WorkStage
+from manual_import_core import decode_canonical_manual_import_record
+from official_http_contracts import HttpAcquisitionManifest
 
 _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{0,99}$")
@@ -21,6 +47,11 @@ _MANUAL_SOURCE_ROLES = (
     re.compile(r"^manual_source:(csv|json|jsonl):(atomic|partial)$"),
     re.compile(r"^manual_import_source:(csv|json|jsonl):(atomic|partial)$"),
 )
+_WEBSITE_ROUTE_NAMESPACE = UUID("01dd1c8e-4ee6-5f1c-a93b-b5fa058370e5")
+_NORMALIZATION_WORK_NAMESPACE = UUID("1f315e17-25b0-5a91-81a3-0bb93e3a1a1e")
+_PAGE_EXTRACTION_TRANSITION_KEY = "official-http-page-extraction-v1"
+_NORMALIZATION_TRANSITION_KEY = "extracted-record-normalization-v1"
+_NORMALIZATION_MAX_PROFILE_BYTES = 1024 * 1024
 _ResultT = TypeVar("_ResultT")
 
 
@@ -63,6 +94,18 @@ class SucceededWorkOutput:
     output_digest: str
     output_artifact: ArtifactIdentity
     input_artifacts: tuple[ArtifactIdentity, ...]
+    source_binding_key: str | None = None
+    config_bundle_digest: str | None = None
+    campaign_bundle_content: bytes | None = None
+    output_content: bytes | None = None
+    related_output_artifacts: tuple[ArtifactIdentity, ...] = ()
+    http_request_content: bytes | None = None
+    website_route_context_content: bytes | None = None
+    extraction_request_content: bytes | None = None
+    normalization_profile_content: bytes | None = None
+    manual_record_content: bytes | None = None
+    manual_record_artifact: ArtifactIdentity | None = None
+    manual_record_lineage_content: bytes | None = None
 
     def __post_init__(self) -> None:
         _require_token("work capability", self.capability)
@@ -74,6 +117,17 @@ class SucceededWorkOutput:
         roles = tuple(item.role for item in self.input_artifacts)
         if len(roles) != len(set(roles)):
             raise ValueError("work input artifacts contain duplicate roles")
+        if self.config_bundle_digest is not None:
+            _require_sha256("run config bundle digest", self.config_bundle_digest)
+        if self.campaign_bundle_content is not None:
+            if self.config_bundle_digest is None:
+                raise ValueError("campaign bundle content requires its exact run digest")
+            if _digest_bytes(self.campaign_bundle_content) != self.config_bundle_digest:
+                raise ValueError("campaign bundle bytes differ from the run config digest")
+        if self.output_content is not None and (
+            _digest_bytes(self.output_content) != self.output_artifact.content_digest
+        ):
+            raise ValueError("work output bytes differ from the exact artifact digest")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,12 +152,117 @@ class PipelineBlocker:
 
 
 @dataclass(frozen=True, slots=True)
+class WebsiteRouteAction:
+    route_key: str
+    target_binding_key: str
+    source_key: str
+    source_policy_digest: str
+    retry_budget: int
+    work_id: UUID
+    semantic_key: str
+    input_digest: str
+    request_payload: bytes
+    context_digest: str
+    context_payload: bytes
+    robots_decision_artifact_id: UUID | None = None
+    robots_raw_artifact_id: UUID | None = None
+    manual_record_lineage_artifact: ArtifactIdentity | None = None
+    manual_record_lineage_content: bytes | None = None
+
+    def __post_init__(self) -> None:
+        _require_token("website route key", self.route_key)
+        _require_token("website target binding key", self.target_binding_key)
+        _require_token("website source key", self.source_key)
+        _require_sha256("website source policy digest", self.source_policy_digest)
+        if not 0 <= self.retry_budget <= 99:
+            raise ValueError("website route retry budget is outside the work engine limit")
+        _require_sha256("website work semantic key", self.semantic_key)
+        _require_sha256("website request input digest", self.input_digest)
+        if not self.request_payload:
+            raise ValueError("website request payload cannot be empty")
+        _require_sha256("website route context digest", self.context_digest)
+        if _digest_bytes(self.request_payload) != self.input_digest:
+            raise ValueError("website request payload differs from its input digest")
+        if _digest_bytes(self.context_payload) != self.context_digest:
+            raise ValueError("website route context differs from its digest")
+        if self.manual_record_lineage_artifact is not None:
+            if self.manual_record_lineage_artifact.role != "manual_record_lineage":
+                raise ValueError("manual-record lineage artifact role is not canonical")
+            if self.manual_record_lineage_content is not None and (
+                _digest_bytes(self.manual_record_lineage_content)
+                != self.manual_record_lineage_artifact.content_digest
+            ):
+                raise ValueError(
+                    "manual-record lineage bytes differ from its exact artifact digest"
+                )
+        if (
+            self.manual_record_lineage_content is not None
+            and not self.manual_record_lineage_content
+        ):
+            raise ValueError("manual-record lineage content cannot be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractionWorkAction:
+    route_key: str
+    source_key: str
+    source_binding_key: str
+    source_policy_digest: str
+    retry_budget: int
+    work_id: UUID
+    semantic_key: str
+    input_digest: str
+    request_payload: bytes
+    raw_artifact_id: UUID
+    manual_record_lineage_artifact: ArtifactIdentity
+
+    def __post_init__(self) -> None:
+        _require_token("extraction route key", self.route_key)
+        _require_token("extraction source key", self.source_key)
+        _require_token("extraction source binding key", self.source_binding_key)
+        _require_sha256("extraction source policy digest", self.source_policy_digest)
+        if not 0 <= self.retry_budget <= 99:
+            raise ValueError("extraction retry budget is outside the work engine limit")
+        _require_sha256("extraction work semantic key", self.semantic_key)
+        _require_sha256("extraction request digest", self.input_digest)
+        if not self.request_payload or _digest_bytes(self.request_payload) != self.input_digest:
+            raise ValueError("extraction request payload differs from its input digest")
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizationWorkAction:
+    source_binding_key: str
+    source_policy_digest: str
+    work_id: UUID
+    semantic_key: str
+    input_digest: str
+    extracted_record_artifact_id: UUID
+    profile_payload: bytes
+    profile_digest: str
+    manual_record_lineage_artifact: ArtifactIdentity
+
+    def __post_init__(self) -> None:
+        _require_token("normalization source binding key", self.source_binding_key)
+        _require_sha256("normalization source policy digest", self.source_policy_digest)
+        _require_sha256("normalization work semantic key", self.semantic_key)
+        _require_sha256("normalization work input digest", self.input_digest)
+        _require_sha256("normalization profile digest", self.profile_digest)
+        if not self.profile_payload or _digest_bytes(self.profile_payload) != self.profile_digest:
+            raise ValueError("normalization profile payload differs from its digest")
+        if len(self.profile_payload) > _NORMALIZATION_MAX_PROFILE_BYTES:
+            raise ValueError("normalization profile payload exceeds the worker input limit")
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineTransitionPlan:
     source_work_unit_id: UUID
     transition_key: str
     disposition: PipelineTransitionDisposition
     plan_digest: str
     blocker: PipelineBlocker | None
+    website_actions: tuple[WebsiteRouteAction, ...] = ()
+    extraction_actions: tuple[ExtractionWorkAction, ...] = ()
+    normalization_actions: tuple[NormalizationWorkAction, ...] = ()
 
     def __post_init__(self) -> None:
         _require_token("pipeline transition key", self.transition_key)
@@ -291,6 +450,18 @@ class PipelineTransitionRegistry:
             and source.output_contract == "manual-import-record@1"
         ):
             return self._manual_record(source)
+        if (
+            source.stage is WorkStage.ACQUISITION
+            and source.capability == "http_fetch"
+            and source.output_contract == "official-http-acquisition@1"
+        ):
+            return self._official_http_transition(source)
+        if (
+            source.stage is WorkStage.EXTRACTION
+            and source.capability == "extraction"
+            and source.output_contract == "extracted-record@1"
+        ):
+            return self._extracted_record_normalization(source)
         return self._blocked(
             source,
             transition_key="unsupported-transition",
@@ -372,16 +543,445 @@ class PipelineTransitionRegistry:
                     "actualRole": source.output_artifact.role,
                 },
             )
+        if source.source_binding_key is None:
+            return self._blocked_manual_record_routing(source)
+        if source.campaign_bundle_content is None or source.output_content is None:
+            return self._blocked(
+                source,
+                transition_key="manual-record-website-routing-v1",
+                code="MANUAL_RECORD_ROUTE_INPUT_UNAVAILABLE",
+                message="The exact run snapshot and manual-record bytes are required for routing.",
+                required_action=(
+                    "Read and verify the immutable snapshot and output artifact before routing."
+                ),
+                context={"campaignRunId": str(source.run_id)},
+            )
+        try:
+            actions, routing_state = _plan_manual_record_website_actions(source)
+        except _WebsiteRoutePlanningError as exc:
+            return self._blocked(
+                source,
+                transition_key="manual-record-website-routing-v1",
+                code=exc.code,
+                message=exc.message,
+                required_action=exc.required_action,
+                context=exc.context,
+            )
+        if routing_state == "not_configured":
+            return self._blocked_manual_record_routing(source)
+        if not actions:
+            return self._blocked(
+                source,
+                transition_key="manual-record-website-routing-v1",
+                code="MANUAL_RECORD_ROUTE_UNAVAILABLE",
+                message="No authorized website route matches the record's source binding.",
+                required_action=(
+                    "Add an approved, binding-scoped website route to the run's campaign snapshot."
+                ),
+                context={"sourceBindingKey": source.source_binding_key},
+            )
+        return self._plan(
+            source,
+            transition_key="manual-record-website-routing-v1",
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            website_actions=actions,
+        )
+
+    def _blocked_manual_record_routing(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
         return self._blocked(
             source,
             transition_key="manual-record-routing",
             code="MANUAL_RECORD_DOWNSTREAM_SOURCE_UNAVAILABLE",
             message="The manual record has no approved downstream source owner in this campaign.",
             required_action=(
-                "Publish exact website or OSM source bindings in a new campaign snapshot before "
-                "creating acquisition work."
+                "Publish exact website or OSM source bindings in a new campaign snapshot "
+                "before creating acquisition work."
             ),
             context={"campaignRunId": str(source.run_id)},
+        )
+
+    def _official_http_transition(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        transition_key = "official-http-acquisition-routing-v1"
+        if source.output_content is None:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_HTTP_MANIFEST_MISSING",
+                message="The canonical official HTTP manifest is unavailable for dispatch.",
+                required_action="Repair the successful HTTP output artifact before advancement.",
+                context={},
+            )
+        try:
+            document = json.loads(
+                source.output_content.decode("utf-8"),
+                object_pairs_hook=_unique_json_object,
+            )
+            if not isinstance(document, dict) or not {
+                "contract",
+                "contractRevision",
+            }.issubset(document):
+                raise ValueError("HTTP manifest discriminators are missing")
+            manifest = HttpAcquisitionManifest.model_validate_json(
+                source.output_content, strict=True
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_HTTP_MANIFEST_INVALID",
+                message="The canonical official HTTP manifest violates its typed contract.",
+                required_action="Repair the manifest through the official HTTP producer owner.",
+                context={"causeType": type(exc).__name__},
+            )
+        if source.http_request_content is None:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_HTTP_REQUEST_MISSING",
+                message="The exact successful HTTP request artifact is unavailable.",
+                required_action="Repair the Worker Gateway input bindings before advancement.",
+                context={},
+            )
+        try:
+            request_document = json.loads(
+                source.http_request_content.decode("utf-8"),
+                object_pairs_hook=_unique_json_object,
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_HTTP_REQUEST_INVALID",
+                message="The exact successful HTTP request is not valid canonical JSON.",
+                required_action="Repair the request artifact through its producer owner.",
+                context={"causeType": type(exc).__name__},
+            )
+        if not isinstance(request_document, dict) or not {
+            "contract",
+            "contractRevision",
+            "requestId",
+            "requestKind",
+            "sourceKey",
+            "sourcePolicyDigest",
+        }.issubset(request_document):
+            request_identity_matches = False
+        else:
+            request_identity_matches = (
+                request_document["contract"] == "official-http-request"
+                and request_document["contractRevision"] == "official-http-request-v1"
+                and request_document["requestId"] == manifest.request_id
+                and request_document["requestKind"] == manifest.request_kind
+                and request_document["sourceKey"] == manifest.source_key
+                and request_document["sourcePolicyDigest"] == manifest.source_policy_digest
+                and request_document.get("url") == manifest.requested_url
+            )
+        if not request_identity_matches:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_HTTP_OUTPUT_IDENTITY_MISMATCH",
+                message="The HTTP manifest does not belong to its exact typed request input.",
+                required_action="Repair the producer-bound request and manifest artifacts.",
+                context={"requestKind": manifest.request_kind},
+            )
+        if manifest.request_kind == "robots":
+            return self._official_http_robots_route(source)
+        if manifest.request_kind == "page":
+            try:
+                action = _plan_official_http_page_extraction(
+                    source,
+                    manifest=manifest,
+                    request=request_document,
+                )
+            except _WebsiteRoutePlanningError as exc:
+                return self._blocked(
+                    source,
+                    transition_key=_PAGE_EXTRACTION_TRANSITION_KEY,
+                    code=exc.code,
+                    message=exc.message,
+                    required_action=exc.required_action,
+                    context=exc.context,
+                )
+            return self._plan(
+                source,
+                transition_key=_PAGE_EXTRACTION_TRANSITION_KEY,
+                disposition=PipelineTransitionDisposition.APPLY,
+                blocker=None,
+                extraction_actions=(action,),
+            )
+        return self._blocked(
+            source,
+            transition_key=f"official-http-{manifest.request_kind}-routing-v1",
+            code="PIPELINE_TRANSITION_UNSUPPORTED",
+            message="No downstream transition owns this official HTTP request kind yet.",
+            required_action=(
+                "Register the exact page or sitemap consumer before advancing this output."
+            ),
+            context={"requestKind": manifest.request_kind},
+        )
+
+    def _official_http_robots_route(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        transition_key = "official-http-robots-routing-v1"
+        context_artifacts = tuple(
+            item for item in source.input_artifacts if item.role == "website_route_context"
+        )
+        request_artifacts = tuple(
+            item for item in source.input_artifacts if item.role == "http_request"
+        )
+        if (
+            source.output_artifact.role != "http_acquisition_manifest"
+            or source.output_content is None
+            or source.http_request_content is None
+            or source.website_route_context_content is None
+            or len(context_artifacts) != 1
+            or len(request_artifacts) != 1
+        ):
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_WEBSITE_ROUTE_EVIDENCE_MISSING",
+                message="The exact HTTP request, manifest, and saved route context are required.",
+                required_action=(
+                    "Repair the canonical HTTP artifact bindings before route advancement."
+                ),
+                context={
+                    "contextCount": len(context_artifacts),
+                    "requestCount": len(request_artifacts),
+                },
+            )
+        try:
+            manifest = HttpAcquisitionManifest.model_validate_json(
+                source.output_content, strict=True
+            )
+            context = decode_website_route_context(source.website_route_context_content)
+            request = json.loads(
+                source.http_request_content.decode("utf-8"),
+                object_pairs_hook=_unique_json_object,
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_WEBSITE_ROUTE_EVIDENCE_INVALID",
+                message="The saved route context or official HTTP request violates its contract.",
+                required_action="Repair the exact input artifacts through their producer owner.",
+                context={"causeType": type(exc).__name__},
+            )
+        if not isinstance(request, dict):
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_WEBSITE_ROUTE_REQUEST_INVALID",
+                message="The exact HTTP request artifact is not a JSON object.",
+                required_action="Repair the request artifact through the Worker Gateway owner.",
+                context={},
+            )
+        request_bytes = source.http_request_content
+        request_digest = _digest_bytes(request_bytes)
+        context_digest = _digest_bytes(source.website_route_context_content)
+        request_origin, _ = _canonical_origin(str(context.source_url))
+        identity_matches = (
+            context.request_id == request.get("requestId") == manifest.request_id
+            and context.request_digest == request_digest == request_artifacts[0].content_digest
+            and context_artifacts[0].content_digest == context_digest
+            and source.config_bundle_digest == context.campaign_bundle_digest
+            and source.source_binding_key == context.target_binding_key
+            and request.get("contract") == "official-http-request"
+            and request.get("contractRevision") == "official-http-request-v1"
+            and request.get("requestKind") == "robots"
+            and request.get("url") == f"{request_origin}/robots.txt"
+            and request.get("allowedOrigin") == request_origin
+            and request.get("sourceKey") == context.source_key == manifest.source_key
+            and request.get("sourcePolicyDigest")
+            == context.source_policy_digest
+            == manifest.source_policy_digest
+            and manifest.request_kind == "robots"
+            and manifest.requested_url == request.get("url")
+            and manifest.robots_target_url == str(context.source_url)
+            and context.target_binding_key == source.source_binding_key
+        )
+        if not identity_matches:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_WEBSITE_ROUTE_IDENTITY_MISMATCH",
+                message=(
+                    "The HTTP result does not belong to this exact run route, request, and seed."
+                ),
+                required_action=(
+                    "Repair the route/request provenance; do not infer target identity."
+                ),
+                context={"routeKey": context.route_key},
+            )
+        if (
+            manifest.outcome not in {"fetched", "empty"}
+            or manifest.robots_allowed is None
+            or manifest.robots_decision_digest is None
+            or manifest.robots_artifact_id is not None
+        ):
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_WEBSITE_ROBOTS_DECISION_UNAVAILABLE",
+                message="The robots result has no complete seed-specific typed decision.",
+                required_action=(
+                    "Require a successful target-specific robots evaluation before routing."
+                ),
+                context={"outcome": manifest.outcome},
+            )
+        if not manifest.robots_allowed:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_WEBSITE_ROBOTS_DISALLOWED",
+                message="The exact seed URL is disallowed by its target-specific robots decision.",
+                required_action="Do not create page work for this seed URL.",
+                context={
+                    "routeKey": context.route_key,
+                    "targetUrl": str(context.source_url),
+                    "decisionDigest": manifest.robots_decision_digest,
+                    "robotsArtifactId": str(source.output_artifact.artifact_id),
+                },
+            )
+
+        page_request = dict(request)
+        page_request_id = uuid5(
+            _WEBSITE_ROUTE_NAMESPACE,
+            f"page:{source.run_id}:{source.source_work_unit_id}:{context.route_key}:"
+            f"{manifest.robots_decision_digest}",
+        ).hex
+        page_request.update(
+            requestId=page_request_id,
+            requestKind="page",
+            url=str(context.source_url),
+            robotsAllowed=True,
+            robotsArtifactId=str(source.output_artifact.artifact_id),
+            robotsDecisionDigest=manifest.robots_decision_digest,
+            robotsManifestDigest=source.output_artifact.content_digest,
+            pageInterests=[item.model_dump(mode="json") for item in context.page_interests],
+        )
+        page_request_bytes = _canonical_json_bytes(page_request)
+        page_request_digest = _digest_bytes(page_request_bytes)
+        page_context = context.model_copy(
+            update={"request_id": page_request_id, "request_digest": page_request_digest}
+        )
+        page_context_bytes = _canonical_json_bytes(
+            page_context.model_dump(mode="json", by_alias=True)
+        )
+        page_context_digest = _digest_bytes(page_context_bytes)
+        raw_outputs = tuple(
+            item for item in source.related_output_artifacts if item.role == "http_raw_response"
+        )
+        lineage_artifacts = tuple(
+            item for item in source.input_artifacts if item.role == "manual_record_lineage"
+        )
+        if len(lineage_artifacts) != 1:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_MANUAL_RECORD_LINEAGE_MISSING_OR_AMBIGUOUS",
+                message="Routed robots work must carry exactly one manual-record lineage artifact.",
+                required_action="Repair the exact lineage binding at the route-work producer.",
+                context={"lineageArtifactCount": len(lineage_artifacts)},
+            )
+        lineage_artifact = lineage_artifacts[0]
+        try:
+            lineage_content = source.manual_record_lineage_content
+            if (
+                lineage_content is None
+                or _digest_bytes(lineage_content) != lineage_artifact.content_digest
+            ):
+                raise ValueError(
+                    "manual-record lineage bytes differ from the leased artifact digest"
+                )
+            lineage = ManualRecordLineage.model_validate_json(lineage_content, strict=True)
+            if canonical_manual_record_lineage_bytes(lineage) != lineage_content:
+                raise ValueError("manual-record lineage is not canonical")
+            if (
+                lineage.run_id != source.run_id
+                or lineage.manual_record_content_digest != context.record_digest
+            ):
+                raise ValueError("manual-record lineage does not match the exact run and route")
+        except (TypeError, ValueError) as exc:
+            return self._blocked(
+                source,
+                transition_key=transition_key,
+                code="PIPELINE_MANUAL_RECORD_LINEAGE_INVALID",
+                message="Routed robots work has invalid or mismatched manual-record lineage.",
+                required_action="Repair the lineage artifact at its manual-record producer.",
+                context={"causeType": type(exc).__name__},
+            )
+        route_identity = {
+            "runId": str(source.run_id),
+            "manualRecordLineageArtifactId": str(lineage_artifact.artifact_id),
+            "manualRecordLineageDigest": lineage_artifact.content_digest,
+            "sourceWorkUnitId": str(source.source_work_unit_id),
+            "configBundleDigest": context.campaign_bundle_digest,
+            "routeKey": context.route_key,
+            "targetBindingKey": context.target_binding_key,
+            "seedUrl": str(context.source_url),
+            "robotsManifestArtifactId": str(source.output_artifact.artifact_id),
+            "robotsManifestDigest": source.output_artifact.content_digest,
+            "robotsRawArtifactId": (str(raw_outputs[0].artifact_id) if raw_outputs else None),
+            "robotsRawDigest": raw_outputs[0].content_digest if raw_outputs else None,
+            "decisionDigest": manifest.robots_decision_digest,
+        }
+        semantic_key = _digest_bytes(_canonical_json_bytes(route_identity))
+        action = WebsiteRouteAction(
+            route_key=context.route_key,
+            target_binding_key=context.target_binding_key,
+            source_key=context.source_key,
+            source_policy_digest=context.source_policy_digest,
+            retry_budget=context.retry_budget,
+            work_id=uuid5(_WEBSITE_ROUTE_NAMESPACE, semantic_key),
+            semantic_key=semantic_key,
+            input_digest=page_request_digest,
+            request_payload=page_request_bytes,
+            context_digest=page_context_digest,
+            context_payload=page_context_bytes,
+            robots_decision_artifact_id=source.output_artifact.artifact_id,
+            robots_raw_artifact_id=raw_outputs[0].artifact_id if raw_outputs else None,
+            manual_record_lineage_artifact=lineage_artifact,
+        )
+        return self._plan(
+            source,
+            transition_key=transition_key,
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            website_actions=(action,),
+        )
+
+    def _extracted_record_normalization(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        try:
+            action = _plan_extracted_record_normalization(source)
+        except _NormalizationPlanningError as exc:
+            return self._blocked(
+                source,
+                transition_key=_NORMALIZATION_TRANSITION_KEY,
+                code=exc.code,
+                message=exc.message,
+                required_action=exc.required_action,
+                context=exc.context,
+            )
+        return self._plan(
+            source,
+            transition_key=_NORMALIZATION_TRANSITION_KEY,
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            normalization_actions=(action,),
         )
 
     def _blocked(
@@ -415,12 +1015,18 @@ class PipelineTransitionRegistry:
         transition_key: str,
         disposition: PipelineTransitionDisposition,
         blocker: PipelineBlocker | None,
+        website_actions: tuple[WebsiteRouteAction, ...] = (),
+        extraction_actions: tuple[ExtractionWorkAction, ...] = (),
+        normalization_actions: tuple[NormalizationWorkAction, ...] = (),
     ) -> PipelineTransitionPlan:
         digest = _transition_plan_digest(
             source,
             transition_key=transition_key,
             disposition=disposition,
             blocker=blocker,
+            website_actions=website_actions,
+            extraction_actions=extraction_actions,
+            normalization_actions=normalization_actions,
         )
         return PipelineTransitionPlan(
             source_work_unit_id=source.source_work_unit_id,
@@ -428,6 +1034,9 @@ class PipelineTransitionRegistry:
             disposition=disposition,
             plan_digest=digest,
             blocker=blocker,
+            website_actions=website_actions,
+            extraction_actions=extraction_actions,
+            normalization_actions=normalization_actions,
         )
 
 
@@ -479,12 +1088,1157 @@ class PipelineAdvancementService:
             ) from exc
 
 
+class _WebsiteRoutePlanningError(ValueError):
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        required_action: str,
+        context: Mapping[str, object],
+    ) -> None:
+        self.code = code
+        self.message = message
+        self.required_action = required_action
+        self.context = dict(context)
+        super().__init__(message)
+
+
+class _NormalizationPlanningError(ValueError):
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        required_action: str,
+        context: Mapping[str, object],
+    ) -> None:
+        self.code = code
+        self.message = message
+        self.required_action = required_action
+        self.context = dict(context)
+        super().__init__(message)
+
+
+def _normalization_input_error(
+    code: str,
+    reason: str,
+    **context: object,
+) -> _NormalizationPlanningError:
+    return _NormalizationPlanningError(
+        code=code,
+        message="Exact extraction evidence and run configuration do not authorize normalization.",
+        required_action=(
+            "Correct the extraction result or publish a compatible normalization profile in a "
+            "new campaign snapshot."
+        ),
+        context={"reason": reason, **context},
+    )
+
+
+def _plan_extracted_record_normalization(
+    source: SucceededWorkOutput,
+) -> NormalizationWorkAction:
+    record, request, raw_artifact = _read_normalization_evidence(source)
+    lineage_bindings = tuple(
+        item for item in source.input_artifacts if item.role == "manual_record_lineage"
+    )
+    if len(lineage_bindings) != 1 or source.manual_record_lineage_content is None:
+        raise _normalization_input_error(
+            "PIPELINE_MANUAL_RECORD_LINEAGE_MISSING_OR_AMBIGUOUS",
+            "manual_record_lineage_missing_or_ambiguous",
+            lineageArtifactCount=len(lineage_bindings),
+        )
+    lineage_artifact = lineage_bindings[0]
+    try:
+        lineage_content = source.manual_record_lineage_content
+        lineage = ManualRecordLineage.model_validate_json(lineage_content, strict=True)
+        if (
+            _digest_bytes(lineage_content) != lineage_artifact.content_digest
+            or canonical_manual_record_lineage_bytes(lineage) != lineage_content
+            or lineage.run_id != source.run_id
+            or lineage.manual_record_content_digest != record.source_record_id
+        ):
+            raise ValueError("manual-record lineage differs from the exact extracted record")
+    except (TypeError, ValueError) as exc:
+        raise _normalization_input_error(
+            "PIPELINE_MANUAL_RECORD_LINEAGE_INVALID",
+            type(exc).__name__,
+        ) from exc
+    _verify_normalization_record_binding(source, record, request, raw_artifact)
+    binding, profile, policy_digest = _snapshot_normalization_profile(source, request)
+    profile_payload = _canonical_json_bytes(profile.model_dump(mode="json", by_alias=True))
+    if len(profile_payload) > _NORMALIZATION_MAX_PROFILE_BYTES:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_PROFILE_TOO_LARGE",
+            "profile_exceeds_worker_input_limit",
+            profileKey=binding.normalization_profile,
+        )
+    profile_digest = _digest_bytes(profile_payload)
+    input_digest = _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "extractedRecordArtifactId": str(source.output_artifact.artifact_id),
+                "extractedRecordDigest": record.content_digest,
+                "normalizationProfileDigest": profile_digest,
+                "manualRecordLineageArtifactId": str(lineage_artifact.artifact_id),
+                "manualRecordLineageDigest": lineage_artifact.content_digest,
+            }
+        )
+    )
+    semantic_key = _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionKey": _NORMALIZATION_TRANSITION_KEY,
+                "runId": str(source.run_id),
+                "sourceWorkUnitId": str(source.source_work_unit_id),
+                "configBundleDigest": source.config_bundle_digest,
+                "sourceBindingKey": binding.key,
+                "sourcePolicyDigest": policy_digest,
+                "extractedRecordArtifactId": str(source.output_artifact.artifact_id),
+                "extractedRecordDigest": record.content_digest,
+                "normalizationProfileKey": binding.normalization_profile,
+                "normalizationProfileDigest": profile_digest,
+                "inputDigest": input_digest,
+            }
+        )
+    )
+    return NormalizationWorkAction(
+        source_binding_key=binding.key,
+        source_policy_digest=policy_digest,
+        work_id=uuid5(_NORMALIZATION_WORK_NAMESPACE, semantic_key),
+        semantic_key=semantic_key,
+        input_digest=input_digest,
+        extracted_record_artifact_id=source.output_artifact.artifact_id,
+        profile_payload=profile_payload,
+        profile_digest=profile_digest,
+        manual_record_lineage_artifact=lineage_artifact,
+    )
+
+
+def _require_normalization_source(source: SucceededWorkOutput) -> None:
+    if (
+        source.stage is not WorkStage.EXTRACTION
+        or source.capability != "extraction"
+        or source.output_contract != "extracted-record@1"
+        or source.output_artifact.role != "extracted_record"
+        or source.output_artifact.content_type != "application/vnd.collection.extracted-record+json"
+        or source.output_content is None
+        or source.extraction_request_content is None
+        or source.campaign_bundle_content is None
+        or source.config_bundle_digest is None
+        or source.source_binding_key is None
+    ):
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_EVIDENCE_MISSING",
+            "normalization_evidence_missing",
+        )
+
+
+def _read_normalization_evidence(
+    source: SucceededWorkOutput,
+) -> tuple[ExtractedRecord, ExtractionRequest, ArtifactIdentity]:
+    _require_normalization_source(source)
+    if source.output_content is None or source.extraction_request_content is None:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_EVIDENCE_MISSING",
+            "normalization_payload_missing",
+        )
+    try:
+        record = decode_extracted_record(source.output_content)
+        request = ExtractionRequest.model_validate_json(
+            source.extraction_request_content,
+            strict=True,
+        )
+    except (UnicodeDecodeError, ValueError, TypeError) as exc:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_EVIDENCE_INVALID",
+            type(exc).__name__,
+        ) from exc
+    raw_artifacts = tuple(
+        item for item in source.input_artifacts if item.role == "raw_source_document"
+    )
+    request_artifacts = tuple(
+        item for item in source.input_artifacts if item.role == "extraction_request"
+    )
+    if (
+        len(source.input_artifacts) != 2
+        or len(raw_artifacts) != 1
+        or len(request_artifacts) != 1
+        or _digest_bytes(source.extraction_request_content) != request_artifacts[0].content_digest
+        or _canonical_json_bytes(request.model_dump(mode="json", by_alias=True))
+        != source.extraction_request_content
+    ):
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_INPUT_BINDING_INVALID",
+            "extraction_input_artifacts_mismatch",
+        )
+    return record, request, raw_artifacts[0]
+
+
+def _verify_normalization_record_binding(
+    source: SucceededWorkOutput,
+    record: ExtractedRecord,
+    request: ExtractionRequest,
+    raw_artifact: ArtifactIdentity,
+) -> None:
+    if (
+        canonical_extracted_record_json(record).encode("utf-8") != source.output_content
+        or record.content_digest != source.output_digest
+    ):
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_OUTPUT_MISMATCH",
+            "extracted_record_identity_mismatch",
+        )
+    if not all(
+        (
+            record.source_record_id == request.source_record_id,
+            record.raw_artifact_digest == raw_artifact.content_digest,
+            request.raw_artifact_digest == raw_artifact.content_digest,
+            record.source_url == request.source_url,
+            record.content_type == request.content_type,
+            record.source_policy_digest == request.source_policy_digest,
+            record.extractor_revision == request.extractor_revision,
+            record.observed_at_utc == request.observed_at_utc,
+            all(field.field_key in request.allowed_fields for field in record.fields),
+            all(field.field_key not in request.prohibited_fields for field in record.fields),
+            all(item.field_key in request.prohibited_fields for item in record.prohibited_fields),
+        )
+    ):
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_OUTPUT_IDENTITY_MISMATCH",
+            "record_does_not_match_exact_request",
+        )
+    evidence = (
+        *(item.evidence for item in record.fields),
+        *(item.evidence for item in record.prohibited_fields),
+        *(item.evidence for item in record.text_blocks),
+        *(item.evidence for item in record.issues if item.evidence is not None),
+    )
+    if any(
+        item.raw_artifact_digest != record.raw_artifact_digest
+        or item.source_url != record.source_url
+        or item.extractor_revision != record.extractor_revision
+        or item.observed_at_utc != record.observed_at_utc
+        for item in evidence
+    ):
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_EVIDENCE_IDENTITY_MISMATCH",
+            "extracted_evidence_does_not_match_record",
+        )
+
+
+def _snapshot_normalization_profile(
+    source: SucceededWorkOutput,
+    request: ExtractionRequest,
+) -> tuple[SourceBinding, NormalizationProfile, str]:
+    if source.campaign_bundle_content is None or source.source_binding_key is None:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_EVIDENCE_MISSING",
+            "run_snapshot_or_binding_provenance_missing",
+        )
+    try:
+        bundle = _decode_campaign_bundle(source.campaign_bundle_content)
+    except (TypeError, ValueError) as exc:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_SNAPSHOT_INVALID",
+            type(exc).__name__,
+            sourceBindingKey=source.source_binding_key,
+        ) from exc
+    binding, policy, policy_digest = _snapshot_normalization_binding(
+        bundle,
+        source.source_binding_key,
+        request,
+    )
+    profile = _snapshot_profile_for_binding(bundle, binding, policy)
+    return binding, profile, policy_digest
+
+
+def _snapshot_normalization_binding(
+    bundle: Mapping[str, object],
+    source_binding_key: str,
+    request: ExtractionRequest,
+) -> tuple[SourceBinding, SourcePolicy, str]:
+    try:
+        campaign = CampaignDocument.model_validate(bundle["campaign.yaml"])
+        bindings_document = SourceBindingsDocument.model_validate(bundle["source_bindings.yaml"])
+        bindings = {item.key: item for item in bindings_document.items}
+        binding = bindings[source_binding_key]
+        policy = _snapshot_policy(bundle, binding.source_policy_key)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_SNAPSHOT_INVALID",
+            type(exc).__name__,
+            sourceBindingKey=source_binding_key,
+        ) from exc
+    policy_digest = sha256_json(policy.model_dump(mode="json"))
+    if not all(
+        (
+            campaign.campaign_key == bundle["campaignKey"],
+            binding.key in campaign.enabled_source_bindings,
+            binding.source_key == policy.source_key,
+            binding.source_policy_key == policy.policy_key,
+            binding.extraction_profile == request.extractor_revision,
+            policy_digest == request.source_policy_digest,
+            policy.allowed_fields == request.allowed_fields,
+            policy.prohibited_fields == request.prohibited_fields,
+        )
+    ):
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_POLICY_INVALID",
+            "extraction_request_differs_from_run_snapshot_policy",
+            sourceBindingKey=binding.key,
+        )
+    return binding, policy, policy_digest
+
+
+def _snapshot_profile_for_binding(
+    bundle: Mapping[str, object],
+    binding: SourceBinding,
+    policy: SourcePolicy,
+) -> NormalizationProfile:
+    profile_key = binding.normalization_profile
+    if profile_key is None:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_PROFILE_MISSING",
+            "binding_has_no_normalization_profile",
+            sourceBindingKey=binding.key,
+        )
+    try:
+        profiles = NormalizationProfilesDocument.model_validate(
+            bundle["normalization_profiles.yaml"]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_PROFILE_MISSING",
+            "snapshot_has_no_valid_normalization_profiles_document",
+            sourceBindingKey=binding.key,
+            profileKey=profile_key,
+        ) from exc
+    matching_profiles = tuple(item for item in profiles.items if item.key == profile_key)
+    if len(matching_profiles) != 1:
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_PROFILE_MISSING",
+            "binding_profile_reference_not_resolved",
+            sourceBindingKey=binding.key,
+            profileKey=profile_key,
+        )
+    profile = matching_profiles[0].profile
+    source_fields = {rule.source_field for rule in profile.field_rules}
+    target_fields = {
+        *(rule.target_field for rule in profile.field_rules),
+        *(rule.target_field for rule in profile.boolean_pattern_rules),
+    }
+    if (
+        not source_fields.issubset(policy.allowed_fields)
+        or not target_fields.issubset(policy.allowed_fields)
+        or target_fields.intersection(policy.prohibited_fields)
+        or target_fields.intersection(profile.prohibited_fields)
+    ):
+        raise _normalization_input_error(
+            "PIPELINE_NORMALIZATION_PROFILE_POLICY_INVALID",
+            "profile_fields_not_permitted_by_snapshot_policy",
+            sourceBindingKey=binding.key,
+            profileKey=profile_key,
+        )
+    return profile
+
+
+class _PageResultBinding(NamedTuple):
+    request: ArtifactIdentity
+    context: ArtifactIdentity
+    robots: ArtifactIdentity
+    raw: ArtifactIdentity
+
+
+def _page_result_binding(
+    source: SucceededWorkOutput,
+    manifest: HttpAcquisitionManifest,
+) -> _PageResultBinding:
+    request_artifacts = tuple(
+        item for item in source.input_artifacts if item.role == "http_request"
+    )
+    context_artifacts = tuple(
+        item for item in source.input_artifacts if item.role == "website_route_context"
+    )
+    robots_artifacts = tuple(
+        item for item in source.input_artifacts if item.role == "robots_decision"
+    )
+    raw_outputs = tuple(
+        item for item in source.related_output_artifacts if item.role == "http_raw_response"
+    )
+    previous_raw_artifacts = tuple(
+        item for item in source.input_artifacts if item.role == "previous_raw_artifact"
+    )
+    expected_raw_counts = {"fetched": (1, 0), "unchanged": (0, 1)}.get(manifest.outcome)
+    if (
+        source.output_artifact.role != "http_acquisition_manifest"
+        or len(request_artifacts) != 1
+        or len(context_artifacts) != 1
+        or len(robots_artifacts) != 1
+        or expected_raw_counts != (len(raw_outputs), len(previous_raw_artifacts))
+    ):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_ARTIFACT_BINDING_INVALID",
+            message="The page result must bind one request, route, robots decision, and raw body.",
+            reason="page_extraction_artifact_binding_invalid",
+            requestCount=len(request_artifacts),
+            contextCount=len(context_artifacts),
+            robotsCount=len(robots_artifacts),
+            rawCount=len(raw_outputs) + len(previous_raw_artifacts),
+        )
+    return _PageResultBinding(
+        request=request_artifacts[0],
+        context=context_artifacts[0],
+        robots=robots_artifacts[0],
+        raw=(raw_outputs + previous_raw_artifacts)[0],
+    )
+
+
+def _page_result_identity_mismatch(
+    source: SucceededWorkOutput,
+    *,
+    manifest: HttpAcquisitionManifest,
+    request: Mapping[str, object],
+    binding: _PageResultBinding,
+    route: WebsiteRouteContext,
+    request_digest: str,
+    context_digest: str,
+) -> bool:
+    page_interests = [item.model_dump(mode="json") for item in route.page_interests]
+    if not (
+        route.request_id == request.get("requestId") == manifest.request_id
+        and route.request_digest == request_digest == binding.request.content_digest
+        and binding.context.content_digest == context_digest
+        and source.config_bundle_digest == route.campaign_bundle_digest
+        and source.source_binding_key == route.target_binding_key
+        and request.get("contract") == "official-http-request"
+        and request.get("contractRevision") == "official-http-request-v1"
+        and request.get("requestKind") == "page"
+        and request.get("url") == str(route.source_url)
+        and request.get("sourceKey") == route.source_key == manifest.source_key
+        and request.get("sourcePolicyDigest")
+        == route.source_policy_digest
+        == manifest.source_policy_digest
+        and request.get("pageInterests") == page_interests
+        and manifest.request_kind == "page"
+        and manifest.requested_url == request.get("url")
+        and manifest.robots_allowed is True
+        and manifest.robots_target_url == str(route.source_url)
+        and manifest.robots_artifact_id == binding.robots.artifact_id
+        and manifest.robots_decision_digest is not None
+        and request.get("robotsAllowed") is True
+        and request.get("robotsArtifactId") == str(binding.robots.artifact_id)
+        and request.get("robotsManifestDigest") == binding.robots.content_digest
+        and request.get("robotsDecisionDigest") == manifest.robots_decision_digest
+    ):
+        return True
+    return _page_raw_body_mismatch(manifest, binding.raw)
+
+
+def _page_raw_body_mismatch(manifest: HttpAcquisitionManifest, raw: ArtifactIdentity) -> bool:
+    if manifest.outcome == "fetched":
+        return (
+            manifest.raw_artifact_digest != raw.content_digest
+            or manifest.decoded_size_bytes != raw.size_bytes
+        )
+    return (
+        manifest.reused_artifact_id != raw.artifact_id
+        or manifest.reused_content_digest != raw.content_digest
+    )
+
+
+def _page_content_type_mismatch(manifest: HttpAcquisitionManifest, content_type: str) -> bool:
+    if content_type not in {"text/html", "application/xhtml+xml"}:
+        return True
+    response_content_types = tuple(
+        header.value.split(";", maxsplit=1)[0].strip().lower()
+        for header in manifest.response_headers
+        if header.name == "content-type"
+    )
+    if manifest.outcome == "fetched":
+        return response_content_types != (content_type,)
+    return response_content_types not in {(), (content_type,)}
+
+
+def _plan_official_http_page_extraction(
+    source: SucceededWorkOutput,
+    *,
+    manifest: HttpAcquisitionManifest,
+    request: Mapping[str, object],
+) -> ExtractionWorkAction:
+    if (
+        source.output_content is None
+        or source.http_request_content is None
+        or source.website_route_context_content is None
+        or source.campaign_bundle_content is None
+        or source.config_bundle_digest is None
+        or source.source_binding_key is None
+    ):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_EVIDENCE_MISSING",
+            message="The exact page result, route, request, and run snapshot are required.",
+            reason="page_extraction_evidence_missing",
+        )
+    binding = _page_result_binding(source, manifest)
+    try:
+        route = decode_website_route_context(source.website_route_context_content)
+    except ValueError as exc:
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_EVIDENCE_INVALID",
+            message="The page route context violates its owner contract.",
+            reason=type(exc).__name__,
+        ) from exc
+    request_digest = _digest_bytes(source.http_request_content)
+    context_digest = _digest_bytes(source.website_route_context_content)
+    if _page_result_identity_mismatch(
+        source,
+        manifest=manifest,
+        request=request,
+        binding=binding,
+        route=route,
+        request_digest=request_digest,
+        context_digest=context_digest,
+    ):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_IDENTITY_MISMATCH",
+            message="The page result differs from its routed seed or robots evidence.",
+            reason="page_extraction_identity_mismatch",
+            routeKey=route.route_key,
+        )
+    lineage_bindings = tuple(
+        item for item in source.input_artifacts if item.role == "manual_record_lineage"
+    )
+    if len(lineage_bindings) != 1 or source.manual_record_lineage_content is None:
+        raise _route_input_error(
+            code="PIPELINE_MANUAL_RECORD_LINEAGE_MISSING_OR_AMBIGUOUS",
+            message="Page extraction requires exactly one verified manual-record lineage input.",
+            reason="manual_record_lineage_missing_or_ambiguous",
+            lineageArtifactCount=len(lineage_bindings),
+        )
+    lineage_artifact = lineage_bindings[0]
+    try:
+        lineage_content = source.manual_record_lineage_content
+        if _digest_bytes(lineage_content) != lineage_artifact.content_digest:
+            raise ValueError("manual-record lineage bytes differ from the leased artifact digest")
+        lineage = ManualRecordLineage.model_validate_json(lineage_content, strict=True)
+        if (
+            canonical_manual_record_lineage_bytes(lineage) != lineage_content
+            or lineage.run_id != source.run_id
+            or lineage.manual_record_content_digest != route.record_digest
+        ):
+            raise ValueError("manual-record lineage does not match the exact page run and route")
+    except (TypeError, ValueError) as exc:
+        raise _route_input_error(
+            code="PIPELINE_MANUAL_RECORD_LINEAGE_INVALID",
+            message="Page extraction has invalid or mismatched manual-record lineage.",
+            reason=type(exc).__name__,
+        ) from exc
+    raw = binding.raw
+    content_type = raw.content_type.split(";", maxsplit=1)[0].strip().lower()
+    if _page_content_type_mismatch(manifest, content_type):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_CONTENT_TYPE_UNSUPPORTED",
+            message="The page result has no single, supported HTML content type.",
+            reason="page_content_type_unsupported",
+            contentType=content_type,
+        )
+
+    bundle = _decode_campaign_bundle(source.campaign_bundle_content)
+    try:
+        campaign = CampaignDocument.model_validate(bundle["campaign.yaml"])
+        bindings_doc = SourceBindingsDocument.model_validate(bundle["source_bindings.yaml"])
+        bindings = {item.key: item for item in bindings_doc.items}
+        target_binding = bindings[route.target_binding_key]
+        source_binding = bindings[route.source_binding_key]
+        policy = _snapshot_policy(bundle, target_binding.source_policy_key)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_SNAPSHOT_INVALID",
+            message="The exact run snapshot has no valid page route or extraction policy.",
+            reason=type(exc).__name__,
+        ) from exc
+    routing = bindings_doc.seed_routing
+    if not isinstance(routing, SeedRoutingConfigured):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_ROUTE_MISSING",
+            message="The exact run snapshot has no configured website route.",
+            reason="seed_routing_not_configured",
+        )
+    routes = routing.routes_for_source(source_binding.key, "website")
+    matching_routes = tuple(
+        item
+        for item in routes
+        if item.key == route.route_key and item.target_binding == target_binding.key
+    )
+    policy_digest = sha256_json(policy.model_dump(mode="json"))
+    access = policy.access
+    if not isinstance(access, NetworkAccess):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_POLICY_INVALID",
+            message="The page extraction policy does not authorize network access.",
+            reason="page_network_access_missing",
+            routeKey=route.route_key,
+        )
+    if (
+        campaign.campaign_key != bundle["campaignKey"]
+        or source_binding.capability != "manual_import"
+        or source_binding.key not in campaign.enabled_source_bindings
+        or target_binding.key not in campaign.enabled_source_bindings
+        or target_binding.capability != "http_fetch"
+        or target_binding.source_key != route.source_key
+        or target_binding.extraction_profile is None
+        or len(matching_routes) != 1
+        or target_binding.source_policy_key != policy.policy_key
+        or policy.source_key != route.source_key
+        or policy.source_type != "official_website"
+        or policy.legal_status != "approved"
+        or policy_digest != route.source_policy_digest
+    ):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_POLICY_INVALID",
+            message="The page extraction is not authorized by its exact run snapshot.",
+            reason="page_extraction_policy_invalid",
+            routeKey=route.route_key,
+            targetBindingKey=route.target_binding_key,
+        )
+
+    if (
+        content_type not in access.content_type_allowlist
+        or raw.size_bytes > access.max_decoded_bytes
+    ):
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_POLICY_INVALID",
+            message="The page content type or size is not authorized by its exact run snapshot.",
+            reason="page_content_outside_policy",
+            routeKey=route.route_key,
+            contentType=content_type,
+            sizeBytes=raw.size_bytes,
+        )
+    maximum_document_bytes = min(access.max_decoded_bytes, 64 * 1024 * 1024)
+    if maximum_document_bytes < 1_024:
+        raise _route_input_error(
+            code="PIPELINE_PAGE_EXTRACTION_LIMIT_INVALID",
+            message="The source policy limit cannot form a valid extraction request.",
+            reason="page_extraction_limit_invalid",
+            routeKey=route.route_key,
+        )
+    extraction_request = ExtractionRequest(
+        source_record_id=route.record_digest,
+        raw_artifact_digest=raw.content_digest,
+        source_url=manifest.final_url,
+        content_type=cast(Literal["text/html", "application/xhtml+xml"], content_type),
+        source_policy_digest=policy_digest,
+        extractor_revision=target_binding.extraction_profile,
+        observed_at_utc=manifest.observed_at_utc,
+        allowed_fields=policy.allowed_fields,
+        prohibited_fields=policy.prohibited_fields,
+        maximum_document_bytes=maximum_document_bytes,
+    )
+    request_payload = _canonical_json_bytes(
+        extraction_request.model_dump(mode="json", by_alias=True)
+    )
+    input_digest = _digest_bytes(request_payload)
+    semantic_key = _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionKey": _PAGE_EXTRACTION_TRANSITION_KEY,
+                "runId": str(source.run_id),
+                "sourceWorkUnitId": str(source.source_work_unit_id),
+                "configBundleDigest": route.campaign_bundle_digest,
+                "recordDigest": route.record_digest,
+                "routeKey": route.route_key,
+                "sourceBindingKey": target_binding.key,
+                "sourcePolicyDigest": policy_digest,
+                "rawArtifactId": str(raw.artifact_id),
+                "rawArtifactDigest": raw.content_digest,
+                "manualRecordLineageArtifactId": str(lineage_artifact.artifact_id),
+                "manualRecordLineageDigest": lineage_artifact.content_digest,
+                "extractionRequestDigest": input_digest,
+                "extractorRevision": target_binding.extraction_profile,
+            }
+        )
+    )
+    return ExtractionWorkAction(
+        route_key=route.route_key,
+        source_key=target_binding.source_key,
+        source_binding_key=target_binding.key,
+        source_policy_digest=policy_digest,
+        retry_budget=policy.retry_budget,
+        work_id=uuid5(_WEBSITE_ROUTE_NAMESPACE, semantic_key),
+        semantic_key=semantic_key,
+        input_digest=input_digest,
+        request_payload=request_payload,
+        raw_artifact_id=raw.artifact_id,
+        manual_record_lineage_artifact=lineage_artifact,
+    )
+
+
+def _plan_manual_record_website_actions(
+    source: SucceededWorkOutput,
+) -> tuple[tuple[WebsiteRouteAction, ...], str]:
+    if source.campaign_bundle_content is None or source.output_content is None:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_INPUT_UNAVAILABLE",
+            message="The exact snapshot and manual-record bytes are required for routing.",
+            reason="route_input_content_missing",
+        )
+    bundle = _decode_campaign_bundle(source.campaign_bundle_content)
+    try:
+        campaign = CampaignDocument.model_validate(bundle["campaign.yaml"])
+        bindings_doc = SourceBindingsDocument.model_validate(bundle["source_bindings.yaml"])
+        document = decode_canonical_manual_import_record(
+            source.output_content,
+            expected_content_digest=source.output_digest,
+            maximum_bytes=4 * 1024 * 1024,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_INPUT_INVALID",
+            message="The exact snapshot or manual-record artifact violates its owner contract.",
+            reason=type(exc).__name__,
+        ) from exc
+
+    parent_source = tuple(
+        artifact
+        for artifact in source.input_artifacts
+        if any(pattern.fullmatch(artifact.role) for pattern in _MANUAL_SOURCE_ROLES)
+    )
+    if (
+        len(parent_source) != 1
+        or parent_source[0].role != document.source_artifact_role
+        or parent_source[0].content_digest != document.source_digest
+    ):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_PROVENANCE_MISMATCH",
+            message="The record provenance differs from the exact source artifact binding.",
+            reason="source_artifact_binding_mismatch",
+        )
+
+    if source.config_bundle_digest is None:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_MISSING",
+            message="The successful work has no exact run snapshot identity.",
+            reason="config_bundle_digest_missing",
+        )
+    if campaign.campaign_key != bundle["campaignKey"]:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+            message="The campaign document differs from its exact bundle identity.",
+            reason="campaign_key_mismatch",
+        )
+    bindings = {binding.key: binding for binding in bindings_doc.items}
+    source_binding_key = source.source_binding_key
+    source_binding = bindings.get(source_binding_key or "")
+    if (
+        source_binding is None
+        or source_binding.capability != "manual_import"
+        or source_binding_key not in campaign.enabled_source_bindings
+    ):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_PROVENANCE_MISMATCH",
+            message="The record source binding is not enabled by its exact campaign snapshot.",
+            reason="source_binding_not_enabled",
+            sourceBindingKey=source_binding_key,
+        )
+    source_policy = _snapshot_policy(bundle, source_binding.source_policy_key)
+    if (
+        source_policy.source_key != source_binding.source_key
+        or source_policy.access.kind != "manual"
+        or "website" not in source_policy.allowed_fields
+    ):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SOURCE_FIELD_FORBIDDEN",
+            message="The exact source policy does not authorize the website seed field.",
+            reason="source_policy_field_not_allowed",
+            sourceBindingKey=source_binding.key,
+        )
+
+    routing = bindings_doc.seed_routing
+    if routing.state != "configured":
+        return (), "not_configured"
+    routes = routing.routes_for_source(source_binding.key, "website")
+    if not routes:
+        return (), "configured"
+    if document.record.website is None:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_FIELD_UNAVAILABLE",
+            message="The manual record has no website URL for its configured route.",
+            reason="website_value_missing",
+            sourceBindingKey=source_binding.key,
+        )
+    if len(routes) > 1 and any(route.selection != "fan_out" for route in routes):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_AMBIGUOUS",
+            message="Multiple website routes match without explicit fan-out permission.",
+            reason="route_selection_ambiguous",
+            routeKeys=[route.key for route in routes],
+        )
+
+    lineage_content = canonical_manual_record_lineage_bytes(
+        ManualRecordLineage(
+            runId=source.run_id,
+            manualRecordWorkId=source.source_work_unit_id,
+            manualRecordArtifactId=source.output_artifact.artifact_id,
+            manualRecordArtifactDigest=source.output_artifact.content_digest,
+            manualRecordContentDigest=document.content_digest,
+            recordDigest=document.record_digest,
+            expectedEntityKind=document.record.expected_entity_kind,
+            sourceArtifactId=parent_source[0].artifact_id,
+            sourceArtifactDigest=parent_source[0].content_digest,
+        )
+    )
+    lineage_artifact = ArtifactIdentity(
+        artifact_id=uuid5(
+            _WEBSITE_ROUTE_NAMESPACE,
+            f"manual-record-lineage:{source.output_artifact.artifact_id}",
+        ),
+        role="manual_record_lineage",
+        content_digest=_digest_bytes(lineage_content),
+        size_bytes=len(lineage_content),
+        content_type="application/vnd.collection.manual-record-lineage+json",
+    )
+    actions: list[WebsiteRouteAction] = []
+    for route in sorted(routes, key=lambda value: value.key):
+        target = bindings.get(route.target_binding)
+        if target is None or target.key not in campaign.enabled_source_bindings:
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_TARGET_UNAVAILABLE",
+                message="The configured website route target is not enabled in its snapshot.",
+                reason="target_binding_not_enabled",
+                routeKey=route.key,
+            )
+        policy = _snapshot_policy(bundle, target.source_policy_key)
+        access = policy.access
+        if not isinstance(access, NetworkAccess):
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_TARGET_POLICY_INVALID",
+                message="The route target policy does not permit network acquisition.",
+                reason="target_access_not_network",
+                routeKey=route.key,
+                targetBindingKey=target.key,
+            )
+        user_agent = access.user_agent
+        if not isinstance(user_agent, UserAgentConfigured):
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_TARGET_POLICY_INVALID",
+                message="The route target policy has no configured HTTP User-Agent.",
+                reason="target_user_agent_not_configured",
+                routeKey=route.key,
+                targetBindingKey=target.key,
+            )
+        if (
+            target.capability != "http_fetch"
+            or policy.source_key != target.source_key
+            or policy.source_type != "official_website"
+            or policy.legal_status != "approved"
+            or "GET" not in access.allowed_methods
+        ):
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_TARGET_POLICY_INVALID",
+                message="The route target lacks an approved official HTTP request policy.",
+                reason="target_policy_not_usable",
+                routeKey=route.key,
+                targetBindingKey=target.key,
+            )
+        origin, host = _canonical_origin(str(document.record.website))
+        if not _host_allowed(host, access.allowed_host_patterns):
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_HOST_FORBIDDEN",
+                message="The seed website host is outside the route target's allowlist.",
+                reason="host_not_allowed",
+                routeKey=route.key,
+                host=host,
+            )
+        if not (
+            1_024 <= access.max_encoded_bytes <= 64 * 1024 * 1024
+            and access.max_encoded_bytes <= access.max_decoded_bytes <= 128 * 1024 * 1024
+        ):
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_POLICY_LIMIT_INVALID",
+                message="The target policy byte limits cannot form a valid HTTP request.",
+                reason="byte_limit_outside_request_contract",
+                routeKey=route.key,
+            )
+        timeout_seconds = math.ceil(access.connect_timeout_seconds + access.read_timeout_seconds)
+        if not 1 <= timeout_seconds <= 180:
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_POLICY_LIMIT_INVALID",
+                message="The target policy timeout cannot form a valid HTTP request.",
+                reason="timeout_outside_request_contract",
+                routeKey=route.key,
+            )
+        policy_digest = sha256_json(policy.model_dump(mode="json"))
+        request_id = uuid5(
+            _WEBSITE_ROUTE_NAMESPACE,
+            f"request:{source.source_work_unit_id}:{source.config_bundle_digest}:{route.key}",
+        ).hex
+        request: dict[str, object] = {
+            "contract": "official-http-request",
+            "contractRevision": "official-http-request-v1",
+            "requestId": request_id,
+            "sourceKey": target.source_key,
+            "sourcePolicyDigest": policy_digest,
+            "requestKind": "robots",
+            "url": f"{origin}/robots.txt",
+            "allowedOrigin": origin,
+            "userAgent": user_agent.value,
+            "timeoutSeconds": timeout_seconds,
+            "maximumEncodedBytes": access.max_encoded_bytes,
+            "maximumDecodedBytes": access.max_decoded_bytes,
+            "depth": 0,
+            "maximumDiscoveredUrls": 100,
+            "trackingQueryParameters": [],
+            "pageInterests": [],
+            "robotsAllowed": None,
+            "robotsArtifactId": None,
+            "robotsDecisionDigest": None,
+            "ifNoneMatch": None,
+            "ifModifiedSince": None,
+            "priorArtifactId": None,
+            "priorContentDigest": None,
+        }
+        request_bytes = _canonical_json_bytes(request)
+        input_digest = _digest_bytes(request_bytes)
+        context = {
+            "contract": "collector-website-route-context",
+            "contractRevision": "website-route-context-v1",
+            "requestId": request_id,
+            "requestDigest": input_digest,
+            "campaignBundleDigest": source.config_bundle_digest,
+            "recordDigest": document.content_digest,
+            "routeKey": route.key,
+            "sourceBindingKey": source_binding.key,
+            "targetBindingKey": target.key,
+            "sourceKey": target.source_key,
+            "sourcePolicyDigest": policy_digest,
+            "sourceUrl": str(document.record.website),
+            "retryBudget": policy.retry_budget,
+            "pageInterests": [
+                {"key": item.key, "tokens": list(item.tokens), "priority": item.priority}
+                for item in route.page_interests
+            ],
+        }
+        context_bytes = _canonical_json_bytes(context)
+        context_digest = _digest_bytes(context_bytes)
+        identity = {
+            "runId": str(source.run_id),
+            "sourceWorkUnitId": str(source.source_work_unit_id),
+            "configBundleDigest": source.config_bundle_digest,
+            "recordDigest": document.content_digest,
+            "routeKey": route.key,
+            "targetBindingKey": target.key,
+            "sourceKey": target.source_key,
+            "sourcePolicyDigest": policy_digest,
+            "requestDigest": input_digest,
+            "routeContextDigest": context_digest,
+            "manualRecordLineageArtifactId": str(lineage_artifact.artifact_id),
+            "manualRecordLineageDigest": lineage_artifact.content_digest,
+        }
+        semantic_key = _digest_bytes(
+            json.dumps(
+                identity,
+                ensure_ascii=False,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        )
+        work_id = uuid5(_WEBSITE_ROUTE_NAMESPACE, semantic_key)
+        actions.append(
+            WebsiteRouteAction(
+                route_key=route.key,
+                target_binding_key=target.key,
+                source_key=target.source_key,
+                source_policy_digest=policy_digest,
+                retry_budget=policy.retry_budget,
+                work_id=work_id,
+                semantic_key=semantic_key,
+                input_digest=input_digest,
+                request_payload=request_bytes,
+                context_digest=context_digest,
+                context_payload=context_bytes,
+                manual_record_lineage_artifact=lineage_artifact,
+                manual_record_lineage_content=lineage_content,
+            )
+        )
+    return tuple(actions), "configured"
+
+
+def _decode_campaign_bundle(content: bytes) -> Mapping[str, object]:
+    try:
+        bundle = json.loads(content.decode("utf-8"), object_pairs_hook=_unique_json_object)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+            message="The exact campaign bundle is not valid canonical JSON.",
+            reason=type(exc).__name__,
+        ) from exc
+    if not isinstance(bundle, dict) or set(bundle) != {"campaignKey", "components"}:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+            message="The exact campaign bundle has an unsupported owner shape.",
+            reason="bundle_shape_invalid",
+        )
+    if _canonical_json_bytes(bundle) != content:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+            message="The exact campaign bundle is not canonical JSON.",
+            reason="bundle_not_canonical",
+        )
+    components = bundle["components"]
+    if not isinstance(components, list):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+            message="The exact campaign bundle has no component ledger.",
+            reason="component_ledger_invalid",
+        )
+    campaign_key = bundle["campaignKey"]
+    if not isinstance(campaign_key, str):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+            message="The exact campaign bundle key is invalid.",
+            reason="campaign_key_invalid",
+        )
+    result: dict[str, object] = {"campaignKey": campaign_key}
+    paths: list[str] = []
+    for component in components:
+        if not isinstance(component, dict) or set(component) != {"path", "digest", "content"}:
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+                message="The exact campaign component has an invalid shape.",
+                reason="component_shape_invalid",
+            )
+        path = component["path"]
+        digest = component["digest"]
+        if not isinstance(path, str) or not isinstance(digest, str):
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+                message="The exact campaign component identity is invalid.",
+                reason="component_identity_invalid",
+            )
+        if path in result or sha256_json(component["content"]) != digest:
+            raise _route_input_error(
+                code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+                message="A campaign component differs from its declared digest.",
+                reason="component_digest_mismatch",
+                path=path,
+            )
+        paths.append(path)
+        result[path] = component["content"]
+    if paths != sorted(paths):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_SNAPSHOT_INVALID",
+            message="Campaign components are not in canonical order.",
+            reason="component_order_invalid",
+        )
+    return result
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def _snapshot_policy(bundle: Mapping[str, object], policy_key: str) -> SourcePolicy:
+    value = bundle.get(f"source_policies/{policy_key}.yaml")
+    if not isinstance(value, Mapping):
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_POLICY_MISSING",
+            message="The exact campaign snapshot lacks the route's source policy.",
+            reason="policy_component_missing",
+            policyKey=policy_key,
+        )
+    try:
+        return SourcePolicy.model_validate(value)
+    except (TypeError, ValueError) as exc:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_POLICY_INVALID",
+            message="The exact route source policy violates its owner contract.",
+            reason=type(exc).__name__,
+            policyKey=policy_key,
+        ) from exc
+
+
+def _canonical_origin(url: str) -> tuple[str, str]:
+    parsed = urlsplit(url)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_URL_INVALID",
+            message="The manual record website URL has no valid HTTP origin.",
+            reason="website_origin_invalid",
+        )
+    try:
+        host = parsed.hostname.encode("idna").decode("ascii").lower()
+        port = parsed.port
+    except (UnicodeError, ValueError) as exc:
+        raise _route_input_error(
+            code="MANUAL_RECORD_ROUTE_URL_INVALID",
+            message="The manual record website URL has an invalid host or port.",
+            reason="website_origin_invalid",
+        ) from exc
+    default_port = 80 if parsed.scheme.lower() == "http" else 443
+    authority = host if port in {None, default_port} else f"{host}:{port}"
+    return f"{parsed.scheme.lower()}://{authority}", host
+
+
+def _host_allowed(host: str, patterns: Sequence[str]) -> bool:
+    for pattern in patterns:
+        normalized = pattern.lower()
+        if normalized == host:
+            return True
+        if normalized.startswith("*."):
+            suffix = normalized[2:]
+            if host != suffix and host.endswith(f".{suffix}"):
+                return True
+    return False
+
+
+def _route_input_error(
+    *,
+    code: str,
+    message: str,
+    reason: str,
+    **context: object,
+) -> _WebsiteRoutePlanningError:
+    return _WebsiteRoutePlanningError(
+        code=code,
+        message=message,
+        required_action=(
+            "Correct the exact seed, snapshot, or approved route configuration; "
+            "do not infer a route."
+        ),
+        context={"reason": reason, **context},
+    )
+
+
+def _digest_bytes(value: bytes) -> str:
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
 def _transition_plan_digest(
     source: SucceededWorkOutput,
     *,
     transition_key: str,
     disposition: PipelineTransitionDisposition,
     blocker: PipelineBlocker | None,
+    website_actions: tuple[WebsiteRouteAction, ...] = (),
+    extraction_actions: tuple[ExtractionWorkAction, ...] = (),
+    normalization_actions: tuple[NormalizationWorkAction, ...] = (),
 ) -> str:
     payload = {
         "sourceWorkUnitId": str(source.source_work_unit_id),
@@ -516,10 +2270,150 @@ def _transition_plan_digest(
             }
         ),
     }
+    if transition_key in {
+        "manual-record-website-routing-v1",
+        "official-http-robots-routing-v1",
+    }:
+        payload["sourceBindingKey"] = source.source_binding_key
+        payload["configBundleDigest"] = source.config_bundle_digest
+        payload["websiteActions"] = [_website_action_payload(action) for action in website_actions]
+    if transition_key == _PAGE_EXTRACTION_TRANSITION_KEY:
+        payload["extractionActions"] = [
+            _extraction_action_payload(action) for action in extraction_actions
+        ]
+    if transition_key == _NORMALIZATION_TRANSITION_KEY:
+        payload["normalizationActions"] = [
+            _normalization_action_payload(action) for action in normalization_actions
+        ]
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
         "utf-8"
     )
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def website_route_result_digest(plan: PipelineTransitionPlan) -> str:
+    if (
+        plan.transition_key
+        not in {
+            "manual-record-website-routing-v1",
+            "official-http-robots-routing-v1",
+        }
+        or not plan.website_actions
+        or plan.disposition is not PipelineTransitionDisposition.APPLY
+    ):
+        raise ValueError("website routing result requires a non-empty apply plan")
+    return _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionPlanDigest": plan.plan_digest,
+                "websiteActions": [
+                    _website_action_payload(action) for action in plan.website_actions
+                ],
+            }
+        )
+    )
+
+
+def extraction_work_result_digest(plan: PipelineTransitionPlan) -> str:
+    if (
+        plan.transition_key != _PAGE_EXTRACTION_TRANSITION_KEY
+        or not plan.extraction_actions
+        or plan.disposition is not PipelineTransitionDisposition.APPLY
+    ):
+        raise ValueError("page extraction result requires a non-empty apply plan")
+    return _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionPlanDigest": plan.plan_digest,
+                "extractionActions": [
+                    _extraction_action_payload(action) for action in plan.extraction_actions
+                ],
+            }
+        )
+    )
+
+
+def normalization_work_result_digest(plan: PipelineTransitionPlan) -> str:
+    if (
+        plan.transition_key != _NORMALIZATION_TRANSITION_KEY
+        or not plan.normalization_actions
+        or plan.disposition is not PipelineTransitionDisposition.APPLY
+    ):
+        raise ValueError("normalization result requires a non-empty apply plan")
+    return _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionPlanDigest": plan.plan_digest,
+                "normalizationActions": [
+                    _normalization_action_payload(action) for action in plan.normalization_actions
+                ],
+            }
+        )
+    )
+
+
+def _website_action_payload(value: WebsiteRouteAction) -> dict[str, object]:
+    return {
+        "routeKey": value.route_key,
+        "targetBindingKey": value.target_binding_key,
+        "sourceKey": value.source_key,
+        "sourcePolicyDigest": value.source_policy_digest,
+        "retryBudget": value.retry_budget,
+        "workId": str(value.work_id),
+        "semanticKey": value.semantic_key,
+        "inputDigest": value.input_digest,
+        "contextDigest": value.context_digest,
+        "robotsDecisionArtifactId": (
+            str(value.robots_decision_artifact_id)
+            if value.robots_decision_artifact_id is not None
+            else None
+        ),
+        "robotsRawArtifactId": (
+            str(value.robots_raw_artifact_id) if value.robots_raw_artifact_id is not None else None
+        ),
+        "manualRecordLineageArtifactId": (
+            str(value.manual_record_lineage_artifact.artifact_id)
+            if value.manual_record_lineage_artifact is not None
+            else None
+        ),
+        "manualRecordLineageDigest": (
+            value.manual_record_lineage_artifact.content_digest
+            if value.manual_record_lineage_artifact is not None
+            else None
+        ),
+        "manualRecordLineageContentDigest": (
+            _digest_bytes(value.manual_record_lineage_content)
+            if value.manual_record_lineage_content is not None
+            else None
+        ),
+    }
+
+
+def _extraction_action_payload(value: ExtractionWorkAction) -> dict[str, object]:
+    return {
+        "routeKey": value.route_key,
+        "sourceKey": value.source_key,
+        "sourceBindingKey": value.source_binding_key,
+        "sourcePolicyDigest": value.source_policy_digest,
+        "retryBudget": value.retry_budget,
+        "workId": str(value.work_id),
+        "semanticKey": value.semantic_key,
+        "inputDigest": value.input_digest,
+        "requestDigest": _digest_bytes(value.request_payload),
+        "rawArtifactId": str(value.raw_artifact_id),
+    }
+
+
+def _normalization_action_payload(value: NormalizationWorkAction) -> dict[str, object]:
+    return {
+        "sourceBindingKey": value.source_binding_key,
+        "sourcePolicyDigest": value.source_policy_digest,
+        "workId": str(value.work_id),
+        "semanticKey": value.semantic_key,
+        "inputDigest": value.input_digest,
+        "extractedRecordArtifactId": str(value.extracted_record_artifact_id),
+        "profileDigest": value.profile_digest,
+    }
 
 
 def _artifact_payload(value: ArtifactIdentity) -> dict[str, object]:

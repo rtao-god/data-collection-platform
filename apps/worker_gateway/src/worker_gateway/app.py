@@ -3,14 +3,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, cast
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -32,7 +33,14 @@ from collection_application import (
     WorkRelease,
     WorkStage,
 )
+from collection_application.pipeline_supervision import (
+    PipelineSupervisorService,
+)
 from collection_contracts import ErrorEnvelope, OwnerContextError
+from collection_contracts.pipeline_advancement_api import (
+    PipelineAdvancementRunRequest,
+    PipelineAdvancementRunResponse,
+)
 from worker_gateway.auth import (
     WorkerAuthenticationError,
     WorkerAuthenticator,
@@ -64,6 +72,9 @@ from worker_gateway.contracts import (
 
 _LOGGER = logging.getLogger("worker_gateway")
 _CORRELATION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,99}$")
+_PIPELINE_ADVANCEMENT_WORKER_ID = "dagster-pipeline-advancement"
+_PIPELINE_ADVANCEMENT_REGISTRATION_LIMIT = 100
+_PIPELINE_ADVANCEMENT_LEASE_SECONDS = 300
 _WORKER_BEARER = HTTPBearer(auto_error=False, scheme_name="WorkerBearer")
 
 
@@ -75,12 +86,18 @@ class GatewayDependencies:
     readiness_probe: Callable[[], None]
     expiry_interval_seconds: float = 5.0
     expiry_batch_size: int = 100
+    pipeline_supervisor: PipelineSupervisorService | None = None
+    pipeline_service_token: str | None = None
 
     def __post_init__(self) -> None:
         if self.expiry_interval_seconds < 0:
             raise ValueError("lease expiry interval cannot be negative")
         if not 1 <= self.expiry_batch_size <= 1_000:
             raise ValueError("lease expiry batch size must be between 1 and 1000")
+        if (self.pipeline_supervisor is None) != (self.pipeline_service_token is None):
+            raise ValueError("pipeline supervisor and service token must be configured together")
+        if self.pipeline_service_token is not None and len(self.pipeline_service_token) < 32:
+            raise ValueError("pipeline service token must contain at least 32 characters")
 
 
 @dataclass(slots=True)
@@ -201,6 +218,39 @@ def create_app(dependencies: GatewayDependencies | None = None) -> FastAPI:
     _install_exception_handlers(application)
     application.include_router(_worker_router())
     _install_health_routes(application)
+
+    @application.post(
+        "/internal/pipeline-advancement/run-once",
+        include_in_schema=False,
+        response_model=PipelineAdvancementRunResponse,
+    )
+    def run_pipeline_advancement(
+        payload: PipelineAdvancementRunRequest,
+        request: Request,
+    ) -> PipelineAdvancementRunResponse:
+        configured = _dependencies(request)
+        token = configured.pipeline_service_token
+        supervisor = configured.pipeline_supervisor
+        authorization = request.headers.get("Authorization", "")
+        scheme, separator, supplied = authorization.partition(" ")
+        if (
+            token is None
+            or supervisor is None
+            or separator != " "
+            or scheme.casefold() != "bearer"
+            or not secrets.compare_digest(supplied, token)
+        ):
+            raise HTTPException(status_code=401, detail="pipeline service authentication failed")
+        result = supervisor.run_once(
+            registration_limit=_PIPELINE_ADVANCEMENT_REGISTRATION_LIMIT,
+            worker_id=_PIPELINE_ADVANCEMENT_WORKER_ID,
+            dagster_execution_id=payload.dagster_execution_id,
+            dagster_build_id=payload.dagster_build_id,
+            lease_duration=timedelta(seconds=_PIPELINE_ADVANCEMENT_LEASE_SECONDS),
+            correlation_id=_correlation_id(request),
+        )
+        return PipelineAdvancementRunResponse.model_validate(result, from_attributes=True)
+
     return application
 
 

@@ -24,6 +24,7 @@ from collection_application.pipeline_advancement import (
     PipelineBlocker,
     PipelineTransitionDisposition,
     PipelineTransitionPlan,
+    PipelineTransitionRegistry,
     SucceededWorkOutput,
 )
 from collection_infrastructure.postgres.pipeline_advancement_metadata import (
@@ -269,13 +270,31 @@ class PostgresPipelineAdvancementRepository:
                 )
                 source = self._source_reader(connection, _uuid(row, "source_work_unit_id"))
                 _assert_source_row_equal(row, source)
-                plan = PipelineTransitionPlan(
-                    source_work_unit_id=source.source_work_unit_id,
-                    transition_key=str(row["transition_key"]),
-                    disposition=PipelineTransitionDisposition.APPLY,
-                    plan_digest=str(row["transition_plan_digest"]),
-                    blocker=None,
-                )
+                plan = PipelineTransitionRegistry().plan(source)
+                if (
+                    plan.transition_key != str(row["transition_key"])
+                    or plan.plan_digest != str(row["transition_plan_digest"])
+                    or plan.disposition is not PipelineTransitionDisposition.APPLY
+                    or plan.blocker is not None
+                ):
+                    raise PipelineAdvancementConflict(
+                        code="PIPELINE_TRANSITION_PLAN_CHANGED",
+                        message=(
+                            "The exact successful output no longer produces "
+                            "the registered apply plan."
+                        ),
+                        context={
+                            "advancementId": str(command.advancement_id),
+                            "registeredTransitionKey": str(row["transition_key"]),
+                            "recomputedTransitionKey": plan.transition_key,
+                            "registeredPlanDigest": str(row["transition_plan_digest"]),
+                            "recomputedPlanDigest": plan.plan_digest,
+                        },
+                        required_action=(
+                            "Re-register the canonical plan only after reviewing "
+                            "the changed exact inputs."
+                        ),
+                    )
                 applier = self._transition_appliers.get(plan.transition_key)
                 if applier is None:
                     raise PipelineAdvancementConflict(
@@ -311,6 +330,16 @@ class PostgresPipelineAdvancementRepository:
                             "with its canonical digest."
                         ),
                     )
+                completed_at_utc = self._now_utc()
+                self._validate_lease(
+                    row,
+                    expected_revision=command.expected_revision,
+                    lease_id=command.lease_id,
+                    lease_token=command.lease_token,
+                    dagster_execution_id=command.dagster_execution_id,
+                    transition_plan_digest=command.transition_plan_digest,
+                    now_utc=completed_at_utc,
+                )
                 next_revision = command.expected_revision + 1
                 self._update_terminal(
                     connection,
@@ -319,7 +348,7 @@ class PostgresPipelineAdvancementRepository:
                     next_revision=next_revision,
                     result_digest=actual_result_digest,
                     blocker=None,
-                    now_utc=now_utc,
+                    now_utc=completed_at_utc,
                     correlation_id=command.correlation_id,
                 )
                 self._insert_event(
@@ -336,7 +365,7 @@ class PostgresPipelineAdvancementRepository:
                     lease_expires_at_utc=_datetime(row, "lease_expires_at_utc"),
                     result_digest=actual_result_digest,
                     blocker=None,
-                    occurred_at_utc=now_utc,
+                    occurred_at_utc=completed_at_utc,
                     correlation_id=command.correlation_id,
                 )
                 return _status(self._get_locked(connection, command.advancement_id))
@@ -672,6 +701,8 @@ def _source_values(source: SucceededWorkOutput) -> dict[str, object]:
         "source_output_artifact_digest": source.output_artifact.content_digest,
         "source_output_artifact_size_bytes": source.output_artifact.size_bytes,
         "source_output_artifact_content_type": source.output_artifact.content_type,
+        "source_binding_key": source.source_binding_key,
+        "source_config_bundle_digest": source.config_bundle_digest,
         "source_input_artifacts": [
             _artifact_payload(item)
             for item in sorted(
@@ -701,6 +732,14 @@ def _row_source_identity(row: RowMapping) -> tuple[object, ...]:
         "source_output_artifact_digest": str(row["source_output_artifact_digest"]),
         "source_output_artifact_size_bytes": int(row["source_output_artifact_size_bytes"]),
         "source_output_artifact_content_type": str(row["source_output_artifact_content_type"]),
+        "source_binding_key": (
+            None if row["source_binding_key"] is None else str(row["source_binding_key"])
+        ),
+        "source_config_bundle_digest": (
+            None
+            if row["source_config_bundle_digest"] is None
+            else str(row["source_config_bundle_digest"])
+        ),
         "source_input_artifacts": _json_array(row["source_input_artifacts"]),
     }
     return tuple(values[key] for key in sorted(values))

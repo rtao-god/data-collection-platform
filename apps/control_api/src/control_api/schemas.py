@@ -7,9 +7,9 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from collection_application import CollectionRunStatus, RunCoverageReport
+from collection_contracts import CandidateRevision
 from review_application import ReviewCaseDetail, ReviewQueuePage, encode_cursor
 from review_contracts import (
-    CandidateRevision,
     ManualObservation,
     QualityRecord,
     ReviewCase,

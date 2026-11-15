@@ -108,6 +108,9 @@ def require_network_topology(
 def require_port_inventory(services: Mapping[str, object], environment: Mapping[str, str]) -> None:
     expected = {
         "control-api": {("127.0.0.1", required_port(environment, "CONTROL_API_PORT"), 8080, "tcp")},
+        "dagster-webserver": {
+            ("127.0.0.1", required_port(environment, "DAGSTER_WEB_PORT"), 3000, "tcp")
+        },
         "collector-postgres": {
             (
                 "127.0.0.1",

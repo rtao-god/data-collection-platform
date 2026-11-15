@@ -100,7 +100,15 @@ def require_secret_inventory(
 
     expected_mounts: dict[str, frozenset[str]] = {name: frozenset() for name in EXPECTED_SERVICES}
     expected_mounts["control-api"] = OBJECT_STORE_SECRETS
-    expected_mounts["worker-gateway"] = OBJECT_STORE_SECRETS | {"worker-gateway-credentials"}
+    expected_mounts["worker-gateway"] = OBJECT_STORE_SECRETS | {
+        "worker-gateway-credentials",
+        "pipeline-advancement-token",
+    }
+    expected_mounts["dagster-postgres"] = frozenset({"dagster-postgres-password"})
+    expected_mounts["dagster-webserver"] = frozenset({"dagster-postgres-password"})
+    expected_mounts["dagster-daemon"] = frozenset(
+        {"dagster-postgres-password", "pipeline-advancement-token"}
+    )
     for name, raw_service in services.items():
         actual = service_secrets(mapping(raw_service, owner=f"services.{name}"))
         if actual != expected_mounts[name]:
@@ -114,6 +122,41 @@ def require_secret_inventory(
                 },
                 required_action="Mount each secret only into its exact trusted owner process.",
             )
+
+
+def require_dagster_credentials(environment: Mapping[str, str]) -> None:
+    pipeline_token = required_environment(environment, "PIPELINE_ADVANCEMENT_TOKEN")
+    metadata_password = required_environment(environment, "DAGSTER_POSTGRES_PASSWORD")
+    collector_password = required_environment(environment, "COLLECTOR_POSTGRES_PASSWORD")
+    worker_tokens = {
+        required_environment(environment, variable) for variable, _ in TOKEN_CONTRACT.values()
+    }
+    if len(pipeline_token) < 32 or pipeline_token in worker_tokens:
+        fail(
+            code="COMPOSE_PIPELINE_ADVANCEMENT_CREDENTIAL_INVALID",
+            message="The Dagster service credential is short or reused by a capability worker.",
+            context={
+                "minimumCharacters": 32,
+                "reusedWorkerCredential": pipeline_token in worker_tokens,
+            },
+            required_action="Allocate a unique service token of at least 32 characters.",
+        )
+    if (
+        len(metadata_password) < 32
+        or metadata_password == collector_password
+        or required_environment(environment, "DAGSTER_POSTGRES_USER")
+        == required_environment(environment, "COLLECTOR_POSTGRES_USER")
+        or required_environment(environment, "DAGSTER_POSTGRES_DB")
+        == required_environment(environment, "COLLECTOR_POSTGRES_DB")
+    ):
+        fail(
+            code="COMPOSE_DAGSTER_METADATA_CREDENTIALS_INVALID",
+            message="Dagster metadata storage does not have distinct strong database credentials.",
+            context={"minimumPasswordCharacters": 32},
+            required_action=(
+                "Use a distinct Dagster metadata database, role, and password from Collection DB."
+            ),
+        )
 
 
 def require_worker_credentials(environment: Mapping[str, str]) -> None:

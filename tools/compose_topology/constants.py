@@ -3,11 +3,14 @@ from __future__ import annotations
 EXPECTED_SERVICES = frozenset(
     {
         "collector-postgres",
+        "dagster-postgres",
         "seaweedfs",
         "object-store-bootstrap",
         "migration",
         "control-api",
         "worker-gateway",
+        "dagster-webserver",
+        "dagster-daemon",
         "manual-import-worker",
         "manual-record-worker",
         "http-worker",
@@ -18,8 +21,9 @@ EXPECTED_SERVICES = frozenset(
         "collector-cli",
     }
 )
-INFRASTRUCTURE_SERVICES = frozenset({"collector-postgres", "seaweedfs"})
+INFRASTRUCTURE_SERVICES = frozenset({"collector-postgres", "dagster-postgres", "seaweedfs"})
 APPLICATION_SERVICES = EXPECTED_SERVICES - INFRASTRUCTURE_SERVICES
+DAGSTER_SERVICES = frozenset({"dagster-webserver", "dagster-daemon"})
 WORKERS = frozenset(
     {
         "manual-import-worker",
@@ -43,19 +47,29 @@ EXPECTED_NETWORK_MEMBERS = {
             "worker-gateway",
         }
     ),
+    "dagster-metadata": frozenset({"dagster-postgres", "dagster-webserver", "dagster-daemon"}),
     "collection-operator": frozenset({"control-api", "collector-cli"}),
     "collection-workers": frozenset({"worker-gateway", *WORKERS}),
+    "collection-orchestration": frozenset({"worker-gateway", "dagster-daemon"}),
     "collection-acquisition-egress": EGRESS_WORKERS,
     "collection-control-loopback": frozenset({"control-api"}),
+    "collection-dagster-loopback": frozenset({"dagster-webserver"}),
     "collection-postgres-loopback": frozenset({"collector-postgres"}),
     "collection-object-store-loopback": frozenset({"seaweedfs"}),
 }
 INTERNAL_NETWORKS = frozenset(
-    {"collection-infrastructure", "collection-operator", "collection-workers"}
+    {
+        "collection-infrastructure",
+        "dagster-metadata",
+        "collection-operator",
+        "collection-workers",
+        "collection-orchestration",
+    }
 )
 LOOPBACK_NETWORKS = frozenset(
     {
         "collection-control-loopback",
+        "collection-dagster-loopback",
         "collection-postgres-loopback",
         "collection-object-store-loopback",
     }
@@ -74,6 +88,8 @@ EXPECTED_SECRETS = {
     "collector-object-store-access-key": "COLLECTOR_OBJECT_STORE_ACCESS_KEY_ID",
     "collector-object-store-secret-key": "COLLECTOR_OBJECT_STORE_SECRET_ACCESS_KEY",
     "worker-gateway-credentials": "WORKER_GATEWAY_CREDENTIALS_JSON",
+    "pipeline-advancement-token": "PIPELINE_ADVANCEMENT_TOKEN",
+    "dagster-postgres-password": "DAGSTER_POSTGRES_PASSWORD",
 }
 OBJECT_STORE_SECRETS = frozenset(
     {"collector-object-store-access-key", "collector-object-store-secret-key"}
@@ -99,3 +115,4 @@ FORBIDDEN_WORKER_ENVIRONMENT = (
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
 )
+FORBIDDEN_DAGSTER_ENVIRONMENT = FORBIDDEN_WORKER_ENVIRONMENT

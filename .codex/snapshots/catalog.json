@@ -300,8 +300,8 @@
             "tools/live_collection/berlin_boundary_portal.py",
             "tools/live_collection/select_source_inputs.py"
           ],
-          "input_digest": "23f347067151d51ed1e555ac249d1b9264f73c21b13517576b12c7f053ae557c",
-          "artifact_sha256": "ca0ff75cbed3f8b183703850d80c250f6c18dac7bb84d941b1eb00f687c64f57",
+          "input_digest": "8362bbd8e6930f7a3c730a4ef50d5eb70232e481faea2ce8873a7aebccbf3eca",
+          "artifact_sha256": "9bd97e0444ae11485526bb2d2415eed2fcc598da4c095b8bd6cdad23798b3c23",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         },
         {
@@ -340,7 +340,8 @@
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/campaign_snapshot_store.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/geography.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/metadata.py",
-            "tools/contract_generation/generate.py"
+            "tools/contract_generation/generate.py",
+            "contracts/json_schema/normalization-profiles.schema.json"
           ],
           "source_paths": [
             "apps/collector_cli/src/collector_cli/__init__.py",
@@ -351,6 +352,7 @@
             "contracts/json_schema/entity-kinds.schema.json",
             "contracts/json_schema/geography-document.schema.json",
             "contracts/json_schema/manifest.json",
+            "contracts/json_schema/normalization-profiles.schema.json",
             "contracts/json_schema/source-bindings.schema.json",
             "contracts/json_schema/source-policy.schema.json",
             "contracts/json_schema/taxonomy.schema.json",
@@ -377,8 +379,8 @@
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/metadata.py",
             "tools/contract_generation/generate.py"
           ],
-          "input_digest": "4185bdd86ccc95599e805aa0c7f828247373bce19e91c39a9a29e8aed218e284",
-          "artifact_sha256": "a21867bb97fd4eaee3b7d56837c5e83db066340db18d551d9e89fbe816fee47a",
+          "input_digest": "3cd11952f96378f828004bfde47557ddab6e4f78252df9eba2bb89b6d83e5034",
+          "artifact_sha256": "57455b0b9ad36593ac13f2d669930b4f51b6f1d1a54f4c7b41bc994c5ddb8b65",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]
@@ -412,7 +414,9 @@
             "packages/review_core/src/review_core/transitions.py",
             "packages/review_infrastructure/src/review_infrastructure/__init__.py",
             "packages/review_infrastructure/src/review_infrastructure/postgres.py",
-            "tools/review_contract_generation/generate.py"
+            "tools/review_contract_generation/generate.py",
+            "packages/collection_contracts/src/collection_contracts/candidate.py",
+            "packages/collection_contracts/src/collection_contracts/canonical.py"
           ],
           "source_paths": [
             "contracts/review/candidate-revision.schema.json",
@@ -424,6 +428,8 @@
             "contracts/review/suppression-command.schema.json",
             "contracts/review/suppression-revision.schema.json",
             "database/migrations/versions/20260814_0010_candidate_review_foundation.py",
+            "packages/collection_contracts/src/collection_contracts/candidate.py",
+            "packages/collection_contracts/src/collection_contracts/canonical.py",
             "packages/review_application/src/review_application/__init__.py",
             "packages/review_application/src/review_application/cursors.py",
             "packages/review_application/src/review_application/errors.py",
@@ -438,8 +444,8 @@
             "packages/review_infrastructure/src/review_infrastructure/postgres.py",
             "tools/review_contract_generation/generate.py"
           ],
-          "input_digest": "56f8293763ecdc46ac6a6d9ab8e561940597eb4ac6b6a742373cba2b9d5cb13a",
-          "artifact_sha256": "5aa01865d6b3a24065cf5b8a8995344781ccabddc8d7f829419ac19b8923fea7",
+          "input_digest": "5d9ede22f1d07f5292d5102b61eb5a6a92e27f87309fdcba72831f6f6c279f4a",
+          "artifact_sha256": "d76aa509917c03a37ddd005ba9857affbae41c86aae75233c1c2c6a4fb92e138",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]
@@ -538,8 +544,8 @@
             "packages/normalization_core/src/normalization_core/__init__.py",
             "packages/normalization_core/src/normalization_core/normalizer.py"
           ],
-          "input_digest": "e7bf226a474d799c344ee4e2fb185f839eca986783ac509616dc19ca8b9f4638",
-          "artifact_sha256": "bcef06680bcee7b3dd547afb35fa86cb48ba7da78c1e131a06fae44a3d74398d",
+          "input_digest": "b8e398619a5c800b3eb3de07a4e76711c27f9b094976119c6e34c1f60d2d9709",
+          "artifact_sha256": "bfd096782f90b6fb81deafb48e34cfa04796ca54ff785b3313130c8974b40e25",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]
@@ -563,7 +569,11 @@
             "connectors/official_http/src/official_http/scrapy_child.py",
             "connectors/official_http/src/official_http/urls.py",
             "contracts/json_schema/official-http-acquisition.schema.json",
-            "contracts/json_schema/official-http-request.schema.json"
+            "contracts/json_schema/official-http-request.schema.json",
+            "packages/collection_contracts/src/collection_contracts/website_route.py",
+            "packages/official_http_contracts/pyproject.toml",
+            "packages/official_http_contracts/src/official_http_contracts/__init__.py",
+            "packages/official_http_contracts/src/official_http_contracts/manifest.py"
           ],
           "source_paths": [
             "apps/http_worker/src/http_worker/app.py",
@@ -577,10 +587,14 @@
             "connectors/official_http/src/official_http/scrapy_child.py",
             "connectors/official_http/src/official_http/urls.py",
             "contracts/json_schema/official-http-acquisition.schema.json",
-            "contracts/json_schema/official-http-request.schema.json"
+            "contracts/json_schema/official-http-request.schema.json",
+            "packages/collection_contracts/src/collection_contracts/website_route.py",
+            "packages/official_http_contracts/pyproject.toml",
+            "packages/official_http_contracts/src/official_http_contracts/__init__.py",
+            "packages/official_http_contracts/src/official_http_contracts/manifest.py"
           ],
-          "input_digest": "61e8fb0e003775f965d3303a950bc9dfdef5fa501355820eabfc3f9f91188b6d",
-          "artifact_sha256": "401baf3d55b2b6e9ddeb53cfd3f67ffcfd30068dcb2d8cc3c94d54fb4d2559d0",
+          "input_digest": "ab08d9352821a486b0f4156e691f1a9a39e7173d8bfd21b562de388ef1e9c5bc",
+          "artifact_sha256": "62029e3a09da88b5bcc6fb935ed5c1c329d2210a1b51fb949f3a761817fa2c96",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]
@@ -612,7 +626,8 @@
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_metadata.py",
             "packages/manual_import_core/src/manual_import_core/__init__.py",
             "packages/manual_import_core/src/manual_import_core/documents.py",
-            "packages/manual_import_core/src/manual_import_core/planner.py"
+            "packages/manual_import_core/src/manual_import_core/planner.py",
+            "packages/collection_contracts/src/collection_contracts/manual_record_lineage.py"
           ],
           "source_paths": [
             "apps/manual_import_worker/src/manual_import_worker/__init__.py",
@@ -629,6 +644,7 @@
             "packages/collection_application/src/collection_application/manual_import_plan_document.py",
             "packages/collection_application/src/collection_application/manual_seed.py",
             "packages/collection_contracts/src/collection_contracts/manual_import.py",
+            "packages/collection_contracts/src/collection_contracts/manual_record_lineage.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_admission.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_child_writer.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/manual_import_metadata.py",
@@ -636,8 +652,8 @@
             "packages/manual_import_core/src/manual_import_core/documents.py",
             "packages/manual_import_core/src/manual_import_core/planner.py"
           ],
-          "input_digest": "d84ee1e1d783b6fecd6265ef93ff37f0185ce68b7acacfb860233a66831dcbd5",
-          "artifact_sha256": "cb2edeaeb0f1e1a22e9ae0fbd3f0f233d98006660642c3293b7d500ef50d7d26",
+          "input_digest": "e2237d30968b0dfd9ea923e609e031367ed94994c581c2a83e1d856f2f2380b3",
+          "artifact_sha256": "7303e5c8ceaa964ea1de5877384d644799d5c0bcf1fa5167e08a4579f5d2d6cb",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]
@@ -692,18 +708,64 @@
             "packages/collection_application/src/collection_application/pipeline_supervision.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py",
-            "packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py"
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py",
+            "apps/dagster_orchestrator/config/dagster.yaml",
+            "apps/dagster_orchestrator/config/workspace.yaml",
+            "apps/dagster_orchestrator/pyproject.toml",
+            "apps/dagster_orchestrator/src/collector_orchestrator/__init__.py",
+            "apps/dagster_orchestrator/src/collector_orchestrator/__main__.py",
+            "apps/dagster_orchestrator/src/collector_orchestrator/definitions.py",
+            "apps/dagster_orchestrator/src/collector_orchestrator/gateway_client.py",
+            "database/migrations/versions/20260819_0016_pipeline_source_binding_provenance.py",
+            "database/migrations/versions/20260820_0017_pipeline_advancement_discovery_cursor.py",
+            "packages/collection_contracts/src/collection_contracts/pipeline_advancement_api.py",
+            "packages/collection_contracts/src/collection_contracts/website_route.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/website_route_applier.py",
+            "packages/official_http_contracts/pyproject.toml",
+            "packages/official_http_contracts/src/official_http_contracts/__init__.py",
+            "packages/official_http_contracts/src/official_http_contracts/manifest.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/page_extraction_applier.py",
+            "packages/candidate_materialization/pyproject.toml",
+            "packages/candidate_materialization/src/candidate_materialization/__init__.py",
+            "packages/candidate_materialization/src/candidate_materialization/materializer.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/normalization_applier.py",
+            "packages/collection_contracts/src/collection_contracts/candidate.py",
+            "packages/collection_contracts/src/collection_contracts/canonical.py",
+            "packages/collection_contracts/src/collection_contracts/manual_record_lineage.py"
           ],
           "source_paths": [
+            "apps/dagster_orchestrator/config/dagster.yaml",
+            "apps/dagster_orchestrator/config/workspace.yaml",
+            "apps/dagster_orchestrator/pyproject.toml",
+            "apps/dagster_orchestrator/src/collector_orchestrator/__init__.py",
+            "apps/dagster_orchestrator/src/collector_orchestrator/__main__.py",
+            "apps/dagster_orchestrator/src/collector_orchestrator/definitions.py",
+            "apps/dagster_orchestrator/src/collector_orchestrator/gateway_client.py",
             "database/migrations/versions/20260815_0013_pipeline_advancement.py",
+            "database/migrations/versions/20260819_0016_pipeline_source_binding_provenance.py",
+            "database/migrations/versions/20260820_0017_pipeline_advancement_discovery_cursor.py",
+            "packages/candidate_materialization/pyproject.toml",
+            "packages/candidate_materialization/src/candidate_materialization/__init__.py",
+            "packages/candidate_materialization/src/candidate_materialization/materializer.py",
             "packages/collection_application/src/collection_application/pipeline_advancement.py",
             "packages/collection_application/src/collection_application/pipeline_supervision.py",
+            "packages/collection_contracts/src/collection_contracts/candidate.py",
+            "packages/collection_contracts/src/collection_contracts/canonical.py",
+            "packages/collection_contracts/src/collection_contracts/manual_record_lineage.py",
+            "packages/collection_contracts/src/collection_contracts/pipeline_advancement_api.py",
+            "packages/collection_contracts/src/collection_contracts/website_route.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/normalization_applier.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/page_extraction_applier.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/pipeline_advancement_metadata.py",
-            "packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py"
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/succeeded_work_catalog.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/website_route_applier.py",
+            "packages/official_http_contracts/pyproject.toml",
+            "packages/official_http_contracts/src/official_http_contracts/__init__.py",
+            "packages/official_http_contracts/src/official_http_contracts/manifest.py"
           ],
-          "input_digest": "c1296b7d0d2083ac3ae4ba741777e24ede6c37544380868fd2d048279982f2f8",
-          "artifact_sha256": "da8dba7b6c60e8671a99b24b2dba156f3ed2186aec08b4a2beca3f3604f3f205",
+          "input_digest": "2483671f8fb2d1229871af82046b731976632244072d79b1d9ca3cd2e3f3a1f1",
+          "artifact_sha256": "450b8a979dcf23390997881a0899f5435c2db4f5dded15c609db4122e376eb8d",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]
@@ -755,8 +817,8 @@
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/artifact_transfer.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/owned_artifact_publisher.py"
           ],
-          "input_digest": "d086eb1641d5f953c463d1ff5b9942c2554889a70c0fadd46a635ac918eacf77",
-          "artifact_sha256": "5a749929b59e3c5e123920ae16100962fb395d2aa40a5cbb5469815eceffb7b9",
+          "input_digest": "e39ec97b94be8130e8c3bbf2c7a1894daf8d2f06071f6b28d7b9ca610e49633c",
+          "artifact_sha256": "6598fb8a3a14aee09a410ba48d1c36e230abad9b5b37723f0625e93ed00d76db",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         },
         {
@@ -810,8 +872,8 @@
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
             "tools/control_api_contract_generation/generate.py"
           ],
-          "input_digest": "1f7868df3fe996adf310eb4cad9d19cf02b484ede997b03a8129fca5eb538099",
-          "artifact_sha256": "cf09c78b0888f9e9a3419292156e56ddc9f1dba640f7b42cfe7d0e1d35c81844",
+          "input_digest": "4a7a9c58ee58858491010ec8482f2b17e9520a0aee60837f1d04d77c7fa85b04",
+          "artifact_sha256": "110d3cc28c839584c27c12dbe3cd39204d13ad4502f7f5d176280a7abc5d2ff7",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         },
         {
@@ -836,9 +898,14 @@
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_source_constraints.py",
             "packages/source_connector_sdk/src/source_connector_sdk/__init__.py",
-            "packages/source_connector_sdk/src/source_connector_sdk/gateway.py"
+            "packages/source_connector_sdk/src/source_connector_sdk/gateway.py",
+            "apps/dagster_orchestrator/src/collector_orchestrator/gateway_client.py",
+            "database/migrations/versions/20260818_0015_work_source_binding_provenance.py",
+            "packages/collection_contracts/src/collection_contracts/pipeline_advancement_api.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/website_route_applier.py"
           ],
           "source_paths": [
+            "apps/dagster_orchestrator/src/collector_orchestrator/gateway_client.py",
             "apps/worker_gateway/src/worker_gateway/__init__.py",
             "apps/worker_gateway/src/worker_gateway/__main__.py",
             "apps/worker_gateway/src/worker_gateway/app.py",
@@ -847,20 +914,23 @@
             "contracts/openapi/worker-gateway.openapi.json",
             "database/migrations/versions/20260811_0003_source_capability.py",
             "database/migrations/versions/20260811_0004_worker_compatibility_and_failure_budget.py",
+            "database/migrations/versions/20260818_0015_work_source_binding_provenance.py",
             "packages/collection_application/src/collection_application/work_engine.py",
+            "packages/collection_contracts/src/collection_contracts/pipeline_advancement_api.py",
             "packages/collection_domain/src/collection_domain/__init__.py",
             "packages/collection_domain/src/collection_domain/source_capacity.py",
             "packages/collection_domain/src/collection_domain/work_leases.py",
             "packages/collection_domain/src/collection_domain/work_retry.py",
             "packages/collection_domain/src/collection_domain/work_units.py",
+            "packages/collection_infrastructure/src/collection_infrastructure/postgres/website_route_applier.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_engine.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_metadata.py",
             "packages/collection_infrastructure/src/collection_infrastructure/postgres/work_source_constraints.py",
             "packages/source_connector_sdk/src/source_connector_sdk/__init__.py",
             "packages/source_connector_sdk/src/source_connector_sdk/gateway.py"
           ],
-          "input_digest": "736a230c7559e6716ba993904c2bd3a4774554e855dab17c78a2ad7c9f5f9731",
-          "artifact_sha256": "f796eb4716770ef5431c7bc13bf264a0159bb9a5449ed0bff6628578131ff223",
+          "input_digest": "9ca92d8131f07485e23e9a5bd414efaaea6fe76e8805f39d674b24d0535fe79f",
+          "artifact_sha256": "30588b00c0c510c2c58b240819b220ace618a738a5b03d05ab1473e531a015f7",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]

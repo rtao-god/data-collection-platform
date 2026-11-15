@@ -284,6 +284,7 @@ work_units = sa.Table(
     sa.Column("stage_run_id", sa.Uuid, nullable=False),
     sa.Column("stage", sa.Text, nullable=False),
     sa.Column("capability", sa.Text, nullable=False),
+    sa.Column("source_binding_key", sa.Text, nullable=True),
     sa.Column(
         "source_key",
         sa.Text,
@@ -350,6 +351,10 @@ work_units = sa.Table(
     sa.CheckConstraint(
         "source_policy_digest IS NULL OR source_policy_digest ~ '^sha256:[0-9a-f]{64}$'",
         name="ck_work_units_source_policy_digest_format",
+    ),
+    sa.CheckConstraint(
+        "source_binding_key IS NULL OR source_binding_key ~ '^[a-z][a-z0-9_]{0,79}$'",
+        name="ck_work_units_source_binding_key_format",
     ),
     sa.CheckConstraint(
         "output_digest IS NULL OR output_digest ~ '^sha256:[0-9a-f]{64}$'",

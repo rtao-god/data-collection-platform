@@ -28,6 +28,9 @@ _STAGE_RUN_ID = UUID("00000000-0000-0000-0000-000000000207")
 
 
 class _ScalarResult:
+    def scalar_one_or_none(self) -> str:
+        return "manual_seed_import"
+
     def scalars(self) -> _ScalarResult:
         return self
 
@@ -83,6 +86,7 @@ def test_child_writer_uses_fixed_discovery_owner_and_selected_plan_role() -> Non
     assert spec.stage is WorkStage.DISCOVERY
     assert spec.capability is WorkCapability.MANUAL_RECORD
     assert spec.source_key is None
+    assert spec.source_binding_key == "manual_seed_import"
     assert spec.expected_output_contract == "manual-import-record@1"
     assert tuple(binding.role for binding in spec.input_artifacts) == (
         "manual_import_source:json:atomic",

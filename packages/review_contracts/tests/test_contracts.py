@@ -6,6 +6,12 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from collection_contracts import (
+    CandidateEvidence as CollectionCandidateEvidence,
+)
+from collection_contracts import (
+    CandidateRevision as CollectionCandidateRevision,
+)
 from review_contracts import (
     CandidateEvidence,
     CandidateRevision,
@@ -19,6 +25,25 @@ from review_contracts import (
 NOW = datetime(2026, 8, 14, 8, 0, tzinfo=UTC)
 DIGEST_A = "sha256:" + "a" * 64
 DIGEST_B = "sha256:" + "b" * 64
+LEGACY_CANDIDATE_REVISION_JSON = (
+    "{\n"
+    '  "candidate_id": "00000000-0000-0000-0000-000000000001",\n'
+    '  "revision": 0,\n'
+    '  "entity_kind": "place",\n'
+    '  "cluster_id": "00000000-0000-0000-0000-000000000002",\n'
+    '  "resolution_state": "review",\n'
+    '  "snapshot_digest": "'
+    'sha256:17061ff827641b85d7c629d696c879537bfb443f31c3ab67e6fcb62452ff19d4",\n'
+    '  "source_lineage_digest": "'
+    'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",\n'
+    '  "normalized_payload": {"displayName": "Studio"},\n'
+    '  "evidence": [{"position": 0, "evidence_kind": "source_observation", '
+    '"evidence_digest": "'
+    'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],\n'
+    '  "recorded_at_utc": "2026-08-14T08:00:00Z",\n'
+    '  "correlation_id": "legacy-persisted-candidate"\n'
+    "}"
+)
 
 
 def candidate_revision() -> CandidateRevision:
@@ -60,6 +85,17 @@ def test_candidate_snapshot_digest_is_wire_enforced() -> None:
     value = candidate_revision()
     with pytest.raises(ValidationError):
         CandidateRevision.model_validate({**value.model_dump(), "snapshot_digest": DIGEST_A})
+
+
+def test_candidate_contract_reads_legacy_persisted_revision_json() -> None:
+    restored = CollectionCandidateRevision.model_validate_json(LEGACY_CANDIDATE_REVISION_JSON)
+
+    assert CandidateRevision is CollectionCandidateRevision
+    assert CandidateEvidence is CollectionCandidateEvidence
+    assert restored.candidate_id.hex == "00000000000000000000000000000001"
+    assert restored.snapshot_digest == (
+        "sha256:17061ff827641b85d7c629d696c879537bfb443f31c3ab67e6fcb62452ff19d4"
+    )
 
 
 def test_candidate_evidence_must_be_contiguous() -> None:

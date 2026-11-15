@@ -9,6 +9,7 @@ dependencies = [
   "botocore==1.43.54",
   "collection-application",
   "collection-contracts",
+  "official-http-contracts",
   "psycopg[binary]==3.3.4",
   "sqlalchemy==2.0.51",
 ]
@@ -23,3 +24,4 @@ packages = ["src/collection_infrastructure"]
 [tool.uv.sources]
 collection-application = { workspace = true }
 collection-contracts = { workspace = true }
+official-http-contracts = { workspace = true }

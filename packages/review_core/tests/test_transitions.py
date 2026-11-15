@@ -5,13 +5,15 @@ from uuid import uuid4
 
 import pytest
 
-from review_contracts import (
+from collection_contracts import (
     CandidateEvidence,
     CandidateRevision,
+    candidate_snapshot_digest,
+)
+from review_contracts import (
     ManualObservationCommand,
     ReviewDecisionCommand,
     SuppressionCommand,
-    candidate_snapshot_digest,
     manual_observation_command_digest,
     review_decision_command_digest,
     suppression_command_digest,

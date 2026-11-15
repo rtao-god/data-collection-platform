@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "PostgreSQL adapter for review use cases in the Data Collection Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+  "collection-contracts",
   "review-application",
   "review-contracts",
   "review-core",
@@ -18,6 +19,7 @@ build-backend = "hatchling.build"
 packages = ["src/review_infrastructure"]
 
 [tool.uv.sources]
+collection-contracts = { workspace = true }
 review-application = { workspace = true }
 review-contracts = { workspace = true }
 review-core = { workspace = true }

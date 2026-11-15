@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from uuid import UUID
 
 import sqlalchemy as sa
 import uvicorn
@@ -9,10 +10,40 @@ from fastapi import FastAPI
 from sqlalchemy.engine import Engine
 
 from collection_application import ArtifactTransferService, WorkEngineService
+from collection_application.pipeline_advancement import (
+    PipelineAdvancementService,
+    PipelineTransitionRegistry,
+    extraction_work_result_digest,
+    normalization_work_result_digest,
+    website_route_result_digest,
+)
+from collection_application.pipeline_supervision import (
+    PipelinePreviewBlocked,
+    PipelineSupervisorService,
+)
 from collection_infrastructure import (
     PostgresArtifactTransfer,
     PostgresWorkEngine,
     S3ArtifactObjectStore,
+)
+from collection_infrastructure.postgres.normalization_applier import (
+    normalization_transition_appliers,
+)
+from collection_infrastructure.postgres.owned_artifact_publisher import (
+    PostgresOwnedArtifactPublisher,
+)
+from collection_infrastructure.postgres.page_extraction_applier import (
+    page_extraction_transition_appliers,
+)
+from collection_infrastructure.postgres.pipeline_advancement import (
+    PipelineTransitionApplier,
+    PostgresPipelineAdvancementRepository,
+)
+from collection_infrastructure.postgres.succeeded_work_catalog import (
+    PostgresSucceededWorkCatalog,
+)
+from collection_infrastructure.postgres.website_route_applier import (
+    website_route_transition_appliers,
 )
 from worker_gateway.app import GatewayDependencies, create_app
 from worker_gateway.auth import WorkerAuthenticator
@@ -56,8 +87,61 @@ def build_runtime() -> tuple[FastAPI, Engine]:
         maximum=1_000,
     )
     engine = sa.create_engine(database_url, pool_pre_ping=True)
-    work_engine = WorkEngineService(PostgresWorkEngine(engine))
+    postgres_work_engine = PostgresWorkEngine(engine)
+    work_engine = WorkEngineService(postgres_work_engine)
     artifact_transfer = ArtifactTransferService(PostgresArtifactTransfer(engine, object_store))
+    succeeded_catalog = PostgresSucceededWorkCatalog(engine, object_store=object_store)
+    transition_registry = PipelineTransitionRegistry()
+    artifact_publisher = PostgresOwnedArtifactPublisher(engine, object_store)
+    transition_appliers: dict[str, PipelineTransitionApplier] = {
+        **website_route_transition_appliers(postgres_work_engine, artifact_publisher),
+        **page_extraction_transition_appliers(postgres_work_engine, artifact_publisher),
+        **normalization_transition_appliers(postgres_work_engine, artifact_publisher),
+    }
+    advancement_repository = PostgresPipelineAdvancementRepository(
+        engine,
+        source_reader=succeeded_catalog,
+        transition_appliers=transition_appliers,
+    )
+    advancement = PipelineAdvancementService(advancement_repository)
+
+    class WebsiteRoutePreviewer:
+        def preview_result_digest(
+            self,
+            source_work_unit_id: UUID,
+            transition_plan_digest: str,
+            *,
+            correlation_id: str,
+        ) -> str:
+            del correlation_id
+            with engine.connect() as connection:
+                source = succeeded_catalog.read(connection, source_work_unit_id)
+            plan = transition_registry.plan(source)
+            if plan.plan_digest != transition_plan_digest:
+                raise RuntimeError("pipeline transition plan changed after registration")
+            if plan.blocker is not None:
+                raise PipelinePreviewBlocked(plan.blocker)
+            if plan.transition_key == "official-http-page-extraction-v1":
+                return extraction_work_result_digest(plan)
+            if plan.transition_key == "extracted-record-normalization-v1":
+                return normalization_work_result_digest(plan)
+            if plan.transition_key not in {
+                "manual-record-website-routing-v1",
+                "official-http-robots-routing-v1",
+            }:
+                raise RuntimeError("pipeline preview received an unsupported transition")
+            return website_route_result_digest(plan)
+
+    pipeline_supervisor = PipelineSupervisorService(
+        advancement,
+        succeeded_catalog,
+        {
+            "manual-record-website-routing-v1": WebsiteRoutePreviewer(),
+            "official-http-robots-routing-v1": WebsiteRoutePreviewer(),
+            "official-http-page-extraction-v1": WebsiteRoutePreviewer(),
+            "extracted-record-normalization-v1": WebsiteRoutePreviewer(),
+        },
+    )
 
     def readiness_probe() -> None:
         with engine.connect() as connection:
@@ -67,6 +151,10 @@ def build_runtime() -> tuple[FastAPI, Engine]:
 
     application = create_app(
         GatewayDependencies(
+            pipeline_supervisor=pipeline_supervisor,
+            pipeline_service_token=_read_secret_file(
+                Path(_required_environment("PIPELINE_ADVANCEMENT_TOKEN_FILE"))
+            ),
             work_engine=work_engine,
             artifact_transfer=artifact_transfer,
             authenticator=authenticator,

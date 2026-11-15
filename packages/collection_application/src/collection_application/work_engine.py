@@ -134,6 +134,7 @@ class WorkUnitSpec:
     available_at_utc: datetime
     correlation_id: str
     input_artifacts: tuple[WorkInputArtifact, ...] = ()
+    source_binding_key: str | None = None
 
     def __post_init__(self) -> None:
         if not capability_belongs_to_stage(self.stage, self.capability):
@@ -143,6 +144,8 @@ class WorkUnitSpec:
             raise ValueError("work source key does not match its capability")
         if self.source_key is not None:
             _require_key("source_key", self.source_key)
+        if self.source_binding_key is not None:
+            _require_key("source_binding_key", self.source_binding_key)
         _require_digest("semantic_key", self.semantic_key)
         _require_digest("input_digest", self.input_digest)
         _require_token("expected_output_contract", self.expected_output_contract)
