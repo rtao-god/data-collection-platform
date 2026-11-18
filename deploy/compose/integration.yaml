@@ -1,0 +1,37 @@
+name: dcpf-integration
+
+# Isolated PostgreSQL/PostGIS for integration tests.
+#
+# Deliberately separate from deploy/compose/infrastructure.yaml: own project name, own
+# volume and own host port, so a test run can never touch development data. Apply
+# database/migrations to the throwaway database before running `pytest -m integration`.
+#
+#   pwsh -NoProfile -File tools/integration-db.ps1 up
+#   uv run pytest -m integration database/tests
+#   pwsh -NoProfile -File tools/integration-db.ps1 down
+
+services:
+  integration-postgres:
+    image: postgis/postgis:18-3.6@sha256:0d513af346b21c76bf084e90c0589043c30ff379025d079ce4befa9c3a539f72
+    environment:
+      POSTGRES_DB: collector_integration
+      POSTGRES_USER: collector_integration
+      POSTGRES_PASSWORD: collector_integration
+    ports:
+      - 127.0.0.1:${DCPF_INTEGRATION_POSTGRES_PORT:-55432}:5432
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready
+          -U "$${POSTGRES_USER}"
+          -d "$${POSTGRES_DB}"
+      interval: 2s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+    tmpfs:
+      # Throwaway storage: the database is recreated by every `up`.
+      - /var/lib/postgresql:size=1g
+    restart: "no"
+
