@@ -764,8 +764,8 @@
             "packages/official_http_contracts/src/official_http_contracts/__init__.py",
             "packages/official_http_contracts/src/official_http_contracts/manifest.py"
           ],
-          "input_digest": "2483671f8fb2d1229871af82046b731976632244072d79b1d9ca3cd2e3f3a1f1",
-          "artifact_sha256": "450b8a979dcf23390997881a0899f5435c2db4f5dded15c609db4122e376eb8d",
+          "input_digest": "638accde742c8a63dda4c5ba23e0df111bf40893c3aef99b36abcc054b7616ff",
+          "artifact_sha256": "92c1e402183ba4d02cdd52237a28f36863467092b2a30ac70eac4ef601fa1dc1",
           "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
         }
       ]

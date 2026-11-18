@@ -38,6 +38,30 @@ suite and only belongs at the task-stage gate.
 `tests` excludes every integration marker. PostgreSQL, PostGIS, object storage, and container proof
 need explicit infrastructure and are never part of `verify`.
 
+# Backend submission
+
+```powershell
+uv run collector export --campaign-key <campaign> --run-id <run-id> `
+    --candidate-revision <candidate-id>:<revision> --correlation-id <correlation-id>
+uv run collector ingestion submit --export-path <sealed package path> --campaign-key <campaign> `
+    --run-id <run-id> --candidate-revision <candidate-id>:<revision> `
+    --target-site-key <site> --target-catalog-key <catalog> `
+    --target-configuration-revision-id <active Catalog revision> `
+    --producer-identity <producer> --producer-build <build> `
+    --api-base-url <ingestion base url> --token-endpoint <token url> --client-id <client> `
+    --correlation-id <correlation-id>
+```
+
+`submit` отправляет ровно подписанные байты экспорта и печатает `batchId`, `manifestDigest`
+и replay-флаги. Workload-секрет и токены берутся только из окружения
+(`COLLECTOR_INGESTION_CLIENT_SECRET`), никогда из аргументов и файлов. Дальнейшие шаги
+(Ingestion → Catalog), replay и утверждения по сохранённым строкам Catalog:
+`D:\Aggregator\aggregator-backend\docs\runbooks\ingestion-catalog-acceptance.md`.
+
+Экспорт читает **все** сохранённые строки кандидатов, поэтому приёмку запускают на
+отдельной мигрированной базе: остатки интеграционных прогонов блокируют экспорт, а не
+пропускаются.
+
 # Campaign authoring
 
 ```powershell
