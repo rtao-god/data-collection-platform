@@ -14,16 +14,22 @@ from collection_contracts import (
     NormalizationProfile,
     canonical_extracted_record_json,
     canonical_observation_batch_json,
+    canonical_source_record_observation_batch_json,
     decode_extracted_record,
     decode_manual_record_lineage,
 )
 from extraction_core import EmbeddedMetadataExtractor, ExtractionError, extract_html_document
 from normalization_core import NormalizationError, normalize_extracted_record
 from processing_worker.contracts import ProcessingGateway, ProcessingWorkerSettings
+from processing_worker.source_record_mapping import (
+    SourceRecordMappingError,
+    materialize_source_record_observations,
+)
 from source_connector_sdk import WorkerGatewayFailure, WorkerLease, WorkFailureKind
 
 _EXTRACTION_INPUT_ROLES = frozenset({"raw_source_document", "extraction_request"})
 _NORMALIZATION_INPUT_ROLES = frozenset({"extracted_record", "normalization_profile"})
+_MAPPING_INPUT_ROLES = frozenset({"source_record", "source_mapping_profile"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +64,8 @@ class ProcessingWorker:
             heartbeat.start()
             if self._settings.capability == "extraction":
                 payload, content_type, role, output_digest = self._extract(heartbeat)
+            elif self._settings.capability == "source_record_mapping":
+                payload, content_type, role, output_digest = self._map_source_record(heartbeat)
             else:
                 payload, content_type, role, output_digest = self._normalize(heartbeat)
             heartbeat.raise_if_failed()
@@ -125,6 +133,37 @@ class ProcessingWorker:
             "application/vnd.collection.extracted-record+json",
             "extracted_record",
             record.content_digest,
+        )
+
+    def _map_source_record(
+        self,
+        heartbeat: _LeaseHeartbeat,
+    ) -> tuple[bytes, str, str, str]:
+        lease = heartbeat.current()
+        record_content = self._gateway.read_input(
+            lease,
+            role="source_record",
+            maximum_bytes=self._settings.maximum_input_bytes,
+        )
+        profile_content = self._gateway.read_input(
+            heartbeat.current(),
+            role="source_mapping_profile",
+            maximum_bytes=min(self._settings.maximum_input_bytes, 1024 * 1024),
+        )
+        heartbeat.raise_if_failed()
+        batch = materialize_source_record_observations(
+            record_content,
+            profile_content,
+            maximum_records=self._settings.maximum_mapping_records,
+        )
+        payload = canonical_source_record_observation_batch_json(batch).encode("utf-8")
+        # The succeeded output digest covers the exact bytes this worker publishes; the
+        # batch keeps its own sealed digest inside those bytes.
+        return (
+            payload,
+            "application/vnd.collection.source-record-observation-batch+json",
+            "source_record_observation_batch",
+            f"sha256:{sha256(payload).hexdigest()}",
         )
 
     def _normalize(
@@ -240,14 +279,18 @@ class _LeaseHeartbeat:
 
 
 def _validate_lease(settings: ProcessingWorkerSettings, lease: WorkerLease) -> None:
-    if lease.capability != settings.capability or lease.stage != settings.capability:
+    if lease.capability != settings.capability or lease.stage != _expected_stage(settings):
         raise ValueError("processing lease stage and capability do not match worker identity")
     if lease.expected_output_contract != settings.output_contract:
         raise ValueError("processing lease output contract is unsupported")
     expected_roles = (
         _EXTRACTION_INPUT_ROLES
         if settings.capability == "extraction"
-        else _NORMALIZATION_INPUT_ROLES
+        else (
+            _MAPPING_INPUT_ROLES
+            if settings.capability == "source_record_mapping"
+            else _NORMALIZATION_INPUT_ROLES
+        )
     )
     actual_roles = frozenset(item.role for item in lease.input_artifacts)
     valid_roles = actual_roles == expected_roles or (
@@ -258,12 +301,24 @@ def _validate_lease(settings: ProcessingWorkerSettings, lease: WorkerLease) -> N
         raise ValueError("processing lease input artifact roles are incomplete or unexpected")
 
 
+def _expected_stage(settings: ProcessingWorkerSettings) -> str:
+    if settings.capability == "source_record_mapping":
+        return "normalization"
+    return settings.capability
+
+
 def _classify_failure(exc: BaseException) -> tuple[WorkFailureKind, str, str]:
     if isinstance(exc, ExtractionError):
         return (
             "contract_invalid",
             exc.code,
             "Correct the raw artifact or extraction request and enqueue replacement work.",
+        )
+    if isinstance(exc, SourceRecordMappingError):
+        return (
+            "contract_invalid",
+            exc.code,
+            "Correct the source record artifact or mapping profile and enqueue replacement work.",
         )
     if isinstance(exc, NormalizationError):
         return (

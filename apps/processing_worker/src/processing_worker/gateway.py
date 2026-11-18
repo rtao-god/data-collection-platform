@@ -51,11 +51,12 @@ class SdkProcessingGateway:
         maximum_bytes: int,
     ) -> bytes:
         artifact = lease.artifact(role)
-        return self._client.read_artifact(
+        content: bytes = self._client.read_artifact(
             lease,
             artifact_id=artifact.artifact_id,
             maximum_bytes=maximum_bytes,
         )
+        return content
 
     def publish_and_complete(
         self,

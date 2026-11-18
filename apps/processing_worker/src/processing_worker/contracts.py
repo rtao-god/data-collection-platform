@@ -6,7 +6,9 @@ from typing import Literal, Protocol, cast
 
 from source_connector_sdk import WorkerLease, WorkFailureKind
 
-ProcessingCapability = Literal["extraction", "normalization"]
+ProcessingCapability = Literal["extraction", "normalization", "source_record_mapping"]
+
+_CAPABILITIES = frozenset({"extraction", "normalization", "source_record_mapping"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,12 +21,15 @@ class ProcessingWorkerSettings:
     heartbeat_interval_seconds: int = 60
     poll_interval_seconds: float = 5.0
     maximum_input_bytes: int = 64 * 1024 * 1024
+    maximum_mapping_records: int = 1_000
     gateway_timeout_seconds: float = 30.0
 
     @property
     def output_contract(self) -> str:
         if self.capability == "extraction":
             return "extracted-record@1"
+        if self.capability == "source_record_mapping":
+            return "source-record-observation-batch@1"
         return "field-observation-batch@1"
 
     @property
@@ -34,8 +39,11 @@ class ProcessingWorkerSettings:
     @classmethod
     def from_environment(cls) -> ProcessingWorkerSettings:
         capability_value = _required("PROCESSING_WORKER_CAPABILITY")
-        if capability_value not in {"extraction", "normalization"}:
-            raise RuntimeError("PROCESSING_WORKER_CAPABILITY must be extraction or normalization")
+        if capability_value not in _CAPABILITIES:
+            raise RuntimeError(
+                "PROCESSING_WORKER_CAPABILITY must be extraction, normalization, "
+                "or source_record_mapping"
+            )
         return cls(
             gateway_url=_required("WORKER_GATEWAY_BASE_URL"),
             gateway_token=_required("WORKER_GATEWAY_TOKEN"),
@@ -47,6 +55,10 @@ class ProcessingWorkerSettings:
             maximum_input_bytes=_integer(
                 "PROCESSING_MAXIMUM_INPUT_BYTES",
                 64 * 1024 * 1024,
+            ),
+            maximum_mapping_records=_integer(
+                "PROCESSING_MAXIMUM_MAPPING_RECORDS",
+                1_000,
             ),
             gateway_timeout_seconds=_float("WORKER_GATEWAY_TIMEOUT_SECONDS", 30.0),
         )
