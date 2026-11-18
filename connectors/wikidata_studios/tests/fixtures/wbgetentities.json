@@ -1,0 +1,818 @@
+{
+ "entities": {
+  "Q105762301": {
+   "claims": {
+    "P31": [
+     {
+      "id": "Q105762301$62F12BC3-ABA1-4F6B-A76F-6840D28F6A0E",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q746369",
+         "numeric-id": 746369
+        }
+       },
+       "hash": "8450c2f9548f4de8e88c1a178ad2c2e990df8724",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     }
+    ]
+   },
+   "descriptions": {
+    "de": {
+     "language": "de",
+     "value": "Aufnahmestudios für Red Bull Talente"
+    },
+    "en": {
+     "language": "en",
+     "value": "music studio for Red Bull music acts"
+    }
+   },
+   "id": "Q105762301",
+   "labels": {
+    "de": {
+     "language": "de",
+     "value": "Red Bull Music Studios"
+    },
+    "en": {
+     "language": "en",
+     "value": "Red Bull Music Studios"
+    }
+   },
+   "lastrevid": 2414949716,
+   "modified": "2025-10-11T01:02:27Z"
+  },
+  "Q1372342": {
+   "claims": {
+    "P31": [
+     {
+      "id": "Q1372342$EAE0F717-A619-4971-99A9-2F57F446332E",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q1060829",
+         "numeric-id": 1060829
+        }
+       },
+       "hash": "f9e551b20d0ea0eed4a04783be86ee2ad6a136b1",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     },
+     {
+      "id": "Q1372342$AEED3567-BA4D-4797-A3AF-1D5A76D5AEC2",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q1763828",
+         "numeric-id": 1763828
+        }
+       },
+       "hash": "2046faaac0142c300518fb0d5a63f61e499bc293",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     },
+     {
+      "id": "Q1372342$698C1CE0-3C6A-4A6D-B602-B53771106B87",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q41253",
+         "numeric-id": 41253
+        }
+       },
+       "hash": "3281a821ee8ff00d0b6f80f3fdb15f7f70097aa1",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     },
+     {
+      "id": "Q1372342$5a515aaf-48b4-4b4f-9496-3603e34b5ffa",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q746369",
+         "numeric-id": 746369
+        }
+       },
+       "hash": "8450c2f9548f4de8e88c1a178ad2c2e990df8724",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     }
+    ],
+    "P625": [
+     {
+      "id": "Q1372342$443641EA-0826-49EC-BAAB-BFF5364FC27D",
+      "mainsnak": {
+       "datatype": "globe-coordinate",
+       "datavalue": {
+        "type": "globecoordinate",
+        "value": {
+         "altitude": null,
+         "globe": "http://www.wikidata.org/entity/Q2",
+         "latitude": 52.5062,
+         "longitude": 13.377,
+         "precision": 0.0001
+        }
+       },
+       "hash": "2acf0d96ddbef113edc079a4dcac2d84d794ea95",
+       "property": "P625",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "references": [
+       {
+        "hash": "9a24f7c0208b05d6be97077d855671d1dfdbc0dd",
+        "snaks": {
+         "P143": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q48183",
+             "numeric-id": 48183
+            }
+           },
+           "hash": "d38375ffe6fe142663ff55cd783aa4df4301d83d",
+           "property": "P143",
+           "snaktype": "value"
+          }
+         ]
+        },
+        "snaks-order": [
+         "P143"
+        ]
+       }
+      ],
+      "type": "statement"
+     }
+    ],
+    "P6375": [
+     {
+      "id": "Q1372342$92F3671D-3149-4FA1-9C51-AE3D46D70901",
+      "mainsnak": {
+       "datatype": "monolingualtext",
+       "datavalue": {
+        "type": "monolingualtext",
+        "value": {
+         "language": "de",
+         "text": "Köthener Straße 38, 10963 Berlin"
+        }
+       },
+       "hash": "8adbbb67582e12e22ddc833cc69c7395126c291a",
+       "property": "P6375",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     }
+    ]
+   },
+   "descriptions": {
+    "de": {
+     "language": "de",
+     "value": "Konzertsaal, Aufnahmestudio und ehemaliges Kino in Kreuzberg, Berlin"
+    },
+    "en": {
+     "language": "en",
+     "value": "former concert hall, recording studio and cinema in Kreuzberg, Berlin, Germany"
+    }
+   },
+   "id": "Q1372342",
+   "labels": {
+    "de": {
+     "language": "de",
+     "value": "Meistersaal"
+    },
+    "en": {
+     "language": "en",
+     "value": "Meistersaal"
+    }
+   },
+   "lastrevid": 2458695358,
+   "modified": "2026-01-28T15:39:10Z"
+  },
+  "Q56298345": {
+   "claims": {
+    "P31": [
+     {
+      "id": "Q56298345$46de1db9-42f9-01f8-8b43-978328bf9472",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q746369",
+         "numeric-id": 746369
+        }
+       },
+       "hash": "8450c2f9548f4de8e88c1a178ad2c2e990df8724",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "references": [
+       {
+        "hash": "6432eed2e668685fdc8139854891ace6b0783d38",
+        "snaks": {
+         "P3865": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q22137024",
+             "numeric-id": 22137024
+            }
+           },
+           "hash": "7fc8f7a4fc336350629329d08e726b950d7d4707",
+           "property": "P3865",
+           "snaktype": "value"
+          }
+         ],
+         "P407": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q188",
+             "numeric-id": 188
+            }
+           },
+           "hash": "46bfd327b830f66f7061ea92d1be430c135fa91f",
+           "property": "P407",
+           "snaktype": "value"
+          }
+         ],
+         "P813": [
+          {
+           "datatype": "time",
+           "datavalue": {
+            "type": "time",
+            "value": {
+             "after": 0,
+             "before": 0,
+             "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+             "precision": 11,
+             "time": "+2023-05-26T00:00:00Z",
+             "timezone": 0
+            }
+           },
+           "hash": "cc5e7a79f88364a1a5afc5fd2eba0de063011b5f",
+           "property": "P813",
+           "snaktype": "value"
+          }
+         ],
+         "P854": [
+          {
+           "datatype": "url",
+           "datavalue": {
+            "type": "string",
+            "value": "https://www.studio1058.de/"
+           },
+           "hash": "d7605d6cfb92199617d534c2628203984156192b",
+           "property": "P854",
+           "snaktype": "value"
+          }
+         ]
+        },
+        "snaks-order": [
+         "P3865",
+         "P854",
+         "P813",
+         "P407"
+        ]
+       }
+      ],
+      "type": "statement"
+     }
+    ],
+    "P625": [
+     {
+      "id": "Q56298345$9f4829fb-45e0-2317-8fb8-d2860b71ed32",
+      "mainsnak": {
+       "datatype": "globe-coordinate",
+       "datavalue": {
+        "type": "globecoordinate",
+        "value": {
+         "altitude": null,
+         "globe": "http://www.wikidata.org/entity/Q2",
+         "latitude": 52.59058,
+         "longitude": 13.35646,
+         "precision": 1e-05
+        }
+       },
+       "hash": "c103ef2c7f7ae60ae9a654950e80b23e8cf71030",
+       "property": "P625",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     }
+    ],
+    "P6375": [
+     {
+      "id": "Q56298345$d6713139-4a50-427e-8eaf-cfca89317643",
+      "mainsnak": {
+       "datatype": "monolingualtext",
+       "datavalue": {
+        "type": "monolingualtext",
+        "value": {
+         "language": "de",
+         "text": "Lessingstraße 84, 13158 Berlin"
+        }
+       },
+       "hash": "4f6a9570d421e469b931fc2b1da3b796800c6414",
+       "property": "P6375",
+       "snaktype": "value"
+      },
+      "qualifiers": {
+       "P276": [
+        {
+         "datatype": "wikibase-item",
+         "datavalue": {
+          "type": "wikibase-entityid",
+          "value": {
+           "entity-type": "item",
+           "id": "Q64",
+           "numeric-id": 64
+          }
+         },
+         "hash": "dae1568adb22ea539f6826198463e25ecdfcefe2",
+         "property": "P276",
+         "snaktype": "value"
+        }
+       ],
+       "P281": [
+        {
+         "datatype": "string",
+         "datavalue": {
+          "type": "string",
+          "value": "13158"
+         },
+         "hash": "f335a94e3c95b644c79dc038ba6b37b2a86018d7",
+         "property": "P281",
+         "snaktype": "value"
+        }
+       ],
+       "P669": [
+        {
+         "datatype": "wikibase-item",
+         "datavalue": {
+          "type": "wikibase-entityid",
+          "value": {
+           "entity-type": "item",
+           "id": "Q93205449",
+           "numeric-id": 93205449
+          }
+         },
+         "hash": "fb95a62c6e5f0825ce45f6562cc33b0f981aa59d",
+         "property": "P669",
+         "snaktype": "value"
+        }
+       ],
+       "P670": [
+        {
+         "datatype": "string",
+         "datavalue": {
+          "type": "string",
+          "value": "84"
+         },
+         "hash": "8dc4c9a5109816f5531a50c8fea871d6bbeb4021",
+         "property": "P670",
+         "snaktype": "value"
+        }
+       ]
+      },
+      "qualifiers-order": [
+       "P669",
+       "P670",
+       "P281",
+       "P276"
+      ],
+      "rank": "normal",
+      "references": [
+       {
+        "hash": "6432eed2e668685fdc8139854891ace6b0783d38",
+        "snaks": {
+         "P3865": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q22137024",
+             "numeric-id": 22137024
+            }
+           },
+           "hash": "7fc8f7a4fc336350629329d08e726b950d7d4707",
+           "property": "P3865",
+           "snaktype": "value"
+          }
+         ],
+         "P407": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q188",
+             "numeric-id": 188
+            }
+           },
+           "hash": "46bfd327b830f66f7061ea92d1be430c135fa91f",
+           "property": "P407",
+           "snaktype": "value"
+          }
+         ],
+         "P813": [
+          {
+           "datatype": "time",
+           "datavalue": {
+            "type": "time",
+            "value": {
+             "after": 0,
+             "before": 0,
+             "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+             "precision": 11,
+             "time": "+2023-05-26T00:00:00Z",
+             "timezone": 0
+            }
+           },
+           "hash": "cc5e7a79f88364a1a5afc5fd2eba0de063011b5f",
+           "property": "P813",
+           "snaktype": "value"
+          }
+         ],
+         "P854": [
+          {
+           "datatype": "url",
+           "datavalue": {
+            "type": "string",
+            "value": "https://www.studio1058.de/"
+           },
+           "hash": "d7605d6cfb92199617d534c2628203984156192b",
+           "property": "P854",
+           "snaktype": "value"
+          }
+         ]
+        },
+        "snaks-order": [
+         "P3865",
+         "P854",
+         "P813",
+         "P407"
+        ]
+       }
+      ],
+      "type": "statement"
+     }
+    ],
+    "P856": [
+     {
+      "id": "Q56298345$163b4cf8-4fa9-6acd-bf0c-ea49727e6bb7",
+      "mainsnak": {
+       "datatype": "url",
+       "datavalue": {
+        "type": "string",
+        "value": "https://www.studio1058.de/"
+       },
+       "hash": "f588e853f1ff8816593f8298ff91bc8a53214c76",
+       "property": "P856",
+       "snaktype": "value"
+      },
+      "qualifiers": {
+       "P407": [
+        {
+         "datatype": "wikibase-item",
+         "datavalue": {
+          "type": "wikibase-entityid",
+          "value": {
+           "entity-type": "item",
+           "id": "Q188",
+           "numeric-id": 188
+          }
+         },
+         "hash": "46bfd327b830f66f7061ea92d1be430c135fa91f",
+         "property": "P407",
+         "snaktype": "value"
+        }
+       ]
+      },
+      "qualifiers-order": [
+       "P407"
+      ],
+      "rank": "normal",
+      "type": "statement"
+     }
+    ]
+   },
+   "descriptions": {
+    "de": {
+     "language": "de",
+     "value": "deutsches Tonstudio in Berlin"
+    },
+    "en": {
+     "language": "en",
+     "value": "German recording studio in Berlin"
+    }
+   },
+   "id": "Q56298345",
+   "labels": {
+    "de": {
+     "language": "de",
+     "value": "Studio 1058"
+    },
+    "en": {
+     "language": "en",
+     "value": "Studio 1058"
+    }
+   },
+   "lastrevid": 1902801798,
+   "modified": "2023-05-26T04:17:26Z"
+  },
+  "Q667023": {
+   "claims": {
+    "P31": [
+     {
+      "id": "Q667023$30d3e507-46e6-72b2-a4b6-5f3398a53f13",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q746369",
+         "numeric-id": 746369
+        }
+       },
+       "hash": "8450c2f9548f4de8e88c1a178ad2c2e990df8724",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     }
+    ],
+    "P625": [
+     {
+      "id": "Q667023$6AA9D65E-50D0-4382-A09D-60251FDECC0E",
+      "mainsnak": {
+       "datatype": "globe-coordinate",
+       "datavalue": {
+        "type": "globecoordinate",
+        "value": {
+         "altitude": null,
+         "globe": "http://www.wikidata.org/entity/Q2",
+         "latitude": 52.5063,
+         "longitude": 13.3772,
+         "precision": 0.0001
+        }
+       },
+       "hash": "4e9602cad7f1de87c704033f1a7b88045ddc4a3b",
+       "property": "P625",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "references": [
+       {
+        "hash": "9a24f7c0208b05d6be97077d855671d1dfdbc0dd",
+        "snaks": {
+         "P143": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q48183",
+             "numeric-id": 48183
+            }
+           },
+           "hash": "d38375ffe6fe142663ff55cd783aa4df4301d83d",
+           "property": "P143",
+           "snaktype": "value"
+          }
+         ]
+        },
+        "snaks-order": [
+         "P143"
+        ]
+       }
+      ],
+      "type": "statement"
+     }
+    ],
+    "P856": [
+     {
+      "id": "Q667023$CB9EF04C-CD2B-4030-86AE-4D6B92D912F5",
+      "mainsnak": {
+       "datatype": "url",
+       "datavalue": {
+        "type": "string",
+        "value": "https://hansastudios.de/en/home/"
+       },
+       "hash": "a24a77b7e82596ea37e0bc4461f743b9b06dfaa1",
+       "property": "P856",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "references": [
+       {
+        "hash": "fa278ebfc458360e5aed63d5058cca83c46134f1",
+        "snaks": {
+         "P143": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q328",
+             "numeric-id": 328
+            }
+           },
+           "hash": "e4f6d9441d0600513c4533c672b5ab472dc73694",
+           "property": "P143",
+           "snaktype": "value"
+          }
+         ]
+        },
+        "snaks-order": [
+         "P143"
+        ]
+       }
+      ],
+      "type": "statement"
+     }
+    ]
+   },
+   "descriptions": {
+    "de": {
+     "language": "de",
+     "value": "deutsche Tonstudios"
+    },
+    "en": {
+     "language": "en",
+     "value": "German recording studio"
+    }
+   },
+   "id": "Q667023",
+   "labels": {
+    "de": {
+     "language": "de",
+     "value": "Hansa Studios"
+    },
+    "en": {
+     "language": "en",
+     "value": "Hansa Tonstudio"
+    }
+   },
+   "lastrevid": 2465661990,
+   "modified": "2026-02-22T14:32:29Z"
+  },
+  "Q7695694": {
+   "claims": {
+    "P31": [
+     {
+      "id": "Q7695694$33a68c8d-4a4b-1a7f-3767-53ca719ece80",
+      "mainsnak": {
+       "datatype": "wikibase-item",
+       "datavalue": {
+        "type": "wikibase-entityid",
+        "value": {
+         "entity-type": "item",
+         "id": "Q746369",
+         "numeric-id": 746369
+        }
+       },
+       "hash": "8450c2f9548f4de8e88c1a178ad2c2e990df8724",
+       "property": "P31",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "type": "statement"
+     }
+    ],
+    "P856": [
+     {
+      "id": "Q7695694$01737125-95B6-4F8E-BEA0-56B052345F0E",
+      "mainsnak": {
+       "datatype": "url",
+       "datavalue": {
+        "type": "string",
+        "value": "http://www.teldexstudio.de"
+       },
+       "hash": "98e37b4d4310181be2664dbfd709d5cd15f0d39a",
+       "property": "P856",
+       "snaktype": "value"
+      },
+      "rank": "normal",
+      "references": [
+       {
+        "hash": "621e2e00c81f2a8bc1b26750bf29ba38d4a8579a",
+        "snaks": {
+         "P143": [
+          {
+           "datatype": "wikibase-item",
+           "datavalue": {
+            "type": "wikibase-entityid",
+            "value": {
+             "entity-type": "item",
+             "id": "Q328",
+             "numeric-id": 328
+            }
+           },
+           "hash": "e4f6d9441d0600513c4533c672b5ab472dc73694",
+           "property": "P143",
+           "snaktype": "value"
+          }
+         ],
+         "P813": [
+          {
+           "datatype": "time",
+           "datavalue": {
+            "type": "time",
+            "value": {
+             "after": 0,
+             "before": 0,
+             "calendarmodel": "http://www.wikidata.org/entity/Q1985727",
+             "precision": 11,
+             "time": "+2023-01-29T00:00:00Z",
+             "timezone": 0
+            }
+           },
+           "hash": "b709c205d4c485e9dc8a30ac54d13ceda9a533b2",
+           "property": "P813",
+           "snaktype": "value"
+          }
+         ]
+        },
+        "snaks-order": [
+         "P143",
+         "P813"
+        ]
+       }
+      ],
+      "type": "statement"
+     }
+    ]
+   },
+   "descriptions": {
+    "en": {
+     "language": "en",
+     "value": "recording studio in Lichterfelde, Germany"
+    }
+   },
+   "id": "Q7695694",
+   "labels": {
+    "de": {
+     "language": "de",
+     "value": "Teldex Studio"
+    },
+    "en": {
+     "language": "en",
+     "value": "Teldex Studio"
+    }
+   },
+   "lastrevid": 1833902690,
+   "modified": "2023-02-14T13:42:54Z"
+  }
+ }
+}
