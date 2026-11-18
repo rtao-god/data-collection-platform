@@ -7,6 +7,7 @@ from uuid import UUID, uuid5
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from collection_contracts.canonical import canonical_digest
+from collection_contracts.review_identity import review_case_id
 
 Digest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 Code = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[A-Z][A-Z0-9_]*$")]
@@ -25,7 +26,6 @@ SuppressionState = Literal["active", "resolved"]
 SuppressionScope = Literal["discovery", "normalization", "export"]
 SuppressionTargetKind = Literal["candidate", "source_observation", "artifact", "source"]
 
-_CASE_NAMESPACE = UUID("01cf920c-9a4f-4fd3-9cb0-39e4475d24f5")
 _DECISION_NAMESPACE = UUID("ca22a3d1-0be5-4476-8834-d3b13938bb93")
 _OBSERVATION_NAMESPACE = UUID("a91821fd-3537-43e4-b2a4-05fc01ff7786")
 _SUPPRESSION_NAMESPACE = UUID("8d4d7db5-f641-44de-8606-fe2976495957")
@@ -40,13 +40,7 @@ def deterministic_case_id(
     candidate_revision: int,
     reason_codes: tuple[str, ...],
 ) -> UUID:
-    canonical = tuple(sorted(set(reason_codes)))
-    if not canonical:
-        raise ValueError("a review case requires at least one reason")
-    return uuid5(
-        _CASE_NAMESPACE,
-        f"{candidate_id}:{candidate_revision}:{canonical_digest(canonical)}",
-    )
+    return review_case_id(candidate_id, candidate_revision, reason_codes)
 
 
 def deterministic_decision_id(
