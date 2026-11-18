@@ -19,10 +19,12 @@ class WorkCapability(StrEnum):
     MANUAL_IMPORT = "manual_import"
     MANUAL_RECORD = "manual_record"
     OSM_QUERY = "osm_query"
+    WIKIDATA_ENTITY_QUERY = "wikidata_entity_query"
     HTTP_FETCH = "http_fetch"
     BROWSER_FETCH = "browser_fetch"
     EXTRACTION = "extraction"
     NORMALIZATION = "normalization"
+    SOURCE_RECORD_MAPPING = "source_record_mapping"
     GEOGRAPHY = "geography"
     ENTITY_RESOLUTION = "entity_resolution"
     QUALITY = "quality"
@@ -35,11 +37,17 @@ _STAGE_CAPABILITIES: dict[WorkStage, frozenset[WorkCapability]] = {
             WorkCapability.MANUAL_IMPORT,
             WorkCapability.MANUAL_RECORD,
             WorkCapability.OSM_QUERY,
+            WorkCapability.WIKIDATA_ENTITY_QUERY,
         }
     ),
     WorkStage.ACQUISITION: frozenset({WorkCapability.HTTP_FETCH, WorkCapability.BROWSER_FETCH}),
     WorkStage.EXTRACTION: frozenset({WorkCapability.EXTRACTION}),
-    WorkStage.NORMALIZATION: frozenset({WorkCapability.NORMALIZATION}),
+    WorkStage.NORMALIZATION: frozenset(
+        {
+            WorkCapability.NORMALIZATION,
+            WorkCapability.SOURCE_RECORD_MAPPING,
+        }
+    ),
     WorkStage.GEOGRAPHY: frozenset({WorkCapability.GEOGRAPHY}),
     WorkStage.ENTITY_RESOLUTION: frozenset({WorkCapability.ENTITY_RESOLUTION}),
     WorkStage.QUALITY: frozenset({WorkCapability.QUALITY}),
@@ -49,6 +57,7 @@ _SOURCE_BOUND_CAPABILITIES = frozenset(
     {
         WorkCapability.MANUAL_IMPORT,
         WorkCapability.OSM_QUERY,
+        WorkCapability.WIKIDATA_ENTITY_QUERY,
         WorkCapability.HTTP_FETCH,
         WorkCapability.BROWSER_FETCH,
     }
