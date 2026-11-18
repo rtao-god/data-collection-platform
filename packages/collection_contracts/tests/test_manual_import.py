@@ -48,6 +48,7 @@ def _record_document(**overrides: object) -> dict[str, object]:
         "record": {
             "row_number": 2,
             "expected_entity_kind": "place",
+            "category": "recording_studio",
             "display_name": "Studio",
             "website": None,
             "osm_id": None,

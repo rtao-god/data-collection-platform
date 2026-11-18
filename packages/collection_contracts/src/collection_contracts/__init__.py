@@ -2,6 +2,10 @@ from collection_contracts.campaign_config import (
     AttributeDefinition,
     AttributesDocument,
     CampaignDocument,
+    CatalogCategoryMappingDocument,
+    CatalogCategoryMappingEntry,
+    CatalogNameLocaleMapping,
+    CatalogProductKey,
     EntityKind,
     EntityKindsDocument,
     GeographyDocument,
@@ -15,6 +19,7 @@ from collection_contracts.campaign_config import (
     SourcePolicy,
     TaxonomyCategory,
     TaxonomyDocument,
+    UnmappedCampaignCategory,
 )
 from collection_contracts.candidate import (
     CandidateEvidence,
@@ -23,6 +28,34 @@ from collection_contracts.candidate import (
 )
 from collection_contracts.canonical import canonical_digest
 from collection_contracts.errors import ErrorEnvelope, OwnerContextError, owner_error
+from collection_contracts.export_package import (
+    CatalogCategoryKey,
+    ContactKind,
+    ExportCandidateEntry,
+    ExportCatalogBinding,
+    ExportCatalogCategoryMapping,
+    ExportCatalogNameLocale,
+    ExportContact,
+    ExportFieldEvidence,
+    ExportGeography,
+    ExportLocalizedName,
+    ExportPackage,
+    ExportPackagePayload,
+    ExportQualityIssue,
+    ExportQualitySummary,
+    ExportReviewDecision,
+    ExportSourcePolicy,
+    ExportTypedAttribute,
+    UsagePolicy,
+    canonical_export_package_json,
+    decode_export_package,
+    export_candidate_content_digest,
+    export_candidate_digest,
+    export_package_digest,
+    seal_export_candidate,
+    seal_export_package,
+    verify_export_package,
+)
 from collection_contracts.manual_import import (
     ManualImportDisposition,
     ManualImportFormat,
@@ -61,6 +94,7 @@ from collection_contracts.observations import (
     ExtractionRequest,
     FieldObservation,
     FieldObservationPayload,
+    GeoPointObservationValue,
     InvalidObservationValue,
     MoneyObservationValue,
     NormalizationFieldRule,
@@ -72,19 +106,55 @@ from collection_contracts.observations import (
     ObservationValue,
     PhoneObservationValue,
     ProhibitedFieldEvidence,
+    SourceRecordBatchPayload,
+    SourceRecordEvidence,
+    SourceRecordLocatorKind,
+    SourceRecordObservation,
+    SourceRecordObservationBatch,
+    SourceRecordObservationPayload,
     StringSetObservationValue,
     StructuredAddressObservationValue,
     TextObservationValue,
     UrlObservationValue,
     canonical_extracted_record_json,
     canonical_observation_batch_json,
+    canonical_source_record_observation_batch_json,
     decode_extracted_record,
     decode_observation_batch,
+    decode_source_record_observation_batch,
     seal_extracted_record,
     seal_field_observation,
     seal_observation_batch,
+    seal_source_record_observation,
+    seal_source_record_observation_batch,
     verify_extracted_record,
     verify_observation_batch,
+    verify_source_record_observation_batch,
+)
+from collection_contracts.osm_source_record import (
+    OsmElementIdentity as OsmElementIdentity,
+)
+from collection_contracts.osm_source_record import (
+    OsmEnvelope as OsmEnvelope,
+)
+from collection_contracts.osm_source_record import (
+    OsmSourceRecord as OsmSourceRecord,
+)
+from collection_contracts.osm_source_record import (
+    canonical_osm_source_record_json as canonical_osm_source_record_json,
+)
+from collection_contracts.osm_source_record import (
+    decode_osm_envelope as decode_osm_envelope,
+)
+from collection_contracts.osm_source_record import (
+    decode_osm_source_record as decode_osm_source_record,
+)
+from collection_contracts.quality_profile import (
+    QUALITY_PROFILE_SCHEMA_REVISION,
+    QualityProfileDocument,
+    QualityRule,
+    QualityThresholds,
+    quality_profile_digest,
 )
 from collection_contracts.snapshot import CampaignSnapshot, ComponentDigest, SnapshotBlocker
 from collection_contracts.website_route import (
@@ -92,8 +162,53 @@ from collection_contracts.website_route import (
     WebsiteRouteContext,
     decode_website_route_context,
 )
+from collection_contracts.wikidata_entity_query_spec import (
+    QUERY_SPEC_CONTRACT as WIKIDATA_QUERY_SPEC_CONTRACT,
+)
+from collection_contracts.wikidata_entity_query_spec import (
+    WikidataClassificationSpec as WikidataClassificationSpec,
+)
+from collection_contracts.wikidata_entity_query_spec import (
+    WikidataEntityQuerySpec as WikidataEntityQuerySpec,
+)
+from collection_contracts.wikidata_entity_query_spec import (
+    canonical_wikidata_query_spec_document as canonical_wikidata_query_spec_document,
+)
+from collection_contracts.wikidata_entity_query_spec import (
+    decode_wikidata_query_spec as decode_wikidata_query_spec,
+)
+from collection_contracts.wikidata_entity_query_spec import (
+    wikidata_query_spec_digest as wikidata_query_spec_digest,
+)
+from collection_contracts.wikidata_entity_result import (
+    RESULT_CONTRACT as WIKIDATA_RESULT_CONTRACT,
+)
+from collection_contracts.wikidata_entity_result import (
+    WikidataAdaptedRecordEntry as WikidataAdaptedRecordEntry,
+)
+from collection_contracts.wikidata_entity_result import (
+    WikidataEntityResultEnvelope as WikidataEntityResultEnvelope,
+)
+from collection_contracts.wikidata_entity_result import (
+    WikidataRejectedEntityEntry as WikidataRejectedEntityEntry,
+)
+from collection_contracts.wikidata_entity_result import (
+    build_wikidata_entity_result as build_wikidata_entity_result,
+)
+from collection_contracts.wikidata_entity_result import (
+    canonical_wikidata_source_record_document as canonical_wikidata_source_record_document,
+)
+from collection_contracts.wikidata_entity_result import (
+    decode_wikidata_entity_result as decode_wikidata_entity_result,
+)
+from collection_contracts.wikidata_entity_result import (
+    wikidata_record_digest as wikidata_record_digest,
+)
 
 __all__ = [
+    "QUALITY_PROFILE_SCHEMA_REVISION",
+    "WIKIDATA_QUERY_SPEC_CONTRACT",
+    "WIKIDATA_RESULT_CONTRACT",
     "AttributeDefinition",
     "AttributesDocument",
     "BooleanObservationValue",
@@ -102,7 +217,13 @@ __all__ = [
     "CampaignSnapshot",
     "CandidateEvidence",
     "CandidateRevision",
+    "CatalogCategoryKey",
+    "CatalogCategoryMappingDocument",
+    "CatalogCategoryMappingEntry",
+    "CatalogNameLocaleMapping",
+    "CatalogProductKey",
     "ComponentDigest",
+    "ContactKind",
     "EmailObservationValue",
     "EntityKind",
     "EntityKindsDocument",
@@ -110,6 +231,21 @@ __all__ = [
     "EvidenceLocatorKind",
     "EvidenceReference",
     "EvidenceTextBlock",
+    "ExportCandidateEntry",
+    "ExportCatalogBinding",
+    "ExportCatalogCategoryMapping",
+    "ExportCatalogNameLocale",
+    "ExportContact",
+    "ExportFieldEvidence",
+    "ExportGeography",
+    "ExportLocalizedName",
+    "ExportPackage",
+    "ExportPackagePayload",
+    "ExportQualityIssue",
+    "ExportQualitySummary",
+    "ExportReviewDecision",
+    "ExportSourcePolicy",
+    "ExportTypedAttribute",
     "ExtractedAddressValue",
     "ExtractedBooleanValue",
     "ExtractedEmailValue",
@@ -126,6 +262,7 @@ __all__ = [
     "ExtractionRequest",
     "FieldObservation",
     "FieldObservationPayload",
+    "GeoPointObservationValue",
     "GeographyDocument",
     "GeographyProvenanceDocument",
     "InvalidObservationValue",
@@ -153,31 +290,68 @@ __all__ = [
     "OwnerContextError",
     "PhoneObservationValue",
     "ProhibitedFieldEvidence",
+    "QualityProfileDocument",
+    "QualityRule",
+    "QualityThresholds",
     "SnapshotBlocker",
     "SourceBinding",
     "SourceBindingsDocument",
     "SourcePolicy",
+    "SourceRecordBatchPayload",
+    "SourceRecordEvidence",
+    "SourceRecordLocatorKind",
+    "SourceRecordObservation",
+    "SourceRecordObservationBatch",
+    "SourceRecordObservationPayload",
     "StringSetObservationValue",
     "StructuredAddressObservationValue",
     "TaxonomyCategory",
     "TaxonomyDocument",
     "TextObservationValue",
+    "UnmappedCampaignCategory",
     "UrlObservationValue",
+    "UsagePolicy",
     "WebsitePageInterest",
     "WebsiteRouteContext",
+    "WikidataAdaptedRecordEntry",
+    "WikidataClassificationSpec",
+    "WikidataEntityQuerySpec",
+    "WikidataEntityResultEnvelope",
+    "WikidataRejectedEntityEntry",
+    "build_wikidata_entity_result",
     "candidate_snapshot_digest",
     "canonical_digest",
+    "canonical_export_package_json",
     "canonical_extracted_record_json",
     "canonical_manual_record_lineage_bytes",
     "canonical_observation_batch_json",
+    "canonical_source_record_observation_batch_json",
+    "canonical_wikidata_query_spec_document",
+    "canonical_wikidata_source_record_document",
+    "decode_export_package",
     "decode_extracted_record",
     "decode_manual_record_lineage",
     "decode_observation_batch",
+    "decode_source_record_observation_batch",
     "decode_website_route_context",
+    "decode_wikidata_entity_result",
+    "decode_wikidata_query_spec",
+    "export_candidate_content_digest",
+    "export_candidate_digest",
+    "export_package_digest",
     "owner_error",
+    "quality_profile_digest",
+    "seal_export_candidate",
+    "seal_export_package",
     "seal_extracted_record",
     "seal_field_observation",
     "seal_observation_batch",
+    "seal_source_record_observation",
+    "seal_source_record_observation_batch",
+    "verify_export_package",
     "verify_extracted_record",
     "verify_observation_batch",
+    "verify_source_record_observation_batch",
+    "wikidata_query_spec_digest",
+    "wikidata_record_digest",
 ]

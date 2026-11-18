@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, ClassVar, Literal, Self
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -20,6 +21,7 @@ _MAX_EVIDENCE_CHARS = 300
 _MAX_RECORD_FIELDS = 1_024
 _MAX_TEXT_BLOCKS = 512
 _MAX_OBSERVATIONS = 2_048
+_RELEASE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+/-]{0,127}$")
 
 
 class _ContractModel(BaseModel):
@@ -37,6 +39,8 @@ class EvidenceLocatorKind(StrEnum):
     CSS = "css"
     HTML_ATTRIBUTE = "html_attribute"
     TEXT_OFFSET = "text_offset"
+    # Source-native locators: a JSON column/row view rather than a rendered document.
+    COLUMN = "column"
 
 
 class ObservationState(StrEnum):
@@ -488,6 +492,32 @@ class StructuredAddressObservationValue(_ContractModel):
         return self
 
 
+class GeoPointObservationValue(_ContractModel):
+    """A point the source itself published, kept as its own geometry.
+
+    Coordinates are source geometry, not a tag value: the producing mapper gives exactly
+    the point its element carries, together with the element identity and the raw
+    artifact it was read from. Nothing here is derived from a way or relation centroid,
+    so a consumer can never mistake a computed centre for an observed location.
+    """
+
+    kind: Literal["geo_point"] = "geo_point"
+    latitude: Decimal = Field(ge=Decimal("-90"), le=Decimal("90"))
+    longitude: Decimal = Field(ge=Decimal("-180"), le=Decimal("180"))
+    # The source element whose geometry this is, so two points from one candidate remain
+    # attributable to distinct elements instead of collapsing into one anonymous pair.
+    geometry_source_record_id: str = Field(
+        alias="geometrySourceRecordId", min_length=1, max_length=200
+    )
+    geometry_locator: str = Field(alias="geometryLocator", min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_point(self) -> Self:
+        if not self.latitude.is_finite() or not self.longitude.is_finite():
+            raise ValueError("observed geometry coordinates must be finite")
+        return self
+
+
 class MoneyObservationValue(_ContractModel):
     kind: Literal["money"] = "money"
     amount: Decimal = Field(gt=0, max_digits=19, decimal_places=4)
@@ -510,6 +540,7 @@ type ObservationValue = Annotated[
     | PhoneObservationValue
     | StringSetObservationValue
     | StructuredAddressObservationValue
+    | GeoPointObservationValue
     | MoneyObservationValue
     | InvalidObservationValue,
     Field(discriminator="kind"),
@@ -678,6 +709,207 @@ def decode_observation_batch(content: bytes) -> ObservationBatch:
     return batch
 
 
+class SourceRecordLocatorKind(StrEnum):
+    JSON_POINTER = "json_pointer"
+    COLUMN = "column"
+
+
+class SourceRecordEvidence(_ContractModel):
+    """Field-level evidence inside a source-native record artifact.
+
+    A source-native record is observed in its own delivery format (JSON row, Parquet
+    row, PBF element view). The locator therefore addresses a JSON pointer or a column
+    name rather than an HTML locator, and always carries the exact artifact identity it
+    was read from.
+    """
+
+    raw_artifact_id: UUID = Field(alias="rawArtifactId")
+    raw_artifact_digest: str = Field(alias="rawArtifactDigest")
+    source_url: str = Field(alias="sourceUrl", min_length=1, max_length=8_192)
+    locator_kind: SourceRecordLocatorKind = Field(alias="locatorKind")
+    locator_value: str = Field(alias="locatorValue", min_length=1, max_length=1_024)
+    evidence_digest: str = Field(alias="evidenceDigest")
+    evidence_span: str | None = Field(
+        default=None,
+        alias="evidenceSpan",
+        max_length=_MAX_EVIDENCE_CHARS,
+    )
+    observed_at_utc: datetime = Field(alias="observedAtUtc")
+    mapping_revision: str = Field(alias="mappingRevision")
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> Self:
+        _require_digest("raw_artifact_digest", self.raw_artifact_digest)
+        _require_digest("evidence_digest", self.evidence_digest)
+        _require_token("mapping_revision", self.mapping_revision)
+        _require_utc("observed_at_utc", self.observed_at_utc)
+        return self
+
+
+class SourceRecordObservationPayload(_ContractModel):
+    source_record_id: str = Field(alias="sourceRecordId")
+    field_key: str = Field(alias="fieldKey")
+    state: ObservationState
+    value: ObservationValue | None = None
+    evidence: SourceRecordEvidence | None = None
+    source_policy_digest: str = Field(alias="sourcePolicyDigest")
+    mapping_revision: str = Field(alias="mappingRevision")
+    confidence: Decimal = Field(ge=0, le=1, max_digits=5, decimal_places=4)
+
+    @model_validator(mode="after")
+    def validate_observation(self) -> Self:
+        _require_token("source_record_id", self.source_record_id)
+        _require_field_key(self.field_key)
+        _require_digest("source_policy_digest", self.source_policy_digest)
+        _require_token("mapping_revision", self.mapping_revision)
+        if self.state is ObservationState.OBSERVED:
+            if self.value is None or isinstance(self.value, InvalidObservationValue):
+                raise ValueError("observed field requires a valid typed value")
+            if self.evidence is None:
+                raise ValueError("observed field requires source evidence")
+        elif self.state is ObservationState.INVALID:
+            if not isinstance(self.value, InvalidObservationValue) or self.evidence is None:
+                raise ValueError("invalid field requires invalid value detail and evidence")
+        elif self.state is ObservationState.ABSENT_IN_SOURCE:
+            if self.value is not None or self.evidence is None:
+                raise ValueError(
+                    "absent-in-source requires evidence that the source was inspected "
+                    "and contained no such field"
+                )
+        elif self.state is ObservationState.PROHIBITED_BY_POLICY:
+            if self.value is not None or self.evidence is None:
+                raise ValueError("prohibited-by-policy requires evidence and no value")
+        elif self.state in {ObservationState.NOT_OBSERVED, ObservationState.UNSUPPORTED}:
+            if self.value is not None or self.evidence is not None:
+                raise ValueError("not-observed/unsupported states cannot contain value or evidence")
+        elif self.evidence is None:
+            raise ValueError("expired/disputed observations require evidence")
+        if self.evidence is not None and self.evidence.mapping_revision != self.mapping_revision:
+            raise ValueError("record evidence must use the observation mapping revision")
+        return self
+
+
+class SourceRecordObservation(SourceRecordObservationPayload):
+    observation_id: str = Field(alias="observationId")
+
+    @model_validator(mode="after")
+    def validate_observation_id(self) -> Self:
+        _require_digest("observation_id", self.observation_id)
+        expected = _digest_model(
+            SourceRecordObservationPayload.model_validate(
+                self.model_dump(mode="python", exclude={"observation_id"})
+            )
+        )
+        if self.observation_id != expected:
+            raise ValueError("source record observation identity does not match content")
+        return self
+
+
+class SourceRecordBatchPayload(_ContractModel):
+    """Source-native observation batch produced by source-record mapping.
+
+    Distinct from `field-observation-batch@1`, which is bound to an HTML
+    `extracted-record@1` and verified manual-record lineage. This contract keeps the
+    independent source identity and never fabricates an extracted record.
+    """
+
+    contract: Literal["collector-source-record-observation-batch"] = (
+        "collector-source-record-observation-batch"
+    )
+    contract_revision: Literal["source-record-observation-batch@1"] = Field(
+        default="source-record-observation-batch@1",
+        alias="contractRevision",
+    )
+    run_id: UUID = Field(alias="runId")
+    source_key: str = Field(alias="sourceKey")
+    source_binding_key: str = Field(alias="sourceBindingKey")
+    source_record_id: str = Field(alias="sourceRecordId")
+    source_record_artifact_id: UUID = Field(alias="sourceRecordArtifactId")
+    source_record_artifact_digest: str = Field(alias="sourceRecordArtifactDigest")
+    dataset_release: str = Field(alias="datasetRelease")
+    source_policy_digest: str = Field(alias="sourcePolicyDigest")
+    mapping_revision: str = Field(alias="mappingRevision")
+    observation_profile_digest: str = Field(alias="observationProfileDigest")
+    observations: tuple[SourceRecordObservation, ...] = Field(max_length=_MAX_OBSERVATIONS)
+    issues: tuple[ObservationIssue, ...] = Field(default=(), max_length=512)
+
+    @model_validator(mode="after")
+    def validate_batch(self) -> Self:
+        _require_token("source_key", self.source_key)
+        _require_token("source_binding_key", self.source_binding_key)
+        _require_token("source_record_id", self.source_record_id)
+        _require_digest("source_record_artifact_digest", self.source_record_artifact_digest)
+        _require_release("dataset_release", self.dataset_release)
+        _require_digest("source_policy_digest", self.source_policy_digest)
+        _require_token("mapping_revision", self.mapping_revision)
+        _require_digest("observation_profile_digest", self.observation_profile_digest)
+        identities = tuple(item.observation_id for item in self.observations)
+        if len(set(identities)) != len(identities):
+            raise ValueError("source record observation identities must be unique in a batch")
+        for observation in self.observations:
+            if observation.source_record_id != self.source_record_id:
+                raise ValueError("observation belongs to another source record")
+            if observation.source_policy_digest != self.source_policy_digest:
+                raise ValueError("observation uses another source policy digest")
+            if observation.mapping_revision != self.mapping_revision:
+                raise ValueError("observation uses another mapping revision")
+            if (
+                observation.evidence is not None
+                and observation.evidence.raw_artifact_id != self.source_record_artifact_id
+            ):
+                raise ValueError("observation evidence points at another source artifact")
+        return self
+
+
+class SourceRecordObservationBatch(SourceRecordBatchPayload):
+    content_digest: str = Field(alias="contentDigest")
+
+    @model_validator(mode="after")
+    def validate_digest(self) -> Self:
+        _require_digest("content_digest", self.content_digest)
+        return self
+
+
+def seal_source_record_observation(
+    payload: SourceRecordObservationPayload,
+) -> SourceRecordObservation:
+    return SourceRecordObservation(
+        **payload.model_dump(mode="python"),
+        observation_id=_digest_model(payload),
+    )
+
+
+def seal_source_record_observation_batch(
+    payload: SourceRecordBatchPayload,
+) -> SourceRecordObservationBatch:
+    validated = SourceRecordBatchPayload.model_validate(payload.model_dump(mode="python"))
+    return SourceRecordObservationBatch(
+        **validated.model_dump(mode="python"),
+        content_digest=_digest_model(validated),
+    )
+
+
+def verify_source_record_observation_batch(batch: SourceRecordObservationBatch) -> None:
+    payload = SourceRecordBatchPayload.model_validate(
+        batch.model_dump(mode="python", exclude={"content_digest"})
+    )
+    if batch.content_digest != _digest_model(payload):
+        raise ValueError("source record observation batch digest does not match content")
+
+
+def canonical_source_record_observation_batch_json(
+    batch: SourceRecordObservationBatch,
+) -> str:
+    verify_source_record_observation_batch(batch)
+    return _canonical_json(batch.model_dump(mode="json", by_alias=True)) + "\n"
+
+
+def decode_source_record_observation_batch(content: bytes) -> SourceRecordObservationBatch:
+    batch = SourceRecordObservationBatch.model_validate_json(content)
+    verify_source_record_observation_batch(batch)
+    return batch
+
+
 def _digest_model(model: BaseModel) -> str:
     content = _canonical_json(model.model_dump(mode="json", by_alias=True)).encode("utf-8")
     return f"sha256:{hashlib.sha256(content).hexdigest()}"
@@ -701,6 +933,11 @@ def _require_digest(name: str, value: str) -> None:
 def _require_token(name: str, value: str) -> None:
     if _TOKEN_PATTERN.fullmatch(value) is None:
         raise ValueError(f"{name} has an invalid token format")
+
+
+def _require_release(name: str, value: str) -> None:
+    if _RELEASE_PATTERN.fullmatch(value) is None:
+        raise ValueError(f"{name} has an invalid release format")
 
 
 def _require_field_key(value: str) -> None:

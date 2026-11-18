@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import re
 from datetime import date
+from decimal import Decimal
 from typing import Annotated, ClassVar, Literal
+from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
@@ -53,6 +56,31 @@ Sha256Digest = Annotated[
         strip_whitespace=True,
     ),
 ]
+# The Catalog owner publishes hyphenated product keys for sites, catalogs and categories.
+# A campaign category such as `voice_over_adr` is a different vocabulary and never a
+# substitute, so both grammars are typed separately instead of being normalized into one.
+CatalogProductKey = Annotated[
+    str,
+    StringConstraints(
+        min_length=2,
+        max_length=80,
+        pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+        strip_whitespace=True,
+    ),
+]
+CatalogCategoryKey = CatalogProductKey
+# The Catalog publishes localized text under BCP 47 display locales; a campaign locale such
+# as `und` (source published no language) is a different vocabulary and is never rewritten.
+CatalogLocale = Annotated[
+    str,
+    StringConstraints(
+        min_length=2,
+        max_length=35,
+        pattern=r"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+        strip_whitespace=True,
+    ),
+]
+CampaignLocale = CatalogLocale
 
 
 class StrictContract(BaseModel):
@@ -187,6 +215,95 @@ class TaxonomyDocument(StrictContract):
         return self
 
 
+class CatalogCategoryMappingEntry(StrictContract):
+    """One declared correspondence between a campaign category and a Catalog category.
+
+    The two vocabularies are authored by different owners and are not derived from each
+    other, so the correspondence is stated explicitly and pinned to the exact Catalog
+    configuration revision it was authored against. Nothing infers a target by rewriting
+    a key.
+    """
+
+    campaign_category: Key
+    catalog_category: CatalogCategoryKey
+
+
+class CatalogNameLocaleMapping(StrictContract):
+    """One declared established-language to Catalog-locale correspondence, sealed.
+
+    Only a language something actually established is mapped: the source that published the
+    name, or the operator who entered it. `und` means no language was established, and the
+    Catalog has no display locale for it, so a name in `und` stays blocked at export instead
+    of being shown under a locale the evidence never supported.
+    """
+
+    campaign_locale: CampaignLocale
+    catalog_locale: CatalogLocale
+
+    @model_validator(mode="after")
+    def reject_undetermined_locale(self) -> CatalogNameLocaleMapping:
+        if self.campaign_locale == "und":
+            raise ValueError(
+                "the undetermined locale `und` states that no language was established and "
+                "cannot be given a Catalog display locale"
+            )
+        return self
+
+
+class UnmappedCampaignCategory(StrictContract):
+    """A campaign category deliberately left unclassified, with the reason it stays blocked."""
+
+    campaign_category: Key
+    reason: DisplayText
+
+
+class CatalogCategoryMappingDocument(StrictContract):
+    schema_revision: Revision
+    site_key: CatalogProductKey
+    catalog_key: CatalogProductKey
+    configuration_revision_id: UUID
+    categories: tuple[CatalogCategoryMappingEntry, ...] = Field(default=(), alias="categories")
+    unmapped: tuple[UnmappedCampaignCategory, ...] = ()
+    name_locales: tuple[CatalogNameLocaleMapping, ...] = ()
+    # The accuracy this campaign asserts for a source-observed point when it is mapped into
+    # this Catalog. The catalog contract requires an accuracy claim for every observed
+    # point, and the source geometries carry none, so the campaign states it once, here,
+    # instead of an adapter silently choosing one per item.
+    coordinate_precision_meters: Decimal = Field(gt=0, le=Decimal("100000"))
+
+    @model_validator(mode="after")
+    def validate_mapping(self) -> CatalogCategoryMappingDocument:
+        campaign_categories = tuple(item.campaign_category for item in self.categories) + tuple(
+            item.campaign_category for item in self.unmapped
+        )
+        _require_unique("mapped campaign categories", campaign_categories)
+        # A second campaign category aimed at the same Catalog category would make the
+        # produced proposal ambiguous, so a package cannot carry two claims about one slot.
+        _require_unique(
+            "target Catalog categories",
+            tuple(item.catalog_category for item in self.categories),
+        )
+        _require_unique(
+            "mapped campaign locales", tuple(item.campaign_locale for item in self.name_locales)
+        )
+        _require_unique(
+            "target Catalog locales", tuple(item.catalog_locale for item in self.name_locales)
+        )
+        return self
+
+    @property
+    def name_locale_pairs(self) -> dict[str, str]:
+        return {item.campaign_locale: item.catalog_locale for item in self.name_locales}
+
+    @property
+    def pairs(self) -> dict[str, str]:
+        return {item.campaign_category: item.catalog_category for item in self.categories}
+
+    @property
+    def unmapped_categories(self) -> frozenset[str]:
+        return frozenset(item.campaign_category for item in self.unmapped)
+
+
 class UnitNotApplicable(StrictContract):
     state: Literal["not_applicable"]
 
@@ -305,6 +422,122 @@ class NormalizationProfilesDocument(StrictContract):
         return self
 
 
+class OsmTagFilterDeclaration(StrictContract):
+    key: str = Field(pattern=r"^[A-Za-z0-9_:.-]{1,64}$")
+    values: tuple[str, ...] = Field(min_length=1, max_length=100)
+
+
+class OsmQueryDeclaration(StrictContract):
+    """Campaign-declared Overpass query. The polygon comes from verified geography."""
+
+    element_types: tuple[Literal["node", "relation", "way"], ...] = Field(min_length=1)
+    tag_filters: tuple[OsmTagFilterDeclaration, ...] = Field(min_length=1, max_length=100)
+    timeout_seconds: int = Field(default=60, ge=1, le=180)
+    maximum_elements: int = Field(default=25_000, ge=1, le=100_000)
+
+
+_WIKIDATA_ITEM_ID = re.compile(r"^Q[1-9][0-9]{0,11}$")
+_WIKIDATA_MAX_ENTITY_IDS = 50
+
+
+class WikidataEntityQueryDeclaration(StrictContract):
+    """The operator-reviewed entity set one Wikidata acquisition may read.
+
+    It is a declared list, not a discovery result: nothing about it is inferred at run
+    time, and it is bounded so an acquisition cannot widen into a crawl.
+    """
+
+    entity_ids: tuple[str, ...] = Field(min_length=1, max_length=_WIKIDATA_MAX_ENTITY_IDS)
+    label_languages: tuple[str, ...] = Field(default=("de", "en"), min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_declared_set(self) -> WikidataEntityQueryDeclaration:
+        if tuple(sorted(set(self.entity_ids))) != self.entity_ids:
+            raise ValueError("wikidata_query entity ids must be unique and sorted")
+        invalid = [item for item in self.entity_ids if _WIKIDATA_ITEM_ID.fullmatch(item) is None]
+        if invalid:
+            raise ValueError(f"wikidata_query declares non-item entity ids: {invalid}")
+        if len(set(self.label_languages)) != len(self.label_languages):
+            raise ValueError("wikidata_query label languages must be unique")
+        return self
+
+
+class WikidataClassificationDeclaration(StrictContract):
+    """The operator-authored Wikidata class -> campaign category correspondence.
+
+    An item's `instance of` statements are user-editable, so the correspondence is
+    configuration: an entity whose classes do not match it exactly stays ambiguous.
+    """
+
+    studio_class_id: str
+    campaign_category: Key
+    compatible_class_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_declared_map(self) -> WikidataClassificationDeclaration:
+        if _WIKIDATA_ITEM_ID.fullmatch(self.studio_class_id) is None:
+            raise ValueError("wikidata_classification studio class must be an item id")
+        if len(set(self.compatible_class_ids)) != len(self.compatible_class_ids):
+            raise ValueError("wikidata_classification compatible classes must be unique")
+        invalid = [
+            item for item in self.compatible_class_ids if _WIKIDATA_ITEM_ID.fullmatch(item) is None
+        ]
+        if invalid:
+            raise ValueError(f"wikidata_classification declares non-item classes: {invalid}")
+        if self.studio_class_id in self.compatible_class_ids:
+            raise ValueError("wikidata_classification cannot list its own studio class")
+        return self
+
+
+# Source tags may use a namespace prefix (OSM `contact:website`), so the alias pattern
+# allows `:` and `.` in addition to the plain snake_case form.
+_SOURCE_TAG_PATTERN = re.compile(r"^[a-z][a-z0-9_.:]{0,99}$")
+
+
+class SourceFieldProjection(StrictContract):
+    """One explicit source field -> candidate field decision.
+
+    Declared in the campaign so a new source field cannot enter a candidate without
+    an explicit, versioned projection decision.
+    """
+
+    source_field: str = Field(pattern=r"^[a-z][a-z0-9_.:]{0,99}$")
+    candidate_field: Literal[
+        "names",
+        "phones",
+        "emails",
+        "website_urls",
+        "addresses",
+        # Source-native point geometry. A projected coordinate lets a candidate be
+        # classified against the market area; it is never synthesized from a centroid.
+        "coordinates",
+    ]
+    # Additional source tags that carry the same meaning as `source_field`. These are
+    # aliases of one candidate field, not new target attributes: values from every alias
+    # are collected under `source_field`, so the target contract never changes.
+    source_aliases: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_field(self) -> SourceFieldProjection:
+        if not self.source_field.strip():
+            raise ValueError("source field projection requires a non-empty source field")
+        aliases = tuple(self.source_aliases)
+        if len(set(aliases)) != len(aliases):
+            raise ValueError("source field aliases must be unique")
+        if self.source_field in aliases:
+            raise ValueError("a source field cannot alias itself")
+        for alias in aliases:
+            if not _SOURCE_TAG_PATTERN.fullmatch(alias):
+                raise ValueError(f"source field alias {alias!r} is not a valid source tag")
+        return self
+
+    @property
+    def source_tags(self) -> tuple[str, ...]:
+        """Every source tag this projection reads, primary first."""
+
+        return (self.source_field, *self.source_aliases)
+
+
 class SourceBinding(StrictContract):
     key: Key
     source_key: Key
@@ -315,12 +548,51 @@ class SourceBinding(StrictContract):
         "http_fetch",
         "manual_import",
         "openstreetmap_query",
+        "wikidata_entity_query",
     ]
     seed_provider: SeedProvider
     crawl_budget: CrawlBudget
     schedule_enabled: bool
     extraction_profile: Revision
     normalization_profile: Key | None = None
+    source_entity_kind: Literal["organization", "place", "provider"] | None = None
+    source_field_projection: tuple[SourceFieldProjection, ...] = ()
+    osm_query: OsmQueryDeclaration | None = None
+    wikidata_query: WikidataEntityQueryDeclaration | None = None
+    wikidata_classification: WikidataClassificationDeclaration | None = None
+
+    @model_validator(mode="after")
+    def validate_source_native_contract(self) -> SourceBinding:
+        if self.capability == "openstreetmap_query":
+            if self.seed_provider.kind != "not_applicable":
+                raise ValueError("openstreetmap_query cannot depend on a seed file")
+            if not self.source_field_projection:
+                raise ValueError("openstreetmap_query requires a source field projection")
+            if self.osm_query is None:
+                raise ValueError("openstreetmap_query requires an osm_query declaration")
+            if self.wikidata_query is not None or self.wikidata_classification is not None:
+                raise ValueError("openstreetmap_query cannot declare Wikidata contracts")
+        elif self.capability == "wikidata_entity_query":
+            if self.seed_provider.kind != "not_applicable":
+                raise ValueError("wikidata_entity_query cannot depend on a seed file")
+            if not self.source_field_projection:
+                raise ValueError("wikidata_entity_query requires a source field projection")
+            if self.wikidata_query is None:
+                raise ValueError("wikidata_entity_query requires a wikidata_query declaration")
+            if self.wikidata_classification is None:
+                raise ValueError(
+                    "wikidata_entity_query requires an explicit wikidata_classification"
+                )
+            if self.osm_query is not None:
+                raise ValueError("wikidata_entity_query cannot declare an osm_query")
+        elif (
+            self.source_field_projection
+            or self.osm_query is not None
+            or self.wikidata_query is not None
+            or self.wikidata_classification is not None
+        ):
+            raise ValueError("source field projection belongs only to source-native discovery")
+        return self
 
     @model_validator(mode="after")
     def validate_capability_contract(self) -> SourceBinding:
@@ -422,6 +694,9 @@ class ManualSeedRow(StrictContract):
     row_number: PositiveInt
     expected_entity_kind: Key
     display_name: DisplayText
+    # The operator's own classification of the seed, declared beside the facts it
+    # accompanies. It is source evidence about the entry, not a campaign-wide default.
+    category: Key
     website: AnyHttpUrl | None
     osm_id: str | None = Field(max_length=120)
     reference_urls: tuple[AnyHttpUrl, ...]
@@ -532,6 +807,7 @@ class SourcePolicy(StrictContract):
         "official_directory",
         "official_website",
         "openstreetmap",
+        "wikidata",
         "reference",
     ]
     legal_status: Literal["approved", "blocked", "expired", "reference_only", "research_only"]
