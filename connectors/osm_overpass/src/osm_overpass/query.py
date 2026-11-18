@@ -17,8 +17,11 @@ def build_overpass_query(spec: OverpassQuerySpec) -> str:
     for element_type in spec.element_types:
         for tag_filter in spec.tag_filters:
             escaped_values = "|".join(re.escape(value) for value in tag_filter.values)
+            # Overpass evaluates tag filters with POSIX extended regular expressions,
+            # which have no non-capturing group syntax: "^(?:...)$" is rejected with a
+            # static error. A plain group is equivalent here and accepted.
             selector = (
-                f'{element_type}["{tag_filter.key}"~"^(?:{escaped_values})$"](poly:"{polygon}");'
+                f'{element_type}["{tag_filter.key}"~"^({escaped_values})$"](poly:"{polygon}");'
             )
             selectors.append(selector)
     query = (

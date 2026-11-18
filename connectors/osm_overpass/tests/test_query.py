@@ -37,7 +37,9 @@ def test_query_is_deterministic_and_contains_only_typed_selectors() -> None:
     assert first == second
     assert first.startswith("[out:json][timeout:45];(")
     assert first.endswith(");out body center qt;")
-    assert 'node["amenity"~"^(?:music_venue)$"]' in first
+    # POSIX extended regex: Overpass rejects the non-capturing "(?:...)" group form.
+    assert 'node["amenity"~"^(music_venue)$"]' in first
+    assert "(?:" not in first
     assert query_digest(spec()).startswith("sha256:")
 
 
