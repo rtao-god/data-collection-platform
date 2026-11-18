@@ -8,6 +8,7 @@ dependencies = [
   "official-http-contracts",
   "collection-domain",
   "manual-import-core",
+  "resolution-contracts",
   "pydantic==2.13.4",
   "pyyaml==6.0.3",
 ]
@@ -24,3 +25,4 @@ collection-contracts = { workspace = true }
 official-http-contracts = { workspace = true }
 collection-domain = { workspace = true }
 manual-import-core = { workspace = true }
+resolution-contracts = { workspace = true }

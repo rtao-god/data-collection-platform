@@ -7,10 +7,13 @@ dependencies = [
   "alembic==1.18.5",
   "boto3==1.43.54",
   "botocore==1.43.54",
+  "candidate-materialization",
   "collection-application",
   "collection-contracts",
   "official-http-contracts",
   "psycopg[binary]==3.3.4",
+  "quality-core",
+  "resolution-contracts",
   "sqlalchemy==2.0.51",
 ]
 
@@ -22,6 +25,9 @@ build-backend = "hatchling.build"
 packages = ["src/collection_infrastructure"]
 
 [tool.uv.sources]
+candidate-materialization = { workspace = true }
 collection-application = { workspace = true }
 collection-contracts = { workspace = true }
 official-http-contracts = { workspace = true }
+quality-core = { workspace = true }
+resolution-contracts = { workspace = true }
