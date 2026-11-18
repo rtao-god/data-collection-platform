@@ -43,6 +43,9 @@ def _lease_payload() -> dict[str, object]:
             {
                 "artifactId": str(_ARTIFACT_ID),
                 "role": "manual_source",
+                "contentDigest": _DIGEST,
+                "sizeBytes": 19,
+                "contentType": "text/csv",
             }
         ],
         "correlationId": "lease-correlation",
@@ -308,6 +311,74 @@ def test_read_limit_fails_with_typed_local_owner_error() -> None:
 
     assert captured.value.envelope.owner == "SourceConnectorSdk.ObjectTransfer"
     assert captured.value.envelope.code == "OBJECT_READ_TOO_LARGE"
+
+
+def test_scoped_read_reports_missing_object_as_typed_transfer_failure() -> None:
+    lease_payload = _lease_payload()
+    lease_payload.update(
+        stage="acquisition",
+        capability="http_fetch",
+        expectedOutputContract="official-http-acquisition@1",
+    )
+    lease_payload["sourcePermit"] = {
+        "sourceKey": "official_website",
+        "policyDigest": _POLICY_DIGEST,
+        "permitNotBeforeUtc": _NOW.isoformat(),
+    }
+    lease_payload["inputArtifacts"] = [
+        {
+            "artifactId": str(_ARTIFACT_ID),
+            "role": "website_route_context",
+            "contentDigest": _DIGEST,
+            "sizeBytes": 64,
+            "contentType": "application/vnd.collection.website-route-context+json",
+        }
+    ]
+    gateway_requests: list[httpx.Request] = []
+    object_requests: list[httpx.Request] = []
+
+    def gateway_handler(request: httpx.Request) -> httpx.Response:
+        gateway_requests.append(request)
+        if request.url.path == "/worker/leases/acquire":
+            return httpx.Response(
+                200,
+                json={"state": "acquired", "lease": lease_payload},
+                request=request,
+            )
+        assert request.url.path == "/worker/artifacts/prepare-read"
+        read_command = json.loads(request.content)
+        assert read_command["artifactId"] == str(_ARTIFACT_ID)
+        assert read_command["workId"] == str(_WORK_ID)
+        return httpx.Response(
+            200,
+            json={
+                "artifactId": str(_ARTIFACT_ID),
+                "method": "GET",
+                "url": "http://objects.test/missing-route-context",
+                "expiresAtUtc": (_NOW + timedelta(minutes=15)).isoformat(),
+            },
+            request=request,
+        )
+
+    def object_handler(request: httpx.Request) -> httpx.Response:
+        object_requests.append(request)
+        return httpx.Response(404, request=request)
+
+    with _gateway(gateway_handler, object_handler=object_handler) as gateway:
+        lease = gateway.acquire_lease(capability="http_fetch")
+        assert lease is not None
+        assert lease.artifact("website_route_context").artifact_id == _ARTIFACT_ID
+        with pytest.raises(WorkerGatewayFailure) as captured:
+            gateway.read_artifact(lease, artifact_id=_ARTIFACT_ID)
+
+    assert captured.value.status_code == 404
+    assert captured.value.envelope.owner == "SourceConnectorSdk.ObjectTransfer"
+    assert captured.value.envelope.code == "OBJECT_READ_REJECTED"
+    assert captured.value.envelope.context == {"statusCode": 404}
+    assert len(gateway_requests) == 2
+    assert len(object_requests) == 1
+    assert object_requests[0].url.path == "/missing-route-context"
+    assert "authorization" not in object_requests[0].headers
 
 
 def test_derived_artifact_kind_is_accepted_by_the_typed_upload_contract() -> None:

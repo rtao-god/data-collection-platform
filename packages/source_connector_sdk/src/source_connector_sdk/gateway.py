@@ -18,10 +18,12 @@ type WorkCapability = Literal[
     "manual_import",
     "manual_record",
     "osm_query",
+    "wikidata_entity_query",
     "http_fetch",
     "browser_fetch",
     "extraction",
     "normalization",
+    "source_record_mapping",
     "geography",
     "entity_resolution",
     "quality",
@@ -58,10 +60,12 @@ _WORK_CAPABILITIES = frozenset(
         "manual_import",
         "manual_record",
         "osm_query",
+        "wikidata_entity_query",
         "http_fetch",
         "browser_fetch",
         "extraction",
         "normalization",
+        "source_record_mapping",
         "geography",
         "entity_resolution",
         "quality",
@@ -212,10 +216,24 @@ class PreparedRead:
     method: Literal["GET"]
     url: str
     expires_at_utc: datetime
+    content_digest: str | None = None
+    size_bytes: int | None = None
+    content_type: str | None = None
 
     def __post_init__(self) -> None:
         _require_http_url("prepared read URL", self.url)
         _require_utc("expires_at_utc", self.expires_at_utc)
+        metadata = (self.content_digest, self.size_bytes, self.content_type)
+        if any(item is not None for item in metadata) and not all(
+            item is not None for item in metadata
+        ):
+            raise ValueError("prepared read artifact metadata must be complete")
+        if self.content_digest is not None:
+            _require_digest("prepared read content digest", self.content_digest)
+        if self.size_bytes is not None:
+            _require_size(self.size_bytes)
+        if self.content_type is not None:
+            _require_content_type(self.content_type)
 
 
 @dataclass(frozen=True, slots=True)
@@ -599,6 +617,32 @@ class SourceWorkerGateway:
         expires_in_seconds: int = 900,
     ) -> PreparedRead:
         _require_transfer_expiry(expires_in_seconds)
+        matches = tuple(
+            artifact for artifact in lease.input_artifacts if artifact.artifact_id == artifact_id
+        )
+        if len(matches) != 1:
+            raise self._local_failure(
+                owner="SourceConnectorSdk.ObjectTransfer",
+                code="OBJECT_READ_ARTIFACT_NOT_LEASED",
+                message="The requested artifact is not uniquely bound to the worker lease.",
+                context={"artifactId": str(artifact_id), "matchCount": len(matches)},
+                required_action="Reject the work input and request a valid lease.",
+            )
+        artifact = matches[0]
+        if (
+            artifact.content_digest is None
+            or artifact.size_bytes is None
+            or artifact.content_type is None
+        ):
+            raise self._local_failure(
+                owner="SourceConnectorSdk.ObjectTransfer",
+                code="OBJECT_READ_ARTIFACT_METADATA_MISSING",
+                message="The leased artifact has no complete integrity metadata.",
+                context={"artifactId": str(artifact_id), "role": artifact.role},
+                required_action=(
+                    "Reject the work input and repair its artifact identity at the owner."
+                ),
+            )
         payload = self._request_json(
             "POST",
             "/worker/artifacts/prepare-read",
@@ -634,6 +678,9 @@ class SourceWorkerGateway:
             method="GET",
             url=_require_http_url_value(payload, "url"),
             expires_at_utc=_require_datetime(payload, "expiresAtUtc"),
+            content_digest=artifact.content_digest,
+            size_bytes=artifact.size_bytes,
+            content_type=artifact.content_type,
         )
 
     def get_prepared_read(
@@ -663,6 +710,60 @@ class SourceWorkerGateway:
                     "maximumBytes": maximum_bytes,
                 },
                 required_action="Reject the work input and report a permanent size-limit failure.",
+            )
+        if (
+            prepared.content_digest is None
+            or prepared.size_bytes is None
+            or prepared.content_type is None
+        ):
+            raise self._local_failure(
+                owner="SourceConnectorSdk.ObjectTransfer",
+                code="OBJECT_READ_ARTIFACT_METADATA_MISSING",
+                message="The prepared read has no complete artifact integrity metadata.",
+                context={"artifactId": str(prepared.artifact_id)},
+                required_action=(
+                    "Reject the work input and repair its artifact identity at the owner."
+                ),
+            )
+        if len(content) != prepared.size_bytes:
+            raise self._local_failure(
+                owner="SourceConnectorSdk.ObjectTransfer",
+                code="OBJECT_READ_SIZE_MISMATCH",
+                message="The downloaded object size differs from its leased artifact identity.",
+                context={
+                    "artifactId": str(prepared.artifact_id),
+                    "expectedBytes": prepared.size_bytes,
+                    "actualBytes": len(content),
+                },
+                required_action="Reject the work input and report a permanent artifact mismatch.",
+            )
+        actual_digest = f"sha256:{sha256(content).hexdigest()}"
+        if actual_digest != prepared.content_digest:
+            raise self._local_failure(
+                owner="SourceConnectorSdk.ObjectTransfer",
+                code="OBJECT_READ_DIGEST_MISMATCH",
+                message="The downloaded object digest differs from its leased artifact identity.",
+                context={
+                    "artifactId": str(prepared.artifact_id),
+                    "expectedDigest": prepared.content_digest,
+                    "actualDigest": actual_digest,
+                },
+                required_action="Reject the work input and report a permanent artifact mismatch.",
+            )
+        actual_content_type = response.headers.get("content-type")
+        if actual_content_type != prepared.content_type:
+            raise self._local_failure(
+                owner="SourceConnectorSdk.ObjectTransfer",
+                code="OBJECT_READ_CONTENT_TYPE_MISMATCH",
+                message=(
+                    "The downloaded object content type differs from its leased artifact identity."
+                ),
+                context={
+                    "artifactId": str(prepared.artifact_id),
+                    "expectedContentType": prepared.content_type,
+                    "actualContentType": actual_content_type,
+                },
+                required_action="Reject the work input and report a permanent artifact mismatch.",
             )
         return content
 
