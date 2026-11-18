@@ -298,6 +298,33 @@ def _normalize_email(value: str) -> str:
     return f"{local}@{normalized_domain}"
 
 
+def normalize_contact_value(
+    value: str, target: str, default_region: str | None = None
+) -> UrlObservationValue | EmailObservationValue | PhoneObservationValue:
+    """Normalize one source-native contact string into the typed value a target requires.
+
+    Source-record mapping reads raw tag values, but a candidate field such as
+    `website_urls` or `phones` only accepts a typed value. Reusing these rules here keeps
+    one definition of what a valid URL, email or phone number is.
+    """
+
+    if target == "url":
+        normalized_url, registrable = _normalize_url(value)
+        return UrlObservationValue(
+            original=value,
+            normalized=normalized_url,
+            registrable_domain=registrable,
+        )
+    if target == "email":
+        return EmailObservationValue(original=value, normalized=_normalize_email(value))
+    if target == "phone":
+        return _normalize_phone(value, default_region)
+    raise NormalizationError(
+        code="NORMALIZATION_TARGET_UNSUPPORTED",
+        message=f"Contact normalization does not support the target {target}.",
+    )
+
+
 def _normalize_phone(value: str, default_region: str | None) -> PhoneObservationValue:
     try:
         parsed = phonenumbers.parse(value, default_region)
