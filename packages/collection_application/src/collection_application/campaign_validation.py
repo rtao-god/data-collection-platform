@@ -10,6 +10,12 @@ from collection_contracts import (
     owner_error,
 )
 
+# Acquisition is permission to fetch internally. Redistribution of the resulting
+# database output is a strictly stronger, independently gated authorization and is
+# never implied by these values.
+_ACQUISITION_AUTHORIZED_STATUSES = frozenset({"approved", "reference_only", "research_only"})
+_REDISTRIBUTION_AUTHORIZED_STATUSES = frozenset({"approved"})
+
 _NORMALIZATION_ATTRIBUTE_TYPES: dict[str, frozenset[str]] = {
     "text": frozenset({"text", "localized_text"}),
     "boolean": frozenset({"boolean"}),
@@ -45,6 +51,7 @@ def validate_campaign_references(
     binding_map = {item.key: item for item in documents.source_bindings.items}
     attribute_types = {item.key: item.value_type for item in documents.attributes.items}
     attribute_keys = set(attribute_types)
+    mapping = documents.catalog_mapping
     profiles = _validate_normalization_profiles(documents, attribute_types, violations)
 
     if campaign.readiness.state == "ready" and documents.geography is None:
@@ -88,33 +95,65 @@ def validate_campaign_references(
             kind_keys,
         )
 
+    for binding in documents.source_bindings.items:
+        # A Wikidata classification is operator-authored configuration, so the campaign
+        # it targets must already be a declared target category: the mapping may not
+        # introduce a meaning the campaign never authorized.
+        declaration = binding.wikidata_classification
+        if declaration is not None and declaration.campaign_category not in category_keys:
+            violations.append(
+                {
+                    "reference": f"binding.{binding.key}.wikidata_classification",
+                    "value": declaration.campaign_category,
+                    "reason": "campaign_category_is_not_a_target_category",
+                }
+            )
+        query = binding.wikidata_query
+        if query is not None:
+            policy_preview = documents.source_policies.get(binding.source_policy_key)
+            if (
+                policy_preview is not None
+                and policy_preview.access.kind == "network"
+                and "www.wikidata.org" not in policy_preview.access.allowed_host_patterns
+            ):
+                violations.append(
+                    {
+                        "reference": f"binding.{binding.key}.wikidata_query",
+                        "value": binding.source_policy_key,
+                        "reason": "source_policy_does_not_allow_the_entity_endpoint",
+                    }
+                )
+
     for binding_key in campaign.enabled_source_bindings:
-        binding = binding_map.get(binding_key)
-        if binding is None:
+        enabled_binding = binding_map.get(binding_key)
+        if enabled_binding is None:
             continue
-        policy = documents.source_policies.get(binding.source_policy_key)
+        policy = documents.source_policies.get(enabled_binding.source_policy_key)
         if policy is None:
             violations.append(
                 {
-                    "reference": f"binding.{binding.key}.source_policy_key",
-                    "value": binding.source_policy_key,
+                    "reference": f"binding.{enabled_binding.key}.source_policy_key",
+                    "value": enabled_binding.source_policy_key,
                     "reason": "missing",
                 }
             )
             continue
-        if policy.source_key != binding.source_key:
+        if policy.source_key != enabled_binding.source_key:
             violations.append(
                 {
-                    "reference": f"binding.{binding.key}.source_key",
-                    "value": binding.source_key,
+                    "reference": f"binding.{enabled_binding.key}.source_key",
+                    "value": enabled_binding.source_key,
                     "policyValue": policy.source_key,
                     "reason": "source_policy_mismatch",
                 }
             )
-        if policy.legal_status not in {"approved", "reference_only"}:
+        # Acquisition and redistribution are separate authorizations. `research_only`
+        # permits internal collection but never redistribution; redistribution is
+        # gated independently at export, not here.
+        if policy.legal_status not in _ACQUISITION_AUTHORIZED_STATUSES:
             violations.append(
                 {
-                    "reference": f"binding.{binding.key}.source_policy_key",
+                    "reference": f"binding.{enabled_binding.key}.source_policy_key",
                     "value": policy.policy_key,
                     "reason": f"legal_status_{policy.legal_status}",
                 }
@@ -126,8 +165,8 @@ def validate_campaign_references(
             attribute_keys,
         )
         _validate_binding_profile_policy(
-            binding_key=binding.key,
-            profile_key=binding.normalization_profile,
+            binding_key=enabled_binding.key,
+            profile_key=enabled_binding.normalization_profile,
             profiles=profiles,
             policy=policy,
             violations=violations,
@@ -143,8 +182,41 @@ def validate_campaign_references(
                         "reason": "missing_entity_kind",
                     }
                 )
+            # A declared seed classification is source evidence, so it must name a
+            # campaign category that this exact bundle both defines and maps. An
+            # unmapped category stays a bundle-level violation instead of being dropped.
+            if row.category not in category_keys:
+                violations.append(
+                    {
+                        "reference": f"{path}:row:{row.row_number}:category",
+                        "value": row.category,
+                        "reason": "missing_taxonomy_category",
+                    }
+                )
+            elif row.category not in mapping.pairs:
+                violations.append(
+                    {
+                        "reference": f"{path}:row:{row.row_number}:category",
+                        "value": row.category,
+                        "reason": "category_has_no_catalog_target",
+                    }
+                )
+
+    _validate_catalog_mapping(documents, set(category_keys), violations)
 
     _validate_seed_routing(documents, attribute_keys, violations)
+
+    if documents.quality_profile is not None:
+        try:
+            documents.quality_profile.require_campaign_binding(campaign)
+        except ValueError as exc:
+            violations.append(
+                {
+                    "reference": "quality_profile",
+                    "value": documents.quality_profile.profile_key,
+                    "reason": str(exc),
+                }
+            )
 
     if violations:
         raise owner_error(
@@ -155,6 +227,67 @@ def validate_campaign_references(
             context={"campaignKey": requested_campaign_key, "violations": violations},
             required_action="Correct every named reference and validate the campaign again.",
             correlation_id=correlation_id,
+        )
+
+
+def _validate_catalog_mapping(
+    documents: ParsedCampaignDocuments,
+    category_keys: set[str],
+    violations: list[dict[str, object]],
+) -> None:
+    """Prove the declared classification map is complete and unambiguous for this bundle.
+
+    The map is authored against one exact Catalog configuration revision. Every campaign
+    category must therefore be either mapped to a distinct Catalog category or explicitly
+    listed as unmapped with a reason: a category that is silently absent would let an
+    observed classification disappear between export and proposal.
+    """
+
+    mapping = documents.catalog_mapping
+    declared_target_categories = set(documents.campaign.target_categories)
+    unmapped = mapping.unmapped_categories
+    for item in mapping.categories:
+        if item.campaign_category not in category_keys:
+            violations.append(
+                {
+                    "reference": f"catalog_mapping.categories.{item.campaign_category}",
+                    "value": item.catalog_category,
+                    "reason": "missing_taxonomy_category",
+                }
+            )
+        if item.campaign_category not in declared_target_categories:
+            violations.append(
+                {
+                    "reference": f"catalog_mapping.categories.{item.campaign_category}",
+                    "value": item.catalog_category,
+                    "reason": "campaign_target_category_not_declared",
+                }
+            )
+    for campaign_category in sorted(unmapped):
+        if campaign_category not in category_keys:
+            violations.append(
+                {
+                    "reference": f"catalog_mapping.unmapped.{campaign_category}",
+                    "value": campaign_category,
+                    "reason": "missing_taxonomy_category",
+                }
+            )
+    for campaign_category in sorted(category_keys - set(mapping.pairs) - unmapped):
+        violations.append(
+            {
+                "reference": f"catalog_mapping.categories.{campaign_category}",
+                "value": campaign_category,
+                "reason": "taxonomy_category_unclassified",
+            }
+        )
+    missing_targets = sorted(declared_target_categories - set(mapping.pairs) - unmapped)
+    if missing_targets:
+        violations.append(
+            {
+                "reference": "catalog_mapping.categories",
+                "value": ",".join(missing_targets),
+                "reason": "campaign_target_category_unclassified",
+            }
         )
 
 

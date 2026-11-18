@@ -5,7 +5,7 @@ import json
 import math
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import StrEnum
 from types import MappingProxyType
@@ -14,20 +14,26 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid5
 
 from collection_application.canonicalization import sha256_json
+from collection_application.geography import decode_boundary_geojson
 from collection_contracts import (
     ExtractedRecord,
     ExtractionRequest,
     ManualRecordLineage,
     NormalizationProfile,
     NormalizationProfilesDocument,
+    OsmSourceRecord,
     WebsiteRouteContext,
     canonical_extracted_record_json,
     canonical_manual_record_lineage_bytes,
+    canonical_osm_source_record_json,
     decode_extracted_record,
+    decode_osm_envelope,
+    decode_source_record_observation_batch,
     owner_error,
 )
 from collection_contracts.campaign_config import (
     CampaignDocument,
+    GeographyDocument,
     NetworkAccess,
     SeedRoutingConfigured,
     SourceBinding,
@@ -35,10 +41,23 @@ from collection_contracts.campaign_config import (
     SourcePolicy,
     UserAgentConfigured,
 )
+from collection_contracts.osm_query_spec import boundary_contains
 from collection_contracts.website_route import decode_website_route_context
-from collection_domain import WorkStage
+from collection_contracts.wikidata_entity_query_spec import (
+    decode_wikidata_query_spec,
+)
+from collection_contracts.wikidata_entity_result import RESULT_CONTRACT as _WIKIDATA_RESULT_CONTRACT
+from collection_contracts.wikidata_entity_result import (
+    WikidataAdaptedRecordEntry,
+    decode_wikidata_entity_result,
+)
+from collection_domain import WorkCapability, WorkStage
 from manual_import_core import decode_canonical_manual_import_record
 from official_http_contracts import HttpAcquisitionManifest
+from resolution_contracts import (
+    decode_resolution_batch,
+    decode_resolution_snapshot,
+)
 
 _SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{0,99}$")
@@ -51,6 +70,39 @@ _WEBSITE_ROUTE_NAMESPACE = UUID("01dd1c8e-4ee6-5f1c-a93b-b5fa058370e5")
 _NORMALIZATION_WORK_NAMESPACE = UUID("1f315e17-25b0-5a91-81a3-0bb93e3a1a1e")
 _PAGE_EXTRACTION_TRANSITION_KEY = "official-http-page-extraction-v1"
 _NORMALIZATION_TRANSITION_KEY = "extracted-record-normalization-v1"
+_CANDIDATE_INTAKE_TRANSITION_KEY = "field-observation-batch-candidate-intake-v1"
+_CANDIDATE_INTAKE_OUTPUT_CONTRACT = "field-observation-batch@1"
+_OSM_RESULT_TRANSITION_KEY = "osm-overpass-result-source-record-mapping-v1"
+_OSM_RESULT_OUTPUT_CONTRACT = "osm-overpass-result@1"
+_SOURCE_RECORD_MAPPING_TRANSITION_KEY = "source-record-mapping-observation-batch-v1"
+_SOURCE_RECORD_INTAKE_TRANSITION_KEY = "source-record-observation-batch-candidate-intake-v1"
+_OSM_MAX_MAPPING_UNITS = 5_000
+_SOURCE_RECORD_ARTIFACT_NAMESPACE = UUID("6f4d2b1e-8a3c-5b7d-9e2f-1c3a5b7d9e2f")
+_SOURCE_RECORD_MAPPING_OUTPUT_CONTRACT = "source-record-observation-batch@1"
+_SOURCE_RECORD_MAPPING_WORK_NAMESPACE = UUID("7c1f9b44-2d0a-5c63-9e18-4a7d3b6f0c25")
+_WIKIDATA_RESULT_TRANSITION_KEY = "wikidata-entity-result-source-record-mapping-v1"
+_WIKIDATA_RESULT_OUTPUT_CONTRACT = _WIKIDATA_RESULT_CONTRACT
+_WIKIDATA_MAPPING_REVISION = "wikidata-entity-source-record-mapping-v1"
+_WIKIDATA_RAW_ROLE = "wikidata_raw_response"
+_WIKIDATA_QUERY_ROLE = "wikidata_entity_query_spec"
+# The declared set is bounded at 50 entities, so a plan can never fan out past the same
+# ceiling the connector contract enforces.
+_WIKIDATA_MAX_MAPPING_UNITS = 50
+_OSM_MAPPING_REVISION = "osm-overpass-source-record-mapping-v1"
+_OSM_DATASET_RELEASE = "osm-overpass-live-v1"
+_OSM_RAW_RESPONSE_ROLE = "osm_observations"
+# Every role a source transition may keep as the untouched response a mapping unit was
+# derived from. The action itself is source-neutral; only this set names the sources.
+_SOURCE_RECORD_RAW_ROLES = frozenset({_OSM_RAW_RESPONSE_ROLE, _WIKIDATA_RAW_ROLE})
+_SOURCE_RECORD_ROLE = "source_record"
+_SOURCE_RECORD_MAPPING_TRANSITION_KEYS = frozenset(
+    {_SOURCE_RECORD_MAPPING_TRANSITION_KEY, _WIKIDATA_RESULT_TRANSITION_KEY}
+)
+_CANDIDATE_ID_NAMESPACE = UUID("c8d4f0b6-1f2a-5d7e-9a34-6b0c2e5d81f7")
+_ENTITY_RESOLUTION_TRANSITION_KEY = "entity-resolution-snapshot-quality-v1"
+_ENTITY_RESOLUTION_OUTPUT_CONTRACT = "entity-resolution-snapshot@1"
+_RESOLUTION_BATCH_ROLE = "resolution_batch"
+_RESOLUTION_SNAPSHOT_ROLE = "resolution_snapshot"
 _NORMALIZATION_MAX_PROFILE_BYTES = 1024 * 1024
 _ResultT = TypeVar("_ResultT")
 
@@ -103,6 +155,8 @@ class SucceededWorkOutput:
     website_route_context_content: bytes | None = None
     extraction_request_content: bytes | None = None
     normalization_profile_content: bytes | None = None
+    wikidata_query_spec_content: bytes | None = None
+    resolution_batch_content: bytes | None = None
     manual_record_content: bytes | None = None
     manual_record_artifact: ArtifactIdentity | None = None
     manual_record_lineage_content: bytes | None = None
@@ -254,6 +308,176 @@ class NormalizationWorkAction:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceRecordMappingAction:
+    """Bounded source-native mapping work derived from verified source provenance.
+
+    Deliberately carries no manual-record lineage: a source-native record is proven by
+    its own source identity, policy digest, dataset release and raw artifact, never by
+    an HTML extraction artifact or a fabricated manual seed.
+    """
+
+    work_id: UUID
+    source_key: str
+    source_binding_key: str
+    source_policy_digest: str
+    source_record_id: str
+    dataset_release: str
+    source_record_artifact: ArtifactIdentity
+    source_record_payload: bytes
+    raw_response_artifact: ArtifactIdentity
+    mapping_profile_payload: bytes
+    mapping_profile_digest: str
+    semantic_key: str
+    input_digest: str
+    # Elements the envelope carried but that could not be represented. They are
+    # reported here instead of aborting the valid siblings.
+    unrepresentable_source_record_ids: tuple[str, ...] = ()
+    # Elements returned by the over-approximating polygon query that fall inside a
+    # boundary hole. They are excluded from intake, never forwarded.
+    excluded_by_boundary_record_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.source_record_payload:
+            raise ValueError("mapping work requires the exact per-element source record bytes")
+        if _digest_bytes(self.source_record_payload) != self.source_record_artifact.content_digest:
+            raise ValueError("source record bytes differ from the declared artifact digest")
+        if self.raw_response_artifact.role not in _SOURCE_RECORD_RAW_ROLES:
+            raise ValueError("mapping work must keep the original raw response artifact")
+        _require_token("mapping source key", self.source_key)
+        _require_token("mapping source binding key", self.source_binding_key)
+        _require_sha256("mapping source policy digest", self.source_policy_digest)
+        _require_token("mapping source record id", self.source_record_id)
+        _require_token("mapping dataset release", self.dataset_release)
+        _require_sha256("mapping work semantic key", self.semantic_key)
+        _require_sha256("mapping work input digest", self.input_digest)
+        _require_sha256("mapping profile digest", self.mapping_profile_digest)
+        if (
+            not self.mapping_profile_payload
+            or _digest_bytes(self.mapping_profile_payload) != self.mapping_profile_digest
+        ):
+            raise ValueError("mapping profile payload differs from its digest")
+        if len(self.mapping_profile_payload) > _NORMALIZATION_MAX_PROFILE_BYTES:
+            raise ValueError("mapping profile payload exceeds the worker input limit")
+        if self.source_record_artifact.role != "source_record":
+            raise ValueError("mapping work requires the canonical source_record artifact role")
+
+
+@dataclass(frozen=True, slots=True)
+class ManualRecordIntakeProvenance:
+    """Intake provenance for HTML extraction bound to a verified manual seed record."""
+
+    manual_record_artifact_id: UUID
+    manual_record_lineage_artifact: ArtifactIdentity
+
+    def __post_init__(self) -> None:
+        if self.manual_record_lineage_artifact.role != "manual_record_lineage":
+            raise ValueError("manual-record provenance requires the lineage artifact role")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceRecordIntakeProvenance:
+    """Intake provenance for a source-native record.
+
+    Carries the source identity, policy and record artifact directly. It never
+    references an extracted record or a manual-import lineage.
+    """
+
+    source_key: str
+    source_binding_key: str
+    source_record_id: str
+    source_policy_digest: str
+    dataset_release: str
+    mapping_revision: str
+    source_record_artifact: ArtifactIdentity
+
+    def __post_init__(self) -> None:
+        _require_token("intake source key", self.source_key)
+        _require_token("intake source binding key", self.source_binding_key)
+        _require_token("intake source record id", self.source_record_id)
+        _require_sha256("intake source policy digest", self.source_policy_digest)
+        _require_token("intake dataset release", self.dataset_release)
+        _require_token("intake mapping revision", self.mapping_revision)
+        if self.source_record_artifact.role != "source_record":
+            raise ValueError("source-record provenance requires the source_record artifact role")
+
+
+CandidateIntakeProvenance = ManualRecordIntakeProvenance | SourceRecordIntakeProvenance
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateIntakeAction:
+    """Deterministic candidate intake identity derived from exact upstream provenance."""
+
+    candidate_id: UUID
+    run_id: UUID
+    source_work_unit_id: UUID
+    observation_batch_digest: str
+    provenance: CandidateIntakeProvenance
+    source_artifact_ids: tuple[UUID, ...]
+    revision: int = 0
+
+    def __post_init__(self) -> None:
+        _require_sha256("candidate observation batch digest", self.observation_batch_digest)
+        if self.revision != 0:
+            raise ValueError("initial candidate intake revision must be zero")
+        if not self.source_artifact_ids:
+            raise ValueError("candidate intake requires source artifact provenance")
+        if len(self.source_artifact_ids) != len(set(self.source_artifact_ids)):
+            raise ValueError("candidate intake source artifacts must be unique")
+        if (
+            isinstance(self.provenance, SourceRecordIntakeProvenance)
+            and self.provenance.source_record_artifact.artifact_id not in self.source_artifact_ids
+        ):
+            raise ValueError(
+                "source-record provenance artifact must be among the intake source artifacts"
+            )
+
+    @property
+    def manual_record_provenance(self) -> ManualRecordIntakeProvenance | None:
+        if isinstance(self.provenance, ManualRecordIntakeProvenance):
+            return self.provenance
+        return None
+
+    @property
+    def source_record_provenance(self) -> SourceRecordIntakeProvenance | None:
+        if isinstance(self.provenance, SourceRecordIntakeProvenance):
+            return self.provenance
+        return None
+
+
+@dataclass(frozen=True, slots=True)
+class ResolutionSnapshotAction:
+    """The exact entity-resolution snapshot that becomes the run's current resolution."""
+
+    batch_id: UUID
+    batch_digest: str
+    snapshot_digest: str
+    cluster_ids: tuple[UUID, ...]
+    member_candidate_ids: tuple[UUID, ...]
+    export_eligible_cluster_count: int
+    pending_review_pair_count: int
+
+    def __post_init__(self) -> None:
+        _require_sha256("resolution batch digest", self.batch_digest)
+        _require_sha256("resolution snapshot digest", self.snapshot_digest)
+        if not self.cluster_ids:
+            raise ValueError("resolution snapshot requires at least one cluster")
+        if tuple(sorted(set(self.cluster_ids), key=lambda value: value.hex)) != self.cluster_ids:
+            raise ValueError("resolution cluster identities must be sorted and unique")
+        if not self.member_candidate_ids:
+            raise ValueError("resolution snapshot requires at least one cluster member")
+        if (
+            tuple(sorted(set(self.member_candidate_ids), key=lambda value: value.hex))
+            != self.member_candidate_ids
+        ):
+            raise ValueError("resolution members must be sorted and unique")
+        if not 0 <= self.export_eligible_cluster_count <= len(self.cluster_ids):
+            raise ValueError("eligible cluster count is out of range")
+        if self.pending_review_pair_count < 0:
+            raise ValueError("pending review pair count cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineTransitionPlan:
     source_work_unit_id: UUID
     transition_key: str
@@ -263,6 +487,9 @@ class PipelineTransitionPlan:
     website_actions: tuple[WebsiteRouteAction, ...] = ()
     extraction_actions: tuple[ExtractionWorkAction, ...] = ()
     normalization_actions: tuple[NormalizationWorkAction, ...] = ()
+    source_record_mapping_actions: tuple[SourceRecordMappingAction, ...] = ()
+    candidate_intake_actions: tuple[CandidateIntakeAction, ...] = ()
+    resolution_snapshot_actions: tuple[ResolutionSnapshotAction, ...] = ()
 
     def __post_init__(self) -> None:
         _require_token("pipeline transition key", self.transition_key)
@@ -462,6 +689,36 @@ class PipelineTransitionRegistry:
             and source.output_contract == "extracted-record@1"
         ):
             return self._extracted_record_normalization(source)
+        if (
+            source.stage is WorkStage.DISCOVERY
+            and source.capability == WorkCapability.OSM_QUERY.value
+            and source.output_contract == _OSM_RESULT_OUTPUT_CONTRACT
+        ):
+            return self._osm_source_record_mapping(source)
+        if (
+            source.stage is WorkStage.DISCOVERY
+            and source.capability == WorkCapability.WIKIDATA_ENTITY_QUERY.value
+            and source.output_contract == _WIKIDATA_RESULT_OUTPUT_CONTRACT
+        ):
+            return self._wikidata_source_record_mapping(source)
+        if (
+            source.stage is WorkStage.NORMALIZATION
+            and source.capability == WorkCapability.SOURCE_RECORD_MAPPING.value
+            and source.output_contract == _SOURCE_RECORD_MAPPING_OUTPUT_CONTRACT
+        ):
+            return self._source_record_intake(source)
+        if (
+            source.stage is WorkStage.NORMALIZATION
+            and source.capability == "normalization"
+            and source.output_contract == _CANDIDATE_INTAKE_OUTPUT_CONTRACT
+        ):
+            return self._candidate_intake(source)
+        if (
+            source.stage is WorkStage.ENTITY_RESOLUTION
+            and source.capability == WorkCapability.ENTITY_RESOLUTION.value
+            and source.output_contract == _ENTITY_RESOLUTION_OUTPUT_CONTRACT
+        ):
+            return self._entity_resolution_snapshot(source)
         return self._blocked(
             source,
             transition_key="unsupported-transition",
@@ -984,6 +1241,121 @@ class PipelineTransitionRegistry:
             normalization_actions=(action,),
         )
 
+    def _osm_source_record_mapping(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        try:
+            actions = _plan_osm_source_record_mapping(source)
+        except _SourceRecordMappingPlanningError as exc:
+            return self._blocked(
+                source,
+                transition_key=_OSM_RESULT_TRANSITION_KEY,
+                code=exc.code,
+                message=exc.message,
+                required_action=exc.required_action,
+                context=exc.context,
+            )
+        return self._plan(
+            source,
+            transition_key=_OSM_RESULT_TRANSITION_KEY,
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            source_record_mapping_actions=actions,
+        )
+
+    def _wikidata_source_record_mapping(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        try:
+            actions = _plan_wikidata_source_record_mapping(source)
+        except _SourceRecordMappingPlanningError as exc:
+            return self._blocked(
+                source,
+                transition_key=_WIKIDATA_RESULT_TRANSITION_KEY,
+                code=exc.code,
+                message=exc.message,
+                required_action=exc.required_action,
+                context=exc.context,
+            )
+        return self._plan(
+            source,
+            transition_key=_WIKIDATA_RESULT_TRANSITION_KEY,
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            source_record_mapping_actions=actions,
+        )
+
+    def _entity_resolution_snapshot(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        try:
+            action = _plan_entity_resolution_snapshot(source)
+        except _ResolutionPlanningError as exc:
+            return self._blocked(
+                source,
+                transition_key=_ENTITY_RESOLUTION_TRANSITION_KEY,
+                code=exc.code,
+                message=exc.message,
+                required_action=exc.required_action,
+                context=exc.context,
+            )
+        return self._plan(
+            source,
+            transition_key=_ENTITY_RESOLUTION_TRANSITION_KEY,
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            resolution_snapshot_actions=(action,),
+        )
+
+    def _source_record_intake(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        try:
+            action = _plan_source_record_intake(source)
+        except _SourceRecordMappingPlanningError as exc:
+            return self._blocked(
+                source,
+                transition_key=_SOURCE_RECORD_INTAKE_TRANSITION_KEY,
+                code=exc.code,
+                message=exc.message,
+                required_action=exc.required_action,
+                context=exc.context,
+            )
+        return self._plan(
+            source,
+            transition_key=_SOURCE_RECORD_INTAKE_TRANSITION_KEY,
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            candidate_intake_actions=(action,),
+        )
+
+    def _candidate_intake(
+        self,
+        source: SucceededWorkOutput,
+    ) -> PipelineTransitionPlan:
+        try:
+            action = _plan_candidate_intake(source)
+        except _CandidateIntakePlanningError as exc:
+            return self._blocked(
+                source,
+                transition_key=_CANDIDATE_INTAKE_TRANSITION_KEY,
+                code=exc.code,
+                message=exc.message,
+                required_action=exc.required_action,
+                context=exc.context,
+            )
+        return self._plan(
+            source,
+            transition_key=_CANDIDATE_INTAKE_TRANSITION_KEY,
+            disposition=PipelineTransitionDisposition.APPLY,
+            blocker=None,
+            candidate_intake_actions=(action,),
+        )
+
     def _blocked(
         self,
         source: SucceededWorkOutput,
@@ -1018,6 +1390,9 @@ class PipelineTransitionRegistry:
         website_actions: tuple[WebsiteRouteAction, ...] = (),
         extraction_actions: tuple[ExtractionWorkAction, ...] = (),
         normalization_actions: tuple[NormalizationWorkAction, ...] = (),
+        candidate_intake_actions: tuple[CandidateIntakeAction, ...] = (),
+        source_record_mapping_actions: tuple[SourceRecordMappingAction, ...] = (),
+        resolution_snapshot_actions: tuple[ResolutionSnapshotAction, ...] = (),
     ) -> PipelineTransitionPlan:
         digest = _transition_plan_digest(
             source,
@@ -1027,6 +1402,9 @@ class PipelineTransitionRegistry:
             website_actions=website_actions,
             extraction_actions=extraction_actions,
             normalization_actions=normalization_actions,
+            candidate_intake_actions=candidate_intake_actions,
+            source_record_mapping_actions=source_record_mapping_actions,
+            resolution_snapshot_actions=resolution_snapshot_actions,
         )
         return PipelineTransitionPlan(
             source_work_unit_id=source.source_work_unit_id,
@@ -1037,6 +1415,9 @@ class PipelineTransitionRegistry:
             website_actions=website_actions,
             extraction_actions=extraction_actions,
             normalization_actions=normalization_actions,
+            candidate_intake_actions=candidate_intake_actions,
+            source_record_mapping_actions=source_record_mapping_actions,
+            resolution_snapshot_actions=resolution_snapshot_actions,
         )
 
 
@@ -1104,6 +1485,726 @@ class _WebsiteRoutePlanningError(ValueError):
         super().__init__(message)
 
 
+class _SourceRecordMappingPlanningError(ValueError):
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        required_action: str,
+        context: Mapping[str, object],
+    ) -> None:
+        self.code = code
+        self.message = message
+        self.required_action = required_action
+        self.context = dict(context)
+        super().__init__(message)
+
+
+def _source_record_mapping_error(
+    code: str,
+    reason: str,
+    **context: object,
+) -> _SourceRecordMappingPlanningError:
+    return _SourceRecordMappingPlanningError(
+        code=code,
+        message="OSM source evidence does not authorize source-record mapping work.",
+        required_action=(
+            "Repair the exact OSM result, its query specification, and the run snapshot "
+            "before scheduling source-record mapping."
+        ),
+        context={"reason": reason, **context},
+    )
+
+
+class _ResolutionPlanningError(ValueError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        required_action: str,
+        **context: object,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.required_action = required_action
+        self.context = context
+
+
+def _plan_entity_resolution_snapshot(source: SucceededWorkOutput) -> ResolutionSnapshotAction:
+    """Prove the snapshot belongs to the exact batch the worker was leased to resolve."""
+    if source.output_artifact.role != _RESOLUTION_SNAPSHOT_ROLE:
+        raise _ResolutionPlanningError(
+            "PIPELINE_RESOLUTION_OUTPUT_ROLE_CONFLICT",
+            "The resolution output role does not match its contract.",
+            "Re-run the exact resolution unit with the canonical snapshot role.",
+            outputRole=source.output_artifact.role,
+        )
+    if len(source.input_artifacts) != 1 or (
+        source.input_artifacts[0].role != _RESOLUTION_BATCH_ROLE
+    ):
+        raise _ResolutionPlanningError(
+            "PIPELINE_RESOLUTION_INPUT_ROLE_CONFLICT",
+            "The resolution unit must read exactly one canonical batch artifact.",
+            "Re-enqueue resolution work with the exact batch input role.",
+            inputRoles=[item.role for item in source.input_artifacts],
+        )
+    if source.output_content is None or source.resolution_batch_content is None:
+        raise _ResolutionPlanningError(
+            "PIPELINE_RESOLUTION_CONTENT_MISSING",
+            "Resolution advancement requires the durable batch and snapshot bytes.",
+            "Restore the immutable batch and snapshot artifacts before advancing.",
+        )
+    try:
+        snapshot = decode_resolution_snapshot(source.output_content)
+        batch = decode_resolution_batch(source.resolution_batch_content)
+    except (TypeError, ValueError) as exc:
+        raise _ResolutionPlanningError(
+            "PIPELINE_RESOLUTION_CONTENT_INVALID",
+            "The resolution batch or snapshot violates its canonical contract.",
+            "Repair the immutable resolution artifacts at their producer.",
+            causeType=type(exc).__name__,
+        ) from exc
+    if (
+        batch.batch_id != snapshot.batch_id
+        or batch.batch_digest != snapshot.batch_digest
+        or batch.market_area_revision != snapshot.market_area_revision
+        or batch.market_area_digest != snapshot.market_area_digest
+    ):
+        raise _ResolutionPlanningError(
+            "PIPELINE_RESOLUTION_BATCH_BINDING_CONFLICT",
+            "The snapshot was not produced from the batch bound to this work unit.",
+            "Re-run resolution against the exact canonical batch.",
+            batchId=str(batch.batch_id),
+            snapshotBatchId=str(snapshot.batch_id),
+        )
+    batch_candidates = tuple(item.candidate_id for item in batch.candidates)
+    members = tuple(
+        sorted(
+            {member for cluster in snapshot.clusters for member in cluster.member_candidate_ids},
+            key=lambda value: value.hex,
+        )
+    )
+    if members != tuple(sorted(batch_candidates, key=lambda value: value.hex)):
+        raise _ResolutionPlanningError(
+            "PIPELINE_RESOLUTION_MEMBERSHIP_INCOMPLETE",
+            "Resolved clusters do not cover exactly the batch candidates.",
+            "Repair constrained clustering so every candidate belongs to one cluster.",
+        )
+    eligible = sum(1 for item in snapshot.quality_assessments if item.export_eligible)
+    return ResolutionSnapshotAction(
+        batch_id=batch.batch_id,
+        batch_digest=batch.batch_digest,
+        snapshot_digest=snapshot.snapshot_digest,
+        cluster_ids=tuple(
+            sorted((item.cluster_id for item in snapshot.clusters), key=lambda value: value.hex)
+        ),
+        member_candidate_ids=members,
+        export_eligible_cluster_count=eligible,
+        pending_review_pair_count=len(snapshot.pending_review_pair_ids),
+    )
+
+
+def _plan_source_record_intake(source: SucceededWorkOutput) -> CandidateIntakeAction:
+    if source.source_binding_key is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_BINDING_MISSING",
+            "mapping_work_has_no_source_binding",
+        )
+    if source.output_content is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_BATCH_UNREADABLE",
+            "mapping_output_content_unavailable",
+        )
+    try:
+        batch = decode_source_record_observation_batch(source.output_content)
+    except (TypeError, ValueError) as exc:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_BATCH_INVALID",
+            type(exc).__name__,
+        ) from exc
+    # The batch content digest covers the batch payload; the succeeded output digest
+    # covers the artifact bytes. Both must hold independently.
+    if _digest_bytes(source.output_content) != source.output_digest:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_DIGEST_CONFLICT",
+            "batch_bytes_differ_from_output_digest",
+            outputDigest=source.output_digest,
+        )
+    if batch.source_binding_key != source.source_binding_key:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_BINDING_CONFLICT",
+            "batch_binding_differs_from_work_binding",
+            batchBindingKey=batch.source_binding_key,
+        )
+    record_bindings = tuple(
+        item for item in source.input_artifacts if item.role == _SOURCE_RECORD_ROLE
+    )
+    if len(record_bindings) != 1:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_ARTIFACT_AMBIGUOUS",
+            "mapping_input_source_record_missing_or_ambiguous",
+            sourceRecordArtifactCount=len(record_bindings),
+        )
+    if record_bindings[0].artifact_id != batch.source_record_artifact_id:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_ARTIFACT_CONFLICT",
+            "batch_names_another_source_record_artifact",
+            batchArtifactId=str(batch.source_record_artifact_id),
+            workArtifactId=str(record_bindings[0].artifact_id),
+        )
+    candidate_id = uuid5(
+        _CANDIDATE_ID_NAMESPACE,
+        "|".join(
+            (
+                str(source.run_id),
+                source.source_binding_key,
+                batch.source_record_id,
+                batch.source_record_artifact_digest,
+                batch.source_policy_digest,
+                source.output_digest,
+            )
+        ),
+    )
+    return CandidateIntakeAction(
+        candidate_id=candidate_id,
+        run_id=source.run_id,
+        source_work_unit_id=source.source_work_unit_id,
+        observation_batch_digest=source.output_digest,
+        provenance=SourceRecordIntakeProvenance(
+            source_key=batch.source_key,
+            source_binding_key=batch.source_binding_key,
+            source_record_id=batch.source_record_id,
+            source_policy_digest=batch.source_policy_digest,
+            dataset_release=batch.dataset_release,
+            mapping_revision=batch.mapping_revision,
+            source_record_artifact=record_bindings[0],
+        ),
+        source_artifact_ids=tuple(
+            sorted(
+                {
+                    *(item.artifact_id for item in source.input_artifacts),
+                    batch.source_record_artifact_id,
+                }
+            )
+        ),
+    )
+
+
+def _boundary_admitted_osm_elements(
+    elements: tuple[OsmSourceRecord, ...],
+    *,
+    source: SucceededWorkOutput,
+    bundle_content: bytes | None,
+) -> tuple[tuple[OsmSourceRecord, ...], tuple[str, ...]]:
+    """Apply the exact campaign boundary, because a polygon query cannot express holes.
+
+    Returns the admitted elements and the identities excluded because they fall inside an
+    interior hole. Elements are kept when the campaign declares no boundary, so the filter
+    can never silently drop data it has no authority to judge.
+    """
+
+    if bundle_content is None:
+        return elements, ()
+    try:
+        bundle = _decode_campaign_bundle(bundle_content)
+    except (TypeError, ValueError):
+        return elements, ()
+    if "geography.yaml" not in bundle:
+        return elements, ()
+    try:
+        geography = GeographyDocument.model_validate(bundle["geography.yaml"])
+        # Bundle components carry decoded content objects, so the boundary arrives as the
+        # GeoJSON document itself. Re-encoding it reproduces the canonical bytes exactly.
+        boundary_payload = bundle[geography.boundary_artifact_path]
+        if isinstance(boundary_payload, bytes):
+            boundary_bytes = boundary_payload
+        elif isinstance(boundary_payload, dict):
+            boundary_bytes = _canonical_json_bytes(boundary_payload)
+        else:
+            return elements, ()
+        boundary_artifact = decode_boundary_geojson(boundary_bytes)
+        boundary = json.loads(boundary_artifact.canonical_geojson)
+    except (KeyError, TypeError, ValueError):
+        return elements, ()
+
+    admitted: list[OsmSourceRecord] = []
+    excluded: list[str] = []
+    for element in elements:
+        if boundary_contains(boundary, element.latitude, element.longitude):
+            admitted.append(element)
+        else:
+            excluded.append(element.source_record_id)
+    if not admitted and excluded:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_ALL_ELEMENTS_OUTSIDE_BOUNDARY",
+            "every_element_fell_inside_a_boundary_hole",
+            sourceRecordCount=len(excluded),
+            boundaryPath=geography.boundary_artifact_path,
+        )
+    return tuple(admitted), tuple(excluded)
+
+
+def _deduplicated_osm_elements(
+    elements: tuple[OsmSourceRecord, ...],
+) -> tuple[OsmSourceRecord, ...]:
+    """Drop repeated element identities, keeping the first occurrence in envelope order."""
+
+    seen: set[tuple[str, int]] = set()
+    unique: list[OsmSourceRecord] = []
+    for element in elements:
+        identity = (str(element.element.element_type), int(element.element.osm_id))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append(element)
+    return tuple(unique)
+
+
+def _plan_osm_source_record_mapping(
+    source: SucceededWorkOutput,
+) -> tuple[SourceRecordMappingAction, ...]:
+    if source.source_binding_key is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_BINDING_MISSING",
+            "osm_work_has_no_source_binding",
+        )
+    raw_bindings = tuple(
+        item for item in source.related_output_artifacts if item.role == _OSM_RAW_RESPONSE_ROLE
+    )
+    if len(raw_bindings) != 1:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_AMBIGUOUS",
+            "osm_observation_artifact_missing_or_ambiguous",
+            observationArtifactCount=len(raw_bindings),
+        )
+    if source.output_content is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_UNREADABLE",
+            "osm_observation_content_unavailable",
+        )
+    raw_artifact = raw_bindings[0]
+    if _digest_bytes(source.output_content) != raw_artifact.content_digest:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_TAMPERED",
+            "observation_bytes_differ_from_artifact_digest",
+            observationArtifactId=str(raw_artifact.artifact_id),
+        )
+    query_bindings = tuple(
+        item for item in source.input_artifacts if item.role == "overpass_query_spec"
+    )
+    if len(query_bindings) != 1:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_QUERY_MISSING",
+            "osm_query_specification_missing_or_ambiguous",
+            queryArtifactCount=len(query_bindings),
+        )
+    binding, policy_digest, campaign = _snapshot_source_binding(
+        source,
+        code="PIPELINE_SOURCE_RECORD_SNAPSHOT_INVALID",
+        expected_capability="openstreetmap_query",
+    )
+    try:
+        envelope = decode_osm_envelope(source.output_content)
+    except (TypeError, ValueError) as exc:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_INVALID",
+            type(exc).__name__,
+            observationArtifactId=str(raw_artifact.artifact_id),
+        ) from exc
+    # Adjacent query partitions share a seam, so the same OSM element can be returned
+    # by more than one unit. Identity is (elementType, osmId); a duplicate must map
+    # once, never twice.
+    elements, excluded_by_boundary = _boundary_admitted_osm_elements(
+        _deduplicated_osm_elements(envelope.elements),
+        source=source,
+        bundle_content=source.campaign_bundle_content,
+    )
+    if not elements:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_NO_ELEMENTS",
+            "osm_observations_contains_no_elements",
+            observationArtifactId=str(raw_artifact.artifact_id),
+        )
+    if len(elements) > _OSM_MAX_MAPPING_UNITS:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_FANOUT_EXCEEDED",
+            "osm_observations_exceeds_mapping_unit_limit",
+            elementCount=len(elements),
+            limit=_OSM_MAX_MAPPING_UNITS,
+        )
+    entity_kind, field_projection = _source_mapping_policy(binding)
+    profile_payload = _mapping_profile_payload(
+        run_id=str(source.run_id),
+        binding_key=binding.key,
+        source_key=binding.source_key,
+        mapping_revision=_OSM_MAPPING_REVISION,
+        source_policy_digest=policy_digest,
+        campaign_key=campaign.campaign_key,
+        entity_kind=entity_kind,
+        field_projection=field_projection,
+        field_aliases=_source_tag_aliases(binding),
+    )
+    profile_digest = _digest_bytes(profile_payload)
+    actions: list[SourceRecordMappingAction] = []
+    unrepresentable: list[str] = []
+    for element in elements:
+        try:
+            actions.append(
+                _osm_element_mapping_action(
+                    source,
+                    binding=binding,
+                    policy_digest=policy_digest,
+                    raw_artifact=raw_artifact,
+                    query_artifact_id=query_bindings[0].artifact_id,
+                    profile_payload=profile_payload,
+                    profile_digest=profile_digest,
+                    element=element,
+                )
+            )
+        except ValueError:
+            # One unrepresentable element must not discard its valid siblings; the
+            # skipped records stay visible on the planned transition instead.
+            unrepresentable.append(element.source_record_id)
+    if not actions and unrepresentable:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_ALL_ELEMENTS_UNREPRESENTABLE",
+            "ValueError",
+            sourceRecordIds=",".join(unrepresentable),
+        )
+    if unrepresentable or excluded_by_boundary:
+        actions[-1] = replace(
+            actions[-1],
+            unrepresentable_source_record_ids=tuple(unrepresentable),
+            excluded_by_boundary_record_ids=tuple(excluded_by_boundary),
+        )
+    return tuple(actions)
+
+
+def _osm_element_mapping_action(
+    source: SucceededWorkOutput,
+    *,
+    binding: SourceBinding,
+    policy_digest: str,
+    raw_artifact: ArtifactIdentity,
+    query_artifact_id: UUID,
+    profile_payload: bytes,
+    profile_digest: str,
+    element: OsmSourceRecord,
+) -> SourceRecordMappingAction:
+    """One deterministic mapping unit per eligible OSM element.
+
+    The unit identity is derived from the element identity itself, so replay of the
+    same query result yields the same units and a duplicate element cannot fan out
+    twice.
+    """
+    source_record_id = element.source_record_id
+    record_bytes = canonical_osm_source_record_json(element).encode("utf-8")
+    record_digest = _digest_bytes(record_bytes)
+    work_id = uuid5(
+        _SOURCE_RECORD_MAPPING_WORK_NAMESPACE,
+        "|".join(
+            (
+                str(source.run_id),
+                binding.key,
+                source_record_id,
+                raw_artifact.content_digest,
+                record_digest,
+                profile_digest,
+            )
+        ),
+    )
+    semantic_key = _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "capability": WorkCapability.SOURCE_RECORD_MAPPING.value,
+                "runId": str(source.run_id),
+                "sourceBindingKey": binding.key,
+                "sourceRecordId": source_record_id,
+                "sourceRecordArtifactDigest": record_digest,
+                "querySpecArtifactId": str(query_artifact_id),
+                "mappingProfileDigest": profile_digest,
+            }
+        )
+    )
+    record_artifact = ArtifactIdentity(
+        artifact_id=uuid5(_SOURCE_RECORD_ARTIFACT_NAMESPACE, element.record_digest),
+        role=_SOURCE_RECORD_ROLE,
+        content_digest=record_digest,
+        size_bytes=len(record_bytes),
+        content_type="application/vnd.collection.osm-source-record+json",
+    )
+    return SourceRecordMappingAction(
+        work_id=work_id,
+        source_key=binding.source_key,
+        source_binding_key=binding.key,
+        source_policy_digest=policy_digest,
+        source_record_id=source_record_id,
+        dataset_release=_OSM_DATASET_RELEASE,
+        source_record_artifact=record_artifact,
+        mapping_profile_payload=profile_payload,
+        source_record_payload=record_bytes,
+        raw_response_artifact=raw_artifact,
+        mapping_profile_digest=profile_digest,
+        semantic_key=semantic_key,
+        input_digest=semantic_key,
+    )
+
+
+def _plan_wikidata_source_record_mapping(
+    source: SucceededWorkOutput,
+) -> tuple[SourceRecordMappingAction, ...]:
+    """One deterministic mapping unit per verified Wikidata entity.
+
+    The result envelope is re-verified against the exact raw response and the declared
+    query specification, so an entity document cannot enter the pipeline unless it came
+    from the response this work actually acquired for the set it asked for.
+    """
+
+    if source.source_binding_key is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_BINDING_MISSING",
+            "wikidata_work_has_no_source_binding",
+        )
+    raw_bindings = tuple(
+        item for item in source.related_output_artifacts if item.role == _WIKIDATA_RAW_ROLE
+    )
+    if len(raw_bindings) != 1:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_AMBIGUOUS",
+            "wikidata_raw_response_artifact_missing_or_ambiguous",
+            rawArtifactCount=len(raw_bindings),
+        )
+    raw_artifact = raw_bindings[0]
+    if source.output_content is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_UNREADABLE",
+            "wikidata_result_envelope_unavailable",
+        )
+    if _digest_bytes(source.output_content) != source.output_artifact.content_digest:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_TAMPERED",
+            "result_envelope_bytes_differ_from_artifact_digest",
+            envelopeArtifactId=str(source.output_artifact.artifact_id),
+        )
+    spec_bindings = tuple(
+        item for item in source.input_artifacts if item.role == _WIKIDATA_QUERY_ROLE
+    )
+    if len(spec_bindings) != 1:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_QUERY_MISSING",
+            "wikidata_query_specification_missing_or_ambiguous",
+            queryArtifactCount=len(spec_bindings),
+        )
+    spec_artifact = spec_bindings[0]
+    if source.wikidata_query_spec_content is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_QUERY_UNREADABLE",
+            "wikidata_query_specification_content_unavailable",
+            queryArtifactId=str(spec_artifact.artifact_id),
+        )
+    if _digest_bytes(source.wikidata_query_spec_content) != spec_artifact.content_digest:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_QUERY_TAMPERED",
+            "query_specification_bytes_differ_from_artifact_digest",
+            queryArtifactId=str(spec_artifact.artifact_id),
+        )
+    try:
+        spec = decode_wikidata_query_spec(source.wikidata_query_spec_content)
+    except (TypeError, ValueError) as exc:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_QUERY_INVALID",
+            type(exc).__name__,
+            queryArtifactId=str(spec_artifact.artifact_id),
+        ) from exc
+    binding, policy_digest, campaign = _snapshot_source_binding(
+        source,
+        code="PIPELINE_SOURCE_RECORD_SNAPSHOT_INVALID",
+        expected_capability="wikidata_entity_query",
+    )
+    try:
+        envelope = decode_wikidata_entity_result(source.output_content)
+    except ValueError as exc:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_INVALID",
+            type(exc).__name__,
+            envelopeArtifactId=str(source.output_artifact.artifact_id),
+        ) from exc
+    if envelope.response_digest != raw_artifact.content_digest:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_RAW_TAMPERED",
+            "result_envelope_describes_another_response",
+            rawArtifactId=str(raw_artifact.artifact_id),
+        )
+    if envelope.requested_entity_ids != spec.entity_ids:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_ENTITY_SET_CONFLICT",
+            "wikidata_result_answers_another_entity_set",
+            declaredEntityCount=len(spec.entity_ids),
+            returnedEntityCount=len(envelope.requested_entity_ids),
+        )
+    if spec.binding_key != binding.key or spec.run_id != source.run_id:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_QUERY_CONFLICT",
+            "wikidata_query_specification_belongs_to_another_run_binding",
+            sourceBindingKey=binding.key,
+        )
+    if envelope.records[0].campaign_category != spec.classification.campaign_category or any(
+        item.campaign_category != spec.classification.campaign_category for item in envelope.records
+    ):
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_CLASSIFICATION_CONFLICT",
+            "wikidata_records_use_another_campaign_category",
+            sourceBindingKey=binding.key,
+        )
+    entity_kind, field_projection = _source_mapping_policy(binding)
+    profile_payload = _mapping_profile_payload(
+        run_id=str(source.run_id),
+        binding_key=binding.key,
+        source_key=binding.source_key,
+        mapping_revision=_WIKIDATA_MAPPING_REVISION,
+        source_policy_digest=policy_digest,
+        campaign_key=campaign.campaign_key,
+        entity_kind=entity_kind,
+        field_projection=field_projection,
+        field_aliases=_source_tag_aliases(binding),
+    )
+    profile_digest = _digest_bytes(profile_payload)
+    if len(envelope.records) > _WIKIDATA_MAX_MAPPING_UNITS:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_FANOUT_EXCEEDED",
+            "wikidata_result_exceeds_mapping_unit_limit",
+            recordCount=len(envelope.records),
+            limit=_WIKIDATA_MAX_MAPPING_UNITS,
+        )
+    actions = tuple(
+        _wikidata_entity_mapping_action(
+            source,
+            binding=binding,
+            policy_digest=policy_digest,
+            raw_artifact=raw_artifact,
+            query_artifact_id=spec_artifact.artifact_id,
+            profile_payload=profile_payload,
+            profile_digest=profile_digest,
+            record=record,
+        )
+        for record in envelope.records
+    )
+    if envelope.rejected_entities:
+        # An entity the acquisition itself refused stays visible on the planned
+        # transition instead of vanishing from the run.
+        actions = (
+            *actions[:-1],
+            replace(
+                actions[-1],
+                unrepresentable_source_record_ids=tuple(
+                    f"wikidata:{item.entity_id}" for item in envelope.rejected_entities
+                ),
+            ),
+        )
+    return actions
+
+
+def _wikidata_entity_mapping_action(
+    source: SucceededWorkOutput,
+    *,
+    binding: SourceBinding,
+    policy_digest: str,
+    raw_artifact: ArtifactIdentity,
+    query_artifact_id: UUID,
+    profile_payload: bytes,
+    profile_digest: str,
+    record: WikidataAdaptedRecordEntry,
+) -> SourceRecordMappingAction:
+    """One deterministic mapping unit per entity identity and accepted revision."""
+
+    source_record_id = record.source_record_id
+    record_digest = record.record_digest
+    work_id = uuid5(
+        _SOURCE_RECORD_MAPPING_WORK_NAMESPACE,
+        "|".join(
+            (
+                str(source.run_id),
+                binding.key,
+                source_record_id,
+                raw_artifact.content_digest,
+                record_digest,
+                profile_digest,
+            )
+        ),
+    )
+    semantic_key = _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "capability": WorkCapability.SOURCE_RECORD_MAPPING.value,
+                "runId": str(source.run_id),
+                "sourceBindingKey": binding.key,
+                "sourceRecordId": source_record_id,
+                "sourceRecordArtifactDigest": record_digest,
+                "querySpecArtifactId": str(query_artifact_id),
+                "mappingProfileDigest": profile_digest,
+            }
+        )
+    )
+    record_artifact = ArtifactIdentity(
+        # The producer sealed this identity into the record itself, so publishing it under
+        # any other id would break the mapping owner's own binding check.
+        artifact_id=record.artifact_record_id,
+        role=_SOURCE_RECORD_ROLE,
+        content_digest=record_digest,
+        size_bytes=len(record.document_bytes),
+        content_type="application/vnd.collection.wikidata-source-record+json",
+    )
+    return SourceRecordMappingAction(
+        work_id=work_id,
+        source_key=binding.source_key,
+        source_binding_key=binding.key,
+        source_policy_digest=policy_digest,
+        source_record_id=source_record_id,
+        dataset_release=record.dataset_release,
+        source_record_artifact=record_artifact,
+        mapping_profile_payload=profile_payload,
+        source_record_payload=record.document_bytes,
+        raw_response_artifact=raw_artifact,
+        mapping_profile_digest=profile_digest,
+        semantic_key=semantic_key,
+        input_digest=semantic_key,
+    )
+
+
+class _CandidateIntakePlanningError(ValueError):
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        required_action: str,
+        context: Mapping[str, object],
+    ) -> None:
+        self.code = code
+        self.message = message
+        self.required_action = required_action
+        self.context = dict(context)
+        super().__init__(message)
+
+
+def _candidate_intake_input_error(
+    code: str,
+    reason: str,
+    **context: object,
+) -> _CandidateIntakePlanningError:
+    return _CandidateIntakePlanningError(
+        code=code,
+        message="Exact observation batch evidence does not authorize candidate intake.",
+        required_action=(
+            "Repair the normalization output or its manual-record lineage in the owning "
+            "stage before retrying candidate intake."
+        ),
+        context={"reason": reason, **context},
+    )
+
+
 class _NormalizationPlanningError(ValueError):
     def __init__(
         self,
@@ -1133,6 +2234,83 @@ def _normalization_input_error(
             "new campaign snapshot."
         ),
         context={"reason": reason, **context},
+    )
+
+
+def _plan_candidate_intake(source: SucceededWorkOutput) -> CandidateIntakeAction:
+    lineage_bindings = tuple(
+        item for item in source.input_artifacts if item.role == "manual_record_lineage"
+    )
+    if len(lineage_bindings) != 1 or source.manual_record_lineage_content is None:
+        raise _candidate_intake_input_error(
+            "PIPELINE_CANDIDATE_LINEAGE_MISSING_OR_AMBIGUOUS",
+            "manual_record_lineage_missing_or_ambiguous",
+            lineageArtifactCount=len(lineage_bindings),
+        )
+    lineage_artifact = lineage_bindings[0]
+    try:
+        lineage_content = source.manual_record_lineage_content
+        lineage = ManualRecordLineage.model_validate_json(lineage_content, strict=True)
+    except (TypeError, ValueError) as exc:
+        raise _candidate_intake_input_error(
+            "PIPELINE_CANDIDATE_LINEAGE_INVALID",
+            type(exc).__name__,
+        ) from exc
+    if (
+        _digest_bytes(lineage_content) != lineage_artifact.content_digest
+        or canonical_manual_record_lineage_bytes(lineage) != lineage_content
+    ):
+        raise _candidate_intake_input_error(
+            "PIPELINE_CANDIDATE_LINEAGE_TAMPERED",
+            "lineage_bytes_differ_from_artifact_digest",
+            lineageArtifactId=str(lineage_artifact.artifact_id),
+        )
+    if lineage.run_id != source.run_id:
+        raise _candidate_intake_input_error(
+            "PIPELINE_CANDIDATE_LINEAGE_RUN_CONFLICT",
+            "lineage_run_differs_from_succeeded_work_run",
+            lineageRunId=str(lineage.run_id),
+            workRunId=str(source.run_id),
+        )
+    if (
+        lineage.manual_record_artifact_id == lineage.source_artifact_id
+        or not lineage.manual_record_artifact_digest
+    ):
+        raise _candidate_intake_input_error(
+            "PIPELINE_CANDIDATE_LINEAGE_UNBOUND",
+            "lineage_manual_record_artifact_not_in_work_inputs",
+            manualRecordArtifactId=str(lineage.manual_record_artifact_id),
+        )
+    candidate_id = uuid5(
+        _CANDIDATE_ID_NAMESPACE,
+        "|".join(
+            (
+                str(source.run_id),
+                str(lineage.manual_record_work_id),
+                source.output_digest,
+            )
+        ),
+    )
+    source_artifact_ids = tuple(
+        sorted(
+            {
+                *(item.artifact_id for item in source.input_artifacts),
+                lineage.manual_record_artifact_id,
+                lineage.source_artifact_id,
+            }
+        )
+    )
+    return CandidateIntakeAction(
+        candidate_id=candidate_id,
+        run_id=source.run_id,
+        source_work_unit_id=source.source_work_unit_id,
+        observation_batch_digest=source.output_digest,
+        provenance=ManualRecordIntakeProvenance(
+            manual_record_artifact_id=lineage.manual_record_artifact_id,
+            manual_record_lineage_artifact=lineage_artifact,
+        ),
+        source_artifact_ids=source_artifact_ids,
+        revision=0,
     )
 
 
@@ -2239,6 +3417,9 @@ def _transition_plan_digest(
     website_actions: tuple[WebsiteRouteAction, ...] = (),
     extraction_actions: tuple[ExtractionWorkAction, ...] = (),
     normalization_actions: tuple[NormalizationWorkAction, ...] = (),
+    candidate_intake_actions: tuple[CandidateIntakeAction, ...] = (),
+    source_record_mapping_actions: tuple[SourceRecordMappingAction, ...] = (),
+    resolution_snapshot_actions: tuple[ResolutionSnapshotAction, ...] = (),
 ) -> str:
     payload = {
         "sourceWorkUnitId": str(source.source_work_unit_id),
@@ -2285,10 +3466,101 @@ def _transition_plan_digest(
         payload["normalizationActions"] = [
             _normalization_action_payload(action) for action in normalization_actions
         ]
+    if transition_key == _CANDIDATE_INTAKE_TRANSITION_KEY:
+        payload["candidateIntakeActions"] = [
+            _candidate_intake_action_payload(action) for action in candidate_intake_actions
+        ]
+    if transition_key in _SOURCE_RECORD_MAPPING_TRANSITION_KEYS:
+        payload["sourceBindingKey"] = source.source_binding_key
+        payload["configBundleDigest"] = source.config_bundle_digest
+        payload["sourceRecordMappingActions"] = [
+            _source_record_mapping_action_payload(action)
+            for action in source_record_mapping_actions
+        ]
+    if transition_key == _ENTITY_RESOLUTION_TRANSITION_KEY:
+        payload["resolutionSnapshotActions"] = [
+            _resolution_snapshot_action_payload(action) for action in resolution_snapshot_actions
+        ]
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
         "utf-8"
     )
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def source_record_mapping_result_digest(plan: PipelineTransitionPlan) -> str:
+    if (
+        plan.transition_key not in _SOURCE_RECORD_MAPPING_TRANSITION_KEYS
+        or not plan.source_record_mapping_actions
+        or plan.disposition is not PipelineTransitionDisposition.APPLY
+    ):
+        raise ValueError("source-record mapping result requires a non-empty apply plan")
+    return _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionPlanDigest": plan.plan_digest,
+                "sourceRecordMappingActions": [
+                    _source_record_mapping_action_payload(action)
+                    for action in plan.source_record_mapping_actions
+                ],
+            }
+        )
+    )
+
+
+_CANDIDATE_INTAKE_TRANSITION_KEYS = frozenset(
+    {_CANDIDATE_INTAKE_TRANSITION_KEY, _SOURCE_RECORD_INTAKE_TRANSITION_KEY}
+)
+
+
+def candidate_intake_result_digest(plan: PipelineTransitionPlan) -> str:
+    if (
+        plan.transition_key not in _CANDIDATE_INTAKE_TRANSITION_KEYS
+        or not plan.candidate_intake_actions
+        or plan.disposition is not PipelineTransitionDisposition.APPLY
+    ):
+        raise ValueError("candidate intake result requires a non-empty apply plan")
+    return _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionPlanDigest": plan.plan_digest,
+                "candidateIntakeActions": [
+                    _candidate_intake_action_payload(action)
+                    for action in plan.candidate_intake_actions
+                ],
+            }
+        )
+    )
+
+
+def _candidate_intake_action_payload(action: CandidateIntakeAction) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "candidateId": str(action.candidate_id),
+        "runId": str(action.run_id),
+        "sourceWorkUnitId": str(action.source_work_unit_id),
+        "observationBatchDigest": action.observation_batch_digest,
+        "sourceArtifactIds": [str(item) for item in sorted(action.source_artifact_ids)],
+        "revision": action.revision,
+    }
+    manual = action.manual_record_provenance
+    source_record = action.source_record_provenance
+    if manual is not None:
+        payload["provenanceKind"] = "manual_record"
+        payload["manualRecordArtifactId"] = str(manual.manual_record_artifact_id)
+        payload["manualRecordLineageArtifact"] = _artifact_payload(
+            manual.manual_record_lineage_artifact
+        )
+    elif source_record is not None:
+        payload["provenanceKind"] = "source_record"
+        payload["sourceKey"] = source_record.source_key
+        payload["sourceBindingKey"] = source_record.source_binding_key
+        payload["sourceRecordId"] = source_record.source_record_id
+        payload["sourcePolicyDigest"] = source_record.source_policy_digest
+        payload["datasetRelease"] = source_record.dataset_release
+        payload["mappingRevision"] = source_record.mapping_revision
+        payload["sourceRecordArtifact"] = _artifact_payload(source_record.source_record_artifact)
+    else:
+        raise ValueError("candidate intake action has no provenance")
+    return payload
 
 
 def website_route_result_digest(plan: PipelineTransitionPlan) -> str:
@@ -2414,6 +3686,176 @@ def _normalization_action_payload(value: NormalizationWorkAction) -> dict[str, o
         "extractedRecordArtifactId": str(value.extracted_record_artifact_id),
         "profileDigest": value.profile_digest,
     }
+
+
+def _snapshot_source_binding(
+    source: SucceededWorkOutput,
+    *,
+    code: str,
+    expected_capability: str,
+) -> tuple[SourceBinding, str, CampaignDocument]:
+    """Resolve the exact run snapshot binding and policy digest for a source record."""
+
+    if source.campaign_bundle_content is None or source.source_binding_key is None:
+        raise _source_record_mapping_error(
+            code,
+            "run_snapshot_or_binding_provenance_missing",
+        )
+    try:
+        bundle = _decode_campaign_bundle(source.campaign_bundle_content)
+        campaign = CampaignDocument.model_validate(bundle["campaign.yaml"])
+        bindings_document = SourceBindingsDocument.model_validate(bundle["source_bindings.yaml"])
+        bindings = {item.key: item for item in bindings_document.items}
+        binding = bindings[source.source_binding_key]
+        policy = SourcePolicy.model_validate(
+            bundle[f"source_policies/{binding.source_policy_key}.yaml"]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _source_record_mapping_error(
+            code,
+            type(exc).__name__,
+            sourceBindingKey=source.source_binding_key,
+        ) from exc
+    policy_digest = sha256_json(policy.model_dump(mode="json"))
+    if not all(
+        (
+            campaign.campaign_key == bundle["campaignKey"],
+            binding.key in campaign.enabled_source_bindings,
+            binding.capability == expected_capability,
+            binding.source_key == policy.source_key,
+            binding.source_policy_key == policy.policy_key,
+        )
+    ):
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_BINDING_INVALID",
+            "source_binding_differs_from_run_snapshot",
+            sourceBindingKey=binding.key,
+            sourceCapability=binding.capability,
+        )
+    if binding.seed_provider.kind != "not_applicable":
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_BINDING_INVALID",
+            "discovery_binding_depends_on_a_seed_file",
+            sourceBindingKey=binding.key,
+        )
+    return binding, policy_digest, CampaignDocument.model_validate(bundle["campaign.yaml"])
+
+
+def _mapping_profile_payload(
+    *,
+    run_id: str,
+    binding_key: str,
+    source_key: str,
+    mapping_revision: str,
+    source_policy_digest: str,
+    campaign_key: str,
+    entity_kind: str | None,
+    field_projection: Mapping[str, str],
+    field_aliases: Mapping[str, tuple[str, ...]] | None = None,
+) -> bytes:
+    payload: dict[str, object] = {
+        "campaignKey": campaign_key,
+        "entityKind": entity_kind,
+        "fieldProjection": dict(sorted(field_projection.items())),
+        "mappingRevision": mapping_revision,
+        "runId": run_id,
+        "sourceBindingKey": binding_key,
+        "sourceKey": source_key,
+        "sourcePolicyDigest": source_policy_digest,
+    }
+    if field_aliases:
+        # Additive: a campaign that declares no aliases keeps the exact original profile
+        # shape, so existing profile digests and therefore candidate identities hold.
+        payload["fieldAliases"] = {key: list(value) for key, value in sorted(field_aliases.items())}
+    return _canonical_json_bytes(payload)
+
+
+def _source_mapping_policy(binding: SourceBinding) -> tuple[str | None, Mapping[str, str]]:
+    """Resolve the source-native mapping decisions from the immutable binding.
+
+    Ambiguity stays ambiguous: an unset entity kind resolves to None so intake leaves
+    the candidate unresolved rather than defaulting to a kind the source never proved.
+    """
+    projection = {
+        item.source_field: item.candidate_field for item in binding.source_field_projection
+    }
+    if not projection:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_PROJECTION_MISSING",
+            "binding_declares_no_source_field_projection",
+            sourceBindingKey=binding.key,
+        )
+    return binding.source_entity_kind, projection
+
+
+def _source_tag_aliases(binding: SourceBinding) -> Mapping[str, tuple[str, ...]]:
+    """Declared source tags per projected field, primary first.
+
+    Only fields that declare aliases appear here; a projection without aliases reads its
+    own source tag only, so existing campaigns keep their exact behaviour.
+    """
+
+    return {
+        item.source_field: item.source_tags
+        for item in binding.source_field_projection
+        if item.source_aliases
+    }
+
+
+def _source_record_mapping_action_payload(
+    value: SourceRecordMappingAction,
+) -> dict[str, object]:
+    return {
+        "workId": str(value.work_id),
+        "sourceKey": value.source_key,
+        "sourceBindingKey": value.source_binding_key,
+        "sourcePolicyDigest": value.source_policy_digest,
+        "sourceRecordId": value.source_record_id,
+        "datasetRelease": value.dataset_release,
+        "sourceRecordArtifact": _artifact_payload(value.source_record_artifact),
+        "mappingProfileDigest": value.mapping_profile_digest,
+        "semanticKey": value.semantic_key,
+        "inputDigest": value.input_digest,
+        # Records the envelope carried but could not represent. They are part of the
+        # durable result digest so a partial fetch can never be replayed as complete
+        # coverage.
+        "unrepresentableSourceRecordIds": list(value.unrepresentable_source_record_ids),
+        "excludedByBoundaryRecordIds": list(value.excluded_by_boundary_record_ids),
+    }
+
+
+def _resolution_snapshot_action_payload(
+    value: ResolutionSnapshotAction,
+) -> dict[str, object]:
+    return {
+        "batchId": str(value.batch_id),
+        "batchDigest": value.batch_digest,
+        "snapshotDigest": value.snapshot_digest,
+        "clusterIds": [str(item) for item in value.cluster_ids],
+        "memberCandidateIds": [str(item) for item in value.member_candidate_ids],
+        "exportEligibleClusterCount": value.export_eligible_cluster_count,
+        "pendingReviewPairCount": value.pending_review_pair_count,
+    }
+
+
+def resolution_snapshot_result_digest(plan: PipelineTransitionPlan) -> str:
+    if (
+        plan.transition_key != _ENTITY_RESOLUTION_TRANSITION_KEY
+        or not plan.resolution_snapshot_actions
+        or plan.disposition is not PipelineTransitionDisposition.APPLY
+    ):
+        raise ValueError("resolution snapshot result requires a non-empty apply plan")
+    return _digest_bytes(
+        _canonical_json_bytes(
+            {
+                "transitionPlanDigest": plan.plan_digest,
+                "resolutionSnapshotActions": [
+                    _resolution_snapshot_action_payload(action)
+                    for action in plan.resolution_snapshot_actions
+                ],
+            }
+        )
+    )
 
 
 def _artifact_payload(value: ArtifactIdentity) -> dict[str, object]:

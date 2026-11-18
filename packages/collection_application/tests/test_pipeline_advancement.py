@@ -13,6 +13,7 @@ import yaml
 
 from collection_application import CampaignSnapshotService, RawCampaignBundle
 from collection_application.campaign_snapshot_service import CompiledCampaignBundle
+from collection_application.canonicalization import sha256_json
 from collection_application.pipeline_advancement import (
     ApplyPipelineAdvancement,
     ArtifactIdentity,
@@ -203,18 +204,34 @@ def test_manual_record_remains_explicitly_blocked_without_source_owner() -> None
     assert plan.blocker.code == "MANUAL_RECORD_DOWNSTREAM_SOURCE_UNAVAILABLE"
 
 
-def _routed_campaign_snapshot() -> tuple[bytes, CompiledCampaignBundle]:
+def _routed_campaign_snapshot(
+    *,
+    route_source_binding: str = "manual_seed_import",
+    seed_website_url: str | None = None,
+) -> tuple[bytes, CompiledCampaignBundle]:
     campaign_root = Path(__file__).resolve().parents[3] / "campaigns" / "berlin_recording_services"
     files = {
         path.relative_to(campaign_root).as_posix(): path.read_bytes()
         for path in campaign_root.rglob("*")
         if path.is_file()
     }
+    if seed_website_url is not None:
+        files["discovery/manual_seeds.csv"] = files["discovery/manual_seeds.csv"].replace(
+            b"https://hansastudios.de/", seed_website_url.encode("utf-8"), 1
+        )
     campaign = yaml.safe_load(files["campaign.yaml"])
     campaign["enabled_source_bindings"].append("official_website")
+    if route_source_binding == "manual_seed_import_secondary":
+        campaign["enabled_source_bindings"].append("manual_seed_import_secondary")
     files["campaign.yaml"] = yaml.safe_dump(campaign, sort_keys=False).encode()
 
     bindings = yaml.safe_load(files["source_bindings.yaml"])
+    if route_source_binding == "manual_seed_import_secondary":
+        secondary_manual_binding = dict(
+            next(item for item in bindings["items"] if item["key"] == "manual_seed_import")
+        )
+        secondary_manual_binding["key"] = "manual_seed_import_secondary"
+        bindings["items"].append(secondary_manual_binding)
     bindings["items"].append(
         {
             "key": "official_website",
@@ -237,7 +254,7 @@ def _routed_campaign_snapshot() -> tuple[bytes, CompiledCampaignBundle]:
         "routes": [
             {
                 "key": "manual_website",
-                "source_binding": "manual_seed_import",
+                "source_binding": route_source_binding,
                 "source_field": "website",
                 "target_binding": "official_website",
                 "route_kind": "official_website_page",
@@ -653,6 +670,120 @@ def test_website_route_fails_closed_for_wrong_binding_provenance() -> None:
     assert plan.disposition is PipelineTransitionDisposition.BLOCK
     assert plan.blocker is not None
     assert plan.blocker.code == "MANUAL_RECORD_ROUTE_PROVENANCE_MISMATCH"
+
+
+def test_website_route_missing_for_manual_seed_binding_blocks_without_work() -> None:
+    _, compiled = _routed_campaign_snapshot(route_source_binding="manual_seed_import_secondary")
+    source, _ = _manual_record_for_snapshot(compiled)
+
+    plan = PipelineTransitionRegistry().plan(source)
+
+    assert plan.disposition is PipelineTransitionDisposition.BLOCK
+    assert plan.transition_key == "manual-record-website-routing-v1"
+    assert plan.blocker is not None
+    assert plan.blocker.code == "MANUAL_RECORD_ROUTE_UNAVAILABLE"
+    assert plan.blocker.context["sourceBindingKey"] == "manual_seed_import"
+    assert plan.website_actions == ()
+
+
+def test_non_fan_out_route_ambiguity_blocks_without_work() -> None:
+    _, compiled = _routed_campaign_snapshot()
+    source, _ = _manual_record_for_snapshot(compiled)
+    snapshot = json.loads(compiled.canonical_content)
+    bindings_component = next(
+        item for item in snapshot["components"] if item["path"] == "source_bindings.yaml"
+    )
+    routes = bindings_component["content"]["seed_routing"]["routes"]
+    second_route = dict(routes[0])
+    second_route["key"] = "manual_website_secondary"
+    routes.append(second_route)
+    bindings_component["digest"] = sha256_json(bindings_component["content"])
+    snapshot_content = json.dumps(
+        snapshot,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    source = replace(
+        source,
+        config_bundle_digest="sha256:" + hashlib.sha256(snapshot_content).hexdigest(),
+        campaign_bundle_content=snapshot_content,
+    )
+
+    plan = PipelineTransitionRegistry().plan(source)
+
+    assert plan.disposition is PipelineTransitionDisposition.BLOCK
+    assert plan.blocker is not None
+    assert plan.blocker.code == "MANUAL_RECORD_ROUTE_INPUT_INVALID"
+    assert plan.blocker.context["reason"] == "ValidationError"
+    assert plan.website_actions == ()
+
+
+def _replace_snapshot_component_content(
+    source: SucceededWorkOutput, component_path: str, content: dict[str, object]
+) -> SucceededWorkOutput:
+    assert source.campaign_bundle_content is not None
+    snapshot = json.loads(source.campaign_bundle_content)
+    component = next(item for item in snapshot["components"] if item["path"] == component_path)
+    component["content"] = content
+    component["digest"] = sha256_json(content)
+    snapshot_content = json.dumps(
+        snapshot,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return replace(
+        source,
+        config_bundle_digest="sha256:" + hashlib.sha256(snapshot_content).hexdigest(),
+        campaign_bundle_content=snapshot_content,
+    )
+
+
+def test_route_with_manual_access_policy_in_snapshot_blocks_without_work() -> None:
+    _, compiled = _routed_campaign_snapshot()
+    source, _ = _manual_record_for_snapshot(compiled)
+    snapshot = json.loads(source.campaign_bundle_content or b"")
+    policy_component = next(
+        item
+        for item in snapshot["components"]
+        if item["path"] == "source_policies/website_test_policy.yaml"
+    )
+    policy = dict(policy_component["content"])
+    policy["access"] = {
+        "kind": "manual",
+        "accepted_formats": ["csv"],
+        "accepted_encodings": ["utf-8"],
+        "max_file_bytes": 1_048_576,
+        "partial_mode_allowed": True,
+    }
+    source = _replace_snapshot_component_content(
+        source, "source_policies/website_test_policy.yaml", policy
+    )
+
+    plan = PipelineTransitionRegistry().plan(source)
+
+    assert plan.disposition is PipelineTransitionDisposition.BLOCK
+    assert plan.blocker is not None
+    assert plan.blocker.code == "MANUAL_RECORD_ROUTE_POLICY_INVALID"
+    assert plan.blocker.context["reason"] == "ValidationError"
+    assert plan.website_actions == ()
+
+
+def test_route_to_unlisted_website_host_blocks_without_work() -> None:
+    _, compiled = _routed_campaign_snapshot(seed_website_url="https://unauthorized.example/")
+    source, _ = _manual_record_for_snapshot(compiled)
+
+    plan = PipelineTransitionRegistry().plan(source)
+
+    assert plan.disposition is PipelineTransitionDisposition.BLOCK
+    assert plan.blocker is not None
+    assert plan.blocker.code == "MANUAL_RECORD_ROUTE_HOST_FORBIDDEN"
+    assert plan.blocker.context["reason"] == "host_not_allowed"
+    assert plan.blocker.context["host"] == "unauthorized.example"
+    assert plan.website_actions == ()
 
 
 def test_unknown_transition_is_never_silently_accepted() -> None:

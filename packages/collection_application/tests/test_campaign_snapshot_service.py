@@ -86,7 +86,8 @@ def test_seed_content_changes_bundle_digest() -> None:
     service = CampaignSnapshotService(InMemorySource(files))
     original = service.create("berlin_recording_services", "correlation-1")
     files["discovery/manual_seeds.csv"] += (
-        b"place,Example Studio,https://example.test,,,Owned test seed,operator fixture\n"
+        b"place,Example Studio,recording_studio,https://example.test,,,"
+        b"Owned test seed,operator fixture" + bytes((10,))
     )
 
     changed = service.create("berlin_recording_services", "correlation-2")

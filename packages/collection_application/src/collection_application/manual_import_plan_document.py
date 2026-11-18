@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 from uuid import UUID
 
 from collection_application.manual_import_admission import ManualImportPlanForAdmission
+from collection_contracts import ManualImportRecordDocument
 from manual_import_core import (
     ManualImportPlanDocumentError,
+    build_manual_import_plan,
+    canonical_manual_import_plan_json,
     decode_canonical_manual_import_plan,
+    materialize_manual_import_record,
 )
 
 
@@ -49,3 +54,44 @@ def decode_manual_import_plan(
                 "causeType": type(exc).__name__,
             },
         ) from exc
+
+
+def verify_manual_import_record_source_provenance(
+    *,
+    source_content: bytes,
+    plan_content: bytes,
+    plan_artifact_digest: str,
+    source_artifact_role: str,
+    record: ManualImportRecordDocument,
+) -> None:
+    if record.plan_artifact_digest != plan_artifact_digest:
+        raise ValueError("manual import record plan artifact digest differs from its exact binding")
+    source_digest = f"sha256:{hashlib.sha256(source_content).hexdigest()}"
+    plan = decode_canonical_manual_import_plan(
+        plan_content,
+        expected_artifact_digest=plan_artifact_digest,
+        expected_plan_digest=record.plan_digest,
+        expected_source_digest=source_digest,
+    )
+    if plan.source_size_bytes != len(source_content):
+        raise ValueError("manual import plan source size differs from the exact source bytes")
+
+    rebuilt_plan = build_manual_import_plan(
+        source_content,
+        format=plan.format,
+        mode=plan.mode,
+        max_file_bytes=max(1, len(source_content)),
+    )
+    if (
+        rebuilt_plan != plan
+        or canonical_manual_import_plan_json(rebuilt_plan).encode("utf-8") != plan_content
+    ):
+        raise ValueError("manual import plan does not match parsing the exact source bytes")
+
+    rebuilt_record = materialize_manual_import_record(
+        plan_content,
+        source_artifact_role=source_artifact_role,
+        plan_record_position=record.plan_record_position,
+    )
+    if rebuilt_record != record:
+        raise ValueError("manual import record does not match its exact plan record")

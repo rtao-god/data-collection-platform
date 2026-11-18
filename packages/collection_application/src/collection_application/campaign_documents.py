@@ -14,10 +14,12 @@ from collection_application.ports import RawCampaignBundle
 from collection_contracts import (
     AttributesDocument,
     CampaignDocument,
+    CatalogCategoryMappingDocument,
     EntityKindsDocument,
     GeographyDocument,
     GeographyProvenanceDocument,
     NormalizationProfilesDocument,
+    QualityProfileDocument,
     SourceBindingsDocument,
     SourcePolicy,
     TaxonomyDocument,
@@ -29,7 +31,9 @@ ENTITY_KINDS_DOCUMENT = "entity_kinds.yaml"
 TAXONOMY_DOCUMENT = "taxonomy.yaml"
 ATTRIBUTES_DOCUMENT = "attributes.yaml"
 SOURCE_BINDINGS_DOCUMENT = "source_bindings.yaml"
+CATALOG_MAPPING_DOCUMENT = "catalog_mapping.yaml"
 NORMALIZATION_PROFILES_DOCUMENT = "normalization_profiles.yaml"
+QUALITY_PROFILE_DOCUMENT = "quality_profile.yaml"
 GEOGRAPHY_DOCUMENT = "geography.yaml"
 REQUIRED_DOCUMENTS = frozenset(
     {
@@ -38,6 +42,7 @@ REQUIRED_DOCUMENTS = frozenset(
         TAXONOMY_DOCUMENT,
         ATTRIBUTES_DOCUMENT,
         SOURCE_BINDINGS_DOCUMENT,
+        CATALOG_MAPPING_DOCUMENT,
     }
 )
 
@@ -49,8 +54,10 @@ class ParsedCampaignDocuments:
     taxonomy: TaxonomyDocument
     attributes: AttributesDocument
     source_bindings: SourceBindingsDocument
+    catalog_mapping: CatalogCategoryMappingDocument
     normalization_profiles: NormalizationProfilesDocument | None
     source_policies: dict[str, SourcePolicy]
+    quality_profile: QualityProfileDocument | None
     geography: GeographyDocument | None
     geography_artifacts: dict[str, object]
 
@@ -116,6 +123,12 @@ def parse_campaign_documents(
             SourceBindingsDocument,
             correlation_id,
         ),
+        catalog_mapping=_load_model(
+            bundle,
+            CATALOG_MAPPING_DOCUMENT,
+            CatalogCategoryMappingDocument,
+            correlation_id,
+        ),
         normalization_profiles=(
             _load_model(
                 bundle,
@@ -127,6 +140,16 @@ def parse_campaign_documents(
             else None
         ),
         source_policies=_load_source_policies(bundle, correlation_id),
+        quality_profile=(
+            _load_model(
+                bundle,
+                QUALITY_PROFILE_DOCUMENT,
+                QualityProfileDocument,
+                correlation_id,
+            )
+            if QUALITY_PROFILE_DOCUMENT in bundle.files
+            else None
+        ),
         geography=geography,
         geography_artifacts=geography_artifacts,
     )

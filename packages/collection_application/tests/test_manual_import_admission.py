@@ -169,6 +169,7 @@ def _row(name: str) -> dict[str, object]:
     return {
         "expected_entity_kind": "place",
         "display_name": name,
+        "category": "recording_studio",
         "website": "https://studio.example",
         "osm_id": None,
         "reference_urls": [],

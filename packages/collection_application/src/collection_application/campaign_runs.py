@@ -13,6 +13,7 @@ from collection_application.campaign_publication import (
     PublishCampaignSnapshot,
 )
 from collection_application.canonicalization import canonical_json_bytes, sha256_json
+from collection_application.compiled_campaign import CompiledCampaignBundle
 from collection_application.owned_artifacts import (
     OwnedArtifactPublisherService,
     PublishOwnedArtifact,
@@ -25,6 +26,22 @@ from collection_application.work_engine import (
     WorkUnitSpec,
 )
 from collection_contracts import SourceBinding, SourceBindingsDocument, SourcePolicy, owner_error
+from collection_contracts.osm_query_spec import (
+    OverpassQuerySpecDocument,
+    OverpassTagFilter,
+    canonical_query_spec_document,
+    partition_boundary,
+    query_spec_digest,
+)
+from collection_contracts.wikidata_entity_query_spec import (
+    WikidataClassificationSpec,
+    WikidataEntityQuerySpec,
+    canonical_wikidata_query_spec_document,
+    wikidata_query_spec_digest,
+)
+from collection_contracts.wikidata_entity_result import (
+    RESULT_CONTRACT as WIKIDATA_RESULT_CONTRACT,
+)
 from collection_domain import (
     CollectionRunState,
     RetryPolicy,
@@ -34,6 +51,11 @@ from collection_domain import (
     WorkStage,
 )
 
+_ACQUISITION_AUTHORIZED_STATUSES = frozenset({"approved", "reference_only", "research_only"})
+# Capabilities with a concrete initial-work owner in this service.
+_BOOTSTRAP_CAPABILITIES = frozenset(
+    {"manual_import", "openstreetmap_query", "wikidata_entity_query"}
+)
 _RUN_NAMESPACE = UUID("51f52f00-9c4c-5c37-b1f8-e76df6291910")
 _ARTIFACT_NAMESPACE = UUID("bf82877b-4113-5fe6-b1c8-923a7d995c8e")
 
@@ -159,6 +181,29 @@ class CampaignRunService:
                         now_utc,
                     )
                 )
+            elif binding.capability == "openstreetmap_query":
+                initial_work.extend(
+                    self._osm_discovery_work(
+                        command,
+                        binding,
+                        policy,
+                        policy_digest,
+                        compiled,
+                        stage_by_name[WorkStage.DISCOVERY].stage_run_id,
+                        now_utc,
+                    )
+                )
+            elif binding.capability == "wikidata_entity_query":
+                initial_work.extend(
+                    self._wikidata_discovery_work(
+                        command,
+                        binding,
+                        policy,
+                        policy_digest,
+                        stage_by_name[WorkStage.DISCOVERY].stage_run_id,
+                        now_utc,
+                    )
+                )
             elif binding.capability != "http_fetch" or binding.key not in routed_http_bindings:
                 raise owner_error(
                     error_type="collection/source-bootstrap-unsupported",
@@ -188,6 +233,281 @@ class CampaignRunService:
             initial_work=tuple(initial_work),
         )
         return self._store.create(plan)
+
+    def _osm_discovery_work(
+        self,
+        command: CreateCampaignRun,
+        binding: SourceBinding,
+        policy: SourcePolicy,
+        policy_digest: str,
+        compiled: CompiledCampaignBundle,
+        stage_run_id: UUID,
+        now_utc: datetime,
+    ) -> tuple[WorkUnitSpec, ...]:
+        """Bootstrap one deterministic OSM query spec per boundary partition."""
+        if binding.capability != "openstreetmap_query" or policy.access.kind != "network":
+            raise ValueError("OSM binding does not satisfy its owner contracts")
+        if binding.osm_query is None:
+            raise owner_error(
+                error_type="collection/osm-query-spec-missing",
+                owner="CampaignRun",
+                code="OSM_QUERY_SPEC_MISSING",
+                message="The OSM source binding declares no Overpass query.",
+                context={
+                    "campaignKey": command.campaign_key,
+                    "sourceBinding": binding.key,
+                },
+                required_action="Declare osm_query in the source binding.",
+                correlation_id=command.correlation_id,
+            )
+        geography = compiled.documents.geography
+        if geography is None:
+            raise owner_error(
+                error_type="collection/osm-geography-missing",
+                owner="CampaignRun",
+                code="OSM_GEOGRAPHY_MISSING",
+                message="OSM discovery requires the verified campaign boundary.",
+                context={
+                    "campaignKey": command.campaign_key,
+                    "sourceBinding": binding.key,
+                },
+                required_action="Declare geography with a verified boundary artifact.",
+                correlation_id=command.correlation_id,
+            )
+        boundary = compiled.documents.geography_artifacts.get(geography.boundary_artifact_path)
+        try:
+            partitions = partition_boundary(boundary)
+        except (TypeError, ValueError) as exc:
+            raise owner_error(
+                error_type="collection/osm-boundary-unrepresentable",
+                owner="CampaignRun",
+                code="OSM_BOUNDARY_UNREPRESENTABLE",
+                message="The verified boundary cannot be expressed as Overpass polygons.",
+                context={
+                    "campaignKey": command.campaign_key,
+                    "sourceBinding": binding.key,
+                    "boundaryPath": geography.boundary_artifact_path,
+                    "cause": str(exc),
+                },
+                required_action=(
+                    "Publish a boundary whose rings are Overpass-representable, or "
+                    "partition it explicitly in the campaign."
+                ),
+                correlation_id=command.correlation_id,
+            ) from exc
+        work: list[WorkUnitSpec] = []
+        for index, partition in enumerate(partitions):
+            try:
+                spec = OverpassQuerySpecDocument(
+                    element_types=tuple(sorted(binding.osm_query.element_types)),
+                    tag_filters=tuple(
+                        OverpassTagFilter(key=item.key, values=tuple(sorted(item.values)))
+                        for item in sorted(
+                            binding.osm_query.tag_filters, key=lambda entry: entry.key
+                        )
+                    ),
+                    polygon=partition.ring,
+                    timeout_seconds=binding.osm_query.timeout_seconds,
+                    maximum_elements=binding.osm_query.maximum_elements,
+                )
+            except ValueError as exc:
+                raise owner_error(
+                    error_type="collection/osm-query-spec-invalid",
+                    owner="CampaignRun",
+                    code="OSM_QUERY_SPEC_INVALID",
+                    message="The declared Overpass query violates the connector contract.",
+                    context={
+                        "campaignKey": command.campaign_key,
+                        "sourceBinding": binding.key,
+                        "partitionIndex": index,
+                        "cause": str(exc),
+                    },
+                    required_action="Correct osm_query in the source binding.",
+                    correlation_id=command.correlation_id,
+                ) from exc
+            content = canonical_query_spec_document(spec)
+            operation_id = uuid5(
+                _ARTIFACT_NAMESPACE,
+                f"{command.run_id}:{binding.key}:osm-query-spec:{index}",
+            )
+            artifact_id = uuid5(_ARTIFACT_NAMESPACE, f"artifact:{operation_id}")
+            published = self._artifact_publisher.publish(
+                PublishOwnedArtifact(
+                    artifact_id=artifact_id,
+                    operation_id=operation_id,
+                    producer_identity="campaign-run",
+                    artifact_kind=ArtifactKind.RAW_ARTIFACT,
+                    content=content,
+                    content_type="application/json",
+                    source_policy_digest=policy_digest,
+                    correlation_id=command.correlation_id,
+                )
+            )
+            identity = {
+                "contract": "osm-discovery-work-identity@2",
+                "runId": str(command.run_id),
+                "bindingKey": binding.key,
+                "sourcePolicyDigest": policy_digest,
+                "querySpecDigest": query_spec_digest(spec),
+                "boundaryDigest": geography.boundary_digest,
+                "partitionIndex": index,
+                "partitionCount": len(partitions),
+                "partitionCoversExactly": partition.covers_exactly,
+                "excludedHoleCount": len(partition.excluded_holes),
+                "extractionProfile": binding.extraction_profile,
+            }
+            semantic_bytes = canonical_json_bytes(identity)
+            semantic_key = f"sha256:{sha256(semantic_bytes).hexdigest()}"
+            work.append(
+                WorkUnitSpec(
+                    work_id=uuid5(_RUN_NAMESPACE, f"{command.run_id}:{semantic_key}"),
+                    run_id=command.run_id,
+                    stage_run_id=stage_run_id,
+                    stage=WorkStage.DISCOVERY,
+                    capability=WorkCapability.OSM_QUERY,
+                    source_key=binding.source_key,
+                    source_binding_key=binding.key,
+                    semantic_key=semantic_key,
+                    input_digest=semantic_key,
+                    expected_output_contract="osm-overpass-result@1",
+                    priority=index,
+                    retry_policy=RetryPolicy(
+                        max_attempts=policy.retry_budget + 1,
+                        initial_delay_seconds=30,
+                        multiplier=2,
+                        max_delay_seconds=900,
+                    ),
+                    available_at_utc=now_utc,
+                    correlation_id=command.correlation_id,
+                    input_artifacts=(
+                        WorkInputArtifact(
+                            artifact_id=published.artifact_id,
+                            role="overpass_query_spec",
+                        ),
+                    ),
+                )
+            )
+        return tuple(work)
+
+    def _wikidata_discovery_work(
+        self,
+        command: CreateCampaignRun,
+        binding: SourceBinding,
+        policy: SourcePolicy,
+        policy_digest: str,
+        stage_run_id: UUID,
+        now_utc: datetime,
+    ) -> tuple[WorkUnitSpec, ...]:
+        """Bootstrap one deterministic bounded entity read for the declared set.
+
+        The declared set is the operator's reviewed list, so one run reads exactly those
+        entities once. A replayed run publishes the same specification bytes and
+        therefore the same work identity.
+        """
+
+        if binding.capability != "wikidata_entity_query" or policy.access.kind != "network":
+            raise ValueError("wikidata binding does not satisfy its owner contracts")
+        if binding.wikidata_query is None:
+            raise owner_error(
+                error_type="collection/wikidata-query-spec-missing",
+                owner="CampaignRun",
+                code="WIKIDATA_QUERY_SPEC_MISSING",
+                message="The Wikidata source binding declares no entity query.",
+                context={
+                    "campaignKey": command.campaign_key,
+                    "sourceBinding": binding.key,
+                },
+                required_action="Declare wikidata_query in the source binding.",
+                correlation_id=command.correlation_id,
+            )
+        try:
+            declaration = binding.wikidata_classification
+            if declaration is None:
+                raise ValueError("the Wikidata binding declares no classification map")
+            spec = WikidataEntityQuerySpec(
+                run_id=command.run_id,
+                binding_key=binding.key,
+                entity_ids=tuple(sorted(binding.wikidata_query.entity_ids)),
+                label_languages=binding.wikidata_query.label_languages,
+                classification=WikidataClassificationSpec(
+                    studio_class_id=declaration.studio_class_id,
+                    campaign_category=declaration.campaign_category,
+                    compatible_class_ids=tuple(sorted(declaration.compatible_class_ids)),
+                ),
+                source_policy_digest=policy_digest,
+            )
+        except ValueError as exc:
+            raise owner_error(
+                error_type="collection/wikidata-query-spec-invalid",
+                owner="CampaignRun",
+                code="WIKIDATA_QUERY_SPEC_INVALID",
+                message="The declared Wikidata query violates its bounded contract.",
+                context={
+                    "campaignKey": command.campaign_key,
+                    "sourceBinding": binding.key,
+                    "cause": str(exc),
+                },
+                required_action="Correct wikidata_query in the source binding.",
+                correlation_id=command.correlation_id,
+            ) from exc
+        content = canonical_wikidata_query_spec_document(spec)
+        operation_id = uuid5(
+            _ARTIFACT_NAMESPACE,
+            f"{command.run_id}:{binding.key}:wikidata-entity-query-spec",
+        )
+        artifact_id = uuid5(_ARTIFACT_NAMESPACE, f"artifact:{operation_id}")
+        published = self._artifact_publisher.publish(
+            PublishOwnedArtifact(
+                artifact_id=artifact_id,
+                operation_id=operation_id,
+                producer_identity="campaign-run",
+                artifact_kind=ArtifactKind.RAW_ARTIFACT,
+                content=content,
+                content_type="application/json",
+                source_policy_digest=policy_digest,
+                correlation_id=command.correlation_id,
+            )
+        )
+        identity = {
+            "contract": "wikidata-discovery-work-identity@1",
+            "runId": str(command.run_id),
+            "bindingKey": binding.key,
+            "sourcePolicyDigest": policy_digest,
+            "querySpecDigest": wikidata_query_spec_digest(spec),
+            "entityCount": len(spec.entity_ids),
+            "extractionProfile": binding.extraction_profile,
+        }
+        semantic_bytes = canonical_json_bytes(identity)
+        semantic_key = f"sha256:{sha256(semantic_bytes).hexdigest()}"
+        return (
+            WorkUnitSpec(
+                work_id=uuid5(_RUN_NAMESPACE, f"{command.run_id}:{semantic_key}"),
+                run_id=command.run_id,
+                stage_run_id=stage_run_id,
+                stage=WorkStage.DISCOVERY,
+                capability=WorkCapability.WIKIDATA_ENTITY_QUERY,
+                source_key=binding.source_key,
+                source_binding_key=binding.key,
+                semantic_key=semantic_key,
+                input_digest=semantic_key,
+                expected_output_contract=WIKIDATA_RESULT_CONTRACT,
+                priority=0,
+                retry_policy=RetryPolicy(
+                    max_attempts=policy.retry_budget + 1,
+                    initial_delay_seconds=30,
+                    multiplier=2,
+                    max_delay_seconds=900,
+                ),
+                available_at_utc=now_utc,
+                correlation_id=command.correlation_id,
+                input_artifacts=(
+                    WorkInputArtifact(
+                        artifact_id=published.artifact_id,
+                        role="wikidata_entity_query_spec",
+                    ),
+                ),
+            ),
+        )
 
     def _manual_import_work(
         self,
@@ -286,7 +606,7 @@ def _routed_http_bindings(
             binding
             for binding in source_bindings.items
             if binding.key in enabled
-            and binding.capability != "manual_import"
+            and binding.capability not in _BOOTSTRAP_CAPABILITIES
             and binding.key not in routed_http
         ),
         None,
@@ -316,7 +636,9 @@ def _source_spec(
     policy_digest: str,
     correlation_id: str,
 ) -> SourceCapacitySpec:
-    if policy.legal_status not in {"approved", "reference_only"}:
+    # Acquisition authority only. Redistribution is gated separately at export, so a
+    # research_only policy is collectable while remaining non-redistributable.
+    if policy.legal_status not in _ACQUISITION_AUTHORIZED_STATUSES:
         state = SourceOperationalState.SUSPENDED
     else:
         state = SourceOperationalState.ACTIVE

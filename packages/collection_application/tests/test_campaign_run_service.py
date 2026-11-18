@@ -68,8 +68,8 @@ def test_ready_manual_campaign_builds_one_atomic_bootstrap_plan(tmp_path: Path) 
     campaign_yaml += "readiness:\n  state: ready\n"
     (campaign / "campaign.yaml").write_text(campaign_yaml, encoding="utf-8")
     (campaign / "discovery/manual_seeds.csv").write_text(
-        "expected_entity_kind,display_name,website,osm_id,reference_urls,note,provenance\n"
-        "place,Example Studio,https://example.invalid,,,,operator\n",
+        "expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,provenance\n"
+        "place,Example Studio,recording_studio,https://example.invalid,,,,operator\n",
         encoding="utf-8",
     )
 
@@ -89,9 +89,24 @@ def test_ready_manual_campaign_builds_one_atomic_bootstrap_plan(tmp_path: Path) 
 
     assert result.run_id == run_id
     assert len(store.plan.stages) == 8
-    assert len(store.plan.sources) == 1
-    assert len(store.plan.initial_work) == 1
-    work = store.plan.initial_work[0]
+    # Both enabled bindings bootstrap their own independent work. The manual binding
+    # yields exactly one unit; the OSM binding yields one query spec per boundary
+    # partition, so the total is entailed rather than a fixed number.
+    assert len(store.plan.sources) == 2
+    osm_units = tuple(
+        item for item in store.plan.initial_work if item.source_binding_key == "osm_overpass_berlin"
+    )
+    manual_units = tuple(
+        item for item in store.plan.initial_work if item.source_binding_key == "manual_seed_import"
+    )
+    assert len(manual_units) == 1
+    assert len(osm_units) >= 1
+    assert len(store.plan.initial_work) == len(manual_units) + len(osm_units)
+    assert all(item.expected_output_contract == "osm-overpass-result@1" for item in osm_units)
+    assert all(item.capability.value == "osm_query" for item in osm_units)
+    work = next(
+        item for item in store.plan.initial_work if item.capability.value == "manual_import"
+    )
     assert work.expected_output_contract == "manual-import-plan@1"
     assert work.source_binding_key == "manual_seed_import"
     assert work.input_artifacts[0].role == "manual_source:csv:atomic"
@@ -111,14 +126,14 @@ def test_ready_routed_website_campaign_creates_capacity_without_http_work(tmp_pa
     campaign_yaml = campaign_yaml.replace(
         "berlin_recording_services", "ready_routed_campaign"
     ).replace(
-        "enabled_source_bindings:\n- manual_seed_import",
+        "enabled_source_bindings:\n- manual_seed_import\n- osm_overpass_berlin",
         "enabled_source_bindings:\n- manual_seed_import\n- official_website",
     )
     campaign_yaml = campaign_yaml.split("readiness:", 1)[0] + "readiness:\n  state: ready\n"
     (campaign / "campaign.yaml").write_text(campaign_yaml, encoding="utf-8")
     (campaign / "discovery/manual_seeds.csv").write_text(
-        "expected_entity_kind,display_name,website,osm_id,reference_urls,note,provenance\n"
-        "place,Example Studio,https://example.invalid,,,,operator\n",
+        "expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,provenance\n"
+        "place,Example Studio,recording_studio,https://example.invalid,,,,operator\n",
         encoding="utf-8",
     )
     (campaign / "source_bindings.yaml").write_text(
@@ -234,6 +249,6 @@ approver: test-reviewer
     )
     assert website_capacity.max_active_requests == 2
     assert website_capacity.minimum_interval_milliseconds == 1000
+    # This campaign enables manual seeds and a routed website binding only.
     assert len(store.plan.initial_work) == 1
     assert store.plan.initial_work[0].capability.value == "manual_import"
-    assert all(item.capability.value != "http_fetch" for item in store.plan.initial_work)

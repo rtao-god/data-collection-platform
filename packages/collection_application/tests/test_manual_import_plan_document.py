@@ -6,14 +6,22 @@ from uuid import UUID
 
 import pytest
 
+from collection_application.canonicalization import sha256_json
 from collection_application.manual_import_plan_document import (
     ManualImportPlanDocumentError,
     decode_manual_import_plan,
+    verify_manual_import_record_source_provenance,
 )
-from collection_contracts import ManualImportFormat, ManualImportMode
+from collection_contracts import (
+    ManualImportFormat,
+    ManualImportMode,
+    ManualImportPlan,
+)
 from manual_import_core import (
     build_manual_import_plan,
     canonical_manual_import_plan_json,
+    manual_import_record_digest,
+    materialize_manual_import_record,
 )
 
 _PLAN_ARTIFACT_ID = UUID("00000000-0000-0000-0000-000000000301")
@@ -123,12 +131,137 @@ def test_invalid_digest_identity_is_typed_contract_failure() -> None:
     }
 
 
-def _plan():
-    source = json.dumps(
+def test_record_provenance_reparses_exact_source_and_accepts_exact_plan() -> None:
+    source_content = _source_bytes()
+    plan = build_manual_import_plan(
+        source_content,
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+    plan_content = canonical_manual_import_plan_json(plan).encode("utf-8")
+    record = materialize_manual_import_record(
+        plan_content,
+        source_artifact_role="manual_import_source:json:atomic",
+        plan_record_position=0,
+    )
+
+    verify_manual_import_record_source_provenance(
+        source_content=source_content,
+        plan_content=plan_content,
+        plan_artifact_digest=_digest(plan_content),
+        source_artifact_role="manual_import_source:json:atomic",
+        record=record,
+    )
+
+
+def test_record_provenance_rejects_substituted_source_record_and_plan() -> None:
+    source_content = _source_bytes("Studio A")
+    substituted_plan = build_manual_import_plan(
+        _source_bytes("Studio B"),
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+    plan_content = canonical_manual_import_plan_json(substituted_plan).encode("utf-8")
+    substituted_record = materialize_manual_import_record(
+        plan_content,
+        source_artifact_role="manual_import_source:json:atomic",
+        plan_record_position=0,
+    )
+
+    with pytest.raises(ValueError):
+        verify_manual_import_record_source_provenance(
+            source_content=source_content,
+            plan_content=plan_content,
+            plan_artifact_digest=_digest(plan_content),
+            source_artifact_role="manual_import_source:json:atomic",
+            record=substituted_record,
+        )
+
+
+def test_record_provenance_rejects_coherent_substitution_with_exact_source_digest() -> None:
+    source_content = _source_bytes("Studio A")
+    exact_plan = build_manual_import_plan(
+        source_content,
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+    substituted_plan = build_manual_import_plan(
+        _source_bytes("Studio B"),
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+    substituted_source_record = substituted_plan.records[0]
+    coherent_record_digest = manual_import_record_digest(
+        exact_plan.source_digest,
+        substituted_source_record.locator,
+        substituted_source_record.record,
+    )
+    substituted_source_record = substituted_source_record.model_copy(
+        update={"record_digest": coherent_record_digest}
+    )
+    substituted_payload = substituted_plan.model_dump(mode="json", by_alias=True)
+    substituted_payload["sourceDigest"] = exact_plan.source_digest
+    substituted_payload["records"] = [
+        substituted_source_record.model_dump(mode="json", by_alias=True)
+    ]
+    substituted_payload.pop("planDigest")
+    substituted_plan = ManualImportPlan.model_validate(
+        {
+            **substituted_payload,
+            "planDigest": sha256_json(substituted_payload),
+        }
+    )
+    plan_content = canonical_manual_import_plan_json(substituted_plan).encode("utf-8")
+    substituted_record = materialize_manual_import_record(
+        plan_content,
+        source_artifact_role="manual_import_source:json:atomic",
+        plan_record_position=0,
+    )
+
+    with pytest.raises(ValueError, match="does not match parsing the exact source bytes"):
+        verify_manual_import_record_source_provenance(
+            source_content=source_content,
+            plan_content=plan_content,
+            plan_artifact_digest=_digest(plan_content),
+            source_artifact_role="manual_import_source:json:atomic",
+            record=substituted_record,
+        )
+
+
+def test_record_provenance_rejects_record_substituted_under_exact_plan() -> None:
+    source_content = _source_bytes()
+    plan = build_manual_import_plan(
+        source_content,
+        format=ManualImportFormat.JSON,
+        mode=ManualImportMode.ATOMIC,
+    )
+    plan_content = canonical_manual_import_plan_json(plan).encode("utf-8")
+    record = materialize_manual_import_record(
+        plan_content,
+        source_artifact_role="manual_import_source:json:atomic",
+        plan_record_position=0,
+    )
+    substituted_record = record.model_copy(
+        update={"record": record.record.model_copy(update={"display_name": "Substituted"})}
+    )
+
+    with pytest.raises(ValueError):
+        verify_manual_import_record_source_provenance(
+            source_content=source_content,
+            plan_content=plan_content,
+            plan_artifact_digest=_digest(plan_content),
+            source_artifact_role="manual_import_source:json:atomic",
+            record=substituted_record,
+        )
+
+
+def _source_bytes(display_name: str = "Studio A") -> bytes:
+    return json.dumps(
         [
             {
                 "expected_entity_kind": "place",
-                "display_name": "Studio A",
+                "display_name": display_name,
+                "category": "recording_studio",
                 "website": "https://studio.example",
                 "osm_id": None,
                 "reference_urls": [],
@@ -139,8 +272,11 @@ def _plan():
         separators=(",", ":"),
         sort_keys=True,
     ).encode("utf-8")
+
+
+def _plan():
     return build_manual_import_plan(
-        source,
+        _source_bytes(),
         format=ManualImportFormat.JSON,
         mode=ManualImportMode.ATOMIC,
     )

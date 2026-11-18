@@ -10,6 +10,7 @@ from collection_contracts import ManualImportDisposition, OwnerContextError
 _VALID_JSON_RECORD = {
     "expected_entity_kind": "place",
     "display_name": "Example Studio",
+    "category": "recording_studio",
     "website": "https://example.test",
     "osm_id": None,
     "reference_urls": ["https://example.test/contact"],
@@ -103,9 +104,9 @@ def test_duplicate_json_key_maps_to_existing_owner_error_contract() -> None:
 def test_csv_reports_all_invalid_rows_in_one_error_ledger() -> None:
     raw = b"\n".join(
         (
-            b"expected_entity_kind,display_name,website,osm_id,reference_urls,note,provenance",
-            b"place,,https://example.test,,,,",
-            b"provider,Valid Provider,not-a-url,,,,operator fixture",
+            b"expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,provenance",
+            b"place,,recording_studio,https://example.test,,,,",
+            b"provider,Valid Provider,recording_studio,not-a-url,,,,operator fixture",
         )
     )
 

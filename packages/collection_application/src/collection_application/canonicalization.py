@@ -7,9 +7,11 @@ from collections.abc import Mapping
 from collection_application.campaign_documents import (
     ATTRIBUTES_DOCUMENT,
     CAMPAIGN_DOCUMENT,
+    CATALOG_MAPPING_DOCUMENT,
     ENTITY_KINDS_DOCUMENT,
     GEOGRAPHY_DOCUMENT,
     NORMALIZATION_PROFILES_DOCUMENT,
+    QUALITY_PROFILE_DOCUMENT,
     SOURCE_BINDINGS_DOCUMENT,
     TAXONOMY_DOCUMENT,
     ParsedCampaignDocuments,
@@ -27,11 +29,14 @@ def canonical_documents(
         TAXONOMY_DOCUMENT: documents.taxonomy.model_dump(mode="json"),
         ATTRIBUTES_DOCUMENT: documents.attributes.model_dump(mode="json"),
         SOURCE_BINDINGS_DOCUMENT: documents.source_bindings.model_dump(mode="json"),
+        CATALOG_MAPPING_DOCUMENT: documents.catalog_mapping.model_dump(mode="json"),
     }
     if documents.normalization_profiles is not None:
         result[NORMALIZATION_PROFILES_DOCUMENT] = documents.normalization_profiles.model_dump(
             mode="json"
         )
+    if documents.quality_profile is not None:
+        result[QUALITY_PROFILE_DOCUMENT] = documents.quality_profile.model_dump(mode="json")
     if documents.geography is not None:
         result[GEOGRAPHY_DOCUMENT] = documents.geography.model_dump(mode="json")
         result.update(documents.geography_artifacts)
