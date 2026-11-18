@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import threading
 from dataclasses import dataclass
+from hashlib import sha256
 from time import sleep
 
 from entity_resolution_core import ResolutionError
@@ -55,18 +56,21 @@ class ResolutionWorker:
             batch = decode_resolution_batch(content)
             snapshot = build_resolution_snapshot(batch)
             payload = canonical_resolution_snapshot_json(snapshot).encode("utf-8")
+            # The succeeded output digest covers the published bytes, exactly as every other
+            # stage's output does; the sealed snapshot digest stays inside the artifact.
+            output_digest = f"sha256:{sha256(payload).hexdigest()}"
             completion_lease = heartbeat.stop()
             self._gateway.publish_and_complete(
                 completion_lease,
                 content=payload,
                 content_type=_OUTPUT_CONTENT_TYPE,
                 output_role=_OUTPUT_ROLE,
-                output_digest=snapshot.snapshot_digest,
+                output_digest=output_digest,
             )
             return ResolutionRunResult(
                 acquired=True,
                 work_id=str(completion_lease.work_id),
-                output_digest=snapshot.snapshot_digest,
+                output_digest=output_digest,
             )
         except Exception as exc:
             failure_lease = heartbeat.stop(raise_failure=False)

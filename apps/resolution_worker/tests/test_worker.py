@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from pathlib import Path
 from uuid import UUID
 
@@ -116,7 +117,9 @@ def test_worker_publishes_exact_golden_snapshot() -> None:
     assert content == _GOLDEN_SNAPSHOT
     assert content_type == "application/vnd.collection.entity-resolution-snapshot+json"
     assert role == "resolution_snapshot"
-    assert digest == expected.snapshot_digest == result.output_digest
+    assert digest == result.output_digest
+    assert digest == f"sha256:{sha256(_GOLDEN_SNAPSHOT).hexdigest()}"
+    assert expected.snapshot_digest != digest
 
 
 def test_resolution_lease_rejects_source_permit() -> None:
