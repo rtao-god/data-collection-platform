@@ -13,5 +13,103 @@ items:
       state: not_applicable
     schedule_enabled: false
     extraction_profile: manual-seed-v1
+  - key: osm_overpass_berlin
+    source_key: openstreetmap
+    connector_key: osm_overpass
+    source_policy_key: osm_berlin_studios_policy
+    capability: openstreetmap_query
+    seed_provider:
+      kind: not_applicable
+    crawl_budget:
+      state: defined
+      max_work_units: 2000
+      max_total_bytes: 134217728
+    schedule_enabled: false
+    extraction_profile: osm-berlin-studios-v1
+    source_entity_kind: place
+    source_field_projection:
+      - source_field: display_name
+        candidate_field: names
+      # OSM publishes contact details under both the plain and the `contact:` namespaced
+      # key. Both are the same meaning, so they are aliases of one candidate field.
+      - source_field: website
+        candidate_field: website_urls
+        source_aliases:
+          - contact:website
+      - source_field: phone
+        candidate_field: phones
+        source_aliases:
+          - contact:phone
+      - source_field: email
+        candidate_field: emails
+        source_aliases:
+          - contact:email
+      # The element's own coordinates, kept as source geometry. A way or relation centre
+      # is not substituted, so an element without a published point stays unlocated.
+      - source_field: coordinates
+        candidate_field: coordinates
+    osm_query:
+      element_types:
+        - node
+        - relation
+        - way
+      tag_filters:
+        - key: amenity
+          values:
+            - recording_studio
+            - studio
+        - key: craft
+          values:
+            - recording_studio
+      timeout_seconds: 180
+      maximum_elements: 25000
+  # Declared but deliberately not enabled: the Wikidata source policy is recorded as
+  # research_only, which authorizes nothing for redistribution. Enabling this binding is
+  # a separate owner decision (see the source policy and the acceptance runbook), so no
+  # run can bootstrap a Wikidata acquisition today.
+  - key: wikidata_studios_berlin
+    source_key: wikidata
+    connector_key: wikidata_studios
+    source_policy_key: wikidata_berlin_studios_policy
+    capability: wikidata_entity_query
+    seed_provider:
+      kind: not_applicable
+    crawl_budget:
+      state: defined
+      max_work_units: 50
+      max_total_bytes: 8388608
+    schedule_enabled: false
+    extraction_profile: wikidata-berlin-studios-v1
+    source_entity_kind: place
+    # The exact source fields the adapter publishes, each with one declared candidate
+    # target. A field the entity does not publish stays NOT_OBSERVED; the geometry target
+    # is the candidate's geography decision, not a candidate attribute.
+    source_field_projection:
+      - source_field: display_name
+        candidate_field: names
+      - source_field: website
+        candidate_field: website_urls
+      - source_field: address
+        candidate_field: addresses
+      - source_field: coordinates
+        candidate_field: coordinates
+    # The operator-reviewed entity set, bounded by contract to 50 items. It is declared
+    # here rather than discovered, so one run reads exactly these documents.
+    wikidata_query:
+      entity_ids:
+        - Q105762301
+        - Q1372342
+        - Q56298345
+        - Q667023
+        - Q7695694
+      label_languages:
+        - de
+        - en
+    # `instance of recording studio (Q746369)` is the only class accepted next to
+    # nothing. An item carrying any other class stays ambiguous and is not adapted.
+    wikidata_classification:
+      studio_class_id: Q746369
+      campaign_category: recording_studio
+      compatible_class_ids: []
 seed_routing:
   state: not_configured

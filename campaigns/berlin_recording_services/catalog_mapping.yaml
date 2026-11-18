@@ -1,0 +1,53 @@
+# Classification of this campaign's own categories into the Catalog owner's taxonomy.
+#
+# The two vocabularies are authored by different owners and are not derived from one
+# another: `voice_over_adr` is not `voice-over-adr-studio` by punctuation, and `producer`
+# is `music-producer` only because that is the target category's actual meaning. Every
+# correspondence below is therefore stated explicitly and pinned to the exact Catalog
+# configuration revision it was authored against; the export carries these targets so a
+# consumer never resolves a category against a different catalog revision.
+#
+# `unmapped` exists for categories this campaign defines but cannot classify against the
+# pinned revision. A category named there stays blocked at export instead of being
+# dropped or guessed.
+#
+# `coordinate_precision_meters` is this campaign's declared accuracy claim for a
+# source-observed point mapped into this Catalog. The Catalog contract requires an
+# accuracy claim for every observed point and the source geometry carries none, so the
+# claim belongs to the mapping the campaign owner authors here rather than to a
+# per-item value an adapter would have to invent.
+schema_revision: catalog-category-mapping-v1
+site_key: berlin-recording
+catalog_key: berlin-recording-services
+configuration_revision_id: 019fdeab-5c00-7000-8000-000000000002
+coordinate_precision_meters: 25
+# The Catalog publishes names under display locales only, so a language must be established
+# before a name reaches it: by the source that published it, or by the operator who entered
+# it. `de` is the language this campaign's sources publish Berlin studio names in; a name
+# whose language nothing established stays `und` and stays blocked at export rather than
+# being displayed under a guessed locale.
+name_locales:
+  - campaign_locale: de
+    catalog_locale: de-DE
+categories:
+  - campaign_category: recording_studio
+    catalog_category: recording-studio
+  - campaign_category: vocal_recording
+    catalog_category: vocal-recording-studio
+  - campaign_category: band_recording
+    catalog_category: band-recording-studio
+  - campaign_category: drum_recording
+    catalog_category: drum-recording-studio
+  - campaign_category: podcast_studio
+    catalog_category: podcast-studio
+  - campaign_category: voice_over_adr
+    catalog_category: voice-over-adr-studio
+  - campaign_category: producer
+    catalog_category: music-producer
+  - campaign_category: mixing_engineer
+    catalog_category: mixing-engineer
+  - campaign_category: mastering_service
+    catalog_category: mastering-studio
+  - campaign_category: rehearsal_recording_space
+    catalog_category: rehearsal-recording-space
+unmapped: []

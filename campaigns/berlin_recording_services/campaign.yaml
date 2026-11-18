@@ -20,9 +20,14 @@ target_categories:
 - mixing_engineer
 - mastering_service
 - rehearsal_recording_space
-geography_revision: berlin-official-boundary-v1
+geography_revision: berlin_official_boundary_v1
+# osm_overpass_berlin is enabled for internal acquisition only: its policy is
+# legal_status research_only, which authorizes collection but never redistribution.
+# Exporting OSM-influenced output stays blocked until an approved redistribution
+# decision is recorded externally.
 enabled_source_bindings:
 - manual_seed_import
+- osm_overpass_berlin
 quality_profile: berlin-recording-quality-v1
 export_profile: collector-candidate-export-v1
 readiness:

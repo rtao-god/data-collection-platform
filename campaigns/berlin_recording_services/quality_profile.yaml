@@ -1,0 +1,37 @@
+schema_revision: quality-profile-v1
+profile_key: berlin-recording-quality-v1
+# Resolution and quality thresholds are operator-authored campaign data: entity resolution
+# and export eligibility consume them verbatim, so changing them changes every verdict.
+thresholds:
+  candidate_limit: 200
+  pair_limit: 20000
+  name_review_minimum_bps: 8500
+  address_review_minimum_bps: 9000
+  website_auto_match_minimum_strong_features: 2
+  address_auto_match_minimum_strong_features: 2
+  fuzzy_primary_area_review_reason_code: FUZZY_PRIMARY_AREA_MATCH_REQUIRES_REVIEW
+# A published studio record must name the studio and be located inside the exact Berlin
+# boundary. An unclassified or outside location stays blocked: the catalog never publishes a
+# record whose geography is unknown.
+quality_rules:
+  - entity_kind: organization
+    required_fields: [names]
+    single_value_fields: [emails, phones, website_urls]
+    minimum_distinct_source_count: 1
+    allowed_geography: [inside, boundary]
+    boundary_requires_review: true
+    pending_review_blocks_export: true
+  - entity_kind: place
+    required_fields: [names]
+    single_value_fields: [emails, phones, website_urls]
+    minimum_distinct_source_count: 1
+    allowed_geography: [inside, boundary]
+    boundary_requires_review: true
+    pending_review_blocks_export: true
+  - entity_kind: provider
+    required_fields: [names]
+    single_value_fields: [emails, phones, website_urls]
+    minimum_distinct_source_count: 1
+    allowed_geography: [inside, boundary]
+    boundary_requires_review: true
+    pending_review_blocks_export: true

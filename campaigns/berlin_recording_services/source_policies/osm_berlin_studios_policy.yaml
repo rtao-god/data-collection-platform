@@ -1,0 +1,51 @@
+schema_revision: source-policy-v1
+policy_key: osm_berlin_studios_policy
+policy_revision: osm-berlin-studios-policy-v1
+source_key: openstreetmap
+source_type: openstreetmap
+legal_status: research_only
+# ODbL redistribution of OSM-derived database output requires an external legal
+# decision. Internal collection and physical segregation are permitted; publication
+# or collector export of OSM-influenced output stays blocked until that decision is
+# recorded. research_only does not authorize redistribution on its own.
+terms_review:
+  state: not_applicable
+  reason: >-
+    Upstream terms are recorded by legal_status research_only; this field is reserved
+    for operator-reviewed redistribution terms and is intentionally not claimed.
+access:
+  kind: network
+  allowed_methods:
+    - GET
+    - POST
+  allowed_host_patterns:
+    - overpass-api.de
+  max_requests_per_second: 0.5
+  max_concurrency: 1
+  connect_timeout_seconds: 10.0
+  read_timeout_seconds: 180.0
+  max_encoded_bytes: 4194304
+  max_decoded_bytes: 134217728
+  content_type_allowlist:
+    - application/json
+  redirect_limit: 0
+storage_class: collector-structured-evidence-v1
+retention_days: 730
+allowed_fields:
+  - district
+  - website
+  - email
+  - phone
+prohibited_fields:
+  - review_text
+  - review_author
+  - source_photo
+attribution_required: true
+browser: forbidden
+screenshots: forbidden
+retry_budget: 3
+stop_on_status_codes:
+  - 429
+  - 504
+reviewer: rtao-god
+approver: rtao-god

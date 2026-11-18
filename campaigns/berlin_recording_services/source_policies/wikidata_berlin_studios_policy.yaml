@@ -1,0 +1,57 @@
+schema_revision: source-policy-v1
+policy_key: wikidata_berlin_studios_policy
+policy_revision: wikidata-berlin-studios-policy-v2
+source_key: wikidata
+source_type: wikidata
+# CC0 1.0 covers the structured data this adapter reads: labels, statements and
+# coordinates. The owner decision behind this revision is a limited approval:
+#   - structured CC0 data only (labels, statements, coordinates);
+#   - no Wikidata media (P18 and any other image/file claim is never projected);
+#   - no third-party site content (the adapter reads www.wikidata.org only, no
+#     sitelink pages and no external sites);
+#   - no OpenStreetMap-derived values (a separate source with its own policy).
+# Only the fields this campaign can publish are allowed below; every other field of
+# the entity record is evidence only and never becomes a candidate attribute.
+legal_status: approved
+terms_review:
+  state: reviewed
+  terms_url: https://creativecommons.org/publicdomain/zero/1.0/
+  reviewed_at: 2026-11-17
+  expires_at: 2027-11-17
+  reviewer: rtao-god
+access:
+  kind: network
+  # One bounded wbgetentities read per work unit; the connector pins the exact host, path
+  # and query shape and refuses anything else.
+  allowed_methods:
+    - GET
+  allowed_host_patterns:
+    - www.wikidata.org
+  max_requests_per_second: 0.2
+  max_concurrency: 1
+  connect_timeout_seconds: 10.0
+  read_timeout_seconds: 60.0
+  max_encoded_bytes: 4194304
+  max_decoded_bytes: 134217728
+  content_type_allowlist:
+    - application/json
+  redirect_limit: 0
+storage_class: collector-structured-evidence-v1
+retention_days: 730
+allowed_fields:
+  - district
+  - website
+  - email
+  - phone
+prohibited_fields:
+  - review_text
+  - review_author
+  - source_photo
+attribution_required: false
+browser: forbidden
+screenshots: forbidden
+retry_budget: 3
+stop_on_status_codes:
+  - 429
+reviewer: rtao-god
+approver: rtao-god
