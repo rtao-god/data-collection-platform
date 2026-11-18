@@ -149,17 +149,42 @@ def test_materialization_rejects_batch_with_stale_content_digest() -> None:
         _materialize(tampered)
 
 
-def test_materialization_rejects_classification_without_verified_provenance() -> None:
-    unbound_geography = GeographyReference(
+def test_materialization_accepts_classification_bound_to_observation_provenance() -> None:
+    classified_geography = GeographyReference(
         coverage=GeographyCoverage.INSIDE,
         market_area_revision="berlin-boundary@1",
         market_area_digest=f"sha256:{'6' * 64}",
-        latitude=52.52,
-        longitude=13.405,
+        latitude=Decimal("52.52"),
+        longitude=Decimal("13.405"),
         observation_ids=(UUID("00000000-0000-0000-0000-000000000099"),),
     )
 
-    with pytest.raises(ValueError, match="requires UNKNOWN geography"):
+    revision, candidate = _materialize(_batch(), geography=classified_geography)
+
+    # Coverage is decided by the caller's exact boundary evaluation and is persisted with
+    # the revision, so an export reads the decision instead of re-deriving it.
+    assert candidate.geography.coverage is GeographyCoverage.INSIDE
+    assert revision.normalized_payload["geography"] == {
+        "coverage": "inside",
+        "marketAreaRevision": "berlin-boundary@1",
+        "marketAreaDigest": f"sha256:{'6' * 64}",
+        "latitude": "52.52",
+        "longitude": "13.405",
+        "observationIds": ["00000000-0000-0000-0000-000000000099"],
+    }
+
+
+def test_materialization_rejects_classification_without_observation_provenance() -> None:
+    unbound_geography = GeographyReference.model_construct(
+        coverage=GeographyCoverage.INSIDE,
+        market_area_revision="berlin-boundary@1",
+        market_area_digest=f"sha256:{'6' * 64}",
+        latitude=Decimal("52.52"),
+        longitude=Decimal("13.405"),
+        observation_ids=(),
+    )
+
+    with pytest.raises(ValueError, match="requires observation provenance"):
         _materialize(_batch(), geography=unbound_geography)
 
 

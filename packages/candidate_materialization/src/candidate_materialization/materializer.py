@@ -50,11 +50,11 @@ def materialize_candidate(
     geography = GeographyReference.model_validate(
         geography.model_dump(mode="python", by_alias=True)
     )
-    if geography.coverage is not GeographyCoverage.UNKNOWN:
-        raise ValueError(
-            "candidate materialization requires UNKNOWN geography until "
-            "classification provenance is verified"
-        )
+    # A classified coverage is admitted only when it carries the exact point and the
+    # observation identity that produced it; GeographyReference itself rejects any
+    # classified coverage without them, so no unverified coverage can reach a revision.
+    if geography.coverage is not GeographyCoverage.UNKNOWN and not geography.observation_ids:
+        raise ValueError("classified candidate geography requires observation provenance")
     if len(source_artifact_ids) != len(set(source_artifact_ids)):
         raise ValueError("candidate source artifact identities must be unique")
     if not source_key or not field_projection:
@@ -130,6 +130,9 @@ def materialize_candidate(
             for item in sorted(batch.observations, key=lambda item: item.observation_id)
         ],
         "projection": {key: value.value for key, value in sorted(field_projection.items())},
+        # The decided geography travels inside the immutable revision so a later export
+        # reads it instead of re-deriving coverage from mutable state.
+        "geography": geography.model_dump(mode="json", by_alias=True),
     }
     lineage_digest = canonical_digest(
         {
