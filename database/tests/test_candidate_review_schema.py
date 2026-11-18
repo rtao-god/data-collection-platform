@@ -29,6 +29,11 @@ def test_candidate_review_schema_is_exact_and_restrictive() -> None:
         "candidate_revision_evidence",
         "candidate_revisions",
         "candidates",
+        "resolution_blocked_edges",
+        "resolution_cluster_members",
+        "resolution_clusters",
+        "resolution_pairs",
+        "resolution_runs",
     }
     assert set(inspector.get_table_names(schema="quality")) == {
         "quality_evaluations",

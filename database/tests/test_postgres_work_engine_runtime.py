@@ -722,6 +722,64 @@ def test_transient_failures_respect_retry_budget_and_dead_letter(engine: Engine)
     assert outcomes == ["retry_scheduled", "dead_lettered"]
 
 
+@pytest.mark.parametrize(
+    ("failure_kind", "expected_state", "expected_outcome"),
+    [
+        (WorkFailureKind.POLICY_BLOCKED, WorkUnitState.BLOCKED_BY_POLICY, "blocked_by_policy"),
+        (WorkFailureKind.PERMANENT, WorkUnitState.DEAD_LETTER, "dead_lettered"),
+    ],
+)
+def test_non_retryable_failures_never_consume_retry_budget(
+    engine: Engine,
+    failure_kind: WorkFailureKind,
+    expected_state: WorkUnitState,
+    expected_outcome: str,
+) -> None:
+    harness = _create_harness(engine, unique_label("nonretryable"))
+    worker, _ = _register_worker(harness, "one")
+    work = _enqueue_work(harness, "one", max_attempts=5)
+    lease = harness.adapter.acquire_lease(_lease_request(harness, worker))
+    assert lease is not None
+
+    result = harness.adapter.fail(
+        WorkFailure(
+            work_id=lease.work_id,
+            lease_id=lease.lease_id,
+            lease_token=lease.lease_token,
+            worker_id=worker.worker_id,
+            input_digest=lease.input_digest,
+            failure_kind=failure_kind,
+            code="OFFICIAL_HTTP_FORBIDDEN",
+            owner="HttpAcquisition",
+            message="The source refused the exact request.",
+            required_action="Stop collection for this source and review its policy.",
+            worker_build_identity=worker.build_identity,
+            correlation_id=f"correlation-{harness.label}",
+        )
+    )
+
+    assert result.state is expected_state
+    assert result.available_at_utc is None or result.state is not WorkUnitState.RETRY_WAIT
+    assert harness.adapter.acquire_lease(_lease_request(harness, worker)) is None
+    row = _work_row(engine, work.work_id)
+    assert row["failure_count"] == 1
+    with engine.connect() as connection:
+        outcomes = list(
+            connection.execute(
+                sa.text(
+                    """
+                    SELECT outcome
+                    FROM work.work_attempts
+                    WHERE work_id = :work_id
+                    ORDER BY attempt_number
+                    """
+                ),
+                {"work_id": work.work_id},
+            ).scalars()
+        )
+    assert outcomes == [expected_outcome]
+
+
 def test_expiry_requeues_and_stale_completion_commits_dead_letter(engine: Engine) -> None:
     harness = _create_harness(engine, unique_label("expiry"))
     worker, _ = _register_worker(harness, "one")

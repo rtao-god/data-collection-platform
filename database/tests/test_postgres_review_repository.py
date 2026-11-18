@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
-from db_support import database_url
+from db_support import disposable_database
 from sqlalchemy.pool import NullPool
 
 from review_application import ReviewConflict, ReviewerPrincipal, ReviewService
@@ -170,9 +171,22 @@ def principal() -> ReviewerPrincipal:
 
 
 def test_review_repository_is_atomic_idempotent_and_revision_guarded() -> None:
-    engine = sa.create_engine(
-        database_url("review repository integration tests"), poolclass=NullPool
-    )
+    # The queue is asserted to hold exactly the seeded case, so it needs a database that no
+    # other run has written to.
+    databases = disposable_database("review repository integration tests")
+    url = next(databases)
+    engine = sa.create_engine(url, poolclass=NullPool)
+    try:
+        _assert_review_repository_is_atomic_idempotent_and_revision_guarded(engine)
+    finally:
+        engine.dispose()
+        with contextlib.suppress(StopIteration):
+            next(databases)
+
+
+def _assert_review_repository_is_atomic_idempotent_and_revision_guarded(
+    engine: sa.Engine,
+) -> None:
     candidate, case = seed_review_case(engine)
     service = ReviewService(PostgresReviewRepository(engine), clock=lambda: NOW)
 

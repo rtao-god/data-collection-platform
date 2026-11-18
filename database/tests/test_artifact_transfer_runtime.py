@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import cast
 from uuid import UUID, uuid4
@@ -87,6 +87,7 @@ class FakeS3Client:
         self.objects: dict[str, StoredObject] = {}
         self.last_prepared_key: str | None = None
         self.copy_count = 0
+        self.presigned_methods: list[str] = []
 
     def generate_presigned_url(
         self,
@@ -97,6 +98,7 @@ class FakeS3Client:
         HttpMethod: str | None = None,
     ) -> str:
         del ExpiresIn, HttpMethod
+        self.presigned_methods.append(client_method)
         key = str(Params["Key"])
         if client_method == "put_object":
             self.last_prepared_key = key
@@ -147,17 +149,20 @@ class FakeS3Client:
         self.objects.pop(str(kwargs["Key"]), None)
         return {}
 
-    def upload_prepared_body(self, content: bytes = _BODY) -> None:
+    def upload_prepared_body(
+        self, content: bytes = _BODY, content_type: str = _CONTENT_TYPE
+    ) -> None:
         if self.last_prepared_key is None:
             raise AssertionError("prepare upload did not establish a staging key")
         self.objects[self.last_prepared_key] = StoredObject(
             content=content,
-            content_type=_CONTENT_TYPE,
-            metadata={"sha256": _DIGEST.removeprefix("sha256:")},
+            content_type=content_type,
+            metadata={"sha256": sha256(content).hexdigest()},
         )
 
 
 def _missing_key(key: str) -> ClientError:
+
     return ClientError(
         {
             "Error": {"Code": "NoSuchKey", "Message": f"missing {key}"},
@@ -413,7 +418,9 @@ def test_verified_output_is_committed_atomically_and_becomes_scoped_input(
                     upload.state,
                     record.artifact_id,
                     binding.role,
-                    object.content_digest
+                    object.content_digest,
+                    object.size_bytes,
+                    record.content_type
                 FROM sources.artifact_uploads AS upload
                 JOIN sources.artifact_records AS record
                   ON record.upload_id = upload.upload_id
@@ -491,7 +498,13 @@ def test_verified_output_is_committed_atomically_and_becomes_scoped_input(
     )
     assert downstream_lease is not None
     assert downstream_lease.input_artifacts == (
-        WorkInputArtifact(artifact_id=artifact_id, role="source_document"),
+        WorkInputArtifact(
+            artifact_id=artifact_id,
+            role="source_document",
+            content_digest=str(row["content_digest"]),
+            size_bytes=int(row["size_bytes"]),
+            content_type=str(row["content_type"]),
+        ),
     )
 
     prepared_read = harness.transfer.prepare_read(
@@ -617,3 +630,162 @@ def test_duplicate_content_reuses_object_and_preserves_distinct_records(engine: 
     assert object_count == 1
     assert record_count == 2
     assert harness.s3.copy_count == 1
+
+
+def test_scoped_read_rejects_expired_lease_for_page_input_roles(
+    engine: Engine,
+) -> None:
+    harness = _harness(engine, unique_label("routed_page_expired_lease"))
+    source_work = _enqueue_acquisition(harness, "routed_inputs")
+    source_lease = _lease(harness)
+    role_content_types = (
+        ("http_request", "application/vnd.collection.official-http-request+json"),
+        ("website_route_context", "application/vnd.collection.website-route-context+json"),
+        ("manual_record_lineage", "application/vnd.collection.manual-record-lineage+json"),
+        ("robots_decision", "application/vnd.collection.official-http-acquisition+json"),
+        ("robots_raw_response", "text/plain"),
+    )
+    output_artifacts: list[WorkOutputArtifact] = []
+    for role, content_type in role_content_types:
+        content = f'{{"role":"{role}"}}'.encode()
+        expected_digest = f"sha256:{sha256(content).hexdigest()}"
+        upload_id = uuid4()
+        harness.transfer.prepare_upload(
+            PrepareArtifactUpload(
+                upload_id=upload_id,
+                work_id=source_lease.work_id,
+                lease_id=source_lease.lease_id,
+                lease_token=source_lease.lease_token,
+                worker_id=harness.worker_id,
+                input_digest=source_lease.input_digest,
+                artifact_kind=ArtifactKind.RAW_ARTIFACT,
+                expected_digest=expected_digest,
+                expected_size_bytes=len(content),
+                content_type=content_type,
+                expires_in_seconds=300,
+                correlation_id=f"correlation-{harness.label}-routed-inputs",
+            )
+        )
+        harness.s3.upload_prepared_body(content, content_type)
+        harness.transfer.verify_upload(
+            VerifyArtifactUpload(
+                upload_id=upload_id,
+                work_id=source_lease.work_id,
+                lease_id=source_lease.lease_id,
+                lease_token=source_lease.lease_token,
+                worker_id=harness.worker_id,
+                input_digest=source_lease.input_digest,
+                correlation_id=f"correlation-{harness.label}-routed-inputs",
+            )
+        )
+        output_artifacts.append(WorkOutputArtifact(upload_id=upload_id, role=role))
+
+    harness.work_engine.complete(
+        WorkCompletion(
+            work_id=source_lease.work_id,
+            lease_id=source_lease.lease_id,
+            lease_token=source_lease.lease_token,
+            worker_id=harness.worker_id,
+            input_digest=source_lease.input_digest,
+            output_contract=harness.output_contract,
+            output_digest=digest(harness.label, "routed-inputs-output"),
+            worker_build_identity=harness.worker_build,
+            correlation_id=f"correlation-{harness.label}-routed-inputs",
+            output_artifacts=tuple(output_artifacts),
+        )
+    )
+    with engine.connect() as connection:
+        artifact_ids = {
+            row["role"]: UUID(str(row["artifact_id"]))
+            for row in connection.execute(
+                sa.text(
+                    """
+                    SELECT role, artifact_id
+                    FROM work.work_output_artifacts
+                    WHERE work_id = :work_id
+                    """
+                ),
+                {"work_id": source_work.work_id},
+            ).mappings()
+        }
+
+    page_work = WorkUnitSpec(
+        work_id=uuid4(),
+        run_id=harness.run_id,
+        stage_run_id=harness.acquisition_stage_id,
+        stage=WorkStage.ACQUISITION,
+        capability=WorkCapability.HTTP_FETCH,
+        source_key=harness.source_key,
+        semantic_key=digest(harness.label, "routed-page", "semantic"),
+        input_digest=digest(harness.label, "routed-page", "input"),
+        expected_output_contract=harness.output_contract,
+        priority=0,
+        retry_policy=RetryPolicy(
+            max_attempts=3,
+            initial_delay_seconds=2,
+            multiplier=2,
+            max_delay_seconds=60,
+        ),
+        available_at_utc=_NOW,
+        correlation_id=f"correlation-{harness.label}-routed-page",
+        input_artifacts=tuple(
+            WorkInputArtifact(artifact_id=artifact_ids[role], role=role)
+            for role, _content_type in role_content_types
+        ),
+    )
+    harness.work_engine.enqueue_work(page_work)
+    page_lease = harness.work_engine.acquire_lease(
+        LeaseRequest(
+            worker_id=harness.worker_id,
+            capability=WorkCapability.HTTP_FETCH,
+            lease_duration_seconds=300,
+            heartbeat_interval_seconds=60,
+            correlation_id=f"correlation-{harness.label}-routed-page",
+        )
+    )
+    assert page_lease is not None
+    assert {item.role for item in page_lease.input_artifacts} == {
+        role for role, _content_type in role_content_types
+    }
+    with engine.begin() as connection:
+        updated = connection.execute(
+            sa.text(
+                """
+                UPDATE work.work_units
+                SET lease_expires_at_utc = :expires_at_utc,
+                    heartbeat_deadline_utc = :heartbeat_deadline_utc,
+                    lease_issued_at_utc = :issued_at_utc
+                WHERE work_id = :work_id
+                  AND active_lease_id = :lease_id
+                """
+            ),
+            {
+                "expires_at_utc": _NOW - timedelta(seconds=1),
+                "heartbeat_deadline_utc": _NOW - timedelta(seconds=2),
+                "issued_at_utc": _NOW - timedelta(seconds=3),
+                "work_id": page_lease.work_id,
+                "lease_id": page_lease.lease_id,
+            },
+        )
+    assert updated.rowcount == 1
+
+    with pytest.raises(ArtifactTransferConflict) as raised:
+        harness.transfer.prepare_read(
+            PrepareArtifactRead(
+                artifact_id=artifact_ids["website_route_context"],
+                work_id=page_lease.work_id,
+                lease_id=page_lease.lease_id,
+                lease_token=page_lease.lease_token,
+                worker_id=harness.worker_id,
+                input_digest=page_lease.input_digest,
+                expires_in_seconds=120,
+                correlation_id=f"correlation-{harness.label}-expired-page-read",
+            )
+        )
+
+    assert raised.value.code == "ARTIFACT_LEASE_STALE"
+    assert raised.value.context == {
+        "workId": str(page_lease.work_id),
+        "reason": "lease_expired",
+    }
+    assert "get_object" not in harness.s3.presigned_methods
