@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
 
+import pytest
+
 from collection_contracts import ManualRecordLineage, canonical_manual_record_lineage_bytes
 from http_worker.worker import HttpWorker, HttpWorkerPolicy
 from official_http import (
@@ -658,6 +660,67 @@ def test_worker_maps_429_retry_after_to_transient_failure() -> None:
     )
     assert _worker(gateway, fetcher).run_once() is True
     assert gateway.failures == [("transient", "OFFICIAL_HTTP_RATE_LIMITED", 30)]
+
+
+def test_worker_maps_server_error_to_transient_failure() -> None:
+    gateway = Gateway(_lease(), _request())
+
+    assert _worker(gateway, Fetcher(_result(503, body=b""))).run_once() is True
+
+    assert gateway.published is None
+    assert gateway.failures == [("transient", "OFFICIAL_HTTP_SERVER_UNAVAILABLE", None)]
+
+
+@pytest.mark.parametrize("status", [400, 401, 402, 405, 451])
+def test_worker_maps_unsupported_status_to_permanent_failure(status: int) -> None:
+    gateway = Gateway(_lease(), _request())
+
+    assert _worker(gateway, Fetcher(_result(status, body=b""))).run_once() is True
+
+    assert gateway.published is None
+    assert gateway.failures == [("permanent", "OFFICIAL_HTTP_STATUS_UNSUPPORTED", None)]
+
+
+def test_worker_rejects_redirect_without_location_as_permanent() -> None:
+    gateway = Gateway(_lease(), _request())
+
+    assert _worker(gateway, Fetcher(_result(302, body=b""))).run_once() is True
+
+    assert gateway.published is None
+    assert gateway.failures == [("permanent", "OFFICIAL_HTTP_REDIRECT_LOCATION_MISSING", None)]
+
+
+def test_worker_rejects_redirect_to_foreign_origin_as_policy_block() -> None:
+    gateway = Gateway(_lease(), _request())
+    fetcher = Fetcher(
+        _result(
+            301,
+            body=b"",
+            headers=(ResponseHeader(name="location", value="https://evil.test/landing"),),
+        )
+    )
+
+    assert _worker(gateway, fetcher).run_once() is True
+
+    assert gateway.published is None
+    assert gateway.failures == [("policy_blocked", "OFFICIAL_HTTP_REDIRECT_ORIGIN_FORBIDDEN", None)]
+
+
+def test_worker_accepts_redirect_within_the_approved_origin() -> None:
+    gateway = Gateway(_lease(), _request())
+    fetcher = Fetcher(
+        _result(
+            302,
+            body=b"",
+            headers=(ResponseHeader(name="location", value="/contact"),),
+        )
+    )
+
+    assert _worker(gateway, fetcher).run_once() is True
+
+    assert gateway.failures == []
+    assert gateway.published is not None
+    assert gateway.published[0].outcome == "redirect"
 
 
 def test_worker_does_not_call_fetcher_for_source_permit_mismatch() -> None:
