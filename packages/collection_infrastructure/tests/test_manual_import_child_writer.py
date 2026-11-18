@@ -126,6 +126,7 @@ def _plan():
             {
                 "expected_entity_kind": "place",
                 "display_name": "Studio A",
+                "category": "recording_studio",
                 "website": "https://studio.example",
                 "osm_id": None,
                 "reference_urls": [],

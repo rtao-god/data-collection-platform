@@ -208,6 +208,7 @@ def _configured_route_source() -> SucceededWorkOutput:
             {
                 "expected_entity_kind": "organization",
                 "display_name": "Hansa Test Studios",
+                "category": "recording_studio",
                 "website": "https://hansastudios.de/start",
                 "osm_id": None,
                 "reference_urls": [],
@@ -1011,7 +1012,19 @@ def _content_digest(content: bytes) -> str:
     return "sha256:" + hashlib.sha256(content).hexdigest()
 
 
-def test_manual_seed_robots_to_page_worker_vertical_uses_real_gateway_api() -> None:
+@pytest.mark.parametrize(
+    ("page_transfer_fault", "expected_code"),
+    [
+        (None, None),
+        ("size", "OBJECT_READ_SIZE_MISMATCH"),
+        ("digest", "OBJECT_READ_DIGEST_MISMATCH"),
+        ("content_type", "OBJECT_READ_CONTENT_TYPE_MISMATCH"),
+    ],
+)
+def test_manual_seed_robots_to_page_worker_vertical_uses_real_gateway_api(
+    page_transfer_fault: str | None,
+    expected_code: str | None,
+) -> None:
     import httpx
     from fastapi.testclient import TestClient
 
@@ -1034,7 +1047,7 @@ def test_manual_seed_robots_to_page_worker_vertical_uses_real_gateway_api() -> N
     from official_http.fetch import HttpFetchResult
     from processing_worker import ProcessingWorker, ProcessingWorkerSettings
     from processing_worker.gateway import SdkProcessingGateway
-    from source_connector_sdk import SourceWorkerGateway
+    from source_connector_sdk import SourceWorkerGateway, WorkerGatewayFailure
     from worker_gateway import GatewayDependencies, WorkerAuthenticator, WorkerPrincipal, create_app
 
     worker_token = "vertical-worker-token-0000000000000001"
@@ -1079,6 +1092,7 @@ def test_manual_seed_robots_to_page_worker_vertical_uses_real_gateway_api() -> N
             self.staging: dict[str, bytes] = {}
             self.objects: dict[str, bytes] = {}
             self.content_types: dict[str, str] = {}
+            self.served: dict[str, tuple[bytes, str | None]] = {}
             self.reads: list[str] = []
 
         def handle_request(self, request: httpx.Request) -> httpx.Response:
@@ -1091,9 +1105,19 @@ def test_manual_seed_robots_to_page_worker_vertical_uses_real_gateway_api() -> N
                 return httpx.Response(200, request=request)
             if request.method == "GET" and request.url.path.startswith("/read/"):
                 self.reads.append(identity)
-                content = self.objects.get(identity)
+                if identity in self.served:
+                    content, served_content_type = self.served[identity]
+                else:
+                    content = self.objects.get(identity)
+                    served_content_type = self.content_types.get(identity)
+                headers = (
+                    {"content-type": served_content_type} if served_content_type is not None else {}
+                )
                 return httpx.Response(
-                    200 if content is not None else 404, content=content or b"", request=request
+                    200 if content is not None else 404,
+                    headers=headers,
+                    content=content or b"",
+                    request=request,
                 )
             return httpx.Response(404, request=request)
 
@@ -1434,7 +1458,41 @@ def test_manual_seed_robots_to_page_worker_vertical_uses_real_gateway_api() -> N
                 object_store.objects[str(command.artifact_id)] = command.content
                 object_store.content_types[str(command.artifact_id)] = command.content_type
             page_fetcher = Fetcher()
-            run_worker(page_spec, page_fetcher, gateway)
+            if page_transfer_fault is None:
+                run_worker(page_spec, page_fetcher, gateway)
+            else:
+                page_request_artifact = page_engine.connection.published[0]
+                page_request_artifact_id = str(page_request_artifact.artifact_id)
+                canonical_request_bytes = object_store.objects[page_request_artifact_id]
+                if page_transfer_fault == "size":
+                    object_store.served[page_request_artifact_id] = (
+                        canonical_request_bytes[:-1],
+                        page_request_artifact.content_type,
+                    )
+                elif page_transfer_fault == "digest":
+                    tampered_request_bytes = (
+                        bytes([canonical_request_bytes[0] ^ 0x01]) + canonical_request_bytes[1:]
+                    )
+                    object_store.served[page_request_artifact_id] = (
+                        tampered_request_bytes,
+                        page_request_artifact.content_type,
+                    )
+                elif page_transfer_fault == "content_type":
+                    object_store.served[page_request_artifact_id] = (
+                        canonical_request_bytes,
+                        "application/json",
+                    )
+                else:
+                    raise AssertionError(f"unsupported transfer fault {page_transfer_fault}")
+                work_engine.enqueue(page_spec)
+                with pytest.raises(WorkerGatewayFailure) as rejected:
+                    HttpWorker(gateway, fetcher=page_fetcher).run_once()
+                assert rejected.value.envelope.owner == "SourceConnectorSdk.ObjectTransfer"
+                assert rejected.value.envelope.code == expected_code
+                assert page_request_artifact_id in object_store.reads
+                assert page_fetcher.requests == []
+                assert page_spec.work_id not in work_engine.completed
+                return
 
             page_request = json.loads(page_engine.connection.published[0].content)
             assert page_request["url"] == "https://hansastudios.de/start"

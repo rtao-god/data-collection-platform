@@ -70,7 +70,10 @@ class PostgresPipelineAdvancementRepository:
         self._transition_appliers = dict(transition_appliers)
         self._clock = clock or (lambda: datetime.now(UTC))
         self._uuid_factory = uuid_factory or uuid4
-        self._lease_token_factory = lease_token_factory or (lambda: secrets.token_urlsafe(32))
+        # A lease token must satisfy the advancement command's own token format, so the
+        # default generator emits hex rather than URL-safe base64 (which may start with
+        # `-` or `_`).
+        self._lease_token_factory = lease_token_factory or (lambda: secrets.token_hex(32))
 
     def register(
         self,

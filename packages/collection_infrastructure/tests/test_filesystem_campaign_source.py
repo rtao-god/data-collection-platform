@@ -18,13 +18,17 @@ def test_real_campaign_bundle_contains_only_allowlisted_files() -> None:
     assert set(bundle.files) == {
         "attributes.yaml",
         "campaign.yaml",
+        "catalog_mapping.yaml",
         "discovery/manual_seeds.csv",
         "entity_kinds.yaml",
         "geography.yaml",
         "geography/berlin-boundary.geojson",
         "geography/berlin-boundary.provenance.json",
+        "quality_profile.yaml",
         "source_bindings.yaml",
         "source_policies/manual_seed_policy.yaml",
+        "source_policies/osm_berlin_studios_policy.yaml",
+        "source_policies/wikidata_berlin_studios_policy.yaml",
         "taxonomy.yaml",
     }
 

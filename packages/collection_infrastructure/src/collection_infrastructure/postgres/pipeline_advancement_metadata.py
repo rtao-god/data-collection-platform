@@ -61,7 +61,13 @@ pipeline_advancements = sa.Table(
     sa.Column("blocker_code", sa.Text(), nullable=True),
     sa.Column("blocker_message", sa.Text(), nullable=True),
     sa.Column("blocker_required_action", sa.Text(), nullable=True),
-    sa.Column("blocker_context", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    # An absent blocker is SQL NULL, not the JSON literal `null`: the blocker payload
+    # constraint in this owner checks `IS NULL` for the all-or-none blocker shape.
+    sa.Column(
+        "blocker_context",
+        postgresql.JSONB(astext_type=sa.Text(), none_as_null=True),
+        nullable=True,
+    ),
     sa.Column("active_lease_id", sa.Uuid(), nullable=True),
     sa.Column("active_lease_token_digest", sa.Text(), nullable=True),
     sa.Column("leased_by_worker_id", sa.Text(), nullable=True),
@@ -158,7 +164,13 @@ pipeline_advancement_attempts = sa.Table(
     sa.Column("blocker_code", sa.Text(), nullable=True),
     sa.Column("blocker_message", sa.Text(), nullable=True),
     sa.Column("blocker_required_action", sa.Text(), nullable=True),
-    sa.Column("blocker_context", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    # An absent blocker is SQL NULL, not the JSON literal `null`: the blocker payload
+    # constraint in this owner checks `IS NULL` for the all-or-none blocker shape.
+    sa.Column(
+        "blocker_context",
+        postgresql.JSONB(astext_type=sa.Text(), none_as_null=True),
+        nullable=True,
+    ),
     sa.Column("occurred_at_utc", sa.DateTime(timezone=True), nullable=False),
     sa.Column("correlation_id", sa.Text(), nullable=False),
     sa.UniqueConstraint(

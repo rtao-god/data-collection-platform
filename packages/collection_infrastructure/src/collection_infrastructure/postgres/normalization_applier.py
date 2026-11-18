@@ -171,7 +171,10 @@ class PostgresNormalizationApplier:
                 plan.blocker is None,
                 not plan.website_actions,
                 not plan.extraction_actions,
-                len(source.input_artifacts) == 2,
+                len(source.input_artifacts) == 3,
+                {item.role for item in source.input_artifacts}
+                == {"raw_source_document", "extraction_request", "manual_record_lineage"},
+                action.manual_record_lineage_artifact in source.input_artifacts,
                 source.output_artifact.artifact_id == action.extracted_record_artifact_id,
             )
         )

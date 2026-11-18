@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -11,8 +12,11 @@ from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import Select
 
-from collection_application import WorkStage
-from collection_application.canonicalization import sha256_json
+from collection_application import WorkCapability, WorkStage
+from collection_application.canonicalization import canonical_json_bytes, sha256_json
+from collection_application.manual_import_plan_document import (
+    verify_manual_import_record_source_provenance,
+)
 from collection_application.pipeline_advancement import (
     ArtifactIdentity,
     PipelineAdvancementConflict,
@@ -23,14 +27,20 @@ from collection_application.pipeline_supervision import (
     SuccessfulWorkDiscoveryBatch,
 )
 from collection_contracts import (
+    WIKIDATA_RESULT_CONTRACT,
     CampaignDocument,
+    ManualImportRecordDocument,
+    ManualRecordLineage,
     NormalizationProfile,
     NormalizationProfilesDocument,
     SourceBindingsDocument,
     SourcePolicy,
     canonical_observation_batch_json,
     decode_extracted_record,
+    decode_manual_record_lineage,
     decode_observation_batch,
+    decode_wikidata_entity_result,
+    decode_wikidata_query_spec,
 )
 from collection_infrastructure.object_store import ArtifactObjectStoreError, S3ArtifactObjectStore
 from collection_infrastructure.postgres.artifact_metadata import (
@@ -50,6 +60,46 @@ from collection_infrastructure.postgres.pipeline_advancement_metadata import (
 )
 from collection_infrastructure.postgres.work_metadata import collection_runs, stage_runs, work_units
 from official_http_contracts import HttpAcquisitionManifest
+
+_OSM_RESULT_CONTRACT = "osm-overpass-result@1"
+_SOURCE_RECORD_BATCH_CONTRACT = "source-record-observation-batch@1"
+_SOURCE_RECORD_BATCH_ROLE = "source_record_observation_batch"
+_SOURCE_MAPPING_PROFILE_ROLE = "source_mapping_profile"
+_OSM_RAW_RESPONSE_ROLE = "osm_raw_response"
+_OSM_OBSERVATIONS_ROLE = "osm_observations"
+_WIKIDATA_RESULT_CONTRACT = WIKIDATA_RESULT_CONTRACT
+_ENTITY_RESOLUTION_SNAPSHOT_CONTRACT = "entity-resolution-snapshot@1"
+_WIKIDATA_RESULT_ROLE = "wikidata_entity_result"
+_WIKIDATA_RAW_ROLE = "wikidata_raw_response"
+_WIKIDATA_QUERY_ROLE = "wikidata_entity_query_spec"
+_WIKIDATA_MAX_RAW_RESPONSE_BYTES = 64 * 1024 * 1024
+_WIKIDATA_MAX_RESULT_BYTES = 64 * 1024 * 1024
+_WIKIDATA_MAX_QUERY_SPEC_BYTES = 256 * 1024
+_OSM_RAW_RESPONSE_CONTENT_TYPE = "application/json"
+_OSM_OBSERVATIONS_CONTENT_TYPE = "application/vnd.collection.osm-observations+json"
+_OSM_MAX_RAW_RESPONSE_BYTES = 128 * 1024 * 1024
+_OSM_MAX_OBSERVATIONS_BYTES = 128 * 1024 * 1024
+_SHA256_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True, slots=True)
+class OsmObservationBatchEnvelope:
+    """Bounded, contract-checked view of the `osm_observations` artifact.
+
+    The connector that produces these bytes owns the full contract. Collection
+    infrastructure must not import it, so the envelope pins the exact document shape
+    it accepts and refuses anything else rather than trusting the producer.
+    """
+
+    query_digest: str
+    response_digest: str
+    osm_ids: tuple[tuple[str, int], ...]
+    osm_base_timestamp_utc: str | None
+    attribution: str
+
+    @property
+    def element_count(self) -> int:
+        return len(self.osm_ids)
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +194,15 @@ class PostgresSucceededWorkCatalog:
             if lineage_bindings
             else None
         )
+        manual_record_lineage: ManualRecordLineage | None = None
+        if manual_record_lineage_content is not None:
+            manual_record_lineage = self._verify_manual_record_lineage(
+                connection,
+                lineage_content=manual_record_lineage_content,
+                lineage_artifact=lineage_bindings[0],
+                run_id=run_id,
+                source_work_unit_id=source_work_unit_id,
+            )
         capability = _required_text(work, "capability")
         output_contract = _required_text(work, "output_contract")
         http_request_content = None
@@ -159,6 +218,23 @@ class PostgresSucceededWorkCatalog:
             capability == "http_fetch" and output_contract == "official-http-acquisition@1"
         )
         is_extracted_record = capability == "extraction" and output_contract == "extracted-record@1"
+        is_osm_result = (
+            capability == WorkCapability.OSM_QUERY.value and output_contract == _OSM_RESULT_CONTRACT
+        )
+        is_source_record_mapping = (
+            capability == WorkCapability.SOURCE_RECORD_MAPPING.value
+            and output_contract == _SOURCE_RECORD_BATCH_CONTRACT
+        )
+        is_wikidata_result = (
+            capability == WorkCapability.WIKIDATA_ENTITY_QUERY.value
+            and output_contract == _WIKIDATA_RESULT_CONTRACT
+        )
+        is_entity_resolution = (
+            capability == WorkCapability.ENTITY_RESOLUTION.value
+            and output_contract == _ENTITY_RESOLUTION_SNAPSHOT_CONTRACT
+        )
+        resolution_batch_content: bytes | None = None
+        wikidata_query_spec_content: bytes | None = None
         if is_official_http:
             by_role = {item.artifact.role: item.artifact for item in outputs}
             if (
@@ -226,20 +302,27 @@ class PostgresSucceededWorkCatalog:
             request_inputs = tuple(
                 item.artifact for item in inputs if item.artifact.role == "extraction_request"
             )
+            lineage_inputs = tuple(
+                item.artifact for item in inputs if item.artifact.role == "manual_record_lineage"
+            )
             if (
                 len(outputs) != 1
                 or len(by_role) != 1
                 or "extracted_record" not in by_role
-                or len(inputs) != 2
+                or len(inputs) != 3
                 or len(raw_inputs) != 1
                 or len(request_inputs) != 1
+                or len(lineage_inputs) != 1
+                or {item.artifact.role for item in inputs}
+                != {"raw_source_document", "extraction_request", "manual_record_lineage"}
             ):
                 raise _catalog_conflict(
                     "PIPELINE_EXTRACTION_OUTPUT_BINDINGS_INVALID",
                     "Extraction success must bind one extracted record, one raw source, "
-                    "and one request.",
+                    "one request, and one manual-record lineage artifact.",
                     source_work_unit_id,
-                    "Repair the exact extraction output and its immutable request/raw input roles.",
+                    "Repair the exact extraction output and its immutable request, raw, "
+                    "and lineage roles.",
                 )
             output = by_role["extracted_record"]
             if output.content_type != "application/vnd.collection.extracted-record+json":
@@ -255,6 +338,31 @@ class PostgresSucceededWorkCatalog:
                 source_work_unit_id,
                 maximum_bytes=64 * 1024 * 1024,
             )
+            if manual_record_lineage is None:
+                raise _catalog_conflict(
+                    "PIPELINE_EXTRACTION_LINEAGE_MISSING",
+                    "The extraction output has no verified manual-record lineage.",
+                    source_work_unit_id,
+                    "Restore exact verified manual-record lineage before advancement.",
+                )
+            try:
+                extracted_record = decode_extracted_record(output_content)
+            except ValueError as exc:
+                raise _catalog_conflict(
+                    "PIPELINE_EXTRACTION_OUTPUT_INVALID",
+                    "The extracted record is invalid and cannot resolve manual lineage.",
+                    source_work_unit_id,
+                    "Repair the immutable extraction output at its producer.",
+                ) from exc
+            if (
+                extracted_record.source_record_id
+                != manual_record_lineage.manual_record_content_digest
+            ):
+                raise _manual_lineage_conflict(
+                    source_work_unit_id,
+                    manual_record_lineage.manual_record_work_id,
+                    reason="extracted_record_source_record_mismatch",
+                )
             extraction_request_content = self._read_artifact_content(
                 connection,
                 request_inputs[0],
@@ -264,15 +372,67 @@ class PostgresSucceededWorkCatalog:
             needs_extraction_snapshot = True
             related_output_artifacts = ()
         elif is_normalization:
+            if manual_record_lineage is None:
+                raise _catalog_conflict(
+                    "PIPELINE_NORMALIZATION_LINEAGE_MISSING",
+                    "The normalization batch has no verified manual-record lineage.",
+                    source_work_unit_id,
+                    "Restore the exact verified manual-record lineage before advancement.",
+                )
             output, output_content, normalization_profile_content = self._read_normalization_output(
+                connection,
+                source_work_unit_id,
+                outputs=outputs,
+                inputs=inputs,
+                manual_record_lineage=manual_record_lineage,
+                output_digest=_required_text(work, "output_digest"),
+            )
+            needs_extraction_snapshot = True
+            related_output_artifacts = ()
+        elif is_source_record_mapping:
+            output, output_content, normalization_profile_content = (
+                self._read_source_record_mapping_output(
+                    connection,
+                    source_work_unit_id,
+                    outputs=outputs,
+                    inputs=inputs,
+                    output_digest=_required_text(work, "output_digest"),
+                )
+            )
+            related_output_artifacts = ()
+        elif is_osm_result:
+            raw_artifact, observations_artifact, observations_content = self._read_osm_result(
                 connection,
                 source_work_unit_id,
                 outputs=outputs,
                 inputs=inputs,
                 output_digest=_required_text(work, "output_digest"),
             )
-            needs_extraction_snapshot = True
+            output = observations_artifact
+            output_content = observations_content
+            related_output_artifacts = (raw_artifact,)
+        elif is_entity_resolution:
+            output, output_content, resolution_batch_content = self._read_resolution_output(
+                connection,
+                source_work_unit_id,
+                outputs=outputs,
+                inputs=inputs,
+                output_digest=_required_text(work, "output_digest"),
+            )
             related_output_artifacts = ()
+        elif is_wikidata_result:
+            raw_artifact, envelope_artifact, envelope_content, wikidata_query_spec_content = (
+                self._read_wikidata_result(
+                    connection,
+                    source_work_unit_id,
+                    outputs=outputs,
+                    inputs=inputs,
+                    output_digest=_required_text(work, "output_digest"),
+                )
+            )
+            output = envelope_artifact
+            output_content = envelope_content
+            related_output_artifacts = (raw_artifact,)
         else:
             if len(outputs) != 1:
                 raise PipelineAdvancementConflict(
@@ -318,7 +478,14 @@ class PostgresSucceededWorkCatalog:
         is_manual_record = (
             capability == "manual_record" and output_contract == "manual-import-record@1"
         )
-        if is_manual_record or needs_page_snapshot or needs_extraction_snapshot:
+        if (
+            is_manual_record
+            or needs_page_snapshot
+            or needs_extraction_snapshot
+            or is_wikidata_result
+            or is_source_record_mapping
+            or is_entity_resolution
+        ):
             campaign_bundle_content = self._read_campaign_bundle(
                 connection,
                 config_bundle_digest,
@@ -369,8 +536,58 @@ class PostgresSucceededWorkCatalog:
             website_route_context_content=website_route_context_content,
             extraction_request_content=extraction_request_content,
             normalization_profile_content=normalization_profile_content,
+            wikidata_query_spec_content=wikidata_query_spec_content,
+            resolution_batch_content=resolution_batch_content,
             manual_record_lineage_content=manual_record_lineage_content,
         )
+
+    def _read_resolution_output(
+        self,
+        connection: Connection,
+        source_work_unit_id: UUID,
+        *,
+        outputs: tuple[_BoundArtifact, ...],
+        inputs: tuple[_BoundArtifact, ...],
+        output_digest: str,
+    ) -> tuple[ArtifactIdentity, bytes, bytes]:
+        """Read the exact snapshot and the exact batch the resolution unit consumed."""
+        out_bindings = {item.artifact.role: item.artifact for item in outputs}
+        in_bindings = {item.artifact.role: item.artifact for item in inputs}
+        if len(outputs) != 1 or set(out_bindings) != {"resolution_snapshot"}:
+            raise _catalog_conflict(
+                "PIPELINE_RESOLUTION_OUTPUT_ROLE_CONFLICT",
+                "Entity resolution must publish exactly one snapshot artifact.",
+                source_work_unit_id,
+                "Repair resolution publication so the snapshot is the only output role.",
+            )
+        if len(inputs) != 1 or set(in_bindings) != {"resolution_batch"}:
+            raise _catalog_conflict(
+                "PIPELINE_RESOLUTION_INPUT_ROLE_CONFLICT",
+                "Entity resolution must consume exactly one batch artifact.",
+                source_work_unit_id,
+                "Repair resolution input bindings before advancement.",
+            )
+        output = out_bindings["resolution_snapshot"]
+        if output.content_digest != output_digest:
+            raise _catalog_conflict(
+                "PIPELINE_RESOLUTION_SNAPSHOT_DIGEST_CONFLICT",
+                "The snapshot artifact digest differs from the succeeded output digest.",
+                source_work_unit_id,
+                "Repair the immutable resolution snapshot at its producer.",
+            )
+        batch_content = self._read_artifact_content(
+            connection,
+            in_bindings["resolution_batch"],
+            source_work_unit_id,
+            maximum_bytes=64 * 1024 * 1024,
+        )
+        snapshot_content = self._read_artifact_content(
+            connection,
+            output,
+            source_work_unit_id,
+            maximum_bytes=64 * 1024 * 1024,
+        )
+        return output, snapshot_content, batch_content
 
     @staticmethod
     def _verify_normalization_profile_snapshot(
@@ -444,6 +661,346 @@ class PostgresSucceededWorkCatalog:
                 "source policy.",
             ) from exc
 
+    def _verify_manual_record_lineage(
+        self,
+        connection: Connection,
+        *,
+        lineage_content: bytes,
+        lineage_artifact: ArtifactIdentity,
+        run_id: UUID,
+        source_work_unit_id: UUID,
+    ) -> ManualRecordLineage:
+        try:
+            lineage = decode_manual_record_lineage(lineage_content)
+        except (TypeError, ValueError) as exc:
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                None,
+                reason="lineage_contract_invalid",
+            ) from exc
+
+        if (
+            lineage.run_id != run_id
+            or lineage_artifact.content_type
+            != "application/vnd.collection.manual-record-lineage+json"
+            or lineage_artifact.size_bytes != len(lineage_content)
+            or _content_digest(lineage_content) != lineage_artifact.content_digest
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="lineage_identity_mismatch",
+            )
+
+        manual_work = (
+            connection.execute(
+                sa.select(work_units).where(work_units.c.work_id == lineage.manual_record_work_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if (
+            manual_work is None
+            or _required_text(manual_work, "state") != "succeeded"
+            or _required_uuid(manual_work, "run_id") != run_id
+            or _required_text(manual_work, "stage") != WorkStage.DISCOVERY.value
+            or _required_text(manual_work, "capability") != "manual_record"
+            or _required_text(manual_work, "output_contract") != "manual-import-record@1"
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="manual_record_work_owner_invalid",
+            )
+
+        stage_row = (
+            connection.execute(
+                sa.select(stage_runs).where(
+                    stage_runs.c.stage_run_id == _required_uuid(manual_work, "stage_run_id")
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if (
+            stage_row is None
+            or _required_uuid(stage_row, "run_id") != run_id
+            or _required_text(stage_row, "stage") != WorkStage.DISCOVERY.value
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="manual_record_stage_owner_invalid",
+            )
+
+        record_outputs = _load_artifacts(
+            connection,
+            work_output_artifacts,
+            lineage.manual_record_work_id,
+        )
+        record_inputs = _load_artifacts(
+            connection,
+            work_input_artifacts,
+            lineage.manual_record_work_id,
+        )
+        if (
+            len(record_outputs) != 1
+            or record_outputs[0].artifact.role != "manual_import_record"
+            or record_outputs[0].artifact.artifact_id != lineage.manual_record_artifact_id
+            or record_outputs[0].artifact.content_digest != lineage.manual_record_artifact_digest
+            or record_outputs[0].artifact.content_type
+            != "application/vnd.collection.manual-import-record+json"
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="manual_record_output_binding_mismatch",
+                artifactId=str(lineage.manual_record_artifact_id),
+            )
+
+        output_owner_ids = tuple(
+            connection.execute(
+                sa.select(artifact_records.c.work_id).where(
+                    artifact_records.c.artifact_id == lineage.manual_record_artifact_id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if output_owner_ids != (lineage.manual_record_work_id,):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="manual_record_artifact_owner_mismatch",
+                artifactId=str(lineage.manual_record_artifact_id),
+            )
+
+        try:
+            record_content = self._read_artifact_content(
+                connection,
+                record_outputs[0].artifact,
+                source_work_unit_id,
+                maximum_bytes=4 * 1024 * 1024,
+            )
+            record = ManualImportRecordDocument.model_validate_json(record_content, strict=True)
+            record_payload = record.model_dump(mode="json", by_alias=True)
+            record_payload_without_digest = dict(record_payload)
+            del record_payload_without_digest["contentDigest"]
+            expected_record_digest = sha256_json(
+                {
+                    "sourceDigest": record.source_digest,
+                    "locator": record.locator.model_dump(mode="json", by_alias=True),
+                    "record": record.record.model_dump(mode="json", by_alias=True),
+                }
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="manual_record_artifact_invalid",
+                artifactId=str(lineage.manual_record_artifact_id),
+            ) from exc
+
+        if (
+            canonical_json_bytes(record_payload) + b"\n" != record_content
+            or record.content_digest != sha256_json(record_payload_without_digest)
+            or record.record_digest != expected_record_digest
+            or record.source_digest != lineage.source_artifact_digest
+            or record.record_digest != lineage.record_digest
+            or record.content_digest != lineage.manual_record_content_digest
+            or record.record.expected_entity_kind != lineage.expected_entity_kind
+            or _required_text(manual_work, "output_digest") != record.content_digest
+            or len(record_inputs) != 2
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="manual_record_document_lineage_mismatch",
+                artifactId=str(lineage.manual_record_artifact_id),
+            )
+
+        source_inputs = tuple(
+            item.artifact
+            for item in record_inputs
+            if item.artifact.artifact_id == lineage.source_artifact_id
+        )
+        expected_roles = {
+            record.source_artifact_role,
+            f"manual_import_plan_record:{record.plan_record_position}",
+        }
+        if (
+            len(source_inputs) != 1
+            or source_inputs[0].role != record.source_artifact_role
+            or source_inputs[0].content_digest != lineage.source_artifact_digest
+            or {item.artifact.role for item in record_inputs} != expected_roles
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="source_artifact_input_binding_mismatch",
+                artifactId=str(lineage.source_artifact_id),
+            )
+        source_content = self._read_artifact_content(
+            connection,
+            source_inputs[0],
+            source_work_unit_id,
+            maximum_bytes=16 * 1024 * 1024,
+        )
+        if _content_digest(source_content) != lineage.source_artifact_digest:
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                lineage.manual_record_work_id,
+                reason="source_artifact_bytes_mismatch",
+                artifactId=str(lineage.source_artifact_id),
+            )
+
+        self._verify_manual_import_plan_provenance(
+            connection,
+            record=record,
+            record_inputs=record_inputs,
+            source_artifact=source_inputs[0],
+            source_content=source_content,
+            run_id=run_id,
+            source_work_unit_id=source_work_unit_id,
+        )
+        return lineage
+
+    def _verify_manual_import_plan_provenance(
+        self,
+        connection: Connection,
+        *,
+        record: ManualImportRecordDocument,
+        record_inputs: tuple[_BoundArtifact, ...],
+        source_artifact: ArtifactIdentity,
+        source_content: bytes,
+        run_id: UUID,
+        source_work_unit_id: UUID,
+    ) -> None:
+        plan_role = f"manual_import_plan_record:{record.plan_record_position}"
+        plan_inputs = tuple(
+            item.artifact for item in record_inputs if item.artifact.role == plan_role
+        )
+        if len(plan_inputs) != 1:
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                None,
+                reason="manual_import_plan_input_binding_invalid",
+            )
+        plan_artifact = plan_inputs[0]
+        if plan_artifact.content_type != "application/vnd.collection.manual-import-plan+json":
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                None,
+                reason="manual_import_plan_content_type_invalid",
+                artifactId=str(plan_artifact.artifact_id),
+            )
+        plan_owner_ids = tuple(
+            connection.execute(
+                sa.select(artifact_records.c.work_id).where(
+                    artifact_records.c.artifact_id == plan_artifact.artifact_id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if len(plan_owner_ids) != 1 or plan_owner_ids[0] is None:
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                None,
+                reason="manual_import_plan_artifact_owner_missing",
+                artifactId=str(plan_artifact.artifact_id),
+            )
+        plan_work_id = _uuid_value(plan_owner_ids[0])
+        plan_work = (
+            connection.execute(sa.select(work_units).where(work_units.c.work_id == plan_work_id))
+            .mappings()
+            .one_or_none()
+        )
+        if (
+            plan_work is None
+            or _required_text(plan_work, "state") != "succeeded"
+            or _required_uuid(plan_work, "run_id") != run_id
+            or _required_text(plan_work, "stage") != WorkStage.DISCOVERY.value
+            or _required_text(plan_work, "capability") != "manual_import"
+            or _required_text(plan_work, "output_contract") != "manual-import-plan@1"
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                plan_work_id,
+                reason="manual_import_plan_work_owner_invalid",
+            )
+        plan_stage = (
+            connection.execute(
+                sa.select(stage_runs).where(
+                    stage_runs.c.stage_run_id == _required_uuid(plan_work, "stage_run_id")
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if (
+            plan_stage is None
+            or _required_uuid(plan_stage, "run_id") != run_id
+            or _required_text(plan_stage, "stage") != WorkStage.DISCOVERY.value
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                plan_work_id,
+                reason="manual_import_plan_stage_owner_invalid",
+            )
+        plan_outputs = _load_artifacts(connection, work_output_artifacts, plan_work_id)
+        plan_work_inputs = _load_artifacts(connection, work_input_artifacts, plan_work_id)
+        plan_sources = tuple(
+            item.artifact
+            for item in plan_work_inputs
+            if item.artifact.artifact_id == source_artifact.artifact_id
+        )
+        if (
+            len(plan_outputs) != 1
+            or plan_outputs[0].artifact.content_type
+            != "application/vnd.collection.manual-import-plan+json"
+            or plan_outputs[0].artifact.artifact_id != plan_artifact.artifact_id
+            or plan_outputs[0].artifact.role != "manual_import_plan"
+            or len(plan_work_inputs) != 1
+            or len(plan_sources) != 1
+            or plan_sources[0].role != record.source_artifact_role
+            or plan_sources[0].content_digest != source_artifact.content_digest
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                plan_work_id,
+                reason="manual_import_plan_source_or_output_binding_mismatch",
+                artifactId=str(plan_artifact.artifact_id),
+            )
+        plan_content = self._read_artifact_content(
+            connection,
+            plan_artifact,
+            source_work_unit_id,
+            maximum_bytes=64 * 1024 * 1024,
+        )
+        try:
+            verify_manual_import_record_source_provenance(
+                source_content=source_content,
+                plan_content=plan_content,
+                plan_artifact_digest=plan_artifact.content_digest,
+                source_artifact_role=record.source_artifact_role,
+                record=record,
+            )
+        except (TypeError, ValueError) as exc:
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                plan_work_id,
+                reason="manual_import_plan_record_provenance_mismatch",
+                artifactId=str(plan_artifact.artifact_id),
+            ) from exc
+        if _required_text(plan_work, "output_digest") != record.plan_digest:
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                plan_work_id,
+                reason="manual_import_plan_output_digest_mismatch",
+                artifactId=str(plan_artifact.artifact_id),
+            )
+
     def _read_normalization_output(
         self,
         connection: Connection,
@@ -451,20 +1008,26 @@ class PostgresSucceededWorkCatalog:
         *,
         outputs: tuple[_BoundArtifact, ...],
         inputs: tuple[_BoundArtifact, ...],
+        manual_record_lineage: ManualRecordLineage,
         output_digest: str,
     ) -> tuple[ArtifactIdentity, bytes, bytes]:
         output_bindings = {item.artifact.role: item.artifact for item in outputs}
         input_bindings = {item.artifact.role: item.artifact for item in inputs}
+        expected_input_roles = {
+            "extracted_record",
+            "normalization_profile",
+            "manual_record_lineage",
+        }
         if (
             len(outputs) != 1
             or set(output_bindings) != {"field_observation_batch"}
-            or len(inputs) != 2
-            or set(input_bindings) != {"extracted_record", "normalization_profile"}
+            or len(inputs) != 3
+            or set(input_bindings) != expected_input_roles
         ):
             raise _catalog_conflict(
                 "PIPELINE_NORMALIZATION_ARTIFACT_BINDINGS_INVALID",
                 "Normalization success must bind one observation batch, extracted record, "
-                "and profile.",
+                "profile, and manual-record lineage.",
                 source_work_unit_id,
                 "Repair the exact normalization artifact roles before advancement.",
             )
@@ -512,6 +1075,15 @@ class PostgresSucceededWorkCatalog:
                 "Repair the immutable normalization producer artifacts before advancement.",
             ) from exc
         if (
+            batch.source_record_id != manual_record_lineage.manual_record_content_digest
+            or extracted.source_record_id != manual_record_lineage.manual_record_content_digest
+        ):
+            raise _manual_lineage_conflict(
+                source_work_unit_id,
+                manual_record_lineage.manual_record_work_id,
+                reason="observation_lineage_source_record_mismatch",
+            )
+        if (
             canonical_observation_batch_json(batch).encode("utf-8") != batch_content
             or batch.content_digest != output_digest
             or canonical_profile != profile_content
@@ -530,6 +1102,257 @@ class PostgresSucceededWorkCatalog:
                 "provenance.",
             )
         return output, batch_content, profile_content
+
+    def _read_source_record_mapping_output(
+        self,
+        connection: Connection,
+        source_work_unit_id: UUID,
+        *,
+        outputs: tuple[_BoundArtifact, ...],
+        inputs: tuple[_BoundArtifact, ...],
+        output_digest: str,
+    ) -> tuple[ArtifactIdentity, bytes, bytes]:
+        """Read the mapping output and the exact immutable profile that produced it."""
+        batches = tuple(item for item in outputs if item.artifact.role == _SOURCE_RECORD_BATCH_ROLE)
+        profiles = tuple(
+            item for item in inputs if item.artifact.role == _SOURCE_MAPPING_PROFILE_ROLE
+        )
+        if len(batches) != 1:
+            raise _catalog_conflict(
+                "PIPELINE_SOURCE_RECORD_BATCH_AMBIGUOUS",
+                "Source-record mapping must publish exactly one observation batch.",
+                source_work_unit_id,
+                "Repair the mapping output binding.",
+            )
+        if len(profiles) != 1:
+            raise _catalog_conflict(
+                "PIPELINE_SOURCE_RECORD_PROFILE_AMBIGUOUS",
+                "Source-record mapping must consume exactly one mapping profile.",
+                source_work_unit_id,
+                "Repair the mapping profile input binding.",
+            )
+        batch = batches[0].artifact
+        if batch.content_digest != output_digest:
+            raise _catalog_conflict(
+                "PIPELINE_SOURCE_RECORD_BATCH_DIGEST_CONFLICT",
+                "The published batch digest differs from the succeeded output digest.",
+                source_work_unit_id,
+                "Publish the exact durable batch bytes.",
+            )
+        batch_content = self._read_artifact_content(
+            connection,
+            batch,
+            source_work_unit_id,
+            maximum_bytes=8 * 1024 * 1024,
+        )
+        profile_content = self._read_artifact_content(
+            connection,
+            profiles[0].artifact,
+            source_work_unit_id,
+            maximum_bytes=1024 * 1024,
+        )
+        return batch, batch_content, profile_content
+
+    def _read_osm_result(
+        self,
+        connection: Connection,
+        source_work_unit_id: UUID,
+        *,
+        outputs: tuple[_BoundArtifact, ...],
+        inputs: tuple[_BoundArtifact, ...],
+        output_digest: str,
+    ) -> tuple[ArtifactIdentity, ArtifactIdentity, bytes]:
+        """Verify the two-role `osm-overpass-result@1` success without a generic fallback."""
+
+        bindings = {item.artifact.role: item.artifact for item in outputs}
+        if len(outputs) != 2 or set(bindings) != {
+            _OSM_RAW_RESPONSE_ROLE,
+            _OSM_OBSERVATIONS_ROLE,
+        }:
+            raise _catalog_conflict(
+                "PIPELINE_OSM_OUTPUT_BINDINGS_INVALID",
+                "OSM success must bind exactly one raw response and one observation artifact.",
+                source_work_unit_id,
+                "Repair OSM work completion using its canonical two output roles.",
+            )
+        raw_artifact = bindings[_OSM_RAW_RESPONSE_ROLE]
+        observations_artifact = bindings[_OSM_OBSERVATIONS_ROLE]
+        if (
+            raw_artifact.content_type != _OSM_RAW_RESPONSE_CONTENT_TYPE
+            or observations_artifact.content_type != _OSM_OBSERVATIONS_CONTENT_TYPE
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_OSM_OUTPUT_CONTRACT_INVALID",
+                "OSM output artifact content types do not match their exact roles.",
+                source_work_unit_id,
+                "Republish the OSM result using its declared raw and observation content types.",
+            )
+        query_bindings = tuple(
+            item.artifact for item in inputs if item.artifact.role == "overpass_query_spec"
+        )
+        if len(query_bindings) != 1:
+            raise _catalog_conflict(
+                "PIPELINE_OSM_SOURCE_IDENTITY_MISSING",
+                "OSM success must bind exactly one approved Overpass query specification.",
+                source_work_unit_id,
+                "Restore the exact query artifact that authorised this OSM request.",
+            )
+        raw_content = self._read_artifact_content(
+            connection,
+            raw_artifact,
+            source_work_unit_id,
+            maximum_bytes=_OSM_MAX_RAW_RESPONSE_BYTES,
+        )
+        observations_content = self._read_artifact_content(
+            connection,
+            observations_artifact,
+            source_work_unit_id,
+            maximum_bytes=_OSM_MAX_OBSERVATIONS_BYTES,
+        )
+        try:
+            envelope = decode_osm_observation_batch(observations_content)
+        except ValueError as exc:
+            raise _catalog_conflict(
+                "PIPELINE_OSM_OBSERVATIONS_INVALID",
+                "The OSM observation artifact violates its bounded contract.",
+                source_work_unit_id,
+                "Repair the immutable OSM observation producer output before advancement.",
+            ) from exc
+        if envelope.response_digest != _content_digest(raw_content):
+            raise _catalog_conflict(
+                "PIPELINE_OSM_RAW_DIGEST_MISMATCH",
+                "The OSM observation envelope does not describe the bound raw response.",
+                source_work_unit_id,
+                "Repair the exact raw/observation artifact pairing before advancement.",
+            )
+        expected_digest = _osm_result_digest(
+            output_contract=_OSM_RESULT_CONTRACT,
+            raw_digest=raw_artifact.content_digest,
+            observation_digest=observations_artifact.content_digest,
+        )
+        if output_digest != expected_digest:
+            raise _catalog_conflict(
+                "PIPELINE_OSM_RESULT_DIGEST_MISMATCH",
+                "The OSM result digest does not match its exact output artifacts.",
+                source_work_unit_id,
+                "Recompute and republish the OSM result from its immutable artifacts.",
+            )
+        return raw_artifact, observations_artifact, observations_content
+
+    def _read_wikidata_result(
+        self,
+        connection: Connection,
+        source_work_unit_id: UUID,
+        *,
+        outputs: tuple[_BoundArtifact, ...],
+        inputs: tuple[_BoundArtifact, ...],
+        output_digest: str,
+    ) -> tuple[ArtifactIdentity, ArtifactIdentity, bytes, bytes]:
+        """Verify the exact raw response, result envelope and declared query set.
+
+        The collector decodes the wire contract, not the connector: a consumer never depends
+        on source-specific adaptation code to decide whether a producer output is
+        trustworthy, and every accepted record is re-verified against its own digest.
+        """
+
+        by_role = {item.artifact.role: item.artifact for item in outputs}
+        if (
+            len(outputs) != 2
+            or len(by_role) != len(outputs)
+            or set(by_role)
+            != {
+                _WIKIDATA_RAW_ROLE,
+                _WIKIDATA_RESULT_ROLE,
+            }
+        ):
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_OUTPUT_BINDINGS_INVALID",
+                "Wikidata success must bind exactly one raw response and one result envelope.",
+                source_work_unit_id,
+                "Repair successful acquisition completion with its canonical artifact roles.",
+            )
+        raw_artifact = by_role[_WIKIDATA_RAW_ROLE]
+        envelope_artifact = by_role[_WIKIDATA_RESULT_ROLE]
+        raw_content = self._read_artifact_content(
+            connection,
+            raw_artifact,
+            source_work_unit_id,
+            maximum_bytes=_WIKIDATA_MAX_RAW_RESPONSE_BYTES,
+        )
+        envelope_content = self._read_artifact_content(
+            connection,
+            envelope_artifact,
+            source_work_unit_id,
+            maximum_bytes=_WIKIDATA_MAX_RESULT_BYTES,
+        )
+        try:
+            envelope = decode_wikidata_entity_result(envelope_content)
+        except ValueError as exc:
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_RESULT_INVALID",
+                "The Wikidata result envelope violates its bounded contract.",
+                source_work_unit_id,
+                "Repair the immutable Wikidata result before advancement.",
+            ) from exc
+        if envelope.content_digest != envelope_artifact.content_digest:
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_RESULT_INVALID",
+                "The Wikidata result envelope bytes differ from their artifact digest.",
+                source_work_unit_id,
+                "Repair the immutable Wikidata result before advancement.",
+            )
+        if envelope.response_digest != _content_digest(raw_content):
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_RAW_DIGEST_MISMATCH",
+                "The Wikidata result envelope does not describe the bound raw response.",
+                source_work_unit_id,
+                "Repair the exact raw/result artifact pairing before advancement.",
+            )
+        expected_digest = _wikidata_result_digest(
+            output_contract=_WIKIDATA_RESULT_CONTRACT,
+            raw_digest=raw_artifact.content_digest,
+            envelope_digest=envelope_artifact.content_digest,
+        )
+        if output_digest != expected_digest:
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_RESULT_DIGEST_MISMATCH",
+                "The Wikidata result digest does not match its exact output artifacts.",
+                source_work_unit_id,
+                "Recompute and republish the Wikidata result from its immutable artifacts.",
+            )
+        spec_bindings = tuple(
+            item.artifact for item in inputs if item.artifact.role == _WIKIDATA_QUERY_ROLE
+        )
+        if len(spec_bindings) != 1:
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_QUERY_BINDINGS_INVALID",
+                "Wikidata acquisition must bind exactly one declared entity query.",
+                source_work_unit_id,
+                "Repair the work input so it names the exact query specification.",
+            )
+        spec_content = self._read_artifact_content(
+            connection,
+            spec_bindings[0],
+            source_work_unit_id,
+            maximum_bytes=_WIKIDATA_MAX_QUERY_SPEC_BYTES,
+        )
+        try:
+            spec = decode_wikidata_query_spec(spec_content)
+        except ValueError as exc:
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_QUERY_SPEC_INVALID",
+                "The bound Wikidata query specification violates its contract.",
+                source_work_unit_id,
+                "Repair the query specification at its producing stage.",
+            ) from exc
+        if spec.entity_ids != envelope.requested_entity_ids:
+            raise _catalog_conflict(
+                "PIPELINE_WIKIDATA_ENTITY_SET_CONFLICT",
+                "The Wikidata result answers a different entity set than the bound query.",
+                source_work_unit_id,
+                "Re-run the acquisition for the declared entity set.",
+            )
+        return raw_artifact, envelope_artifact, envelope_content, spec_content
 
     def _read_campaign_bundle(
         self,
@@ -1083,6 +1906,31 @@ def _bound_artifact(row: RowMapping) -> _BoundArtifact:
     )
 
 
+def _manual_lineage_conflict(
+    source_work_unit_id: UUID,
+    manual_record_work_id: UUID | None,
+    *,
+    reason: str,
+    **context: object,
+) -> PipelineAdvancementConflict:
+    details: dict[str, object] = {
+        "sourceWorkUnitId": str(source_work_unit_id),
+        "reason": reason,
+        **context,
+    }
+    if manual_record_work_id is not None:
+        details["manualRecordWorkId"] = str(manual_record_work_id)
+    return PipelineAdvancementConflict(
+        code="PIPELINE_MANUAL_RECORD_LINEAGE_PROVENANCE_INVALID",
+        message="The manual-record lineage does not resolve to exact canonical work and artifacts.",
+        context=details,
+        required_action=(
+            "Repair the exact manual-record work, artifact bindings, and stored bytes at their "
+            "canonical owners before advancing this output."
+        ),
+    )
+
+
 def _catalog_conflict(
     code: str,
     message: str,
@@ -1119,6 +1967,122 @@ def _text_value(value: object, meaning: str) -> str:
 
 def _content_digest(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def _osm_result_digest(
+    *,
+    output_contract: str,
+    raw_digest: str,
+    observation_digest: str,
+) -> str:
+    """Recompute the producer-owned OSM result digest independently.
+
+    The payload shape is fixed by `apps/osm_worker` publishing `osm-overpass-result@1`;
+    it is restated here as a literal because architecture rules forbid infrastructure
+    from importing a connector.
+    """
+
+    payload = json.dumps(
+        {
+            "contract": output_contract,
+            "observationsDigest": observation_digest,
+            "rawResponseDigest": raw_digest,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return _content_digest(payload)
+
+
+def _wikidata_result_digest(
+    *,
+    output_contract: str,
+    raw_digest: str,
+    envelope_digest: str,
+) -> str:
+    payload = json.dumps(
+        {
+            "contract": output_contract,
+            "envelopeDigest": envelope_digest,
+            "rawResponseDigest": raw_digest,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return _content_digest(payload)
+
+
+def decode_osm_observation_batch(content: bytes) -> OsmObservationBatchEnvelope:
+    """Validate the bounded `osm_observations` document without the connector import."""
+
+    try:
+        document = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("OSM observations artifact is not valid JSON") from exc
+    if not isinstance(document, dict):
+        raise ValueError("OSM observations artifact must be a JSON object")
+    required = {
+        "attribution",
+        "generator",
+        "observations",
+        "osmBaseTimestampUtc",
+        "queryDigest",
+        "responseDigest",
+    }
+    if set(document) != required:
+        raise ValueError("OSM observations artifact has an unexpected document shape")
+    query_digest = document["queryDigest"]
+    response_digest = document["responseDigest"]
+    for name, value in (("queryDigest", query_digest), ("responseDigest", response_digest)):
+        if not isinstance(value, str) or _SHA256_DIGEST_PATTERN.fullmatch(value) is None:
+            raise ValueError(f"OSM observations {name} is not a canonical digest")
+    attribution = document["attribution"]
+    if attribution != "© OpenStreetMap contributors":
+        raise ValueError("OSM observations must keep its canonical ODbL attribution")
+    base_timestamp = document["osmBaseTimestampUtc"]
+    if base_timestamp is not None and not isinstance(base_timestamp, str):
+        raise ValueError("OSM base timestamp must be a string or null")
+    observations = document["observations"]
+    if not isinstance(observations, list):
+        raise ValueError("OSM observations must be a list")
+    identities: list[tuple[str, int]] = []
+    for entry in observations:
+        if not isinstance(entry, dict):
+            raise ValueError("OSM observation entry must be a JSON object")
+        element_type = entry.get("elementType")
+        osm_id = entry.get("osmId")
+        if element_type not in {"node", "way", "relation"}:
+            raise ValueError("OSM observation has an unsupported element type")
+        if not isinstance(osm_id, int) or isinstance(osm_id, bool) or osm_id <= 0:
+            raise ValueError("OSM observation has an invalid element id")
+        if entry.get("sourceUrl") != f"https://www.openstreetmap.org/{element_type}/{osm_id}":
+            raise ValueError("OSM observation source URL does not match its identity")
+        if not isinstance(entry.get("tags"), dict):
+            raise ValueError("OSM observation tags must be an object")
+        if not isinstance(entry.get("address"), dict):
+            raise ValueError("OSM observation address must be an object")
+        latitude = entry.get("latitude")
+        longitude = entry.get("longitude")
+        if not isinstance(latitude, (int, float)) or isinstance(latitude, bool):
+            raise ValueError("OSM observation latitude is not numeric")
+        if not isinstance(longitude, (int, float)) or isinstance(longitude, bool):
+            raise ValueError("OSM observation longitude is not numeric")
+        if not -90.0 <= float(latitude) <= 90.0 or not -180.0 <= float(longitude) <= 180.0:
+            raise ValueError("OSM observation coordinates are out of range")
+        identities.append((str(element_type), int(osm_id)))
+    if tuple(sorted(identities)) != tuple(identities):
+        raise ValueError("OSM observations must be sorted by element identity")
+    if len(set(identities)) != len(identities):
+        raise ValueError("OSM observations contain duplicate element identities")
+    return OsmObservationBatchEnvelope(
+        query_digest=str(query_digest),
+        response_digest=str(response_digest),
+        osm_ids=tuple(identities),
+        osm_base_timestamp_utc=base_timestamp,
+        attribution=attribution,
+    )
 
 
 def _verify_official_http_bindings(

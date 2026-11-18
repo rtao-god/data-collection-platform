@@ -101,7 +101,10 @@ def test_work_unit_ddl_contains_fail_closed_lease_and_idempotency_contracts() ->
     assert "active_lease_token IS NOT NULL" in sql
     assert "state <> 'leased' AND active_lease_id IS NULL" in sql
     assert "source_policy_digest ~ '^sha256:[0-9a-f]{64}$'" in sql
-    assert "capability IN ('manual_import', 'osm_query', 'http_fetch', 'browser_fetch')" in sql
+    assert (
+        "capability IN ('manual_import', 'osm_query', 'wikidata_entity_query', "
+        "'http_fetch', 'browser_fetch')" in sql
+    )
     assert set(indexes) == {
         "ix_work_units_claim",
         "ix_work_units_lease_expiry",
