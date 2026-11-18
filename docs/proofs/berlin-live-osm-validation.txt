@@ -1,0 +1,246 @@
+Bounded live OSM validation - measured results
+==============================================
+
+Repository: data-collection-platform
+Base commit: 3f1ad534445fad26900fd483dc47bacd459f6b38 plus uncommitted worktree
+Endpoint:    https://overpass-api.de/api/interpreter (configured endpoint)
+User agent:  data-collection-platform-local/1.0 (+https://example.invalid/contact)
+Rate limits: source policy max_requests_per_second 0.5, max_concurrency 1
+
+Every number below came from executing the code against the live endpoint or from querying
+the isolated PostGIS container in this session. Where a value is unknown it says so.
+
+
+1. Boundary hole exclusion (change + regression proof)
+------------------------------------------------------
+
+Change: `boundary_contains` in collection_contracts/osm_query_spec.py applies the exact
+original campaign boundary after acquisition, because an Overpass `poly` filter carries one
+ring and cannot express interior holes. `_boundary_admitted_osm_elements` in
+pipeline_advancement.py drops excluded elements and records their identities on
+`SourceRecordMappingAction.excluded_by_boundary_record_ids`, which is part of the canonical
+action payload and therefore of the durable result digest.
+
+Failure semantics: when every element in a result falls inside a hole, the transition is
+BLOCKed with PIPELINE_SOURCE_RECORD_ALL_ELEMENTS_OUTSIDE_BOUNDARY and zero mapping actions.
+It never proceeds with an empty batch.
+
+Regression tests (all executed, all passing):
+  packages/collection_application/tests/test_osm_boundary_hole_filter.py   7 passed
+  packages/collection_application/tests/test_osm_discovery_integration.py 11 passed
+    - test_elements_inside_a_boundary_hole_never_reach_intake
+        plan.disposition is BLOCK, source_record_mapping_actions == (),
+        blocker code PIPELINE_SOURCE_RECORD_ALL_ELEMENTS_OUTSIDE_BOUNDARY,
+        sourceRecordCount 3
+    - test_partial_hole_exclusion_drops_the_hole_element_and_keeps_the_rest
+    - test_elements_outside_a_boundary_hole_still_reach_intake
+
+Defect found while proving this: the first version of the predicate unpacked rings as
+(lon, lat) while `_raw_ring` yields (lat, lon), so containment returned False for every
+point. It was caught by the test asserting a point outside the hole is admitted and fixed
+in the predicate, not in the test.
+
+
+2. Live acquisition - what was actually fetched
+-----------------------------------------------
+
+Two bounded requests were issued; every other area queried returned zero elements.
+
+  Request A  box (52.490,13.380)-(52.520,13.430), 1 element
+  Request B  box (52.515,13.385)-(52.527,13.403), 0 elements
+  Request C  box (52.528,13.385)-(52.548,13.415), 0 elements
+
+Acquired element (Request A), verbatim from OSM:
+  node 871572117  "nb film"
+  amenity=recording_studio, addr:street="Dresdener Strasse" 125, addr:postcode=10999,
+  addr:suburb=Kreuzberg, operator="Thorsten Schneider",
+  contact:phone="+49 30 31169672", contact:mobile="+49 174 5910833",
+  contact:website="http://www.nbfilm.de"
+  location 52.5007771, 13.4168436
+  OSM base timestamp 2026-11-16T00:01:59Z
+  response bytes 794
+
+Measured counts for the single-element run:
+  fetched elements ................. 1
+  valid source records ............. 1
+  rejected records ................. 0
+  excluded by boundary ............. 0   (the element lies outside every declared hole)
+  unrepresentable .................. 0
+  mapped records ................... 1
+  candidates created ............... 1
+  review cases ..................... 1   (reason_code candidate_requires_review)
+  duplicates ....................... 0
+  quality evaluations .............. 1
+  candidate_revision_evidence rows . 4
+
+Provenance: source_binding_key osm_overpass_berlin, source policy digest
+sha256:a2b8fa45..., datasetRelease = raw response digest
+sha256:92450b44e86328de06ab029b0fb7f230f88c7aeb7a6899c7c3346984180508e5,
+element sourceUrl https://www.openstreetmap.org/node/871572117, attribution
+"(c) OpenStreetMap contributors". Persisted candidate: entity_kind `place`,
+resolution_state `review`, revision 0.
+
+Entity kind was taken from the immutable campaign binding
+(source_entity_kind: place). It was not defaulted and not inferred from the name.
+
+
+3. Two real defects found by running against the live endpoint
+--------------------------------------------------------------
+
+3.1 Overpass rejected every generated query with HTTP 400.
+
+  Server error text: `Invalid regular expression: "^(?:recording_studio)$"`.
+  Cause: connectors/osm_overpass/query.py emitted a non-capturing group `(?:...)`.
+  Overpass evaluates tag filters with POSIX extended regular expressions, which have no
+  non-capturing group syntax.
+  Fix: emit `^(recording_studio)$`. Same semantics, accepted by the server.
+  Test updated (connectors/osm_overpass/tests/test_query.py now also asserts that `(?:`
+  never appears). connectors/osm_overpass/tests: 28 passed.
+
+  Note: the pre-existing test asserted the broken form, so this defect was locked in by a
+  test that had never been validated against the real endpoint.
+
+3.2 Source-record intake rejected its own batches.
+
+  The adapter `_source_record_as_observations` rebuilt the generic batch but inherited
+  `content_digest` from the source-record batch. Those are different canonical contents, so
+  `verify_observation_batch` failed with "observation batch digest does not match canonical
+  content" and intake could not persist anything.
+  Fix: `seal_observation_batch(payload)` computes the digest from the rebuilt payload. The
+  adapter still manufactures no HTML extracted-record digest and no manual-import lineage.
+
+3.3 Replay was not identity-stable.
+
+  `materialize_source_record_observations` defaulted `observed_at_utc` to `datetime.now()`.
+  Two mappings of byte-identical evidence therefore produced different evidence digests and
+  two different candidates. Measured before the fix: replaying the same result created a
+  second candidate row with a different id and a different snapshot_digest.
+  Pinning `observed_at_utc` to the source's own observation time reproduced the same
+  candidate id (`1226bff8-247e-5349-8454-be37eb078bc6`) on two consecutive runs, with
+  candidates/revisions/cases/quality all staying at 1.
+  The default remains wall-clock in the worker; callers that need replay identity must pass
+  the source timestamp. This is a caller contract, and is not yet enforced by the worker.
+
+
+4. Website-less businesses survive, and nothing is manufactured
+---------------------------------------------------------------
+
+The acquired element carries `contact:website` but no `website` tag. The campaign projection
+maps the `website` tag, so the mapper has no value for it and emits `NOT_OBSERVED`.
+
+  website.state = not_observed, value = null, evidence = null
+  display_name.state = observed, value "nb film"
+  email.state = not_observed, phone.state = not_observed
+  issues = []
+
+The element still produced a candidate and a review case. Nothing was invented: no website
+URL, no empty string, no `ABSENT_IN_SOURCE`. Covered by
+apps/processing_worker/tests/test_source_record_mapping_worker.py::
+test_absent_field_is_not_observed_never_confirmed_absent (17 worker tests pass).
+
+A separate question worth recording, not answered here: the element does publish a website
+under `contact:website`. The campaign projection reads `website` only, so a real website is
+currently not captured. Mapping `contact:website` is a campaign/projection decision, not a
+mapper bug, and was deliberately not changed in this run.
+
+
+5. Retry and replay on the acquired data
+----------------------------------------
+
+  Replay of identical evidence with a pinned observation time:
+    run 1 -> candidate 1226bff8-247e-5349-8454-be37eb078bc6, 1 candidate, 1 case
+    run 2 -> candidate 1226bff8-247e-5349-8454-be37eb078bc6, 1 candidate, 1 case
+    no additional candidate, revision, quality evaluation or review case
+
+  Independent-source failure semantics are unchanged: the OSM binding reconciles only its
+  own succeeded work. Overture has no binding and no connector in this repository, so it
+  cannot block OSM, and OSM's failure cannot block it. The Overture GO/NO-GO remains
+  independent and unresolved.
+
+  Transactional atomicity of intake (failure between writes and commit -> zero rows, retry
+  -> exactly one row set) is proven separately in
+  database/tests/test_candidate_intake_transaction.py (5 tests, real PostgreSQL).
+
+
+6. Gate results after the changes
+---------------------------------
+
+pwsh -NoProfile -File tools/check.ps1 verify   ->  EXIT=0
+  contract drift check ......... passed
+  ruff format --check .......... 396 files
+  ruff check ................... All checks passed
+  mypy ......................... Success: no issues found in 218 source files
+  architecture dependency ...... passed
+  workflow architecture ........ passed
+  pytest (not integration) ..... 708 passed, 1 skipped, 55 deselected
+
+COLLECTOR_DATABASE_URL=... uv run pytest -m integration database/tests
+  51 passed, 1 deselected
+
+Note on test isolation: `test_postgres_review_repository` asserts the review queue contains
+only its own case, so any rows left by another module break it. It failed once after my live
+run left candidates behind; after clearing those rows it passed. The live run left data
+because it is a real run against a real database, not because of a cleanup bug in it.
+
+The single skip requires COLLECTOR_TEST_S3_ENDPOINT_URL (SeaweedFS), unrelated to this work.
+
+
+7. What is still not proven, stated plainly
+-------------------------------------------
+
+  - One element is not a Berlin-wide measurement. No claim is made about how many studios
+    OSM holds, about recall, or about coverage completeness.
+  - No full-city acquisition was run; that requires the 5-partition plan, which was proven
+    geometrically (PostGIS: missing 0.000072 m2, extra exactly one declared hole of
+    574.0272 m2) but not executed over the network.
+  - `observed_at_utc` replay identity is a caller contract, not enforced in the worker.
+  - `contact:website` and other contact-prefixed tags are not projected; a published website
+    was therefore not captured for the one element acquired.
+  - Overture GO/NO-GO: blocked, no connector exists.
+  - ODbL redistribution: blocked, needs an external legal decision. Internal acquisition is
+    authorised by the research_only source policy; redistribution was not self-authorised.
+  - Partial collector export stays disabled; no `allow_partial` path was added.
+  - No Aggregator database was written and nothing was published publicly.
+== OSM contact-namespace coverage (follow-up) ==
+Problem: the campaign projected only the `website`/`phone`/`email` tags. OSM node
+871572117 publishes its site and phone only as `contact:website` / `contact:phone`, so a
+real published website was recorded NOT_OBSERVED. That is lost recall, not a mapper bug.
+
+Decision: aliases are source tags feeding one existing typed target, not new targets.
+`SourceFieldProjection.source_aliases` (additive) carries them; the immutable campaign
+binding stays the single owner of the decision.
+  website <- website, contact:website
+  phone   <- phone,   contact:phone
+  email   <- email,   contact:email
+All three source tags are permitted by `osm_berlin_studios_policy.yaml` allowed_fields.
+
+Semantics implemented:
+  - every authorized tag yields its own evidence pointer /tags/<tag>;
+  - identical normalized values collapse to one observation;
+  - distinct conflicting values are all kept for review, never overwritten;
+  - OBSERVED when at least one authorized tag carries a value;
+  - NOT_OBSERVED only when no authorized tag carries one; never ABSENT_IN_SOURCE.
+
+Measured on the real acquired node (end-to-end through the real campaign bundle):
+  profile fieldAliases = {email:[email,contact:email],
+                          phone:[phone,contact:phone],
+                          website:[website,contact:website]}
+  website -> observed  http://www.nbfilm.de   evidence /tags/contact:website
+  phone   -> observed  +49 30 31169672        evidence /tags/contact:phone
+  email   -> not_observed (genuinely absent; no ABSENT_IN_SOURCE anywhere)
+  plan digest and mapped batch digest identical across two replays.
+
+Website-less business regression: with `contact:website` removed, website stays
+not_observed while display_name stays observed; the record still maps and intakes.
+
+Verification actually run:
+  apps/processing_worker tests ............ 28 passed
+  collection_application (OSM discovery) ... 17 passed
+  database integration (PostGIS) .......... 55 passed
+  tools/check.ps1 verify .................. EXIT=0, 722 passed, 1 skipped, 59 deselected
+                                            mypy Success 218 sources, ruff clean,
+                                            contract drift + architecture checks pass
+
+Unchanged gates: ODbL redistribution approval still pending (no OSM export enabled),
+partial collector export still disabled, Overture GO/NO-GO still blocked on a bounded
+live fetch. No OSM data was published or redistributed.

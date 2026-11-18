@@ -1,0 +1,160 @@
+Berlin Discovery Source Pilot - measured evidence
+=================================================
+
+Repository: data-collection-platform
+Commit under test: 3f1ad534445fad26900fd483dc47bacd459f6b38 plus uncommitted worktree
+Run date: 2026-08-21 (local run, Windows host)
+
+This file records only results that were produced by executing the code or by querying
+the isolated PostGIS instance. No number here is estimated or carried over from an earlier
+run without re-execution.
+
+
+1. Gate result
+--------------
+
+Command: pwsh -NoProfile -File tools/check.ps1 verify
+Result:  EXIT=0
+
+  contract drift check ......... passed
+  ruff format --check .......... 395 files already formatted
+  ruff check ................... All checks passed
+  mypy ......................... Success: no issues found in 218 source files
+  architecture dependency check  passed
+  workflow architecture check ... passed
+  pytest (not integration) ...... 698 passed, 1 skipped, 55 deselected in 110.91s
+
+The single skip requires COLLECTOR_TEST_S3_ENDPOINT_URL (SeaweedFS) and is unrelated to
+this pilot. It is a pre-existing environmental skip, not a suppressed failure.
+
+
+2. Isolated PostgreSQL/PostGIS integration database
+---------------------------------------------------
+
+Compose file: deploy/compose/integration.yaml (project dcpf-integration)
+Image: postgis/postgis:18.3 pinned by digest
+Storage: tmpfs at /var/lib/postgresql (no named volume, discarded on down)
+Port: 127.0.0.1:55433 for this run (default 55432 was occupied on the host)
+
+Migrations applied through head 20260820_0017 with `collection-migrate upgrade head`.
+The database is physically separate from the development stack: separate Compose project,
+separate container, separate port, no shared volume. Development data cannot be reached.
+
+Helper: pwsh -NoProfile -File tools/integration-db.ps1 up | test | down | status
+Documented in docs/operations/integration-database.md.
+
+
+3. Geometry partition coverage (authoritative PostGIS measurement)
+------------------------------------------------------------------
+
+Boundary: campaigns/berlin_recording_services/geography/berlin-boundary.geojson
+  digest   sha256:d67bbca795b0a3f0b5741ba8609222e35cb81d3402df03fc403409e666ea0b9a
+  geometry MultiPolygon, 4 parts, ring point counts 9626 (+7-point hole), 7, 6, 18
+
+Partitioning: exact axis-aligned half-plane clipping (Sutherland-Hodgman), recursive on the
+longer extent, seam vertices added, original vertices preserved.
+
+Result: 5 partitions with ring point counts [4831, 4798, 6, 5, 17].
+Every partition is at or below the 5000-point Overpass limit.
+Exactly one partition declares one 6-point interior hole as an excluded_holes
+over-approximation.
+
+Measured with PostGIS geography casts, comparing the union of the 5 partition polygons with
+the original boundary over the same SRID:
+
+  boundary area .............. 891 119 585.67 m2
+  missing area (boundary not covered by partitions) ... 0.000072 m2
+  extra area (covered but not boundary) .............. 574.0272 m2
+  covers_all_except_declared_hole .................... true
+
+Interpretation, stated plainly:
+  - No real area of Berlin is dropped. The 0.000072 m2 residue is floating-point noise at
+    the clip seams, not a lost region.
+  - The 574 m2 surplus is exactly the declared interior hole that no single Overpass query
+    can express. It is declared in the published partition record, not silently included,
+    so a consumer can see the over-approximation.
+  - The query will therefore return the full city plus at most one small interior hole's
+    worth of extra candidates. It cannot lose part of the city.
+
+This replaced an earlier vertex-window split, which was measured to lose 0.02% of the
+boundary (0.117906 vs 0.117926) because window chords close across the interior and query
+a different region. That approach was removed rather than patched.
+
+
+4. Executed integration tests (real database, not skipped)
+----------------------------------------------------------
+
+Command: COLLECTOR_DATABASE_URL=... uv run pytest -m integration database/tests
+Result: 51 passed, 1 deselected in 86.57s
+
+Included, newly executed for this pilot:
+
+  database/tests/test_osm_boundary_partition_coverage.py  (4 passed)
+    - every partition polygon is ST_IsValid
+    - union misses less than 1 m2 of the boundary
+    - surplus area matches the declared excluded holes (rel 1e-2)
+    - replaying the partitioner yields ST_Equals identical geometry
+
+  database/tests/test_candidate_intake_transaction.py  (5 passed)
+    - a failure raised after the candidate/review/quality writes and before commit
+      leaves zero candidate, zero revisions, zero quality rows and zero review cases
+    - a retry after that rollback persists exactly one row set and returns a digest
+    - an exact replay returns the identical result digest, keeps exactly one candidate and
+      does not create a duplicate review case
+    - a second writer with the same deterministic identity is treated as a replay
+    - the persisted candidate id equals the planned id and entity_kind is organization
+
+  database/tests/test_candidate_intake_applier_integration.py  (5 passed)
+    These were broken in the worktree by the provenance-union change (they still passed
+    manual_record_artifact_id to CandidateIntakeAction) and were repaired to the current
+    contract. They had not been run against a database before this run.
+
+Cleanup: each module deletes only the rows it created and bypasses the append-only triggers
+with SET LOCAL session_replication_role = replica, the same owner-side mechanism the
+existing intake tests use. After the run, 2 candidate rows remain, both from pre-existing
+seeds (correlation_id schema-test and repository-test) that belong to
+test_postgres_review_repository.py and are outside this pilot's modules.
+
+
+5. Source-record mapping behaviour proven by test
+-------------------------------------------------
+
+  - A seam duplicate (the same (elementType, osmId) returned by two adjacent partitions) is
+    mapped once. Covered by test_seam_duplicate_element_identity_is_mapped_once.
+  - An element that cannot be represented is skipped and its source_record_id is recorded
+    on the mapping action, so the partial result is visible instead of the whole batch
+    being discarded. The unrepresentable ids are included in the canonical mapping action
+    payload and therefore in the durable result digest, so a partial fetch cannot later be
+    replayed as complete coverage.
+  - A batch in which every element is unrepresentable fails explicitly with
+    PIPELINE_SOURCE_RECORD_ALL_ELEMENTS_UNREPRESENTABLE rather than succeeding empty.
+
+
+6. Known latently broken code found and fixed during this run
+-------------------------------------------------------------
+
+  - campaign_runs._osm_discovery_work returned a tuple while annotated -> WorkUnitSpec, and
+    its caller extends a list. mypy caught it; the annotation was corrected.
+  - The partition loop in osm_query_spec used lambdas closing over the loop variable `cut`
+    (ruff B023). Replaced with _below/_above predicate factories binding the value.
+  - _BoundaryShape parameter annotations rejected the numeric rings callers pass; annotated
+    for the coordinate sequences actually supplied.
+  - test_campaign_run_service asserted a fixed initial_work count of 2, which became wrong
+    once the OSM binding yields one unit per partition. It now derives the expected count
+    and asserts per-binding contracts (osm-overpass-result@1, capability osm_query).
+
+
+7. Still blocked, and not claimed as done
+-----------------------------------------
+
+  - Overture source: no connectors/overture_places exists. A GO/NO-GO needs a live bounded
+    fetch of the pinned GeoParquet release plus one corroborated incremental Berlin venue.
+    Not attempted here; OSM runs without it and its failure cannot block OSM.
+  - ODbL redistribution: export of OSM-influenced output remains blocked pending an external
+    legal decision. Acquisition for research is authorised; redistribution is a separate
+    authorisation and was not self-granted.
+  - No live Overpass fetch was executed in this run. What is proven is the bootstrap work
+    plan, the query spec per partition, the partition coverage geometry, the mapping
+    behaviour against envelopes, and intake atomicity. Actual network acquisition and the
+    resulting candidate count remain unmeasured.
+  - No Aggregator database was written and nothing was published publicly.

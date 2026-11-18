@@ -18,14 +18,16 @@ by the normal architecture check.
 | `collection_migration` | `apps/migration` | `collection_contracts`, `collection_infrastructure` | none |
 | `manual_import_worker` | `apps/manual_import_worker` | `collection_contracts`, `manual_import_core`, `source_connector_sdk` | `httpx` |
 | `osm_worker` | `apps/osm_worker` | `osm_overpass`, `source_connector_sdk` | none |
+| `wikidata_worker` | `apps/wikidata_worker` | `collection_contracts`, `source_connector_sdk`, `wikidata_studios` | none |
 | `official_http` | `connectors/official_http` | `official_http_contracts`, `source_connector_sdk` | `defusedxml`, `pydantic`, `scrapy` |
 | `osm_overpass` | `connectors/osm_overpass` | none | `httpx` |
+| `wikidata_studios` | `connectors/wikidata_studios` | `collection_contracts` | `httpx` |
 | `review_application` | `packages/review_application` | `collection_contracts`, `review_contracts` | none |
 | `review_contracts` | `packages/review_contracts` | `collection_contracts` | `pydantic` |
 | `review_core` | `packages/review_core` | `collection_contracts`, `review_contracts` | none |
 | `review_infrastructure` | `packages/review_infrastructure` | `collection_contracts`, `review_application`, `review_contracts`, `review_core` | `sqlalchemy` |
-| `collection_infrastructure` | `packages/collection_infrastructure` | `collection_application`, `collection_contracts`, `official_http_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
-| `collection_application` | `packages/collection_application` | `collection_contracts`, `official_http_contracts`, `collection_domain`, `manual_import_core` | `pydantic`, `yaml` |
+| `collection_infrastructure` | `packages/collection_infrastructure` | `candidate_materialization`, `collection_application`, `collection_contracts`, `official_http_contracts`, `quality_core`, `resolution_contracts` | `alembic`, `boto3`, `botocore`, `psycopg`, `sqlalchemy` |
+| `collection_application` | `packages/collection_application` | `collection_contracts`, `official_http_contracts`, `collection_domain`, `manual_import_core`, `resolution_contracts` | `pydantic`, `yaml` |
 | `candidate_materialization` | `packages/candidate_materialization` | `collection_contracts`, `resolution_contracts` | none |
 | `extraction_core` | `packages/extraction_core` | `collection_contracts` | `extruct`, `lxml` |
 | `normalization_core` | `packages/normalization_core` | `collection_contracts` | `phonenumbers`, `tldextract` |
