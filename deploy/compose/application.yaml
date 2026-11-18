@@ -326,6 +326,29 @@ services:
     mem_limit: 512m
     cpus: 1.0
 
+  wikidata-worker:
+    <<: *worker-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/wikidata-worker.Dockerfile
+    environment:
+      WORKER_GATEWAY_BASE_URL: http://worker-gateway:8080
+      WORKER_GATEWAY_TOKEN: ${WIKIDATA_WORKER_TOKEN:?WIKIDATA_WORKER_TOKEN is required}
+      WIKIDATA_WORKER_BUILD_IDENTITY: wikidata-worker@${COLLECTOR_BUILD_IDENTITY:-local}
+      WORKER_GATEWAY_TIMEOUT_SECONDS: ${WORKER_GATEWAY_TIMEOUT_SECONDS:-30}
+      WIKIDATA_ALLOWED_HOSTS: ${WIKIDATA_ALLOWED_HOSTS:?WIKIDATA_ALLOWED_HOSTS is required}
+      WIKIDATA_USER_AGENT: ${WIKIDATA_USER_AGENT:?WIKIDATA_USER_AGENT is required}
+      WIKIDATA_TIMEOUT_SECONDS: ${WIKIDATA_TIMEOUT_SECONDS:-60}
+      WIKIDATA_MAXIMUM_RESPONSE_BYTES: ${WIKIDATA_MAXIMUM_RESPONSE_BYTES:-67108864}
+      WIKIDATA_LEASE_SECONDS: ${WIKIDATA_LEASE_SECONDS:-300}
+      WIKIDATA_HEARTBEAT_SECONDS: ${WIKIDATA_HEARTBEAT_SECONDS:-60}
+      WIKIDATA_POLL_SECONDS: ${WIKIDATA_POLL_SECONDS:-5}
+    networks:
+      - collection-acquisition-egress
+      - collection-workers
+    mem_limit: 512m
+    cpus: 1.0
+
   extraction-worker:
     <<: *worker-service
     build:
