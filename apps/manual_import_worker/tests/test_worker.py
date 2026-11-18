@@ -159,9 +159,9 @@ def _lease(
 
 def _source_bytes() -> bytes:
     return (
-        b"expected_entity_kind,display_name,website,osm_id,"
+        b"expected_entity_kind,display_name,category,website,osm_id,"
         b"reference_urls,note,provenance\n"
-        b"place,Studio,,,,,manual-test\n"
+        b"place,Studio,recording_studio,,,,,manual-test\n"
     )
 
 

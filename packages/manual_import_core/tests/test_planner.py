@@ -18,10 +18,13 @@ from manual_import_core import (
     verify_manual_import_plan,
 )
 
-_HEADERS = "expected_entity_kind,display_name,website,osm_id,reference_urls,note,provenance"
+_HEADERS = (
+    "expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,provenance"
+)
 _VALID_RECORD = {
     "expected_entity_kind": "place",
     "display_name": "Example Studio",
+    "category": "recording_studio",
     "website": "https://example.test",
     "osm_id": None,
     "reference_urls": ["https://example.test/contact"],
@@ -62,7 +65,7 @@ def test_campaign_csv_fixture_has_deterministic_plan() -> None:
 def test_csv_uses_physical_line_as_row_number_and_locator() -> None:
     content = (
         _HEADERS
-        + "\nplace,Example Studio,https://example.test,,https://example.test/contact,,fixture\n"
+        + "\nplace,Example Studio,recording_studio,https://example.test,,https://example.test/contact,,fixture\n"
     ).encode()
 
     plan = build_manual_import_plan(content, format=ManualImportFormat.CSV)

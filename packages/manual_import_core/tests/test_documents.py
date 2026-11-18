@@ -20,9 +20,9 @@ from manual_import_core import (
 )
 
 _SOURCE = (
-    b"expected_entity_kind,display_name,website,osm_id,"
+    b"expected_entity_kind,display_name,category,website,osm_id,"
     b"reference_urls,note,provenance\n"
-    b"place,Studio A,https://studio.example,,,,manual-test\n"
+    b"place,Studio A,recording_studio,https://studio.example,,,,manual-test\n"
 )
 
 

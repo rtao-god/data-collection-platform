@@ -23,7 +23,7 @@ from collection_contracts import (
 MAX_MANUAL_IMPORT_BYTES = 16 * 1024 * 1024
 MAX_MANUAL_IMPORT_RECORDS = 100_000
 _MANUAL_INPUT_FIELDS = tuple(name for name in ManualSeedRow.model_fields if name != "row_number")
-_REQUIRED_TEXT_FIELDS = ("expected_entity_kind", "display_name", "provenance")
+_REQUIRED_TEXT_FIELDS = ("expected_entity_kind", "display_name", "category", "provenance")
 _OPTIONAL_TEXT_FIELDS = ("website", "osm_id", "note")
 
 
