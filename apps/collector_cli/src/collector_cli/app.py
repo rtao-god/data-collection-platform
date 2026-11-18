@@ -9,6 +9,7 @@ from uuid import uuid4
 from collection_application import CampaignSnapshotService
 from collection_contracts import OwnerContextError
 from collection_infrastructure import FilesystemCampaignBundleSource
+from collector_cli import export_package, ingestion_command
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -25,11 +26,17 @@ def _parser() -> argparse.ArgumentParser:
     for name in ("validate", "digest"):
         operation = config_command.add_parser(name)
         operation.add_argument("campaign_key")
+    export_package.add_arguments(command)
+    ingestion_command.add_arguments(command)
     return parser
 
 
 def run(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "export":
+        return export_package.run(args)
+    if args.command == "ingestion":
+        return ingestion_command.run(args)
     correlation_id = str(uuid4())
     try:
         source = FilesystemCampaignBundleSource(args.campaigns_root)
