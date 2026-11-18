@@ -1,0 +1,44 @@
+{
+  "manifest": {
+    "contractIdentity": "aggregator-candidate-ingestion",
+    "contractRevision": 3,
+    "producerIdentity": "data-collection-platform",
+    "producerBuild": "cross-system-vector",
+    "collectorExportId": "00000000-0000-0000-0000-00000000d001",
+    "collectorExportDigest": "935978e2d62e7228b7a838052592eab891382912523e481ddfdd0b82bc536b75",
+    "targetSiteKey": "berlin-recording",
+    "targetCatalogKey": "berlin-recording-services",
+    "targetCatalogConfigurationRevisionId": "00000000-0000-0000-0000-00000000d002",
+    "createdAtUtc": "2026-11-16T00:03:00+00:00",
+    "itemCount": 1,
+    "itemIndexDigest": "5d07dce0b5652858aa9ce0eae0c1e2e9ae44644647863c14ebe06287b7873b0d",
+    "payloadDigest": "fe06a73a2d1c7ee6d54da534f8dfdb2a5472fd0515fee687bee562acfe779fb4",
+    "sourcePolicies": [
+      {
+        "sourceKey": "openstreetmap",
+        "policyDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "usagePolicy": "publishable"
+      }
+    ],
+    "artifacts": [
+      {
+        "role": "candidatePayload",
+        "objectKey": "ingestion/quarantine/00000000-0000-0000-0000-00000000d001/payload.json",
+        "contentDigest": "fe06a73a2d1c7ee6d54da534f8dfdb2a5472fd0515fee687bee562acfe779fb4",
+        "size": 2351,
+        "contentType": "application/json"
+      }
+    ]
+  },
+  "manifestDigest": "486ada5826e59aec534d1893ecadbd70d721c004f17ca61f0fd1d5ecd9e18b3c",
+  "payloadBytes": "{\"items\":[{\"categoryProposals\":[\"recording_studio\"],\"collectorCandidateId\":\"00000000-0000-0000-0000-00000000a001\",\"collectorCandidateRevision\":1,\"collectorReviewReferences\":[{\"decidedAtUtc\":\"2026-11-16T00:02:00\\u002B00:00\",\"decisionDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"decisionId\":\"00000000-0000-0000-0000-00000000c001\",\"decisionKind\":\"accept_candidate\"}],\"contactProposals\":[{\"fieldPath\":\"website_urls\",\"kind\":\"website\",\"state\":\"observed\",\"target\":\"https://studio-one.example/\"}],\"contentDigest\":\"8a08c10a0f0d29c7889bd887f14fed597d07136b76edd65c53f01ca513cbbd8d\",\"entityKind\":\"organization\",\"externalReferenceProposals\":[],\"geographyProposal\":{\"fieldPath\":\"geography\",\"latitude\":52.5007771,\"longitude\":13.4168436,\"state\":\"proposedPoint\"},\"itemKey\":\"00000000-0000-0000-0000-00000000a001\",\"localizedNames\":[{\"fieldPath\":\"names\",\"locale\":\"und\",\"state\":\"observed\",\"value\":\"Studio One\"}],\"provenanceReferences\":[{\"attribution\":\"OpenStreetMap contributors\",\"evidenceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"fieldPath\":\"names\",\"observedAtUtc\":\"2026-11-16T00:01:59\\u002B00:00\",\"referenceId\":\"b0901e8f-1248-9199-f7cd-80812027cb00\",\"sourceExternalId\":\"osm:node:101\",\"sourceKey\":\"openstreetmap\",\"sourceUrl\":\"https://www.openstreetmap.org/node/101\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"OpenStreetMap contributors\",\"evidenceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"fieldPath\":\"website_urls\",\"observedAtUtc\":\"2026-11-16T00:01:59\\u002B00:00\",\"referenceId\":\"ecee5304-99b7-e42c-2cdd-7681571caa74\",\"sourceExternalId\":\"osm:node:101\",\"sourceKey\":\"openstreetmap\",\"sourceUrl\":\"https://www.openstreetmap.org/node/101\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"OpenStreetMap contributors\",\"evidenceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"fieldPath\":\"geography\",\"observedAtUtc\":\"2026-11-16T00:01:59\\u002B00:00\",\"referenceId\":\"631009ef-4045-7144-c13f-c473c00b0309\",\"sourceExternalId\":\"osm:node:101\",\"sourceKey\":\"openstreetmap\",\"sourceUrl\":\"https://www.openstreetmap.org/node/101\",\"usagePolicy\":\"publishable\"}],\"qualitySummary\":{\"issues\":[],\"state\":\"passed\"},\"relationshipProposals\":[],\"subjectProposal\":{\"externalIdentityKeys\":[],\"sourceSubjectKey\":\"00000000-0000-0000-0000-00000000a001\"},\"typedAttributeProposals\":[]}]}",
+  "itemIndex": [
+    {
+      "itemKey": "00000000-0000-0000-0000-00000000a001",
+      "contentDigest": "8a08c10a0f0d29c7889bd887f14fed597d07136b76edd65c53f01ca513cbbd8d"
+    }
+  ],
+  "expectedItemDigests": {
+    "00000000-0000-0000-0000-00000000a001": "8a08c10a0f0d29c7889bd887f14fed597d07136b76edd65c53f01ca513cbbd8d"
+  }
+}

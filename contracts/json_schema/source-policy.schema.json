@@ -387,6 +387,7 @@
         "official_directory",
         "official_website",
         "openstreetmap",
+        "wikidata",
         "reference"
       ],
       "title": "Source Type",

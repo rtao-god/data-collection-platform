@@ -144,6 +144,13 @@
     "ManualSeedRow": {
       "additionalProperties": false,
       "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Category",
+          "type": "string"
+        },
         "display_name": {
           "maxLength": 300,
           "minLength": 1,
@@ -219,6 +226,7 @@
         "row_number",
         "expected_entity_kind",
         "display_name",
+        "category",
         "website",
         "osm_id",
         "reference_urls",

@@ -55,7 +55,8 @@
         "xpath",
         "css",
         "html_attribute",
-        "text_offset"
+        "text_offset",
+        "column"
       ],
       "title": "EvidenceLocatorKind",
       "type": "string"
@@ -196,6 +197,66 @@
       "title": "FieldObservation",
       "type": "object"
     },
+    "GeoPointObservationValue": {
+      "additionalProperties": false,
+      "description": "A point the source itself published, kept as its own geometry.\n\nCoordinates are source geometry, not a tag value: the producing mapper gives exactly\nthe point its element carries, together with the element identity and the raw\nartifact it was read from. Nothing here is derived from a way or relation centroid,\nso a consumer can never mistake a computed centre for an observed location.",
+      "properties": {
+        "geometryLocator": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Geometrylocator",
+          "type": "string"
+        },
+        "geometrySourceRecordId": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Geometrysourcerecordid",
+          "type": "string"
+        },
+        "kind": {
+          "const": "geo_point",
+          "default": "geo_point",
+          "title": "Kind",
+          "type": "string"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "maximum": 90.0,
+              "minimum": -90.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Latitude"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Longitude"
+        }
+      },
+      "required": [
+        "latitude",
+        "longitude",
+        "geometrySourceRecordId",
+        "geometryLocator"
+      ],
+      "title": "GeoPointObservationValue",
+      "type": "object"
+    },
     "InvalidObservationValue": {
       "additionalProperties": false,
       "properties": {
@@ -326,6 +387,7 @@
         "mapping": {
           "boolean": "#/$defs/BooleanObservationValue",
           "email": "#/$defs/EmailObservationValue",
+          "geo_point": "#/$defs/GeoPointObservationValue",
           "invalid": "#/$defs/InvalidObservationValue",
           "money": "#/$defs/MoneyObservationValue",
           "phone": "#/$defs/PhoneObservationValue",
@@ -357,6 +419,9 @@
         },
         {
           "$ref": "#/$defs/StructuredAddressObservationValue"
+        },
+        {
+          "$ref": "#/$defs/GeoPointObservationValue"
         },
         {
           "$ref": "#/$defs/MoneyObservationValue"

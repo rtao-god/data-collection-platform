@@ -31,7 +31,7 @@
     {
       "file": "extracted-record.schema.json",
       "model": "collection_contracts.observations.ExtractedRecord",
-      "sha256": "sha256:91f3d753f2c6ece28807d9fe5cbaedd50577b60e31ffa58cef3436c11f062c9e"
+      "sha256": "sha256:732b8ac83d5d0aa676fa1490c7d2f514eb8a3eebd48268b0a251f077d8b49eb3"
     },
     {
       "file": "extraction-request.schema.json",
@@ -46,17 +46,17 @@
     {
       "file": "manual-import-plan.schema.json",
       "model": "collection_contracts.manual_import.ManualImportPlan",
-      "sha256": "sha256:ad64cc85ad707f12c4b4d68d2458579207233f3d053b0c2f48fbcde3c6be5b9e"
+      "sha256": "sha256:8fb2376c6d14417e8b7b04542d5aafab1f868ce6b7fa9252ef7bffd26b1b1838"
     },
     {
       "file": "manual-import-record.schema.json",
       "model": "collection_contracts.manual_import.ManualImportRecordDocument",
-      "sha256": "sha256:0201af94e6e4e90bae43e50e3515cdc31a8156fcf2d5648ee456578b14eb3fdd"
+      "sha256": "sha256:3c12010cce3e6f2a886a0522935a6a5a12dcf5a407c3b85df6f8abf539900bc7"
     },
     {
       "file": "manual-seed-row.schema.json",
       "model": "collection_contracts.campaign_config.ManualSeedRow",
-      "sha256": "sha256:831fde8ab9db5f568d5d84976924cf87e635362b04ea8e5452eaffe662ef91a1"
+      "sha256": "sha256:599f04795788fb7f128ccee1dc9746646df1af69b99ffd7defd84ab36a4b09cb"
     },
     {
       "file": "normalization-profile.schema.json",
@@ -71,7 +71,7 @@
     {
       "file": "observation-batch.schema.json",
       "model": "collection_contracts.observations.ObservationBatch",
-      "sha256": "sha256:5bbfcdb6c9af60da8acbf45f54ebd8adbaaad0b49a5bdeef02db612dc207fa91"
+      "sha256": "sha256:4c44012bdfe78f8eae02271f87632ca2ad82288e013c61769ebd03a1d14053c5"
     },
     {
       "file": "official-http-acquisition.schema.json",
@@ -96,12 +96,12 @@
     {
       "file": "source-bindings.schema.json",
       "model": "collection_contracts.campaign_config.SourceBindingsDocument",
-      "sha256": "sha256:735be71b5a58e91526afe2d755c88615285460f38005ca59fdc387f5733c12d7"
+      "sha256": "sha256:f3820beee7efe0fd831e45bdaeba2abbf1f0a840d9ff33e80fe2c2c5288ec3b7"
     },
     {
       "file": "source-policy.schema.json",
       "model": "collection_contracts.campaign_config.SourcePolicy",
-      "sha256": "sha256:6cd04480c58f89cb19c6210596c6c3986aa1840e4d8f6710f9f83e19332eadf4"
+      "sha256": "sha256:76bd61476ceebb0ef3ba8c7f87902db0f1398810137a93025d1bde67fc9c24cc"
     },
     {
       "file": "taxonomy.schema.json",

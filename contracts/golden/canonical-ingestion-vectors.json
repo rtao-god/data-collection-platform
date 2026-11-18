@@ -1,0 +1,51 @@
+{
+  "Description": "These vectors are produced by IngestionCanonicalJson. Any disagreement with a producer means the producer is wrong, not the vectors.",
+  "ContractDigest": "021d325433ac8258de67e8ab2f1c88f6a8b1ac8d18d909abab09e1eeab1cb05d",
+  "Vectors": [
+    {
+      "Name": "item",
+      "CanonicalJson": "{\u0022categoryProposals\u0022:[\u0022recording_studio\u0022],\u0022collectorCandidateId\u0022:\u002200000000-0000-0000-0000-00000000a001\u0022,\u0022collectorCandidateRevision\u0022:0,\u0022collectorReviewReferences\u0022:[{\u0022decidedAtUtc\u0022:\u00222026-11-16T00:02:00\\u002B00:00\u0022,\u0022decisionDigest\u0022:\u0022bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u0022,\u0022decisionId\u0022:\u002200000000-0000-0000-0000-00000000c001\u0022,\u0022decisionKind\u0022:\u0022accept_candidate\u0022}],\u0022contactProposals\u0022:[{\u0022fieldPath\u0022:\u0022website_urls\u0022,\u0022kind\u0022:\u0022website\u0022,\u0022state\u0022:\u0022observed\u0022,\u0022target\u0022:\u0022https://studio-one.example/\u0022}],\u0022contentDigest\u0022:\u00220000000000000000000000000000000000000000000000000000000000000000\u0022,\u0022entityKind\u0022:\u0022organization\u0022,\u0022externalReferenceProposals\u0022:[],\u0022geographyProposal\u0022:{\u0022countryCode\u0022:\u0022DE\u0022,\u0022fieldPath\u0022:\u0022geography\u0022,\u0022latitude\u0022:52.5007771,\u0022longitude\u0022:13.4168436,\u0022state\u0022:\u0022proposedPoint\u0022},\u0022itemKey\u0022:\u0022cand-0001\u0022,\u0022localizedNames\u0022:[{\u0022fieldPath\u0022:\u0022names\u0022,\u0022locale\u0022:\u0022und\u0022,\u0022state\u0022:\u0022observed\u0022,\u0022value\u0022:\u0022Studio One\u0022}],\u0022provenanceReferences\u0022:[{\u0022attribution\u0022:\u0022OpenStreetMap contributors\u0022,\u0022evidenceDigest\u0022:\u0022aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0022,\u0022fieldPath\u0022:\u0022names\u0022,\u0022observedAtUtc\u0022:\u00222026-11-16T00:01:59\\u002B00:00\u0022,\u0022referenceId\u0022:\u002200000000-0000-0000-0000-00000000b001\u0022,\u0022sourceExternalId\u0022:\u0022osm:node:101\u0022,\u0022sourceKey\u0022:\u0022openstreetmap\u0022,\u0022sourceUrl\u0022:\u0022https://www.openstreetmap.org/node/101\u0022,\u0022usagePolicy\u0022:\u0022publishable\u0022}],\u0022qualitySummary\u0022:{\u0022issues\u0022:[],\u0022state\u0022:\u0022passed\u0022},\u0022relationshipProposals\u0022:[],\u0022subjectProposal\u0022:{\u0022externalIdentityKeys\u0022:[\u0022osm:node:101\u0022],\u0022officialDomain\u0022:\u0022studio-one.example\u0022,\u0022sourceSubjectKey\u0022:\u0022studio-one\u0022},\u0022typedAttributeProposals\u0022:[]}",
+      "Digest": "8e7768ea1f255788b0f0ab68c1a4df023a212761f619e5f5d28461152b2e093c"
+    },
+    {
+      "Name": "package",
+      "CanonicalJson": "{\u0022items\u0022:[{\u0022categoryProposals\u0022:[\u0022recording_studio\u0022],\u0022collectorCandidateId\u0022:\u002200000000-0000-0000-0000-00000000a001\u0022,\u0022collectorCandidateRevision\u0022:0,\u0022collectorReviewReferences\u0022:[{\u0022decidedAtUtc\u0022:\u00222026-11-16T00:02:00\\u002B00:00\u0022,\u0022decisionDigest\u0022:\u0022bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\u0022,\u0022decisionId\u0022:\u002200000000-0000-0000-0000-00000000c001\u0022,\u0022decisionKind\u0022:\u0022accept_candidate\u0022}],\u0022contactProposals\u0022:[{\u0022fieldPath\u0022:\u0022website_urls\u0022,\u0022kind\u0022:\u0022website\u0022,\u0022state\u0022:\u0022observed\u0022,\u0022target\u0022:\u0022https://studio-one.example/\u0022}],\u0022contentDigest\u0022:\u00220000000000000000000000000000000000000000000000000000000000000000\u0022,\u0022entityKind\u0022:\u0022organization\u0022,\u0022externalReferenceProposals\u0022:[],\u0022geographyProposal\u0022:{\u0022countryCode\u0022:\u0022DE\u0022,\u0022fieldPath\u0022:\u0022geography\u0022,\u0022latitude\u0022:52.5007771,\u0022longitude\u0022:13.4168436,\u0022state\u0022:\u0022proposedPoint\u0022},\u0022itemKey\u0022:\u0022cand-0001\u0022,\u0022localizedNames\u0022:[{\u0022fieldPath\u0022:\u0022names\u0022,\u0022locale\u0022:\u0022und\u0022,\u0022state\u0022:\u0022observed\u0022,\u0022value\u0022:\u0022Studio One\u0022}],\u0022provenanceReferences\u0022:[{\u0022attribution\u0022:\u0022OpenStreetMap contributors\u0022,\u0022evidenceDigest\u0022:\u0022aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u0022,\u0022fieldPath\u0022:\u0022names\u0022,\u0022observedAtUtc\u0022:\u00222026-11-16T00:01:59\\u002B00:00\u0022,\u0022referenceId\u0022:\u002200000000-0000-0000-0000-00000000b001\u0022,\u0022sourceExternalId\u0022:\u0022osm:node:101\u0022,\u0022sourceKey\u0022:\u0022openstreetmap\u0022,\u0022sourceUrl\u0022:\u0022https://www.openstreetmap.org/node/101\u0022,\u0022usagePolicy\u0022:\u0022publishable\u0022}],\u0022qualitySummary\u0022:{\u0022issues\u0022:[],\u0022state\u0022:\u0022passed\u0022},\u0022relationshipProposals\u0022:[],\u0022subjectProposal\u0022:{\u0022externalIdentityKeys\u0022:[\u0022osm:node:101\u0022],\u0022officialDomain\u0022:\u0022studio-one.example\u0022,\u0022sourceSubjectKey\u0022:\u0022studio-one\u0022},\u0022typedAttributeProposals\u0022:[]}],\u0022manifest\u0022:{\u0022artifacts\u0022:[{\u0022contentDigest\u0022:\u00223333333333333333333333333333333333333333333333333333333333333333\u0022,\u0022contentType\u0022:\u0022application/json\u0022,\u0022objectKey\u0022:\u0022ingestion/payload.json\u0022,\u0022role\u0022:\u0022candidatePayload\u0022,\u0022size\u0022:128}],\u0022collectorExportDigest\u0022:\u0022eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\u0022,\u0022collectorExportId\u0022:\u002200000000-0000-0000-0000-00000000d001\u0022,\u0022contractIdentity\u0022:\u0022aggregator-candidate-ingestion\u0022,\u0022contractRevision\u0022:3,\u0022createdAtUtc\u0022:\u00222026-11-16T00:03:00\\u002B00:00\u0022,\u0022itemCount\u0022:1,\u0022itemIndexDigest\u0022:\u0022ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\u0022,\u0022payloadDigest\u0022:\u00221111111111111111111111111111111111111111111111111111111111111111\u0022,\u0022producerBuild\u0022:\u0022build-vector\u0022,\u0022producerIdentity\u0022:\u0022data-collection-platform\u0022,\u0022sourcePolicies\u0022:[{\u0022policyDigest\u0022:\u00222222222222222222222222222222222222222222222222222222222222222222\u0022,\u0022sourceKey\u0022:\u0022openstreetmap\u0022,\u0022usagePolicy\u0022:\u0022publishable\u0022}],\u0022targetCatalogConfigurationRevisionId\u0022:\u002200000000-0000-0000-0000-00000000d002\u0022,\u0022targetCatalogKey\u0022:\u0022berlin-recording-services\u0022,\u0022targetSiteKey\u0022:\u0022berlin-recording\u0022}}",
+      "Digest": "9e6355603d325a25319c91c5fd143e35a3fd25e811e64ec93df8575e123b0d72"
+    },
+    {
+      "Name": "nonAscii",
+      "CanonicalJson": "{\u0022Value\u0022:\u0022\\u00C5ngstr\\u00F6m\u0022,\u0022caf\\u00E9\u0022:\u0022Z\\u00FCrich\u0022,\u0022emoji\u0022:\u0022\\uD83C\\uDFB5 studio\u0022}",
+      "Digest": "7fd8acdba48ca5dfc71ff48cfb6237b7594f0762d4901115b7c651c28ee0f925"
+    },
+    {
+      "Name": "keyOrdering",
+      "CanonicalJson": "{\u0022Alpha\u0022:2,\u0022_underscore\u0022:3,\u0022alpha\u0022:4,\u0022zulu\u0022:1,\u0022\\u00E4lpha\u0022:5}",
+      "Digest": "5a1940e8493ef358b7bd1483e4ca63f40bb6b57a1d07c811f2322e25cb413a96"
+    },
+    {
+      "Name": "nullOmission",
+      "CanonicalJson": "{\u0022nested\u0022:{\u0022keep\u0022:1},\u0022present\u0022:\u0022value\u0022}",
+      "Digest": "812d97c1a25f25a3a15e5d932034deebad61406672e1416a5e0a49608463d282"
+    },
+    {
+      "Name": "timestamps",
+      "CanonicalJson": "{\u0022offset\u0022:\u00222026-11-16T02:01:59\\u002B02:00\u0022,\u0022subSecond\u0022:\u00222026-11-16T00:01:59.1234567\\u002B00:00\u0022,\u0022utc\u0022:\u00222026-11-16T00:01:59\\u002B00:00\u0022}",
+      "Digest": "81993eb535ed7aa541877fcd9164bc1def24600e458b7b8f5e41936f52e0eaf3"
+    },
+    {
+      "Name": "enumTokens",
+      "CanonicalJson": "{\u0022artifactRole\u0022:\u0022evidenceIndex\u0022,\u0022entityKind\u0022:\u0022provider\u0022,\u0022fieldState\u0022:\u0022notDisclosed\u0022,\u0022geographyState\u0022:\u0022proposedPoint\u0022,\u0022usagePolicy\u0022:\u0022displayWithAttribution\u0022}",
+      "Digest": "ea2292cde67771556026c8887de497f52c739034d93f83a65978dfc9dd33cc13"
+    },
+    {
+      "Name": "nestedCollections",
+      "CanonicalJson": "{\u0022emptyObject\u0022:{},\u0022items\u0022:[{\u0022key\u0022:\u0022b\u0022,\u0022values\u0022:[1,2,[\u0022x\u0022,\u0022y\u0022]]},{\u0022empty\u0022:[],\u0022key\u0022:\u0022a\u0022}]}",
+      "Digest": "66ca280f70d4f9bb7cb63d61839cdd6aeb038eb20df89a96886577d379bba3fe"
+    },
+    {
+      "Name": "divergentDigest",
+      "CanonicalJson": "{\u0022value\u0022:\u0022Studio One \u0022}",
+      "Digest": "fc56289412fdcfae091f322ed43e35c74cab68359619debad83d422fc5a4a9a6"
+    }
+  ]
+}

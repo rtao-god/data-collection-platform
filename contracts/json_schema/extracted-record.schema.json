@@ -6,7 +6,8 @@
         "xpath",
         "css",
         "html_attribute",
-        "text_offset"
+        "text_offset",
+        "column"
       ],
       "title": "EvidenceLocatorKind",
       "type": "string"

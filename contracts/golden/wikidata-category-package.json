@@ -1,0 +1,51 @@
+{
+  "source": {
+    "entityId": "Q667023",
+    "entityRevisionId": 2465661990,
+    "statementId": "Q667023$30d3e507-46e6-72b2-a4b6-5f3398a53f13",
+    "retrievedAtUtc": "2026-11-17T14:09:35Z",
+    "sourceUrl": "https://www.wikidata.org/wiki/Special:EntityData/Q667023.json"
+  },
+  "manifest": {
+    "contractIdentity": "aggregator-candidate-ingestion",
+    "contractRevision": 3,
+    "producerIdentity": "data-collection-platform",
+    "producerBuild": "wikidata-pilot",
+    "collectorExportId": "019c0000-0000-7000-8000-000000000301",
+    "collectorExportDigest": "c3bc0e460fb9dfbb5ee6a10cab41e1fa9169af4fa85fb66827de2428b3548d6b",
+    "targetSiteKey": "berlin-recording",
+    "targetCatalogKey": "berlin-recording-services",
+    "targetCatalogConfigurationRevisionId": "019fdeab-5c00-7000-8000-000000000002",
+    "createdAtUtc": "2026-11-17T14:09:35+00:00",
+    "itemCount": 1,
+    "itemIndexDigest": "6b819eda85e4c68200e8142d4ced9cad00384f045a91890eae56030b73c9d994",
+    "payloadDigest": "746974e757bf4bf3404f80ec261eba3ce3555a2fb5f4adda22302add0e4db056",
+    "sourcePolicies": [
+      {
+        "sourceKey": "wikidata",
+        "policyDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "usagePolicy": "publishable"
+      }
+    ],
+    "artifacts": [
+      {
+        "role": "candidatePayload",
+        "objectKey": "ingestion/quarantine/019c0000-0000-7000-8000-000000000301/payload.json",
+        "contentDigest": "746974e757bf4bf3404f80ec261eba3ce3555a2fb5f4adda22302add0e4db056",
+        "size": 5065,
+        "contentType": "application/json"
+      }
+    ]
+  },
+  "manifestDigest": "0e48bb4ea4fdb76226f935229864f4cd18fdbd2e0c392770e0497fc22e2645fd",
+  "payloadBytes": "{\"items\":[{\"categoryDetails\":[{\"categoryKey\":\"recording-studio\",\"fieldPath\":\"categories/recording-studio\"}],\"categoryProposals\":[\"recording-studio\"],\"collectorCandidateId\":\"019c0000-0000-7000-8000-0000000003b1\",\"collectorCandidateRevision\":0,\"collectorReviewReferences\":[{\"decidedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"decisionDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"decisionId\":\"019c0000-0000-7000-8000-0000000003a1\",\"decisionKind\":\"accept_candidate\"}],\"contactProposals\":[{\"fieldPath\":\"contacts/website\",\"kind\":\"website\",\"state\":\"observed\",\"target\":\"https://hansastudios.de/en/home/\"}],\"contentDigest\":\"0ea3223a79367d6f0f62b877bdeb07246dc5ac323a3570b740fa9135742fee0b\",\"entityKind\":\"place\",\"externalReferenceProposals\":[{\"externalId\":\"019c0000-0000-7000-8000-0000000003b1\",\"fieldPath\":\"externalReferences/identity\",\"outboundUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"purpose\":\"identity\",\"sourceSystem\":\"wikidata\",\"usagePolicy\":\"publishable\"}],\"geographyProposal\":{\"fieldPath\":\"geography/proposedPoint\",\"latitude\":52.5063,\"longitude\":13.3772,\"state\":\"proposedPoint\"},\"itemKey\":\"019c0000-0000-7000-8000-0000000003b1\",\"localizedNames\":[{\"fieldPath\":\"localizedNames/de-DE\",\"locale\":\"de-DE\",\"state\":\"observed\",\"value\":\"Hansa Studios\"}],\"placeDetails\":{\"address\":{\"fieldPath\":\"placeDetails/address\",\"missingReason\":\"notPublishedBySource\",\"state\":\"unknown\"},\"coordinates\":{\"fieldPath\":\"placeDetails/coordinates\",\"latitude\":52.5063,\"longitude\":13.3772,\"precisionMeters\":25,\"state\":\"observed\"},\"identityReferences\":[{\"externalId\":\"019c0000-0000-7000-8000-0000000003b1\",\"fieldPath\":\"externalReferences/identity\",\"outboundUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"purpose\":\"identity\",\"sourceSystem\":\"wikidata\",\"usagePolicy\":\"publishable\"}],\"organizationBinding\":\"unknown\"},\"provenanceReferences\":[{\"attribution\":\"Wikidata (CC0 1.0)\",\"evidenceDigest\":\"61e7edf6712ce68377d4e4e569b7523f6e46ea8391d99234e9c4d3d1a62e0eac\",\"fieldPath\":\"subjectProposal\",\"observedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"referenceId\":\"5720b977-b789-6801-b782-74292c45bf91\",\"sourceExternalId\":\"wikidata:Q667023\",\"sourceKey\":\"wikidata\",\"sourceUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"Wikidata (CC0 1.0)\",\"evidenceDigest\":\"61e7edf6712ce68377d4e4e569b7523f6e46ea8391d99234e9c4d3d1a62e0eac\",\"fieldPath\":\"localizedNames/de-DE\",\"observedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"referenceId\":\"84ac3e8c-4152-e327-71be-0230bfc0f29c\",\"sourceExternalId\":\"wikidata:Q667023\",\"sourceKey\":\"wikidata\",\"sourceUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"Wikidata (CC0 1.0)\",\"evidenceDigest\":\"215fff781b49b0bb571c59bdf4d3b4558f2514cebdb20eeb929d1e11aa73c256\",\"fieldPath\":\"categories/recording-studio\",\"observedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"referenceId\":\"00481bde-60bc-cff2-4378-6fd0ca7a7af8\",\"sourceExternalId\":\"wikidata:Q667023\",\"sourceKey\":\"wikidata\",\"sourceUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"Wikidata (CC0 1.0)\",\"evidenceDigest\":\"2693f98c5e01599d24a3c8c30b512e5e88d2cab54f3813f3ae9c2fdeef56cc10\",\"fieldPath\":\"contacts/website\",\"observedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"referenceId\":\"aeb6362b-f655-9a54-aad6-173dc065f488\",\"sourceExternalId\":\"wikidata:Q667023\",\"sourceKey\":\"wikidata\",\"sourceUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"Wikidata (CC0 1.0)\",\"evidenceDigest\":\"da02a7d59f74540fe5adaff600b15712872e302e1610eb407acdfeb9dd4a5486\",\"fieldPath\":\"geography/proposedPoint\",\"observedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"referenceId\":\"9d298a60-8a39-f0bc-09e0-4b244d1e9312\",\"sourceExternalId\":\"wikidata:Q667023\",\"sourceKey\":\"wikidata\",\"sourceUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"Wikidata (CC0 1.0)\",\"evidenceDigest\":\"da02a7d59f74540fe5adaff600b15712872e302e1610eb407acdfeb9dd4a5486\",\"fieldPath\":\"placeDetails/coordinates\",\"observedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"referenceId\":\"f2a77c89-7e11-0035-bfbb-0a08220018e6\",\"sourceExternalId\":\"wikidata:Q667023\",\"sourceKey\":\"wikidata\",\"sourceUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"Wikidata (CC0 1.0)\",\"evidenceDigest\":\"61e7edf6712ce68377d4e4e569b7523f6e46ea8391d99234e9c4d3d1a62e0eac\",\"fieldPath\":\"externalReferences/identity\",\"observedAtUtc\":\"2026-11-17T14:09:35\\u002B00:00\",\"referenceId\":\"847d7af9-c172-c4c1-e6d7-9398aad045b8\",\"sourceExternalId\":\"wikidata:Q667023\",\"sourceKey\":\"wikidata\",\"sourceUrl\":\"https://www.wikidata.org/wiki/Special:EntityData/Q667023.json\",\"usagePolicy\":\"publishable\"}],\"qualitySummary\":{\"issues\":[],\"state\":\"passed\"},\"relationshipProposals\":[],\"subjectProposal\":{\"externalIdentityKeys\":[],\"sourceSubjectKey\":\"019c0000-0000-7000-8000-0000000003b1\"},\"typedAttributeProposals\":[]}]}",
+  "itemIndex": [
+    {
+      "itemKey": "019c0000-0000-7000-8000-0000000003b1",
+      "contentDigest": "0ea3223a79367d6f0f62b877bdeb07246dc5ac323a3570b740fa9135742fee0b"
+    }
+  ],
+  "expectedItemDigests": {
+    "019c0000-0000-7000-8000-0000000003b1": "0ea3223a79367d6f0f62b877bdeb07246dc5ac323a3570b740fa9135742fee0b"
+  }
+}

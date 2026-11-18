@@ -1,0 +1,43 @@
+{
+  "manifest": {
+    "contractIdentity": "aggregator-candidate-ingestion",
+    "contractRevision": 3,
+    "producerIdentity": "data-collection-platform",
+    "producerBuild": "database-backed",
+    "collectorExportId": "3d04045e-094e-4da5-8fc4-661b5a5d1071",
+    "collectorExportDigest": "0c69e6ce2fc0f219b8c771cb7976daaaef7f917fc8875041b2d4ca18a43a2876",
+    "targetSiteKey": "berlin-recording",
+    "targetCatalogKey": "berlin-recording-services",
+    "targetCatalogConfigurationRevisionId": "00000000-0000-0000-0000-00000000d002",
+    "createdAtUtc": "2026-08-20T12:00:00+00:00",
+    "itemCount": 1,
+    "itemIndexDigest": "9a1cc45c8026242389a21e6f596562a7408c7bc2a8ca553b625b53892b5d9155",
+    "payloadDigest": "0c69266d1210d0fe3d31a3b2a690a28cca65b52dc01102a181db676073f59314",
+    "sourcePolicies": [
+      {
+        "sourceKey": "openstreetmap",
+        "policyDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "usagePolicy": "publishable"
+      }
+    ],
+    "artifacts": [
+      {
+        "role": "candidatePayload",
+        "objectKey": "ingestion/quarantine/3d04045e-094e-4da5-8fc4-661b5a5d1071/payload.json",
+        "contentDigest": "0c69266d1210d0fe3d31a3b2a690a28cca65b52dc01102a181db676073f59314",
+        "size": 2350,
+        "contentType": "application/json"
+      }
+    ]
+  },
+  "payloadBytes": "{\"items\":[{\"categoryProposals\":[\"recording_studio\"],\"collectorCandidateId\":\"cc1a6798-bf47-4429-82e0-faf2842c2fda\",\"collectorCandidateRevision\":1,\"collectorReviewReferences\":[{\"decidedAtUtc\":\"2026-08-20T12:00:00\\u002B00:00\",\"decisionDigest\":\"ee10442c1494a1e0a72bf5f70e67384fce44632294edb29b15a79de96eb75aa1\",\"decisionId\":\"74f6457c-0105-4263-bec1-84b2b0c8bc2d\",\"decisionKind\":\"accept_candidate\"}],\"contactProposals\":[{\"fieldPath\":\"website_urls\",\"kind\":\"website\",\"state\":\"observed\",\"target\":\"https://studio.example/\"}],\"contentDigest\":\"39e7b3ad05eb9fbb976c6f6391281f1b282e978c412b679dbfaaddcd0777fa8b\",\"entityKind\":\"organization\",\"externalReferenceProposals\":[],\"geographyProposal\":{\"fieldPath\":\"geography\",\"latitude\":52.5007771,\"longitude\":13.4168436,\"state\":\"proposedPoint\"},\"itemKey\":\"cc1a6798-bf47-4429-82e0-faf2842c2fda\",\"localizedNames\":[{\"fieldPath\":\"names\",\"locale\":\"und\",\"state\":\"observed\",\"value\":\"Studio Seeded\"}],\"provenanceReferences\":[{\"attribution\":\"OpenStreetMap contributors\",\"evidenceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"fieldPath\":\"geography\",\"observedAtUtc\":\"2026-08-20T12:00:00\\u002B00:00\",\"referenceId\":\"631009ef-4045-7144-c13f-c473c00b0309\",\"sourceExternalId\":\"osm:node:101\",\"sourceKey\":\"openstreetmap\",\"sourceUrl\":\"https://www.openstreetmap.org/node/101\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"OpenStreetMap contributors\",\"evidenceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"fieldPath\":\"names\",\"observedAtUtc\":\"2026-08-20T12:00:00\\u002B00:00\",\"referenceId\":\"b0901e8f-1248-9199-f7cd-80812027cb00\",\"sourceExternalId\":\"osm:node:101\",\"sourceKey\":\"openstreetmap\",\"sourceUrl\":\"https://www.openstreetmap.org/node/101\",\"usagePolicy\":\"publishable\"},{\"attribution\":\"OpenStreetMap contributors\",\"evidenceDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"fieldPath\":\"website_urls\",\"observedAtUtc\":\"2026-08-20T12:00:00\\u002B00:00\",\"referenceId\":\"ecee5304-99b7-e42c-2cdd-7681571caa74\",\"sourceExternalId\":\"osm:node:101\",\"sourceKey\":\"openstreetmap\",\"sourceUrl\":\"https://www.openstreetmap.org/node/101\",\"usagePolicy\":\"publishable\"}],\"qualitySummary\":{\"issues\":[],\"state\":\"passed\"},\"relationshipProposals\":[],\"subjectProposal\":{\"externalIdentityKeys\":[],\"sourceSubjectKey\":\"cc1a6798-bf47-4429-82e0-faf2842c2fda\"},\"typedAttributeProposals\":[]}]}",
+  "itemIndex": [
+    {
+      "itemKey": "cc1a6798-bf47-4429-82e0-faf2842c2fda",
+      "contentDigest": "39e7b3ad05eb9fbb976c6f6391281f1b282e978c412b679dbfaaddcd0777fa8b"
+    }
+  ],
+  "candidateId": "cc1a6798-bf47-4429-82e0-faf2842c2fda",
+  "packageDigest": "sha256:0c69e6ce2fc0f219b8c771cb7976daaaef7f917fc8875041b2d4ca18a43a2876",
+  "collectorCandidateRevision": 1
+}

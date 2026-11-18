@@ -75,6 +75,79 @@
       "title": "FileSeedProvider",
       "type": "object"
     },
+    "OsmQueryDeclaration": {
+      "additionalProperties": false,
+      "description": "Campaign-declared Overpass query. The polygon comes from verified geography.",
+      "properties": {
+        "element_types": {
+          "items": {
+            "enum": [
+              "node",
+              "relation",
+              "way"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Element Types",
+          "type": "array"
+        },
+        "maximum_elements": {
+          "default": 25000,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Maximum Elements",
+          "type": "integer"
+        },
+        "tag_filters": {
+          "items": {
+            "$ref": "#/$defs/OsmTagFilterDeclaration"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Tag Filters",
+          "type": "array"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "maximum": 180,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "element_types",
+        "tag_filters"
+      ],
+      "title": "OsmQueryDeclaration",
+      "type": "object"
+    },
+    "OsmTagFilterDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[A-Za-z0-9_:.-]{1,64}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "values"
+      ],
+      "title": "OsmTagFilterDeclaration",
+      "type": "object"
+    },
     "SeedNotApplicable": {
       "additionalProperties": false,
       "properties": {
@@ -232,7 +305,8 @@
             "browser_fetch",
             "http_fetch",
             "manual_import",
-            "openstreetmap_query"
+            "openstreetmap_query",
+            "wikidata_entity_query"
           ],
           "title": "Capability",
           "type": "string"
@@ -291,6 +365,17 @@
           "default": null,
           "title": "Normalization Profile"
         },
+        "osm_query": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OsmQueryDeclaration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "schedule_enabled": {
           "title": "Schedule Enabled",
           "type": "boolean"
@@ -313,6 +398,31 @@
           ],
           "title": "Seed Provider"
         },
+        "source_entity_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "organization",
+                "place",
+                "provider"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Entity Kind"
+        },
+        "source_field_projection": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SourceFieldProjection"
+          },
+          "title": "Source Field Projection",
+          "type": "array"
+        },
         "source_key": {
           "maxLength": 80,
           "minLength": 2,
@@ -326,6 +436,28 @@
           "pattern": "^[a-z][a-z0-9_]*$",
           "title": "Source Policy Key",
           "type": "string"
+        },
+        "wikidata_classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WikidataClassificationDeclaration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wikidata_query": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WikidataEntityQueryDeclaration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -340,6 +472,107 @@
         "extraction_profile"
       ],
       "title": "SourceBinding",
+      "type": "object"
+    },
+    "SourceFieldProjection": {
+      "additionalProperties": false,
+      "description": "One explicit source field -> candidate field decision.\n\nDeclared in the campaign so a new source field cannot enter a candidate without\nan explicit, versioned projection decision.",
+      "properties": {
+        "candidate_field": {
+          "enum": [
+            "names",
+            "phones",
+            "emails",
+            "website_urls",
+            "addresses",
+            "coordinates"
+          ],
+          "title": "Candidate Field",
+          "type": "string"
+        },
+        "source_aliases": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Aliases",
+          "type": "array"
+        },
+        "source_field": {
+          "pattern": "^[a-z][a-z0-9_.:]{0,99}$",
+          "title": "Source Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_field",
+        "candidate_field"
+      ],
+      "title": "SourceFieldProjection",
+      "type": "object"
+    },
+    "WikidataClassificationDeclaration": {
+      "additionalProperties": false,
+      "description": "The operator-authored Wikidata class -> campaign category correspondence.\n\nAn item's `instance of` statements are user-editable, so the correspondence is\nconfiguration: an entity whose classes do not match it exactly stays ambiguous.",
+      "properties": {
+        "campaign_category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Campaign Category",
+          "type": "string"
+        },
+        "compatible_class_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Compatible Class Ids",
+          "type": "array"
+        },
+        "studio_class_id": {
+          "title": "Studio Class Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "studio_class_id",
+        "campaign_category"
+      ],
+      "title": "WikidataClassificationDeclaration",
+      "type": "object"
+    },
+    "WikidataEntityQueryDeclaration": {
+      "additionalProperties": false,
+      "description": "The operator-reviewed entity set one Wikidata acquisition may read.\n\nIt is a declared list, not a discovery result: nothing about it is inferred at run\ntime, and it is bounded so an acquisition cannot widen into a crawl.",
+      "properties": {
+        "entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Entity Ids",
+          "type": "array"
+        },
+        "label_languages": {
+          "default": [
+            "de",
+            "en"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Label Languages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entity_ids"
+      ],
+      "title": "WikidataEntityQueryDeclaration",
       "type": "object"
     }
   },
