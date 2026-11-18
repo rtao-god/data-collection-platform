@@ -26,6 +26,9 @@ from collection_infrastructure import (
     PostgresWorkEngine,
     S3ArtifactObjectStore,
 )
+from collection_infrastructure.postgres.candidate_intake_applier import (
+    candidate_intake_transition_appliers,
+)
 from collection_infrastructure.postgres.normalization_applier import (
     normalization_transition_appliers,
 )
@@ -38,6 +41,15 @@ from collection_infrastructure.postgres.page_extraction_applier import (
 from collection_infrastructure.postgres.pipeline_advancement import (
     PipelineTransitionApplier,
     PostgresPipelineAdvancementRepository,
+)
+from collection_infrastructure.postgres.resolution_scheduling import (
+    PostgresResolutionBatchScheduler,
+)
+from collection_infrastructure.postgres.resolution_snapshot_applier import (
+    resolution_snapshot_transition_appliers,
+)
+from collection_infrastructure.postgres.source_record_mapping_applier import (
+    source_record_mapping_transition_appliers,
 )
 from collection_infrastructure.postgres.succeeded_work_catalog import (
     PostgresSucceededWorkCatalog,
@@ -97,6 +109,15 @@ def build_runtime() -> tuple[FastAPI, Engine]:
         **website_route_transition_appliers(postgres_work_engine, artifact_publisher),
         **page_extraction_transition_appliers(postgres_work_engine, artifact_publisher),
         **normalization_transition_appliers(postgres_work_engine, artifact_publisher),
+        **source_record_mapping_transition_appliers(postgres_work_engine, artifact_publisher),
+        **candidate_intake_transition_appliers(
+            resolution_scheduler=PostgresResolutionBatchScheduler(
+                postgres_work_engine,
+                artifact_publisher,
+                succeeded_catalog,
+            )
+        ),
+        **resolution_snapshot_transition_appliers(succeeded_catalog),
     }
     advancement_repository = PostgresPipelineAdvancementRepository(
         engine,

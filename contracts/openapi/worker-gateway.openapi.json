@@ -504,10 +504,12 @@
           "manual_import",
           "manual_record",
           "osm_query",
+          "wikidata_entity_query",
           "http_fetch",
           "browser_fetch",
           "extraction",
           "normalization",
+          "source_record_mapping",
           "geography",
           "entity_resolution",
           "quality",
@@ -691,10 +693,45 @@
             "title": "Artifactid",
             "type": "string"
           },
+          "contentDigest": {
+            "anyOf": [
+              {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contentdigest"
+          },
+          "contentType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contenttype"
+          },
           "role": {
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,63}$",
             "title": "Role",
             "type": "string"
+          },
+          "sizeBytes": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sizebytes"
           }
         },
         "required": [
