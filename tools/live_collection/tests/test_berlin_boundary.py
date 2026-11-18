@@ -237,7 +237,7 @@ def test_geography_writer_materializes_one_typed_revision(tmp_path: Path) -> Non
     (campaign_root / "campaign.yaml").write_text(
         yaml.safe_dump(
             {
-                "geography_revision": "berlin-official-boundary-v1",
+                "geography_revision": "berlin_official_boundary_v1",
                 "readiness": {
                     "state": "blocked",
                     "blockers": [
@@ -283,7 +283,7 @@ def test_geography_writer_materializes_one_typed_revision(tmp_path: Path) -> Non
     assert parsed_boundary.canonical_geojson == boundary
     assert geography == {
         "schema_revision": "geography-config-v1",
-        "geography_revision": "berlin-official-boundary-v1",
+        "geography_revision": "berlin_official_boundary_v1",
         "boundary_artifact_path": "geography/berlin-boundary.geojson",
         "boundary_digest": "sha256:" + __import__("hashlib").sha256(boundary).hexdigest(),
         "provenance_artifact_path": "geography/berlin-boundary.provenance.json",

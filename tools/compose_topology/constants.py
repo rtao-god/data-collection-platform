@@ -15,6 +15,7 @@ EXPECTED_SERVICES = frozenset(
         "manual-record-worker",
         "http-worker",
         "osm-worker",
+        "wikidata-worker",
         "extraction-worker",
         "normalization-worker",
         "resolution-worker",
@@ -30,12 +31,13 @@ WORKERS = frozenset(
         "manual-record-worker",
         "http-worker",
         "osm-worker",
+        "wikidata-worker",
         "extraction-worker",
         "normalization-worker",
         "resolution-worker",
     }
 )
-EGRESS_WORKERS = frozenset({"http-worker", "osm-worker"})
+EGRESS_WORKERS = frozenset({"http-worker", "osm-worker", "wikidata-worker"})
 EXPECTED_NETWORK_MEMBERS = {
     "collection-infrastructure": frozenset(
         {
@@ -99,6 +101,7 @@ TOKEN_CONTRACT = {
     "manual-record-worker": ("MANUAL_RECORD_WORKER_TOKEN", "manual_record"),
     "http-worker": ("HTTP_WORKER_TOKEN", "http_fetch"),
     "osm-worker": ("OSM_WORKER_TOKEN", "osm_query"),
+    "wikidata-worker": ("WIKIDATA_WORKER_TOKEN", "wikidata_entity_query"),
     "extraction-worker": ("EXTRACTION_WORKER_TOKEN", "extraction"),
     "normalization-worker": ("NORMALIZATION_WORKER_TOKEN", "normalization"),
     "resolution-worker": ("RESOLUTION_WORKER_TOKEN", "entity_resolution"),

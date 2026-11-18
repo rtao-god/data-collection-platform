@@ -22,6 +22,7 @@ _APPLICATION_SERVICES = {
     "manual-record-worker",
     "http-worker",
     "osm-worker",
+    "wikidata-worker",
     "extraction-worker",
     "normalization-worker",
     "resolution-worker",
@@ -32,6 +33,7 @@ _WORKERS = {
     "manual-record-worker",
     "http-worker",
     "osm-worker",
+    "wikidata-worker",
     "extraction-worker",
     "normalization-worker",
     "resolution-worker",
@@ -41,6 +43,7 @@ _TOKEN_CONTRACT = {
     "manual-record-worker": ("MANUAL_RECORD_WORKER_TOKEN", "manual_record"),
     "http-worker": ("HTTP_WORKER_TOKEN", "http_fetch"),
     "osm-worker": ("OSM_WORKER_TOKEN", "osm_query"),
+    "wikidata-worker": ("WIKIDATA_WORKER_TOKEN", "wikidata_entity_query"),
     "extraction-worker": ("EXTRACTION_WORKER_TOKEN", "extraction"),
     "normalization-worker": ("NORMALIZATION_WORKER_TOKEN", "normalization"),
     "resolution-worker": ("RESOLUTION_WORKER_TOKEN", "entity_resolution"),
@@ -286,7 +289,7 @@ def _payload(secret_root: Path, environment: dict[str, str]) -> dict[str, Any]:
             "networks": {"collection-workers": None},
         }
     )
-    for name in ("http-worker", "osm-worker"):
+    for name in ("http-worker", "osm-worker", "wikidata-worker"):
         services[name].update(
             {
                 "environment": {},

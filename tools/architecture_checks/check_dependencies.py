@@ -130,6 +130,16 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         ),
         allowed_external_imports=frozenset(),
     ),
+    "wikidata_worker": OwnerPolicy(
+        project_path="apps/wikidata_worker",
+        distribution_name="wikidata-worker",
+        allowed_internal_imports=(
+            "collection_contracts",
+            "source_connector_sdk",
+            "wikidata_studios",
+        ),
+        allowed_external_imports=frozenset(),
+    ),
     "official_http": OwnerPolicy(
         project_path="connectors/official_http",
         distribution_name="official-http-connector",
@@ -140,6 +150,12 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         project_path="connectors/osm_overpass",
         distribution_name="osm-overpass-connector",
         allowed_internal_imports=(),
+        allowed_external_imports=frozenset({"httpx"}),
+    ),
+    "wikidata_studios": OwnerPolicy(
+        project_path="connectors/wikidata_studios",
+        distribution_name="wikidata-studios-connector",
+        allowed_internal_imports=("collection_contracts",),
         allowed_external_imports=frozenset({"httpx"}),
     ),
     "review_application": OwnerPolicy(
@@ -175,9 +191,12 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
         project_path="packages/collection_infrastructure",
         distribution_name="collection-infrastructure",
         allowed_internal_imports=(
+            "candidate_materialization",
             "collection_application",
             "collection_contracts",
             "official_http_contracts",
+            "quality_core",
+            "resolution_contracts",
         ),
         allowed_external_imports=frozenset(
             {"alembic", "boto3", "botocore", "psycopg", "sqlalchemy"}
@@ -191,6 +210,9 @@ _OWNER_POLICIES: dict[str, OwnerPolicy] = {
             "official_http_contracts",
             "collection_domain",
             "manual_import_core",
+            # The transition planner proves that a resolution snapshot belongs to the exact
+            # batch it was leased to resolve, which requires the owner's own contract shapes.
+            "resolution_contracts",
         ),
         allowed_external_imports=frozenset({"pydantic", "yaml"}),
     ),
