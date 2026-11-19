@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from collection_application import CollectionRunStatus, RunCoverageReport
 from collection_contracts import CandidateRevision
+from collection_infrastructure.postgres.resolution_pair_decisions import (
+    PairDecisionRequest,
+    PendingPairView,
+)
+from collection_infrastructure.resolution.decisions import PairDecisionRecord
 from review_application import ReviewCaseDetail, ReviewQueuePage, encode_cursor
 from review_contracts import (
     ManualObservation,
@@ -185,6 +191,150 @@ class RunTransitionRequest(ApiModel):
         return _plain_text(value)
 
 
+class ResolutionPairDecisionResponse(ApiModel):
+    decision_id: UUID = Field(alias="decisionId")
+    pair_id: Digest = Field(alias="pairId")
+    run_id: UUID = Field(alias="runId")
+    left_candidate_id: UUID = Field(alias="leftCandidateId")
+    left_candidate_revision: Annotated[int, Field(ge=0)] = Field(alias="leftCandidateRevision")
+    right_candidate_id: UUID = Field(alias="rightCandidateId")
+    right_candidate_revision: Annotated[int, Field(ge=0)] = Field(alias="rightCandidateRevision")
+    action: Literal["match", "separate"]
+    reason_code: Code = Field(alias="reasonCode")
+    rationale: str
+    evidence_references: tuple[str, ...] = Field(alias="evidenceReferences")
+    context_digest: Digest = Field(alias="contextDigest")
+    decision_digest: Digest = Field(alias="decisionDigest")
+    revision: Annotated[int, Field(ge=0)]
+    actor_id: str = Field(alias="actorId")
+    supersedes_decision_id: UUID | None = Field(alias="supersedesDecisionId")
+    decided_at_utc: datetime = Field(alias="decidedAtUtc")
+    correlation_id: str = Field(alias="correlationId")
+
+    @classmethod
+    def from_record(cls, record: PairDecisionRecord) -> ResolutionPairDecisionResponse:
+        return cls(
+            decision_id=record.decision_id,
+            pair_id=record.pair_id,
+            run_id=record.run_id,
+            left_candidate_id=record.left_candidate_id,
+            left_candidate_revision=record.left_candidate_revision,
+            right_candidate_id=record.right_candidate_id,
+            right_candidate_revision=record.right_candidate_revision,
+            action=cast(Literal["match", "separate"], record.action),
+            reason_code=record.reason_code,
+            rationale=record.rationale,
+            evidence_references=record.evidence_references,
+            context_digest=record.context_digest,
+            decision_digest=record.decision_digest,
+            revision=record.revision,
+            actor_id=record.actor_id,
+            supersedes_decision_id=record.supersedes_decision_id,
+            decided_at_utc=record.decided_at_utc,
+            correlation_id=record.correlation_id,
+        )
+
+
+class ResolutionPairResponse(ApiModel):
+    pair_id: Digest = Field(alias="pairId")
+    left_candidate_id: UUID = Field(alias="leftCandidateId")
+    left_candidate_revision: Annotated[int, Field(ge=0)] = Field(alias="leftCandidateRevision")
+    right_candidate_id: UUID = Field(alias="rightCandidateId")
+    right_candidate_revision: Annotated[int, Field(ge=0)] = Field(alias="rightCandidateRevision")
+    disposition: str
+    reason_codes: tuple[str, ...] = Field(alias="reasonCodes")
+    # `unresolved`, `decided` or `stale_context`: a decision whose match-relevant facts changed
+    # no longer describes this pair, so the pair needs the operator again.
+    state: Literal["unresolved", "decided", "stale_context"]
+    decision: ResolutionPairDecisionResponse | None = None
+
+    @classmethod
+    def from_view(cls, view: PendingPairView) -> ResolutionPairResponse:
+        decision = view.decision
+        return cls(
+            pair_id=view.pair_id,
+            left_candidate_id=view.left_candidate_id,
+            left_candidate_revision=view.left_candidate_revision,
+            right_candidate_id=view.right_candidate_id,
+            right_candidate_revision=view.right_candidate_revision,
+            disposition=view.disposition,
+            reason_codes=view.reason_codes,
+            state=_pair_state(view),
+            decision=None
+            if decision is None
+            else ResolutionPairDecisionResponse.from_record(decision),
+        )
+
+
+class ResolutionPairListResponse(ApiModel):
+    items: tuple[ResolutionPairResponse, ...]
+
+
+class ResolutionPairDecisionRequest(ApiModel):
+    pair_id: Digest = Field(alias="pairId")
+    left_candidate_id: UUID = Field(alias="leftCandidateId")
+    left_candidate_revision: Annotated[int, Field(ge=0)] = Field(alias="leftCandidateRevision")
+    right_candidate_id: UUID = Field(alias="rightCandidateId")
+    right_candidate_revision: Annotated[int, Field(ge=0)] = Field(alias="rightCandidateRevision")
+    action: Literal["match", "separate"]
+    reason_code: Code = Field(alias="reasonCode")
+    rationale: Annotated[str, Field(min_length=1, max_length=4000)]
+    evidence_references: tuple[str, ...] = Field(alias="evidenceReferences")
+    expected_decision_revision: Annotated[int, Field(ge=0)] = Field(
+        alias="expectedDecisionRevision"
+    )
+
+    @field_validator("rationale")
+    @classmethod
+    def require_plain_rationale(cls, value: str) -> str:
+        return _plain_text(value)
+
+    @field_validator("evidence_references")
+    @classmethod
+    def require_canonical_evidence(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        canonical = tuple(sorted(set(value)))
+        if not canonical or value != canonical:
+            raise ValueError("evidenceReferences must be non-empty, unique, and ordered")
+        if any(len(item) > 1024 for item in value):
+            raise ValueError("evidenceReferences must not exceed 1024 characters each")
+        return value
+
+    def to_request(self) -> PairDecisionRequest:
+        return PairDecisionRequest(
+            pair_id=self.pair_id,
+            left_candidate_id=self.left_candidate_id,
+            left_candidate_revision=self.left_candidate_revision,
+            right_candidate_id=self.right_candidate_id,
+            right_candidate_revision=self.right_candidate_revision,
+            action=self.action,
+            reason_code=self.reason_code,
+            rationale=self.rationale,
+            evidence_references=self.evidence_references,
+            expected_decision_revision=self.expected_decision_revision,
+        )
+
+
+class SubmitPairDecisionsRequest(ApiModel):
+    idempotency_key: Annotated[str, Field(min_length=1, max_length=200)] = Field(
+        alias="idempotencyKey"
+    )
+    decisions: Annotated[
+        tuple[ResolutionPairDecisionRequest, ...], Field(min_length=1, max_length=512)
+    ]
+
+
+class SubmitPairDecisionsResponse(ApiModel):
+    decisions: tuple[ResolutionPairDecisionResponse, ...]
+
+    @classmethod
+    def from_records(cls, records: Sequence[PairDecisionRecord]) -> SubmitPairDecisionsResponse:
+        return cls(
+            decisions=tuple(
+                ResolutionPairDecisionResponse.from_record(record) for record in records
+            )
+        )
+
+
 class WorkStateCountResponse(ApiModel):
     state: str
     count: Annotated[int, Field(ge=0)]
@@ -302,6 +452,12 @@ class RunCoverageResponse(ApiModel):
                 for item in report.blockers
             ),
         )
+
+
+def _pair_state(view: PendingPairView) -> Literal["unresolved", "decided", "stale_context"]:
+    if view.decision is None:
+        return "unresolved"
+    return "decided" if view.decision_context_current else "stale_context"
 
 
 def _plain_text(value: str) -> str:

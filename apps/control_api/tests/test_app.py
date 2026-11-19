@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from uuid import uuid4
+from typing import cast
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
@@ -20,6 +21,12 @@ from collection_domain import (
     WorkStage,
     WorkUnitState,
 )
+from collection_infrastructure.postgres.resolution_pair_decisions import (
+    PairDecisionRequest,
+    PendingPairView,
+    PostgresResolutionPairDecisionRepository,
+)
+from collection_infrastructure.resolution.decisions import PairDecisionRecord
 from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
 from review_application import ReviewQueuePage
@@ -34,6 +41,9 @@ from review_contracts import (
 TOKEN = "a" * 40
 NOW = datetime(2026, 8, 14, 9, 0, tzinfo=UTC)
 DIGEST = "sha256:" + "a" * 64
+PAIR_DIGEST = "sha256:" + "b" * 64
+PAIR_LEFT_ID = UUID("00000000-0000-0000-0000-00000000c001")
+PAIR_RIGHT_ID = UUID("00000000-0000-0000-0000-00000000c002")
 
 
 class Service:
@@ -191,7 +201,76 @@ class RunControl:
         )
 
 
-def client(service: Service, run_control: RunControl | None = None) -> TestClient:
+class ResolutionPairs:
+    """Stand-in for the pair-decision owner; the API contract is what these tests cover."""
+
+    def __init__(self) -> None:
+        self.submitted: list[dict[str, object]] = []
+
+    def list_pending_pairs(self, run_id: UUID) -> tuple[PendingPairView, ...]:
+        del run_id
+        return (
+            PendingPairView(
+                pair_id=PAIR_DIGEST,
+                left_candidate_id=PAIR_LEFT_ID,
+                left_candidate_revision=0,
+                right_candidate_id=PAIR_RIGHT_ID,
+                right_candidate_revision=3,
+                disposition="review_required",
+                reason_codes=("NAME_OVERLAP",),
+                decision=None,
+                decision_context_current=False,
+            ),
+        )
+
+    def submit_decisions(
+        self,
+        *,
+        run_id: UUID,
+        actor_id: str,
+        idempotency_key: str,
+        requests: tuple[PairDecisionRequest, ...],
+        correlation_id: str,
+    ) -> tuple[PairDecisionRecord, ...]:
+        self.submitted.append(
+            {
+                "runId": run_id,
+                "actorId": actor_id,
+                "idempotencyKey": idempotency_key,
+                "requests": requests,
+                "correlationId": correlation_id,
+            }
+        )
+        request = requests[0]
+        return (
+            PairDecisionRecord(
+                decision_id=UUID("00000000-0000-0000-0000-00000000d001"),
+                pair_id=request.pair_id,
+                run_id=run_id,
+                left_candidate_id=request.left_candidate_id,
+                left_candidate_revision=request.left_candidate_revision,
+                right_candidate_id=request.right_candidate_id,
+                right_candidate_revision=request.right_candidate_revision,
+                action=request.action,
+                reason_code=request.reason_code,
+                rationale=request.rationale,
+                evidence_references=request.evidence_references,
+                context_digest=DIGEST,
+                decision_digest=DIGEST,
+                revision=request.expected_decision_revision,
+                actor_id=actor_id,
+                supersedes_decision_id=None,
+                decided_at_utc=NOW,
+                correlation_id=correlation_id,
+            ),
+        )
+
+
+def client(
+    service: Service,
+    run_control: RunControl | None = None,
+    resolution_pairs: ResolutionPairs | None = None,
+) -> TestClient:
     auth = TokenAuthenticator.from_json(
         json.dumps(
             {
@@ -216,6 +295,10 @@ def client(service: Service, run_control: RunControl | None = None) -> TestClien
             service=service,
             run_creator=RunCreator(control),
             run_control=control,
+            resolution_pairs=cast(
+                PostgresResolutionPairDecisionRepository,
+                resolution_pairs or ResolutionPairs(),
+            ),
             authenticator=auth,
             readiness_probe=lambda: True,
         )
@@ -373,3 +456,94 @@ def test_run_create_read_coverage_and_pause_are_operator_owned() -> None:
     assert paused.json()["state"] == "paused"
     assert control.transition["actor_id"] == "reviewer-1"
     assert control.transition["correlation_id"] == "run-api-test"
+
+
+def _pair_decision_body(**overrides: object) -> dict[str, object]:
+    body: dict[str, object] = {
+        "pairId": PAIR_DIGEST,
+        "leftCandidateId": str(PAIR_LEFT_ID),
+        "leftCandidateRevision": 0,
+        "rightCandidateId": str(PAIR_RIGHT_ID),
+        "rightCandidateRevision": 3,
+        "action": "match",
+        "reasonCode": "SAME_STUDIO",
+        "rationale": "Both records name one studio.",
+        "evidenceReferences": [DIGEST],
+        "expectedDecisionRevision": 0,
+    }
+    body.update(overrides)
+    return body
+
+
+def test_pending_pairs_are_readable_and_need_a_read_permission() -> None:
+    response = client(Service()).get(
+        f"/runs/{uuid4()}/resolution/pairs",
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "pairId": PAIR_DIGEST,
+                "leftCandidateId": str(PAIR_LEFT_ID),
+                "leftCandidateRevision": 0,
+                "rightCandidateId": str(PAIR_RIGHT_ID),
+                "rightCandidateRevision": 3,
+                "disposition": "review_required",
+                "reasonCodes": ["NAME_OVERLAP"],
+                "state": "unresolved",
+                "decision": None,
+            }
+        ]
+    }
+    unauthenticated = client(Service()).get(f"/runs/{uuid4()}/resolution/pairs")
+    assert unauthenticated.status_code == 401
+
+
+def test_a_pair_decision_is_submitted_for_the_authenticated_actor() -> None:
+    pairs = ResolutionPairs()
+    run_id = uuid4()
+
+    response = client(Service(), resolution_pairs=pairs).post(
+        f"/runs/{run_id}/resolution/pair-decisions",
+        json={"idempotencyKey": "operator-command-1", "decisions": [_pair_decision_body()]},
+        headers={"Authorization": f"Bearer {TOKEN}", "X-Correlation-ID": "corr-pairs"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()["decisions"][0]
+    assert payload["pairId"] == PAIR_DIGEST
+    assert payload["action"] == "match"
+    assert payload["actorId"] == "reviewer-1"
+    assert pairs.submitted[0]["actorId"] == "reviewer-1"
+    assert pairs.submitted[0]["idempotencyKey"] == "operator-command-1"
+    assert pairs.submitted[0]["runId"] == run_id
+    assert pairs.submitted[0]["correlationId"] == "corr-pairs"
+
+
+def test_a_pair_decision_rejects_a_supplied_actor_and_missing_evidence() -> None:
+    pairs = ResolutionPairs()
+    client_with_pairs = client(Service(), resolution_pairs=pairs)
+
+    supplied_actor = client_with_pairs.post(
+        f"/runs/{uuid4()}/resolution/pair-decisions",
+        json={
+            "idempotencyKey": "operator-command-1",
+            "decisions": [_pair_decision_body(actorId="attacker")],
+        },
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
+    missing_evidence = client_with_pairs.post(
+        f"/runs/{uuid4()}/resolution/pair-decisions",
+        json={
+            "idempotencyKey": "operator-command-2",
+            "decisions": [_pair_decision_body(evidenceReferences=[])],
+        },
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
+
+    assert supplied_actor.status_code == 422
+    assert missing_evidence.status_code == 422
+    assert supplied_actor.json()["code"] == "CONTROL_API_REQUEST_INVALID"
+    assert pairs.submitted == []

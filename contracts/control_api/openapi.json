@@ -490,6 +490,300 @@
         "title": "QualityRecord",
         "type": "object"
       },
+      "ResolutionPairDecisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "match",
+              "separate"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "evidenceReferences": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidencereferences",
+            "type": "array"
+          },
+          "expectedDecisionRevision": {
+            "minimum": 0.0,
+            "title": "Expecteddecisionrevision",
+            "type": "integer"
+          },
+          "leftCandidateId": {
+            "format": "uuid",
+            "title": "Leftcandidateid",
+            "type": "string"
+          },
+          "leftCandidateRevision": {
+            "minimum": 0.0,
+            "title": "Leftcandidaterevision",
+            "type": "integer"
+          },
+          "pairId": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Pairid",
+            "type": "string"
+          },
+          "rationale": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Reasoncode",
+            "type": "string"
+          },
+          "rightCandidateId": {
+            "format": "uuid",
+            "title": "Rightcandidateid",
+            "type": "string"
+          },
+          "rightCandidateRevision": {
+            "minimum": 0.0,
+            "title": "Rightcandidaterevision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pairId",
+          "leftCandidateId",
+          "leftCandidateRevision",
+          "rightCandidateId",
+          "rightCandidateRevision",
+          "action",
+          "reasonCode",
+          "rationale",
+          "evidenceReferences",
+          "expectedDecisionRevision"
+        ],
+        "title": "ResolutionPairDecisionRequest",
+        "type": "object"
+      },
+      "ResolutionPairDecisionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "match",
+              "separate"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "actorId": {
+            "title": "Actorid",
+            "type": "string"
+          },
+          "contextDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Contextdigest",
+            "type": "string"
+          },
+          "correlationId": {
+            "title": "Correlationid",
+            "type": "string"
+          },
+          "decidedAtUtc": {
+            "format": "date-time",
+            "title": "Decidedatutc",
+            "type": "string"
+          },
+          "decisionDigest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Decisiondigest",
+            "type": "string"
+          },
+          "decisionId": {
+            "format": "uuid",
+            "title": "Decisionid",
+            "type": "string"
+          },
+          "evidenceReferences": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidencereferences",
+            "type": "array"
+          },
+          "leftCandidateId": {
+            "format": "uuid",
+            "title": "Leftcandidateid",
+            "type": "string"
+          },
+          "leftCandidateRevision": {
+            "minimum": 0.0,
+            "title": "Leftcandidaterevision",
+            "type": "integer"
+          },
+          "pairId": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Pairid",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Reasoncode",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rightCandidateId": {
+            "format": "uuid",
+            "title": "Rightcandidateid",
+            "type": "string"
+          },
+          "rightCandidateRevision": {
+            "minimum": 0.0,
+            "title": "Rightcandidaterevision",
+            "type": "integer"
+          },
+          "runId": {
+            "format": "uuid",
+            "title": "Runid",
+            "type": "string"
+          },
+          "supersedesDecisionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedesdecisionid"
+          }
+        },
+        "required": [
+          "decisionId",
+          "pairId",
+          "runId",
+          "leftCandidateId",
+          "leftCandidateRevision",
+          "rightCandidateId",
+          "rightCandidateRevision",
+          "action",
+          "reasonCode",
+          "rationale",
+          "evidenceReferences",
+          "contextDigest",
+          "decisionDigest",
+          "revision",
+          "actorId",
+          "supersedesDecisionId",
+          "decidedAtUtc",
+          "correlationId"
+        ],
+        "title": "ResolutionPairDecisionResponse",
+        "type": "object"
+      },
+      "ResolutionPairListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ResolutionPairResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ResolutionPairListResponse",
+        "type": "object"
+      },
+      "ResolutionPairResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResolutionPairDecisionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposition": {
+            "title": "Disposition",
+            "type": "string"
+          },
+          "leftCandidateId": {
+            "format": "uuid",
+            "title": "Leftcandidateid",
+            "type": "string"
+          },
+          "leftCandidateRevision": {
+            "minimum": 0.0,
+            "title": "Leftcandidaterevision",
+            "type": "integer"
+          },
+          "pairId": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Pairid",
+            "type": "string"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasoncodes",
+            "type": "array"
+          },
+          "rightCandidateId": {
+            "format": "uuid",
+            "title": "Rightcandidateid",
+            "type": "string"
+          },
+          "rightCandidateRevision": {
+            "minimum": 0.0,
+            "title": "Rightcandidaterevision",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "unresolved",
+              "decided",
+              "stale_context"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pairId",
+          "leftCandidateId",
+          "leftCandidateRevision",
+          "rightCandidateId",
+          "rightCandidateRevision",
+          "disposition",
+          "reasonCodes",
+          "state"
+        ],
+        "title": "ResolutionPairResponse",
+        "type": "object"
+      },
       "ResolveSuppressionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1186,6 +1480,49 @@
           "evidenceReferences"
         ],
         "title": "SubmitDecisionRequest",
+        "type": "object"
+      },
+      "SubmitPairDecisionsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ResolutionPairDecisionRequest"
+            },
+            "maxItems": 512,
+            "minItems": 1,
+            "title": "Decisions",
+            "type": "array"
+          },
+          "idempotencyKey": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotencykey",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "decisions"
+        ],
+        "title": "SubmitPairDecisionsRequest",
+        "type": "object"
+      },
+      "SubmitPairDecisionsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ResolutionPairDecisionResponse"
+            },
+            "title": "Decisions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decisions"
+        ],
+        "title": "SubmitPairDecisionsResponse",
         "type": "object"
       },
       "SuppressionRevision": {
@@ -2201,6 +2538,138 @@
           }
         ],
         "summary": "Pause Run"
+      }
+    },
+    "/runs/{run_id}/resolution/pair-decisions": {
+      "post": {
+        "operationId": "submit_resolution_pair_decisions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Correlation-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitPairDecisionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitPairDecisionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Submit Resolution Pair Decisions"
+      }
+    },
+    "/runs/{run_id}/resolution/pairs": {
+      "get": {
+        "operationId": "list_resolution_pairs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Correlation-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionPairListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Resolution Pairs"
       }
     },
     "/runs/{run_id}/resume": {

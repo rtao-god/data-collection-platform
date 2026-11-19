@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import cast
 
 from collection_application import CampaignRunService, RunControlService
+from collection_infrastructure.postgres.resolution_pair_decisions import (
+    PostgresResolutionPairDecisionRepository,
+)
 from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
 from review_application import ReviewService
@@ -29,6 +32,7 @@ def render() -> dict[str, str]:
         service=cast(ReviewService, _Service()),
         run_creator=cast(CampaignRunService, _Service()),
         run_control=cast(RunControlService, _Service()),
+        resolution_pairs=cast(PostgresResolutionPairDecisionRepository, _Service()),
         authenticator=authenticator,
         readiness_probe=lambda: True,
     )

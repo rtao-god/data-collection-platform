@@ -1,7 +1,7 @@
 {
   "contract": "collector-control-api-operation-inventory",
   "contractRevision": "control-api-operation-inventory-v1",
-  "openapiDigest": "sha256:707f768be0ba4666af81f83e31a7b8d7ad5221e83efd30798fa4acb8bd8a3a69",
+  "openapiDigest": "sha256:d1186507ea47eb108c4d3b2145ba336c86cc8c26d9cfed1034c47721fe8fd641",
   "operations": [
     {
       "method": "GET",
@@ -67,6 +67,16 @@
       "method": "POST",
       "operationId": "pause_collection_run",
       "path": "/runs/{run_id}/pause"
+    },
+    {
+      "method": "POST",
+      "operationId": "submit_resolution_pair_decisions",
+      "path": "/runs/{run_id}/resolution/pair-decisions"
+    },
+    {
+      "method": "GET",
+      "operationId": "list_resolution_pairs",
+      "path": "/runs/{run_id}/resolution/pairs"
     },
     {
       "method": "POST",

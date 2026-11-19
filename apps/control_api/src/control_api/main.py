@@ -24,6 +24,16 @@ from collection_infrastructure import (
     PostgresRunControlRepository,
     S3ArtifactObjectStore,
 )
+from collection_infrastructure.postgres.resolution_pair_decisions import (
+    PostgresResolutionPairDecisionRepository,
+)
+from collection_infrastructure.postgres.resolution_scheduling import (
+    PostgresResolutionBatchScheduler,
+)
+from collection_infrastructure.postgres.succeeded_work_catalog import (
+    PostgresSucceededWorkCatalog,
+)
+from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from control_api.app import create_app
 from control_api.auth import TokenAuthenticator
 from review_application import ReviewService
@@ -65,6 +75,17 @@ def create_runtime_app() -> FastAPI:
         PostgresReviewRepository(engine),
         clock=lambda: datetime.now(UTC),
     )
+    # A pair decision is a resolution input, so its owner dispatches the recomputation itself
+    # through the same work engine and artifact owner the workers already use.
+    resolution_pairs = PostgresResolutionPairDecisionRepository(
+        engine,
+        scheduler=PostgresResolutionBatchScheduler(
+            PostgresWorkEngine(engine),
+            PostgresOwnedArtifactPublisher(engine, object_store),
+            PostgresSucceededWorkCatalog(engine, object_store=object_store),
+        ),
+        clock=lambda: datetime.now(UTC),
+    )
 
     def readiness() -> bool:
         try:
@@ -90,6 +111,7 @@ def create_runtime_app() -> FastAPI:
         service=review_service,
         run_creator=run_creator,
         run_control=run_control,
+        resolution_pairs=resolution_pairs,
         authenticator=TokenAuthenticator.from_json(token_json),
         readiness_probe=readiness,
     )

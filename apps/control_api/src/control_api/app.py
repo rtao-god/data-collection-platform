@@ -22,6 +22,10 @@ from collection_application import (
     RunControlService,
 )
 from collection_contracts import OwnerContextError
+from collection_infrastructure.postgres.resolution_pair_decisions import (
+    PairDecisionConflict,
+    PostgresResolutionPairDecisionRepository,
+)
 from control_api.auth import (
     ControlAuthenticationError,
     OperatorPermission,
@@ -34,6 +38,8 @@ from control_api.schemas import (
     DecisionResponse,
     ErrorResponse,
     ManualObservationRequest,
+    ResolutionPairListResponse,
+    ResolutionPairResponse,
     ResolveSuppressionRequest,
     ReviewCaseDetailResponse,
     ReviewQueueResponse,
@@ -41,6 +47,8 @@ from control_api.schemas import (
     RunResponse,
     RunTransitionRequest,
     SubmitDecisionRequest,
+    SubmitPairDecisionsRequest,
+    SubmitPairDecisionsResponse,
 )
 from review_application import (
     ReviewApplicationError,
@@ -84,6 +92,7 @@ def create_app(
     service: ReviewService,
     run_creator: CampaignRunService,
     run_control: RunControlService,
+    resolution_pairs: PostgresResolutionPairDecisionRepository,
     authenticator: TokenAuthenticator,
     readiness_probe: ReadinessProbe,
 ) -> FastAPI:
@@ -207,6 +216,29 @@ def create_app(
             status_code=status_code,
             content=body.model_dump(mode="json", by_alias=True),
             headers={"X-Correlation-ID": envelope.correlation_id},
+        )
+
+    @app.exception_handler(PairDecisionConflict)
+    async def pair_decision_error_handler(
+        request: Request,
+        exc: PairDecisionConflict,
+    ) -> JSONResponse:
+        correlation_id = _correlation_id(
+            request.headers.get("X-Correlation-ID"),
+            reject_invalid=False,
+        )
+        body = ErrorResponse(
+            code=exc.code,
+            owner="ResolutionPairDecisions",
+            message=exc.message,
+            required_action=exc.required_action,
+            correlation_id=correlation_id,
+            context=exc.context,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=body.model_dump(mode="json", by_alias=True),
+            headers={"X-Correlation-ID": correlation_id},
         )
 
     @app.exception_handler(ReviewApplicationError)
@@ -490,6 +522,61 @@ def create_app(
             supersedes_observation_id=body.supersedes_observation_id,
             correlation_id=correlation_id,
         )
+
+    @app.get(
+        "/runs/{run_id}/resolution/pairs",
+        response_model=ResolutionPairListResponse,
+        operation_id="list_resolution_pairs",
+    )
+    def list_resolution_pairs(
+        run_id: UUID,
+        response: Response,
+        principal: Annotated[
+            OperatorPrincipal,
+            Depends(principal_dependency),
+        ],
+        correlation_id: Annotated[
+            str,
+            Depends(correlation_dependency),
+        ],
+    ) -> ResolutionPairListResponse:
+        require_permission(principal, "review:read")
+        response.headers["X-Correlation-ID"] = correlation_id
+        return ResolutionPairListResponse(
+            items=tuple(
+                ResolutionPairResponse.from_view(item)
+                for item in resolution_pairs.list_pending_pairs(run_id)
+            )
+        )
+
+    @app.post(
+        "/runs/{run_id}/resolution/pair-decisions",
+        response_model=SubmitPairDecisionsResponse,
+        operation_id="submit_resolution_pair_decisions",
+    )
+    def submit_resolution_pair_decisions(
+        run_id: UUID,
+        body: SubmitPairDecisionsRequest,
+        response: Response,
+        principal: Annotated[
+            OperatorPrincipal,
+            Depends(principal_dependency),
+        ],
+        correlation_id: Annotated[
+            str,
+            Depends(correlation_dependency),
+        ],
+    ) -> SubmitPairDecisionsResponse:
+        require_permission(principal, "review:decide")
+        response.headers["X-Correlation-ID"] = correlation_id
+        records = resolution_pairs.submit_decisions(
+            run_id=run_id,
+            actor_id=principal.actor_id,
+            idempotency_key=body.idempotency_key,
+            requests=tuple(item.to_request() for item in body.decisions),
+            correlation_id=correlation_id,
+        )
+        return SubmitPairDecisionsResponse.from_records(records)
 
     @app.post(
         "/review/suppressions",
