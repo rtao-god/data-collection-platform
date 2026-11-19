@@ -19,7 +19,7 @@
 schema_revision: catalog-category-mapping-v1
 site_key: berlin-recording
 catalog_key: berlin-recording-services
-configuration_revision_id: 019fdeab-5c00-7000-8000-000000000002
+configuration_revision_id: 01a1ed05-f418-7098-c488-da32210e0000
 coordinate_precision_meters: 25
 # The Catalog publishes names under display locales only, so a language must be established
 # before a name reaches it: by the source that published it, or by the operator who entered
