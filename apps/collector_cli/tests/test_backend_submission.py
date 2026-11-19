@@ -163,10 +163,32 @@ def _sealed_export(**kwargs: Any) -> Any:
     return seal_export_package(ExportPackagePayload.model_validate(payload))
 
 
+def _payload_digest_in(document: Any) -> str | None:
+    """Find the registered payload artifact digest anywhere in a submission document."""
+
+    if isinstance(document, dict):
+        if (
+            isinstance(document.get("contentDigest"), str)
+            and document.get("role") == "candidatePayload"
+        ):
+            return str(document["contentDigest"])
+        for value in document.values():
+            found = _payload_digest_in(value)
+            if found is not None:
+                return found
+    elif isinstance(document, list):
+        for value in document:
+            found = _payload_digest_in(value)
+            if found is not None:
+                return found
+    return None
+
+
 class _FakeTransport:
     def __init__(self, *, object_key: str) -> None:
         self.calls: list[tuple[str, str, Mapping[str, Any] | None, str | None]] = []
         self._object_key = object_key
+        self._registered_digest: str | None = None
 
     def post_json(
         self,
@@ -177,6 +199,7 @@ class _FakeTransport:
         expected_statuses: tuple[int, ...],
     ) -> Mapping[str, Any]:
         self.calls.append(("post", path, body, idempotency_key))
+        self._registered_digest = _payload_digest_in(body) or self._registered_digest
         if path == "/api/ingestion/batches":
             return {
                 "batch": {"id": str(_BATCH_ID), "state": "Registered", "aggregateRevision": 0},
@@ -185,6 +208,7 @@ class _FakeTransport:
         if path.endswith("/upload-request"):
             return {
                 "uploadUri": "https://objects.invalid/upload",
+                "requiredHeaders": {"x-amz-meta-sha256": self._registered_digest},
                 "objectKey": self._object_key,
                 "contentType": "application/json",
                 "batch": {"id": str(_BATCH_ID), "state": "Uploading", "aggregateRevision": 1},
@@ -200,9 +224,50 @@ class _FakeTransport:
         return {"id": str(_BATCH_ID), "state": "Uploaded"}
 
     def put_object(
-        self, url: str, *, content: bytes, content_type: str, content_digest: str
+        self,
+        url: str,
+        *,
+        content: bytes,
+        content_type: str,
+        content_digest: str,
+        signed_headers: Mapping[str, str],
     ) -> None:
-        self.calls.append(("put", url, {"contentDigest": content_digest}, None))
+        self.calls.append(
+            (
+                "put",
+                url,
+                {"contentDigest": content_digest, "signedHeaders": dict(signed_headers)},
+                None,
+            )
+        )
+
+
+class _UploadHeaderTamperingTransport(_FakeTransport):
+    """Authorization whose signed headers do not bind the registered payload digest."""
+
+    def __init__(self, *, object_key: str, digest: str | None) -> None:
+        super().__init__(object_key=object_key)
+        self._tampered_digest = digest
+
+    def post_json(
+        self,
+        path: str,
+        body: Mapping[str, Any],
+        *,
+        idempotency_key: str,
+        expected_statuses: tuple[int, ...],
+    ) -> Mapping[str, Any]:
+        response = dict(
+            super().post_json(
+                path, body, idempotency_key=idempotency_key, expected_statuses=expected_statuses
+            )
+        )
+        if path.endswith("/upload-request"):
+            if self._tampered_digest is None:
+                response.pop("requiredHeaders", None)
+            else:
+                response["requiredHeaders"] = {"x-amz-meta-sha256": self._tampered_digest}
+        return response
 
 
 def _documents(export: Any, **kwargs: Any) -> Any:
@@ -278,6 +343,30 @@ def test_a_different_package_derives_different_command_identities() -> None:
     submit(documents=_documents(second), package=second, target=_TARGET, transport=second_transport)
 
     assert first_transport.calls[0][3] != second_transport.calls[0][3]
+
+
+def test_an_upload_authorization_bound_to_other_content_is_refused_before_upload() -> None:
+    export = _sealed_export()
+    transport = _UploadHeaderTamperingTransport(
+        object_key=payload_object_key(export), digest="0" * 64
+    )
+
+    with pytest.raises(SubmissionRefused) as failure:
+        submit(documents=_documents(export), package=export, target=_TARGET, transport=transport)
+
+    assert failure.value.code == "SUBMISSION_UPLOAD_DIGEST_MISMATCH"
+    assert not any(call[0] == "put" for call in transport.calls)
+
+
+def test_an_upload_authorization_without_signed_digest_header_is_refused() -> None:
+    export = _sealed_export()
+    transport = _UploadHeaderTamperingTransport(object_key=payload_object_key(export), digest=None)
+
+    with pytest.raises(SubmissionRefused) as failure:
+        submit(documents=_documents(export), package=export, target=_TARGET, transport=transport)
+
+    assert failure.value.code == "SUBMISSION_UPLOAD_HEADERS_MISSING"
+    assert not any(call[0] == "put" for call in transport.calls)
 
 
 def test_a_research_only_policy_is_refused_before_any_network_call() -> None:

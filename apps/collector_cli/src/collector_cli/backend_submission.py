@@ -52,6 +52,9 @@ _REDISTRIBUTING_USAGE_POLICIES = frozenset(
 _ACCEPTING_DECISION_KINDS = frozenset({"accept_candidate"})
 
 _PAYLOAD_CONTENT_TYPE = "application/json"
+
+# Signed user metadata that binds the upload authorization to the registered payload digest.
+_SIGNED_DIGEST_HEADER = "x-amz-meta-sha256"
 MAXIMUM_PAYLOAD_BYTES = 128 * 1024 * 1024
 
 _TERMINAL_FAILURE_STATES = frozenset(
@@ -200,7 +203,13 @@ class IngestionTransport(Protocol):
     def get_json(self, path: str) -> Mapping[str, Any]: ...
 
     def put_object(
-        self, url: str, *, content: bytes, content_type: str, content_digest: str
+        self,
+        url: str,
+        *,
+        content: bytes,
+        content_type: str,
+        content_digest: str,
+        signed_headers: Mapping[str, str],
     ) -> None: ...
 
 
@@ -429,11 +438,31 @@ def submit(
     authorized_batch = _mapping(authorization, "batch")
     content_type = _optional_text(authorization.get("contentType")) or _PAYLOAD_CONTENT_TYPE
     upload_uri = _text(authorization, "uploadUri")
+    signed_headers = _signed_upload_headers(authorization)
+    authorized_digest = signed_headers.get(_SIGNED_DIGEST_HEADER)
+    if authorized_digest is None:
+        raise SubmissionRefused(
+            "SUBMISSION_UPLOAD_DIGEST_UNAUTHORIZED",
+            "The upload authorization does not bind the registered payload digest.",
+            {"requiredHeaders": sorted(signed_headers)},
+        )
+    # The local artifact is what gets uploaded, so a payload that is not the authorized content
+    # must fail here rather than be silently replaced by the server's digest.
+    if authorized_digest != documents.payload_digest:
+        raise SubmissionRefused(
+            "SUBMISSION_UPLOAD_DIGEST_MISMATCH",
+            "The sealed payload digest does not match the digest the upload authorization binds.",
+            {
+                "authorizedDigest": authorized_digest,
+                "localDigest": documents.payload_digest,
+            },
+        )
     transport.put_object(
         upload_uri,
         content=documents.payload_bytes,
         content_type=content_type,
         content_digest=documents.payload_digest,
+        signed_headers=signed_headers,
     )
 
     completed = transport.post_json(
@@ -466,6 +495,28 @@ def read_batch(*, transport: IngestionTransport, batch_id: UUID) -> Mapping[str,
     """Read-only durable batch receipt; never advances state."""
 
     return transport.get_json(f"/api/ingestion/batches/{batch_id}")
+
+
+def _signed_upload_headers(authorization: Mapping[str, Any]) -> Mapping[str, str]:
+    """Return the headers the store signature binds, or refuse an authorization without them."""
+
+    raw = authorization.get("requiredHeaders")
+    if not isinstance(raw, Mapping):
+        raise SubmissionRefused(
+            "SUBMISSION_UPLOAD_HEADERS_MISSING",
+            "The upload authorization does not declare the headers bound into its signature.",
+            {"authorizationFields": sorted(authorization)},
+        )
+    headers: dict[str, str] = {}
+    for name, value in raw.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            raise SubmissionRefused(
+                "SUBMISSION_UPLOAD_HEADERS_MISSING",
+                "The upload authorization declares a non-textual signed header.",
+                {"authorizationFields": sorted(authorization)},
+            )
+        headers[name] = value
+    return headers
 
 
 def _mapping(document: Mapping[str, Any], key: str) -> Mapping[str, Any]:
@@ -669,18 +720,28 @@ class HttpIngestionTransport:
         return {key: value for key, value in payload.items() if key != "__status"}
 
     def put_object(
-        self, url: str, *, content: bytes, content_type: str, content_digest: str
+        self,
+        url: str,
+        *,
+        content: bytes,
+        content_type: str,
+        content_digest: str,
+        signed_headers: Mapping[str, str],
     ) -> None:
+        # Every signed header must reach the store byte-identically, otherwise SigV4 verification
+        # fails: the digest header is part of the authorization, not a client-side claim.
+        headers = {"Content-Type": content_type, **signed_headers}
+        if headers.get(_SIGNED_DIGEST_HEADER) != content_digest:
+            raise SubmissionRefused(
+                "SUBMISSION_UPLOAD_DIGEST_MISMATCH",
+                "The signed upload headers do not carry the sealed payload digest.",
+                {"signedHeaders": sorted(signed_headers)},
+            )
         request = urllib.request.Request(  # noqa: S310 - upload URL is backend-authorized
             url,
             data=content,
             method="PUT",
-            headers={
-                "Content-Type": content_type,
-                # The service verifies this exact owner digest from the stored object's
-                # metadata, so it is part of the upload rather than a client-side claim.
-                "x-amz-meta-sha256": content_digest,
-            },
+            headers=headers,
         )
         try:
             with urllib.request.urlopen(  # noqa: S310 - backend-authorized upload URL
