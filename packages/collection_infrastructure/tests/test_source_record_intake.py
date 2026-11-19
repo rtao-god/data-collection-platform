@@ -308,10 +308,12 @@ def _plan(provenance_kind: str = "source_record") -> PipelineTransitionPlan:
         provenance=SourceRecordIntakeProvenance(
             source_key="openstreetmap",
             source_binding_key="osm_overpass_berlin",
+            campaign_key="berlin_recording_services",
             source_record_id="osm:node:101",
             source_policy_digest=_POLICY_DIGEST,
             dataset_release="osm-overpass-live-v1",
             mapping_revision="osm-overpass-source-record-mapping-v1",
+            acquisition_identity="sha256:" + "9" * 64,
             source_record_artifact=ArtifactIdentity(
                 artifact_id=_RECORD_ARTIFACT_ID,
                 role="source_record",
@@ -342,23 +344,57 @@ class _ResultRow:
     def one(self) -> None:
         return None
 
+    def scalar_one_or_none(self) -> None:
+        return None
+
     def __iter__(self) -> Any:
         return iter(())
+
+
+class _LockedRow:
+    """The locked candidate row an existing logical entity resolves to."""
+
+    def __init__(self, entity_kind: str) -> None:
+        self._entity_kind = entity_kind
+
+    def one_or_none(self) -> tuple[str]:
+        return (self._entity_kind,)
 
 
 class _Recorder:
     """Minimal connection double: records SQL text instead of executing it."""
 
-    def __init__(self, fail_on: str | None = None) -> None:
+    def __init__(self, fail_on: str | None = None, locked_kind: str | None = None) -> None:
         self.statements: list[str] = []
         self._fail_on = fail_on
+        self._locked_kind = locked_kind
 
     def execute(self, statement: Any, parameters: Any = None) -> Any:
         text = str(statement)
         self.statements.append(text)
         if self._fail_on is not None and self._fail_on in text:
             raise RuntimeError("injected intake failure")
+        if self._locked_kind is not None and "FOR UPDATE" in text:
+            return _LockedRow(self._locked_kind)
         return _ResultRow()
+
+
+def _patch_intake_writes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace every candidate write so a test can assert intake decisions alone."""
+
+    for name in (
+        "_insert_candidate",
+        "_insert_revision",
+        "_insert_evidence",
+        "_insert_review_case",
+        "_record_source_entity_revision",
+    ):
+        monkeypatch.setattr(PostgresCandidateIntakeApplier, name, lambda *a, **k: None)
+    monkeypatch.setattr(
+        PostgresCandidateIntakeApplier,
+        "_source_record_revision",
+        lambda *a, **k: (0, True),
+    )
 
 
 def test_source_record_intake_accepts_source_native_provenance(
@@ -377,10 +413,7 @@ def test_source_record_intake_accepts_source_native_provenance(
         "collection_infrastructure.postgres.candidate_intake_applier.materialize_candidate",
         _materialize,
     )
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_candidate", lambda *a, **k: None)
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_revision", lambda *a, **k: None)
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_evidence", lambda *a, **k: None)
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_review_case", lambda *a, **k: None)
+    _patch_intake_writes(monkeypatch)
 
     applier(connection, _source(), _plan(), correlation_id="corr-1")
 
@@ -437,8 +470,7 @@ def test_unresolved_entity_kind_reaches_review_instead_of_error(
         "collection_infrastructure.postgres.candidate_intake_applier.materialize_candidate",
         _materialize,
     )
-    for name in ("_insert_candidate", "_insert_revision", "_insert_evidence"):
-        monkeypatch.setattr(PostgresCandidateIntakeApplier, name, lambda *a, **k: None)
+    _patch_intake_writes(monkeypatch)
 
     def _review(*_: Any, **kwargs: Any) -> None:
         captured["review_reason_codes"] = kwargs.get("extra_reason_codes")
@@ -496,8 +528,10 @@ def test_write_failure_propagates_instead_of_reporting_accepted_intake(
 def test_replayed_intake_does_not_duplicate_the_candidate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """One logical source entity keeps one candidate row across repeated acquisitions."""
+
     applier = PostgresCandidateIntakeApplier(clock=lambda: _OBSERVED_AT)
-    connection = _Recorder()
+    connection = _Recorder(locked_kind="place")
 
     monkeypatch.setattr(
         "collection_infrastructure.postgres.candidate_intake_applier.materialize_candidate",
@@ -506,36 +540,32 @@ def test_replayed_intake_does_not_duplicate_the_candidate(
             None,
         ),
     )
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_revision", lambda *a, **k: None)
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_evidence", lambda *a, **k: None)
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_review_case", lambda *a, **k: None)
+    for name in ("_insert_revision", "_insert_evidence", "_insert_review_case"):
+        monkeypatch.setattr(PostgresCandidateIntakeApplier, name, lambda *a, **k: None)
 
     applier(connection, _source(), _plan(), correlation_id="corr-1")
     first_pass = list(connection.statements)
     connection.statements.clear()
     applier(connection, _source(), _plan(), correlation_id="corr-2")
+    replay = list(connection.statements)
 
-    # Identity is deterministic: a replay looks the candidate up first, so the same
-    # candidate id can never be inserted twice.
-    select_first = [text for text in first_pass if "SELECT entity_kind FROM candidates" in text]
-    select_replay = [
-        text for text in connection.statements if "SELECT entity_kind FROM candidates" in text
-    ]
-    assert len(select_first) == 1
-    assert len(select_replay) == 1
-    # The replay still guards the insert with the same lookup, so an already-present
-    # candidate row is never inserted a second time.
-    insert_index = next(
-        index
-        for index, text in enumerate(connection.statements)
-        if "INSERT INTO candidates.candidates" in text
-    )
-    lookup_index = next(
-        index
-        for index, text in enumerate(connection.statements)
-        if "SELECT entity_kind FROM candidates" in text
-    )
-    assert lookup_index < insert_index
+    for pass_statements in (first_pass, replay):
+        # The insert is guarded by the deterministic primary key, so a second acquisition of
+        # the same logical source entity can never create a second candidate row.
+        inserts = [text for text in pass_statements if "INSERT INTO candidates.candidates" in text]
+        assert len(inserts) == 1
+        assert "ON CONFLICT (candidate_id) DO NOTHING" in inserts[0]
+        # The row is locked before anything is derived from it, so concurrent acquisitions of
+        # one logical entity cannot allocate the same revision.
+        lock_index = next(
+            index for index, text in enumerate(pass_statements) if "FOR UPDATE" in text
+        )
+        revision_index = next(
+            index
+            for index, text in enumerate(pass_statements)
+            if "SELECT revision FROM candidates.source_entity_revisions" in text
+        )
+        assert lock_index < revision_index
 
 
 class _FakeRevision:
@@ -571,9 +601,7 @@ def test_verified_point_against_the_run_boundary_reaches_materialization(
         "collection_infrastructure.postgres.candidate_intake_applier.materialize_candidate",
         _materialize,
     )
-    for name in ("_insert_candidate", "_insert_revision", "_insert_evidence"):
-        monkeypatch.setattr(PostgresCandidateIntakeApplier, name, lambda *a, **k: None)
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_review_case", lambda *a, **k: None)
+    _patch_intake_writes(monkeypatch)
 
     applier(_Recorder(), _source(), _plan(), correlation_id="corr-1")
 
@@ -599,9 +627,7 @@ def test_a_point_outside_the_run_boundary_is_classified_outside(
         "collection_infrastructure.postgres.candidate_intake_applier.materialize_candidate",
         _materialize,
     )
-    for name in ("_insert_candidate", "_insert_revision", "_insert_evidence"):
-        monkeypatch.setattr(PostgresCandidateIntakeApplier, name, lambda *a, **k: None)
-    monkeypatch.setattr(PostgresCandidateIntakeApplier, "_insert_review_case", lambda *a, **k: None)
+    _patch_intake_writes(monkeypatch)
 
     outside = _batch_with_point(latitude="48.1372", longitude="11.5756")
     applier(
@@ -642,6 +668,7 @@ def test_research_only_source_keeps_its_restriction_through_intake(
         "collection_infrastructure.postgres.candidate_intake_applier.materialize_candidate",
         _materialize,
     )
+    _patch_intake_writes(monkeypatch)
 
     applier(_Recorder(), source, _plan(), correlation_id="corr-1")
 

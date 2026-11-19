@@ -114,6 +114,102 @@ def insert_config_artifact(
     )
 
 
+def seed_collection_run(
+    connection: sa.Connection,
+    *,
+    run_id: UUID,
+    bundle_digest: str,
+    recorded_at_utc: datetime,
+    correlation_id: str = "integration-run",
+) -> None:
+    """Record the run that owns an acquisition, together with its sealed config bundle.
+
+    Intake records the acquiring run on the candidate lineage, so that run has to exist
+    before the lineage row can be written. Several runs may share one sealed bundle.
+    """
+
+    sealed = connection.execute(
+        sa.text("SELECT 1 FROM config.config_bundles WHERE bundle_digest = :digest"),
+        {"digest": bundle_digest},
+    ).scalar_one_or_none()
+    if sealed is not None:
+        _seed_run(
+            connection,
+            run_id=run_id,
+            bundle_digest=bundle_digest,
+            recorded_at_utc=recorded_at_utc,
+            correlation_id=correlation_id,
+        )
+        return
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO config.config_bundle_components
+                (bundle_digest, position, path, component_digest)
+            VALUES (:digest, 0, 'campaign.yaml', :component_digest)
+            """
+        ),
+        {"digest": bundle_digest, "component_digest": digest("run-bundle-component")},
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO config.config_bundles
+                (bundle_digest, campaign_key, contract, contract_revision, readiness,
+                 recorded_at_utc)
+            VALUES (:digest, 'berlin_recording_services', 'collector-campaign-snapshot',
+                    'campaign-snapshot-v1', 'ready', :now)
+            """
+        ),
+        {"digest": bundle_digest, "now": recorded_at_utc},
+    )
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO runs.collection_runs
+                (run_id, campaign_key, config_bundle_digest, state, revision, created_at_utc,
+                 updated_at_utc, correlation_id)
+            VALUES (:run_id, 'berlin_recording_services', :digest, 'running', 0, :now, :now,
+                    :correlation_id)
+            """
+        ),
+        {
+            "run_id": run_id,
+            "digest": bundle_digest,
+            "now": recorded_at_utc,
+            "correlation_id": correlation_id,
+        },
+    )
+
+
+def _seed_run(
+    connection: sa.Connection,
+    *,
+    run_id: UUID,
+    bundle_digest: str,
+    recorded_at_utc: datetime,
+    correlation_id: str,
+) -> None:
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO runs.collection_runs
+                (run_id, campaign_key, config_bundle_digest, state, revision, created_at_utc,
+                 updated_at_utc, correlation_id)
+            VALUES (:run_id, 'berlin_recording_services', :digest, 'running', 0, :now, :now,
+                    :correlation_id)
+            ON CONFLICT (run_id) DO NOTHING
+            """
+        ),
+        {
+            "run_id": run_id,
+            "digest": bundle_digest,
+            "now": recorded_at_utc,
+            "correlation_id": correlation_id,
+        },
+    )
+
+
 def seed_resolution_quality(
     connection: sa.Connection,
     *,

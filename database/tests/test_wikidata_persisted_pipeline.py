@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -69,9 +69,14 @@ from collection_infrastructure.postgres.candidate_intake_applier import (
 from collection_infrastructure.postgres.export_readers import (
     PostgresExportCandidatePort,
     PostgresExportCandidateReader,
+    PostgresExportQualityReader,
 )
 from collection_infrastructure.postgres.pipeline_advancement import (
     PostgresPipelineAdvancementRepository,
+)
+from collection_infrastructure.postgres.resolution_pair_decisions import (
+    PairDecisionRequest,
+    PostgresResolutionPairDecisionRepository,
 )
 from collection_infrastructure.postgres.resolution_scheduling import (
     PostgresResolutionBatchScheduler,
@@ -84,6 +89,10 @@ from collection_infrastructure.postgres.source_record_mapping_applier import (
 )
 from collection_infrastructure.postgres.succeeded_work_catalog import (
     PostgresSucceededWorkCatalog,
+)
+from collection_infrastructure.resolution.decisions import (
+    current_decision_basis,
+    recorded_decision_basis,
 )
 from processing_worker.contracts import ProcessingWorkerSettings
 from processing_worker.gateway import SdkProcessingGateway
@@ -211,6 +220,8 @@ class _Pipeline:
     processing: ProcessingWorker
     catalog: PostgresSucceededWorkCatalog
     advancement: PostgresPipelineAdvancementRepository
+    store: Any
+    run_pending_resolution: Callable[[], UUID]
     resolution_work_id: UUID | None = None
 
 
@@ -356,6 +367,8 @@ def _drive(engine: Engine, tmp_path: Path) -> _Pipeline:
         processing=None,  # type: ignore[arg-type]
         catalog=catalog,
         advancement=advancement,
+        store=store,
+        run_pending_resolution=lambda: (_ for _ in ()).throw(AssertionError("unavailable")),
     )
 
     def readiness_probe() -> None:
@@ -472,6 +485,25 @@ def _drive(engine: Engine, tmp_path: Path) -> _Pipeline:
         assert outcome.output_digest is not None
 
         assert _apply_advancement(state, resolution_work_id) == "applied"
+
+        def run_pending_resolution() -> UUID:
+            """Drive exactly one newly dispatched resolution to its persisted snapshot."""
+
+            pending = [
+                row
+                for row in _work_rows(engine, run_id)
+                if row["capability"] == "entity_resolution" and row["state"] == "pending"
+            ]
+            assert len(pending) == 1, pending
+            work_id = UUID(str(pending[0]["work_id"]))
+            with api:
+                outcome = resolution_worker.run_once()
+            assert outcome.acquired is True, outcome
+            assert outcome.output_digest is not None
+            assert _apply_advancement(state, work_id) == "applied"
+            return work_id
+
+        state.run_pending_resolution = run_pending_resolution
 
     return state
 
@@ -926,3 +958,130 @@ def test_replaying_the_resolution_output_adds_no_rows(pipeline: _Pipeline) -> No
         _row(pipeline.engine, "SELECT count(*) AS total FROM quality.quality_evaluations")
         == evaluations_before
     )
+
+
+def _pair_repository(pipeline: _Pipeline) -> PostgresResolutionPairDecisionRepository:
+    """The decision owner wired exactly as the Control API wires it."""
+
+    return PostgresResolutionPairDecisionRepository(
+        pipeline.engine,
+        scheduler=PostgresResolutionBatchScheduler(
+            PostgresWorkEngine(pipeline.engine, clock=lambda: _NOW),
+            PostgresOwnedArtifactPublisher(pipeline.engine, pipeline.store, clock=lambda: _NOW),
+            pipeline.catalog,
+            clock=lambda: _NOW,
+        ),
+        clock=lambda: _NOW,
+    )
+
+
+def _export_assessments(pipeline: _Pipeline) -> dict[UUID, object]:
+    with pipeline.engine.connect() as connection:
+        resolution_id = connection.execute(
+            sa.text(
+                "SELECT resolution_id FROM candidates.resolution_runs AS r"
+                " WHERE r.run_id = :run_id AND NOT EXISTS ("
+                "  SELECT 1 FROM candidates.resolution_runs AS s"
+                "  WHERE s.supersedes_resolution_id = r.resolution_id)"
+            ),
+            {"run_id": pipeline.run_id},
+        ).scalar_one()
+        cluster_ids = tuple(
+            UUID(str(row[0]))
+            for row in connection.execute(
+                sa.text(
+                    "SELECT DISTINCT cluster_id FROM candidates.resolution_cluster_members"
+                    " WHERE resolution_id = :resolution_id ORDER BY cluster_id"
+                ),
+                {"resolution_id": resolution_id},
+            ).all()
+        )
+    return dict(
+        PostgresExportQualityReader(pipeline.engine).read_assessments(
+            run_id=pipeline.run_id, cluster_ids=cluster_ids
+        )
+    )
+
+
+def test_an_operator_pair_decision_moves_the_export_authority_to_a_new_resolution(
+    pipeline: _Pipeline,
+) -> None:
+    """The operational loop: decide the pairs, re-resolve, and only then export.
+
+    A verdict produced before the decision describes resolution input the operator has since
+    replaced, so it authorizes nothing; the recomputation the decision triggers is what makes
+    the run exportable again.
+    """
+
+    repository = _pair_repository(pipeline)
+    pairs = repository.list_pending_pairs(pipeline.run_id)
+    assert pairs, "the run must expose the pairs its resolution could not decide"
+    assert {item.decision for item in pairs} == {None}
+    # Before any decision the recorded basis and the run's decisions agree.
+    with pipeline.engine.connect() as connection:
+        before_basis = recorded_decision_basis(connection, pipeline.run_id)
+        assert before_basis == current_decision_basis(connection, pipeline.run_id)
+    assert _export_assessments(pipeline)
+
+    submitted = repository.submit_decisions(
+        run_id=pipeline.run_id,
+        actor_id="operator-1",
+        idempotency_key=f"pipeline-pairs-{uuid4().hex}",
+        requests=tuple(
+            PairDecisionRequest(
+                pair_id=item.pair_id,
+                left_candidate_id=item.left_candidate_id,
+                left_candidate_revision=item.left_candidate_revision,
+                right_candidate_id=item.right_candidate_id,
+                right_candidate_revision=item.right_candidate_revision,
+                action="separate",
+                reason_code="DIFFERENT_STUDIO",
+                rationale="The two records name different studios in different districts.",
+                evidence_references=(_digest(item.pair_id.encode()),),
+                expected_decision_revision=0,
+            )
+            for item in pairs
+        ),
+        correlation_id="pipeline-pairs",
+    )
+    assert len(submitted) == len(pairs)
+
+    # A verdict derived from the replaced decisions must not authorize an export.
+    with pipeline.engine.connect() as connection:
+        assert recorded_decision_basis(connection, pipeline.run_id) != current_decision_basis(
+            connection, pipeline.run_id
+        )
+    with pytest.raises(ExportServiceError) as stale:
+        _export_assessments(pipeline)
+    assert stale.value.code == "EXPORT_QUALITY_DECISION_BASIS_STALE"
+
+    # The decision itself dispatched the recomputation.
+    resolution_work_id = pipeline.run_pending_resolution()
+    assert resolution_work_id != pipeline.resolution_work_id
+
+    with pipeline.engine.connect() as connection:
+        assert recorded_decision_basis(connection, pipeline.run_id) == current_decision_basis(
+            connection, pipeline.run_id
+        )
+        dispositions = [
+            row[0]
+            for row in connection.execute(
+                sa.text(
+                    "SELECT disposition FROM candidates.resolution_pairs"
+                    " WHERE resolution_id = ("
+                    "  SELECT resolution_id FROM candidates.resolution_runs AS r"
+                    "  WHERE r.run_id = :run_id AND NOT EXISTS ("
+                    "    SELECT 1 FROM candidates.resolution_runs AS s"
+                    "    WHERE s.supersedes_resolution_id = r.resolution_id))"
+                    " ORDER BY pair_id"
+                ),
+                {"run_id": pipeline.run_id},
+            ).all()
+        ]
+    # The recomputation applied the operator judgement instead of re-deciding the pairs.
+    assert set(dispositions) == {"manual_separate"}
+    # The pairs now carry their decisions, so nothing is left pending.
+    view = repository.list_pending_pairs(pipeline.run_id)
+    assert {item.decision_context_current for item in view} == {True}
+    assert {item.decision.action for item in view if item.decision is not None} == {"separate"}
+    assert _export_assessments(pipeline)

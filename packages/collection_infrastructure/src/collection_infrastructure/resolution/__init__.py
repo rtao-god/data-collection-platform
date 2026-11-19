@@ -25,6 +25,7 @@ from resolution_contracts import (
     EntityKind,
     GeographyCoverage,
     GeographyReference,
+    ManualResolutionDecision,
     MarketAreaReadiness,
     PriorCluster,
     ResolutionBatch,
@@ -32,6 +33,7 @@ from resolution_contracts import (
     ResolutionCandidate,
     ResolutionThresholds,
     seal_resolution_batch,
+    verify_manual_decision,
 )
 
 # Stage 6 records observation identity as a canonical digest, while the resolution contract
@@ -81,8 +83,14 @@ def assemble_resolution_batch(
     quality_profile: QualityProfileDocument,
     revisions: Sequence[ResolutionCandidateSource],
     prior_clusters: Sequence[PriorCluster] = (),
+    manual_decisions: Sequence[ManualResolutionDecision] = (),
 ) -> ResolutionBatch:
-    """Build the single canonical batch for one run and its persisted revisions."""
+    """Build the single canonical batch for one run and its persisted revisions.
+
+    Manual decisions are part of the batch content, so a decision change necessarily produces a
+    new batch digest. That is what makes an unchanged replay free and a changed decision an
+    explicitly superseding generation instead of a silent overwrite.
+    """
     if not revisions:
         raise ResolutionAssemblyError(
             "RESOLUTION_BATCH_EMPTY",
@@ -106,6 +114,14 @@ def assemble_resolution_batch(
             entityKinds=missing,
         )
     candidates = tuple(_candidate(item, market_area) for item in ordered)
+    decisions = tuple(
+        sorted(
+            manual_decisions,
+            key=lambda item: (item.left_candidate_id.hex, item.right_candidate_id.hex),
+        )
+    )
+    for decision in decisions:
+        verify_manual_decision(decision)
     present_kinds = sorted({item.entity_kind for item in ordered})
     profile_rules = tuple(
         _quality_rule(rule)
@@ -130,6 +146,7 @@ def assemble_resolution_batch(
         market_area_digest=market_area.digest,
         market_area_readiness=MarketAreaReadiness.READY,
         candidates=candidates,
+        manual_decisions=decisions,
         prior_clusters=tuple(prior_clusters),
         thresholds=ResolutionThresholds(
             candidate_limit=thresholds.candidate_limit,
@@ -157,6 +174,45 @@ def assemble_resolution_batch(
             candidateLimit=thresholds.candidate_limit,
         )
     return batch
+
+
+def candidate_from_persisted(
+    payload: Mapping[str, object],
+    *,
+    candidate_id: UUID,
+    entity_kind: str,
+    revision: int = 0,
+) -> ResolutionCandidate:
+    """Project one persisted candidate revision into the resolution contract.
+
+    The market area travels inside the immutable revision, so this projection needs no run
+    snapshot and cannot disagree with the one the resolution batch used.
+    """
+
+    geography = payload.get("geography")
+    if not isinstance(geography, Mapping):
+        raise ResolutionAssemblyError(
+            "RESOLUTION_CANDIDATE_GEOGRAPHY_MISSING",
+            "A persisted candidate revision carries no geography decision.",
+            candidateId=str(candidate_id),
+        )
+    revision_text = geography.get("marketAreaRevision")
+    digest_text = geography.get("marketAreaDigest")
+    if not isinstance(revision_text, str) or not isinstance(digest_text, str):
+        raise ResolutionAssemblyError(
+            "RESOLUTION_MARKET_AREA_CONFLICT",
+            "A persisted candidate revision carries no exact market area.",
+            candidateId=str(candidate_id),
+        )
+    return _candidate(
+        ResolutionCandidateSource(
+            candidate_id=candidate_id,
+            revision=revision,
+            entity_kind=entity_kind,
+            normalized_payload=payload,
+        ),
+        ResolutionMarketArea(revision=revision_text, digest=digest_text),
+    )
 
 
 def _quality_rule(rule: QualityRule) -> ClusterQualityRule:

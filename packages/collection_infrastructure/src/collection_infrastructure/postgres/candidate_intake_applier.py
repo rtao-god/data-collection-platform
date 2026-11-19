@@ -369,6 +369,25 @@ class PostgresCandidateIntakeApplier:
         now_utc = self._now_utc()
         try:
             entity_kind, field_projection, kind_resolved = _resolve_source_mapping_policy(source)
+        except ValueError as exc:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_SOURCE_RECORD_MAPPING_POLICY_INVALID",
+                message="The run snapshot declares no usable source mapping policy.",
+                context={"causeType": type(exc).__name__},
+                required_action="Repair the source mapping profile at its owner.",
+            ) from exc
+        self._insert_candidate(
+            connection,
+            entity_kind=entity_kind,
+            now_utc=now_utc,
+            correlation_id=correlation_id,
+            action=action,
+        )
+        revision_number, is_new_revision = self._source_record_revision(
+            connection,
+            action=action,
+        )
+        try:
             revision, _ = materialize_candidate(
                 _source_record_as_observations(batch),
                 candidate_id=action.candidate_id,
@@ -382,7 +401,7 @@ class PostgresCandidateIntakeApplier:
                 ).as_reference(),
                 recorded_at_utc=now_utc,
                 correlation_id=correlation_id,
-                revision=action.revision,
+                revision=revision_number,
             )
         except ValueError as exc:
             raise PipelineAdvancementConflict(
@@ -395,15 +414,16 @@ class PostgresCandidateIntakeApplier:
         revision = _revision_with_export_facts(
             revision, policy=policy, source_observations=batch.observations
         )
-        self._insert_candidate(
-            connection,
-            entity_kind=entity_kind,
-            now_utc=now_utc,
-            correlation_id=correlation_id,
-            action=action,
-        )
         self._insert_revision(connection, revision=revision)
         self._insert_evidence(connection, revision=revision)
+        if is_new_revision:
+            self._record_source_entity_revision(
+                connection,
+                action=action,
+                revision_number=revision_number,
+                now_utc=now_utc,
+                correlation_id=correlation_id,
+            )
         # Quality is owned by the entity-resolution stage: intake records the candidate and
         # opens its review case, and never declares an export verdict it cannot measure.
         self._insert_review_case(
@@ -554,39 +574,133 @@ class PostgresCandidateIntakeApplier:
         correlation_id: str,
         action: CandidateIntakeAction,
     ) -> None:
-        existing = connection.execute(
-            sa.text(
-                "SELECT entity_kind FROM candidates.candidates WHERE candidate_id = :candidate_id"
-            ),
-            {"candidate_id": action.candidate_id},
-        ).one_or_none()
-        if existing is not None:
-            if str(existing[0]) != entity_kind.value:
-                raise PipelineAdvancementConflict(
-                    code="PIPELINE_CANDIDATE_IDENTITY_CONFLICT",
-                    message=(
-                        "The deterministic candidate identity already exists with another kind."
-                    ),
-                    context={
-                        "candidateId": str(action.candidate_id),
-                        "existingEntityKind": str(existing[0]),
-                        "requestedEntityKind": entity_kind.value,
-                    },
-                    required_action="Investigate the conflicting candidate identity at its owner.",
-                )
-            return
         connection.execute(
             sa.text(
                 """
                 INSERT INTO candidates.candidates (
                     candidate_id, entity_kind, created_at_utc, correlation_id
                 ) VALUES (:candidate_id, :entity_kind, :created_at_utc, :correlation_id)
+                ON CONFLICT (candidate_id) DO NOTHING
                 """
             ),
             {
                 "candidate_id": action.candidate_id,
                 "entity_kind": entity_kind.value,
                 "created_at_utc": now_utc,
+                "correlation_id": correlation_id,
+            },
+        )
+        # The row lock serialises revision allocation for one logical source entity, so two
+        # runs acquiring the same entity cannot both allocate the same revision number.
+        existing = connection.execute(
+            sa.text(
+                "SELECT entity_kind FROM candidates.candidates "
+                "WHERE candidate_id = :candidate_id FOR UPDATE"
+            ),
+            {"candidate_id": action.candidate_id},
+        ).one_or_none()
+        if existing is None:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_CANDIDATE_IDENTITY_CONFLICT",
+                message="The deterministic candidate identity could not be established.",
+                context={"candidateId": str(action.candidate_id)},
+                required_action="Investigate the conflicting candidate identity at its owner.",
+            )
+        if str(existing[0]) != entity_kind.value:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_CANDIDATE_IDENTITY_CONFLICT",
+                message=("The deterministic candidate identity already exists with another kind."),
+                context={
+                    "candidateId": str(action.candidate_id),
+                    "existingEntityKind": str(existing[0]),
+                    "requestedEntityKind": entity_kind.value,
+                },
+                required_action="Investigate the conflicting candidate identity at its owner.",
+            )
+
+    @staticmethod
+    def _source_record_revision(
+        connection: Connection,
+        *,
+        action: CandidateIntakeAction,
+    ) -> tuple[int, bool]:
+        """The immutable revision this acquisition owns, and whether it is new.
+
+        Identity is the acquisition itself: replaying one acquisition resolves to the exact
+        revision it produced, so a repeated fetch never appends a revision, and a genuinely
+        different acquisition becomes the next revision of the same logical candidate. The
+        candidate row is already locked by the caller, which serialises concurrent runs.
+        """
+
+        provenance = action.source_record_provenance
+        if provenance is None:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_SOURCE_RECORD_PROVENANCE_MISSING",
+                message="Source-record intake requires source-record provenance.",
+                context={"candidateId": str(action.candidate_id)},
+                required_action="Recompute the intake transition from the exact batch.",
+            )
+        existing = connection.execute(
+            sa.text(
+                "SELECT revision FROM candidates.source_entity_revisions "
+                "WHERE candidate_id = :candidate_id AND acquisition_identity = :identity"
+            ),
+            {
+                "candidate_id": action.candidate_id,
+                "identity": provenance.acquisition_identity,
+            },
+        ).scalar_one_or_none()
+        if existing is not None:
+            return int(existing), False
+        highest = connection.execute(
+            sa.text(
+                "SELECT max(revision) FROM candidates.candidate_revisions "
+                "WHERE candidate_id = :candidate_id"
+            ),
+            {"candidate_id": action.candidate_id},
+        ).scalar_one_or_none()
+        return 0 if highest is None else int(highest) + 1, True
+
+    @staticmethod
+    def _record_source_entity_revision(
+        connection: Connection,
+        *,
+        action: CandidateIntakeAction,
+        revision_number: int,
+        now_utc: datetime,
+        correlation_id: str,
+    ) -> None:
+        provenance = action.source_record_provenance
+        if provenance is None:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_SOURCE_RECORD_PROVENANCE_MISSING",
+                message="Source-record intake requires source-record provenance.",
+                context={"candidateId": str(action.candidate_id)},
+                required_action="Recompute the intake transition from the exact batch.",
+            )
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO candidates.source_entity_revisions (
+                    candidate_id, revision, acquisition_identity, source_record_id,
+                    source_record_artifact_id, dataset_release, run_id, acquired_at_utc,
+                    correlation_id
+                ) VALUES (
+                    :candidate_id, :revision, :acquisition_identity, :source_record_id,
+                    :source_record_artifact_id, :dataset_release, :run_id, :acquired_at_utc,
+                    :correlation_id
+                )
+                """
+            ),
+            {
+                "candidate_id": action.candidate_id,
+                "revision": revision_number,
+                "acquisition_identity": provenance.acquisition_identity,
+                "source_record_id": provenance.source_record_id,
+                "source_record_artifact_id": provenance.source_record_artifact.artifact_id,
+                "dataset_release": provenance.dataset_release,
+                "run_id": action.run_id,
+                "acquired_at_utc": now_utc,
                 "correlation_id": correlation_id,
             },
         )

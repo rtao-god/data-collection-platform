@@ -384,14 +384,21 @@ class SourceRecordIntakeProvenance:
 
     source_key: str
     source_binding_key: str
+    campaign_key: str
     source_record_id: str
     source_policy_digest: str
     dataset_release: str
     mapping_revision: str
+    # Digest of the acquisition evidence that produced this revision. The same acquisition
+    # always resolves to the same digest, so a replay cannot append a second revision, while
+    # a new fetch of the entity carries a new one.
+    acquisition_identity: str
     source_record_artifact: ArtifactIdentity
 
     def __post_init__(self) -> None:
         _require_token("intake source key", self.source_key)
+        _require_token("intake campaign key", self.campaign_key)
+        _require_sha256("intake acquisition identity", self.acquisition_identity)
         _require_token("intake source binding key", self.source_binding_key)
         _require_token("intake source record id", self.source_record_id)
         _require_sha256("intake source policy digest", self.source_policy_digest)
@@ -1606,6 +1613,84 @@ def _plan_entity_resolution_snapshot(source: SucceededWorkOutput) -> ResolutionS
     )
 
 
+def source_entity_candidate_id(
+    *,
+    campaign_key: str,
+    source_binding_key: str,
+    source_record_id: str,
+) -> UUID:
+    """The stable logical identity of one source entity inside one campaign.
+
+    The source's own record ID is the canonical external identity (a Wikidata QID, an OSM
+    element), so the same entity always resolves to the same candidate no matter which run
+    retrieved it or when. The identity is derived, not stored, so concurrent runs agree on it
+    without a coordination table and no stored UUID ever has to be rewritten.
+    """
+
+    return uuid5(
+        _CANDIDATE_ID_NAMESPACE,
+        "|".join(("source-entity", campaign_key, source_binding_key, source_record_id)),
+    )
+
+
+def source_acquisition_identity(
+    *,
+    source_record_id: str,
+    dataset_release: str,
+    source_policy_digest: str,
+    mapping_revision: str,
+    observation_profile_digest: str,
+    source_record_artifact_digest: str,
+) -> str:
+    """The identity of one genuinely distinct acquisition of one source entity.
+
+    The artifact digest covers the retrieved bytes together with the retrieval instant, so a
+    replay of the same acquisition reproduces it and a later fetch does not. The run ID is
+    deliberately absent: identity belongs to the source evidence, not to the orchestration
+    that happened to carry it.
+    """
+
+    return sha256_json(
+        {
+            "datasetRelease": dataset_release,
+            "mappingRevision": mapping_revision,
+            "observationProfileDigest": observation_profile_digest,
+            "sourcePolicyDigest": source_policy_digest,
+            "sourceRecordArtifactDigest": source_record_artifact_digest,
+            "sourceRecordId": source_record_id,
+        }
+    )
+
+
+def _snapshot_campaign_key(source: SucceededWorkOutput) -> str:
+    """The campaign key of the exact sealed run snapshot.
+
+    Candidate identity is campaign-scoped, so the key must come from the snapshot the run was
+    created with rather than from mutable authoring files.
+    """
+
+    if source.campaign_bundle_content is None:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_SNAPSHOT_MISSING",
+            "source_record_intake_requires_run_snapshot",
+            sourceWorkUnitId=str(source.source_work_unit_id),
+        )
+    try:
+        bundle = json.loads(source.campaign_bundle_content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_SNAPSHOT_INVALID",
+            "run_snapshot_is_not_canonical_json",
+        ) from exc
+    campaign_key = bundle.get("campaignKey") if isinstance(bundle, dict) else None
+    if not isinstance(campaign_key, str) or not campaign_key:
+        raise _source_record_mapping_error(
+            "PIPELINE_SOURCE_RECORD_INTAKE_SNAPSHOT_INVALID",
+            "run_snapshot_has_no_campaign_key",
+        )
+    return campaign_key
+
+
 def _plan_source_record_intake(source: SucceededWorkOutput) -> CandidateIntakeAction:
     if source.source_binding_key is None:
         raise _source_record_mapping_error(
@@ -1654,18 +1739,15 @@ def _plan_source_record_intake(source: SucceededWorkOutput) -> CandidateIntakeAc
             batchArtifactId=str(batch.source_record_artifact_id),
             workArtifactId=str(record_bindings[0].artifact_id),
         )
-    candidate_id = uuid5(
-        _CANDIDATE_ID_NAMESPACE,
-        "|".join(
-            (
-                str(source.run_id),
-                source.source_binding_key,
-                batch.source_record_id,
-                batch.source_record_artifact_digest,
-                batch.source_policy_digest,
-                source.output_digest,
-            )
-        ),
+    campaign_key = _snapshot_campaign_key(source)
+    # One logical source entity is one candidate: the campaign, the exact source binding and
+    # the source's own canonical record ID identify it, and nothing about the run or the
+    # retrieval instant does. Acquiring the same entity again therefore addresses the same
+    # candidate and appends a revision instead of creating a second, unrelated candidate.
+    candidate_id = source_entity_candidate_id(
+        campaign_key=campaign_key,
+        source_binding_key=source.source_binding_key,
+        source_record_id=batch.source_record_id,
     )
     return CandidateIntakeAction(
         candidate_id=candidate_id,
@@ -1675,10 +1757,19 @@ def _plan_source_record_intake(source: SucceededWorkOutput) -> CandidateIntakeAc
         provenance=SourceRecordIntakeProvenance(
             source_key=batch.source_key,
             source_binding_key=batch.source_binding_key,
+            campaign_key=campaign_key,
             source_record_id=batch.source_record_id,
             source_policy_digest=batch.source_policy_digest,
             dataset_release=batch.dataset_release,
             mapping_revision=batch.mapping_revision,
+            acquisition_identity=source_acquisition_identity(
+                source_record_id=batch.source_record_id,
+                dataset_release=batch.dataset_release,
+                source_policy_digest=batch.source_policy_digest,
+                mapping_revision=batch.mapping_revision,
+                observation_profile_digest=batch.observation_profile_digest,
+                source_record_artifact_digest=batch.source_record_artifact_digest,
+            ),
             source_record_artifact=record_bindings[0],
         ),
         source_artifact_ids=tuple(
@@ -2291,6 +2382,8 @@ def _plan_candidate_intake(source: SucceededWorkOutput) -> CandidateIntakeAction
             )
         ),
     )
+    # A manual seed record names no external canonical identifier, so its candidate stays
+    # bound to the authored record and its verified lineage instead of a source record ID.
     source_artifact_ids = tuple(
         sorted(
             {

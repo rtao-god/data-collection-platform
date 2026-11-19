@@ -29,6 +29,7 @@ from collection_application import (
     WorkUnitSpec,
 )
 from collection_application.pipeline_advancement import (
+    CandidateIntakeAction,
     PipelineAdvancementConflict,
     PipelineTransitionDisposition,
     PipelineTransitionRegistry,
@@ -49,6 +50,7 @@ from collection_infrastructure.resolution import (
     ResolutionMarketArea,
     assemble_resolution_batch,
 )
+from collection_infrastructure.resolution.decisions import manual_decisions_for_revisions
 from resolution_contracts import (
     PriorCluster,
     PriorClusterPayload,
@@ -110,17 +112,26 @@ class PostgresResolutionBatchScheduler:
         documents = _bundle_documents(source.campaign_bundle_content, source)
         profile = _quality_profile(documents, source)
         market_area = _market_area(documents, source)
-        planned = self._candidate_intake_actions(connection, source, correlation_id)
-        if not self._all_revisions_persisted(connection, planned):
-            # A later intake still owes this run a revision, so the batch would be incomplete.
+        planned = plan_candidate_intake_coordinates(
+            connection,
+            self._catalog,
+            source.run_id,
+            source_work_unit_id=source.source_work_unit_id,
+            correlation_id=correlation_id,
+        )
+        coordinates_list: list[tuple[UUID, int]] = []
+        for candidate_id, revision in planned:
+            if revision is None:
+                # An intake of this run has not recorded the revision it produced yet, so the
+                # batch would be incomplete.
+                return None
+            coordinates_list.append((candidate_id, revision))
+        coordinates = tuple(coordinates_list)
+        if not self._all_revisions_persisted(connection, coordinates):
             return None
-        revisions = self._persisted_candidates(connection, source, planned)
-        covered = self._resolved_revisions(connection, source.run_id)
-        if covered == set(planned):
-            # The current resolution already covers exactly these revisions, so a replay has
-            # nothing new to resolve and must not spawn a further generation of the batch.
-            return self._current_work_id(connection, source.run_id, covered)
-        prior_clusters = self._prior_clusters(connection, source.run_id)
+        revisions = self._persisted_candidates(connection, source, coordinates)
+        prior_clusters = read_prior_clusters(connection, source.run_id)
+        decisions = manual_decisions_for_revisions(connection, revisions)
         try:
             batch = assemble_resolution_batch(
                 run_id=source.run_id,
@@ -128,6 +139,7 @@ class PostgresResolutionBatchScheduler:
                 quality_profile=profile,
                 revisions=revisions,
                 prior_clusters=prior_clusters,
+                manual_decisions=decisions,
             )
         except ResolutionAssemblyError as exc:
             raise _conflict(
@@ -139,6 +151,10 @@ class PostgresResolutionBatchScheduler:
                     "Correct the persisted candidate revision or the campaign quality profile."
                 ),
             ) from exc
+        if self._current_batch_digest(connection, source.run_id) == batch.batch_digest:
+            # The run's current resolution was already produced from exactly these revisions,
+            # decisions and prior clusters, so an identical replay schedules nothing new.
+            return self._current_work_id(connection, source.run_id)
         payload = canonical_resolution_batch_json(batch).encode("utf-8")
         existing = self._existing_unit(connection, source.run_id, batch.batch_digest)
         if existing is not None:
@@ -187,28 +203,33 @@ class PostgresResolutionBatchScheduler:
         return spec.work_id
 
     @staticmethod
-    def _resolved_revisions(connection: Connection, run_id: UUID) -> set[tuple[UUID, int]]:
-        rows = connection.execute(
-            sa.text(
-                "SELECT m.candidate_id, r.revision"
-                " FROM candidates.resolution_runs rr"
-                " JOIN candidates.resolution_cluster_members m"
-                " ON m.resolution_id = rr.resolution_id"
-                " JOIN candidates.candidate_revisions r ON r.candidate_id = m.candidate_id"
-                " WHERE rr.run_id = :run_id AND NOT EXISTS ("
-                "   SELECT 1 FROM candidates.resolution_runs s"
-                "   WHERE s.supersedes_resolution_id = rr.resolution_id)"
-            ),
-            {"run_id": run_id},
-        ).all()
-        return {(UUID(str(row[0])), int(row[1])) for row in rows}
+    def _current_batch_digest(connection: Connection, run_id: UUID) -> str | None:
+        """The batch digest of the run's current resolution, if it has one."""
+
+        rows = (
+            connection.execute(
+                sa.text(
+                    "SELECT batch_digest FROM candidates.resolution_runs AS r"
+                    " WHERE r.run_id = :run_id AND NOT EXISTS ("
+                    "   SELECT 1 FROM candidates.resolution_runs s"
+                    "   WHERE s.supersedes_resolution_id = r.resolution_id)"
+                ),
+                {"run_id": run_id},
+            )
+            .scalars()
+            .all()
+        )
+        if len(rows) > 1:
+            raise _conflict(
+                "PIPELINE_RESOLUTION_HISTORY_AMBIGUOUS",
+                "The run has more than one current resolution.",
+                context={"runId": str(run_id)},
+                required_action="Repair the resolution supersession chain under its owner.",
+            )
+        return None if not rows else str(rows[0])
 
     @staticmethod
-    def _current_work_id(
-        connection: Connection, run_id: UUID, covered: set[tuple[UUID, int]]
-    ) -> UUID | None:
-        if not covered:
-            return None
+    def _current_work_id(connection: Connection, run_id: UUID) -> UUID | None:
         row = (
             connection.execute(
                 sa.text(
@@ -309,57 +330,49 @@ class PostgresResolutionBatchScheduler:
             )
         return tuple(revisions)
 
-    def _candidate_intake_actions(
+    def schedule_after_pair_decision(
         self,
         connection: Connection,
-        source: SucceededWorkOutput,
+        *,
+        run_id: UUID,
         correlation_id: str,
-    ) -> tuple[tuple[UUID, int], ...]:
-        return run_candidate_intake_actions(
+    ) -> UUID | None:
+        """Re-derive and dispatch resolution after an operator changed a pair decision.
+
+        A decision is a resolution input, so it must trigger a new generation even when no
+        candidate revision changed. The run's own succeeded intake anchors the exact sealed
+        snapshot; everything else is re-derived from persisted owner state.
+        """
+
+        source = self._catalog.read(connection, self._intake_anchor(connection, run_id))
+        return self.schedule_if_drained(
             connection,
-            self._catalog,
-            source.run_id,
-            source_work_unit_id=source.source_work_unit_id,
+            source=source,
             correlation_id=correlation_id,
         )
 
-    def _prior_clusters(
-        self,
-        connection: Connection,
-        run_id: UUID,
-    ) -> tuple[PriorCluster, ...]:
-        rows = (
-            connection.execute(
-                sa.text(
-                    "SELECT c.cluster_id, m.candidate_id "
-                    "FROM candidates.resolution_clusters c "
-                    "JOIN candidates.resolution_runs r ON r.resolution_id = c.resolution_id "
-                    "JOIN candidates.resolution_cluster_members m ON m.cluster_id = c.cluster_id "
-                    "WHERE r.run_id = :run_id AND NOT EXISTS ("
-                    "  SELECT 1 FROM candidates.resolution_runs s "
-                    "  WHERE s.supersedes_resolution_id = r.resolution_id) "
-                    "ORDER BY c.cluster_id, m.candidate_id"
-                ),
-                {"run_id": run_id},
+    @staticmethod
+    def _intake_anchor(connection: Connection, run_id: UUID) -> UUID:
+        # Every intake of one run was resolved against the same campaign snapshot, so the
+        # earliest succeeded intake anchors the run's sealed configuration.
+        work_id = connection.execute(
+            sa.select(work_units.c.work_id)
+            .where(
+                work_units.c.run_id == run_id,
+                work_units.c.state == "succeeded",
+                work_units.c.capability.in_(sorted(_CANDIDATE_PRODUCING_CAPABILITIES)),
             )
-            .mappings()
-            .all()
-        )
-        members: dict[UUID, list[UUID]] = {}
-        for row in rows:
-            members.setdefault(UUID(str(row["cluster_id"])), []).append(
-                UUID(str(row["candidate_id"]))
+            .order_by(work_units.c.created_at_utc, work_units.c.work_id)
+            .limit(1)
+        ).scalar_one_or_none()
+        if work_id is None:
+            raise _conflict(
+                "PIPELINE_RESOLUTION_ANCHOR_MISSING",
+                "The run has no succeeded candidate intake to anchor its snapshot.",
+                context={"runId": str(run_id)},
+                required_action="Apply the run's candidate intake before changing a decision.",
             )
-        clusters = tuple(
-            seal_prior_cluster(
-                PriorClusterPayload(
-                    cluster_id=cluster_id,
-                    member_candidate_ids=tuple(candidate_ids),
-                )
-            )
-            for cluster_id, candidate_ids in members.items()
-        )
-        return tuple(sorted(clusters, key=lambda item: item.cluster_id.hex))
+        return UUID(str(work_id))
 
     @staticmethod
     def _candidate_work_drained(connection: Connection, run_id: UUID) -> bool:
@@ -600,9 +613,84 @@ def run_candidate_intake_actions(
     """Every (candidate, revision) this run's own intake transitions created.
 
     Candidate revisions carry no run column, so the run-scoped set is the deterministic plan
-    of the run's own candidate-producing work units. Replanning is pure, so the scheduler and
-    the snapshot applier always agree on the exact set.
+    of the run's own candidate-producing work units. A source-record action names a logical
+    source entity, and the revision it owns is the one its acquisition evidence recorded, so
+    the plan is resolved against that owner instead of assuming revision zero.
     """
+
+    planned = plan_candidate_intake_coordinates(
+        connection,
+        catalog,
+        run_id,
+        source_work_unit_id=source_work_unit_id,
+        correlation_id=correlation_id,
+    )
+    resolved: list[tuple[UUID, int]] = []
+    for candidate_id, revision in planned:
+        if revision is None:
+            raise _conflict(
+                "PIPELINE_RESOLUTION_CANDIDATE_REVISION_UNRESOLVED",
+                "A source-record intake has not recorded the revision it produced.",
+                source_work_unit_id=source_work_unit_id,
+                context={"runId": str(run_id), "candidateId": str(candidate_id)},
+                required_action="Apply the candidate intake transition before resolving.",
+            )
+        resolved.append((candidate_id, revision))
+    return tuple(sorted(set(resolved), key=lambda item: (item[0].hex, item[1])))
+
+
+def read_prior_clusters(
+    connection: Connection,
+    run_id: UUID,
+) -> tuple[PriorCluster, ...]:
+    """The current resolution's clusters, as the exact prior-cluster basis of a new batch.
+
+    Read from the owner's own persisted membership so neither a payload nor a caller can claim
+    a cluster history the run never had.
+    """
+
+    rows = (
+        connection.execute(
+            sa.text(
+                "SELECT c.cluster_id, m.candidate_id "
+                "FROM candidates.resolution_clusters c "
+                "JOIN candidates.resolution_runs r ON r.resolution_id = c.resolution_id "
+                "JOIN candidates.resolution_cluster_members m ON m.cluster_id = c.cluster_id "
+                "WHERE r.run_id = :run_id AND NOT EXISTS ("
+                "  SELECT 1 FROM candidates.resolution_runs s "
+                "  WHERE s.supersedes_resolution_id = r.resolution_id) "
+                "ORDER BY c.cluster_id, m.candidate_id"
+            ),
+            {"run_id": run_id},
+        )
+        .mappings()
+        .all()
+    )
+    members: dict[UUID, list[UUID]] = {}
+    for row in rows:
+        members.setdefault(UUID(str(row["cluster_id"])), []).append(UUID(str(row["candidate_id"])))
+    clusters = tuple(
+        seal_prior_cluster(
+            PriorClusterPayload(
+                cluster_id=cluster_id,
+                member_candidate_ids=tuple(candidate_ids),
+            )
+        )
+        for cluster_id, candidate_ids in members.items()
+    )
+    return tuple(sorted(clusters, key=lambda item: item.cluster_id.hex))
+
+
+def plan_candidate_intake_coordinates(
+    connection: Connection,
+    catalog: PostgresSucceededWorkCatalog,
+    run_id: UUID,
+    *,
+    source_work_unit_id: UUID | None = None,
+    correlation_id: str,
+) -> tuple[tuple[UUID, int | None], ...]:
+    """The planned coordinates of one run, with `None` for a revision nobody recorded yet."""
+
     registry = PipelineTransitionRegistry()
     rows = (
         connection.execute(
@@ -617,14 +705,16 @@ def run_candidate_intake_actions(
         .scalars()
         .all()
     )
-    planned: list[tuple[UUID, int]] = []
+    planned: list[tuple[UUID, int | None]] = []
     for work_id in rows:
         succeeded = catalog.read(connection, work_id)
         plan = registry.plan(succeeded)
         if plan.disposition is not PipelineTransitionDisposition.APPLY:
             continue
         for action in plan.candidate_intake_actions:
-            planned.append((action.candidate_id, action.revision))
+            planned.append(
+                (action.candidate_id, _recorded_intake_revision(connection, action=action))
+            )
     if not planned:
         raise _conflict(
             "PIPELINE_RESOLUTION_CANDIDATES_UNRESOLVED",
@@ -633,4 +723,31 @@ def run_candidate_intake_actions(
             context={"runId": str(run_id), "correlationId": correlation_id},
             required_action="Apply candidate intake for this run before resolving.",
         )
-    return tuple(sorted(set(planned), key=lambda item: (item[0].hex, item[1])))
+    return tuple(sorted(set(planned), key=lambda item: (item[0].hex, item[1] or 0)))
+
+
+def _recorded_intake_revision(
+    connection: Connection,
+    *,
+    action: CandidateIntakeAction,
+) -> int | None:
+    """The revision this exact acquisition evidence produced, if it was applied already.
+
+    A manual-record intake names no external source entity, so its candidate stays bound to
+    the authored record and its revision is the planned one.
+    """
+
+    provenance = action.source_record_provenance
+    if provenance is None:
+        return action.revision
+    recorded = connection.execute(
+        sa.text(
+            "SELECT revision FROM candidates.source_entity_revisions "
+            "WHERE candidate_id = :candidate_id AND acquisition_identity = :identity"
+        ),
+        {
+            "candidate_id": action.candidate_id,
+            "identity": provenance.acquisition_identity,
+        },
+    ).scalar_one_or_none()
+    return None if recorded is None else int(recorded)

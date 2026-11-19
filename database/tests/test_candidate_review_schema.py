@@ -32,8 +32,11 @@ def test_candidate_review_schema_is_exact_and_restrictive() -> None:
         "resolution_blocked_edges",
         "resolution_cluster_members",
         "resolution_clusters",
+        "resolution_pair_decision_commands",
+        "resolution_pair_decisions",
         "resolution_pairs",
         "resolution_runs",
+        "source_entity_revisions",
     }
     assert set(inspector.get_table_names(schema="quality")) == {
         "quality_evaluations",
@@ -47,6 +50,9 @@ def test_candidate_review_schema_is_exact_and_restrictive() -> None:
     }
     for schema, table in (
         ("candidates", "candidate_revisions"),
+        ("candidates", "source_entity_revisions"),
+        ("candidates", "resolution_pair_decision_commands"),
+        ("candidates", "resolution_pair_decisions"),
         ("quality", "quality_evaluations"),
         ("review", "review_decisions"),
         ("review", "manual_observations"),

@@ -292,11 +292,19 @@ def cleaned():
 
 
 def _persist(engine: sa.Engine, source: SucceededWorkOutput) -> UUID:
+    from db_support import seed_collection_run
+
     plan = _plan(source)
     assert plan.disposition is PipelineTransitionDisposition.APPLY, plan.blocker
     candidate_id = plan.candidate_intake_actions[0].candidate_id
     applier = PostgresCandidateIntakeApplier(clock=lambda: _NOW)
     with engine.begin() as connection:
+        seed_collection_run(
+            connection,
+            run_id=source.run_id,
+            bundle_digest=source.config_bundle_digest or "",
+            recorded_at_utc=_NOW,
+        )
         applier(connection, source, plan, correlation_id="real-node-intake")
     return candidate_id
 
@@ -403,8 +411,16 @@ def test_real_node_replay_is_identical_and_adds_no_rows(
     before = _counts(engine, candidate_id)
 
     # Processing the same work again must not add a candidate, revision or review case.
+    from db_support import seed_collection_run
+
     applier = PostgresCandidateIntakeApplier(clock=lambda: _NOW)
     with engine.begin() as connection:
+        seed_collection_run(
+            connection,
+            run_id=second.run_id,
+            bundle_digest=second.config_bundle_digest or "",
+            recorded_at_utc=_NOW,
+        )
         applier(connection, second, _plan(second), correlation_id="real-node-replay")
 
     assert _counts(engine, candidate_id) == before

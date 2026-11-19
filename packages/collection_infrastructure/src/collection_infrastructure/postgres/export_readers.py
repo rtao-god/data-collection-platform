@@ -31,6 +31,10 @@ from collection_contracts import (
 from collection_contracts.export_package import ContactKind
 from collection_infrastructure.export.assembly import ExportCandidateSource
 from collection_infrastructure.export.service import ExportServiceError
+from collection_infrastructure.resolution.decisions import (
+    current_decision_basis,
+    recorded_decision_basis,
+)
 from resolution_contracts import ClusterQualityAssessment, ClusterQualityIssue, QualitySeverity
 
 _CANDIDATE_COLUMNS = (
@@ -113,6 +117,31 @@ def _sealed_export_policy(
         legal_status=legal_status,
         usage_policy=usage_policy,
         attribution=attribution if isinstance(attribution, str) else None,
+    )
+
+
+def _require_current_decision_basis(connection: Connection, run_id: UUID) -> None:
+    """A verdict derived from decisions the operators have since replaced authorizes nothing.
+
+    The resolution owner records which operator decisions its resolution reflected. When the
+    run's decisions have moved on, the stored verdicts describe a resolution input that no
+    longer exists, so the export fails closed instead of publishing a stale verdict.
+    """
+
+    recorded = recorded_decision_basis(connection, run_id)
+    if recorded is None:
+        return
+    current = current_decision_basis(connection, run_id)
+    if current == recorded:
+        return
+    raise _owner_gap(
+        code="EXPORT_QUALITY_DECISION_BASIS_STALE",
+        owner="ResolutionPairDecisions",
+        message="The run's operator pair decisions changed after its current resolution.",
+        context={"runId": str(run_id), "recordedBasis": recorded, "currentBasis": str(current)},
+        action=(
+            "Re-resolve the run and export the resolution that reflects the current decisions."
+        ),
     )
 
 
@@ -272,10 +301,10 @@ class PostgresExportQualityReader:
     def read_assessments(
         self, *, run_id: UUID, cluster_ids: Sequence[UUID]
     ) -> Mapping[UUID, ClusterQualityAssessment]:
-        del run_id
         if not cluster_ids:
             return {}
         with self._engine.connect() as connection:
+            _require_current_decision_basis(connection, run_id)
             rows = connection.execute(
                 sa.text(
                     """

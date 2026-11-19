@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from types import MappingProxyType
@@ -98,7 +98,12 @@ def _spec_bytes(run_id: UUID, *, category: str = "recording_studio") -> bytes:
     )
 
 
-def _sealed(run_id: UUID, *, category: str = "recording_studio"):
+def _sealed(
+    run_id: UUID,
+    *,
+    category: str = "recording_studio",
+    retrieved_at_utc: datetime = _RETRIEVED_AT,
+):
     return seal_entity_result(
         _RESPONSE_PATH.read_bytes(),
         spec=WikidataEntityQuerySpec(
@@ -112,7 +117,7 @@ def _sealed(run_id: UUID, *, category: str = "recording_studio"):
             ),
             source_policy_digest=f"sha256:{'4' * 64}",
         ),
-        retrieved_at_utc=_RETRIEVED_AT,
+        retrieved_at_utc=retrieved_at_utc,
     )
 
 
@@ -176,8 +181,9 @@ def _discovery_output(
     category: str = "recording_studio",
     work_unit_id: UUID | None = None,
     stage_run_id: UUID | None = None,
+    retrieved_at_utc: datetime = _RETRIEVED_AT,
 ) -> SucceededWorkOutput:
-    result = _sealed(run_id, category=category)
+    result = _sealed(run_id, category=category, retrieved_at_utc=retrieved_at_utc)
     spec_content = _spec_bytes(run_id, category=category)
     campaign_content = _compiled_campaign()
     envelope_digest = _digest(result.envelope_content)
@@ -339,10 +345,18 @@ def cleaned():
 
 
 def _persist(engine: sa.Engine, source: SucceededWorkOutput) -> UUID:
+    from db_support import seed_collection_run
+
     plan = _plan(source)
     assert plan.disposition is PipelineTransitionDisposition.APPLY, plan.blocker
     candidate_id = plan.candidate_intake_actions[0].candidate_id
     with engine.begin() as connection:
+        seed_collection_run(
+            connection,
+            run_id=source.run_id,
+            bundle_digest=source.config_bundle_digest or "",
+            recorded_at_utc=_NOW,
+        )
         PostgresCandidateIntakeApplier(clock=lambda: _NOW)(
             connection, source, plan, correlation_id="wikidata-intake"
         )
@@ -666,3 +680,80 @@ def _record_entries(envelope) -> list[dict[str, object]]:
             }
         )
     return entries
+
+
+def _studio_mapping(run_id: UUID, *, retrieved_at_utc: datetime = _RETRIEVED_AT):
+    """The mapping output for one studio entity as acquired by one run."""
+
+    discovery = _discovery_output(run_id, retrieved_at_utc=retrieved_at_utc)
+    action = next(
+        item
+        for item in _plan(discovery).source_record_mapping_actions
+        if item.source_record_id == "wikidata:Q667023"
+    )
+    return _mapping_output(discovery, action)
+
+
+def _source_entity_lineage(engine: sa.Engine, candidate_id: UUID) -> list[tuple[int, str, UUID]]:
+    with engine.connect() as connection:
+        rows = connection.execute(
+            sa.text(
+                "SELECT revision, acquisition_identity, run_id"
+                " FROM candidates.source_entity_revisions WHERE candidate_id = :cid"
+                " ORDER BY revision"
+            ),
+            {"cid": candidate_id},
+        ).all()
+    return [(int(row[0]), str(row[1]), UUID(str(row[2]))) for row in rows]
+
+
+def test_one_wikidata_entity_keeps_one_candidate_when_a_later_run_reacquires_it(
+    cleaned: sa.Engine,
+) -> None:
+    """The run is not the identity: a reacquisition must never fork the candidate.
+
+    The acquired record seals the run that fetched it, so a later run holds genuinely new
+    evidence. It still belongs to one logical source entity, so the same candidate keeps the
+    lineage and takes the next revision instead of a second candidate.
+    """
+
+    engine = cleaned
+    first_run = uuid4()
+    second_run = uuid4()
+    first = _studio_mapping(first_run)
+    second = _studio_mapping(second_run, retrieved_at_utc=_RETRIEVED_AT + timedelta(hours=6))
+
+    first_action = _plan(first).candidate_intake_actions[0]
+    second_action = _plan(second).candidate_intake_actions[0]
+    assert first_action.candidate_id == second_action.candidate_id
+    assert first_action.source_record_provenance is not None
+    assert second_action.source_record_provenance is not None
+    assert (
+        first_action.source_record_provenance.acquisition_identity
+        != second_action.source_record_provenance.acquisition_identity
+    )
+
+    candidate_id = _persist(engine, first)
+    assert _persist(engine, second) == candidate_id
+
+    assert _counts(engine, candidate_id)[:2] == (1, 2)
+    lineage = _source_entity_lineage(engine, candidate_id)
+    assert [revision for revision, _, _ in lineage] == [0, 1]
+    assert {run for _, _, run in lineage} == {first_run, second_run}
+    with engine.connect() as connection:
+        revisions = (
+            connection.execute(
+                sa.text(
+                    "SELECT revision FROM candidates.candidate_revisions"
+                    " WHERE candidate_id = :cid ORDER BY revision"
+                ),
+                {"cid": candidate_id},
+            )
+            .scalars()
+            .all()
+        )
+    assert list(revisions) == [0, 1]
+    # Replaying one acquisition never allocates another revision or a second candidate.
+    assert _persist(engine, second) == candidate_id
+    assert _counts(engine, candidate_id)[:2] == (1, 2)
+    assert len(_source_entity_lineage(engine, candidate_id)) == 2

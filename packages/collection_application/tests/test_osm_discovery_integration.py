@@ -49,6 +49,13 @@ def _config_digest() -> str:
     return "sha256:" + sha256(_CAMPAIGN.canonical_content).hexdigest()
 
 
+def _config_campaign_content() -> bytes:
+    global _CAMPAIGN
+    if _CAMPAIGN is None:
+        _CAMPAIGN = _compiled_campaign()
+    return _CAMPAIGN.canonical_content
+
+
 def _observation(element_type: str, osm_id: int, *, name: str, website: str | None) -> dict:
     tags = {"amenity": "studio", "name": name}
     if website:
@@ -470,6 +477,7 @@ def test_mapping_to_intake_preserves_source_provenance_and_missing_website_is_no
         ),
         source_binding_key="osm_overpass_berlin",
         config_bundle_digest=_config_digest(),
+        campaign_bundle_content=_config_campaign_content(),
         output_content=batch_bytes,
         normalization_profile_content=sud.mapping_profile_payload,
     )
@@ -483,6 +491,10 @@ def test_mapping_to_intake_preserves_source_provenance_and_missing_website_is_no
     assert provenance is not None
     assert provenance.source_record_id == "osm:node:502"
     assert provenance.source_binding_key == "osm_overpass_berlin"
+    # The logical identity of a source entity is not the run: the same OSM record acquired by
+    # a later run resolves to the same candidate and the same evidence lineage.
+    assert provenance.campaign_key == "berlin_recording_services"
+    assert provenance.acquisition_identity.startswith("sha256:")
     assert provenance.source_policy_digest == sud.source_policy_digest
     assert (
         provenance.source_record_artifact.content_digest

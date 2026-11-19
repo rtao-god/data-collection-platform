@@ -9,7 +9,7 @@ only ever describe candidate revisions this run actually stored.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid5
 
@@ -26,6 +26,7 @@ from collection_application.pipeline_advancement import (
 )
 from collection_contracts import QualityProfileDocument, canonical_digest, quality_profile_digest
 from collection_infrastructure.postgres.resolution_scheduling import (
+    read_prior_clusters,
     run_candidate_intake_actions,
 )
 from collection_infrastructure.postgres.succeeded_work_catalog import (
@@ -37,7 +38,12 @@ from collection_infrastructure.resolution import (
     ResolutionMarketArea,
     assemble_resolution_batch,
 )
+from collection_infrastructure.resolution.decisions import (
+    decision_basis_digest,
+    manual_decisions_for_revisions,
+)
 from resolution_contracts import (
+    ManualResolutionDecision,
     ResolutionBatch,
     ResolutionSnapshot,
     decode_resolution_batch,
@@ -115,11 +121,23 @@ class PostgresResolutionSnapshotApplier:
                 required_action="Re-register advancement from the exact durable snapshot.",
             )
         profile = self._profile(source)
-        expected = self._expected_batch(connection, source, batch, profile)
+        existing = self._existing_resolution(connection, source.run_id, snapshot.snapshot_digest)
+        if existing is not None:
+            # This exact snapshot is already the run's recorded resolution, so a replay adds
+            # nothing and must not be re-validated against later owner state.
+            return resolution_snapshot_result_digest(plan)
+        decisions = manual_decisions_for_revisions(
+            connection,
+            self._persisted_revisions(connection, source),
+        )
+        expected = self._expected_batch(connection, source, batch, profile, decisions=decisions)
         if expected.batch_digest != batch.batch_digest:
             raise _conflict(
                 "PIPELINE_RESOLUTION_BATCH_NOT_DERIVABLE",
-                "The snapshot was not produced from this run's persisted candidate revisions.",
+                (
+                    "The snapshot was not produced from this run's persisted candidate "
+                    "revisions, decisions and prior resolution."
+                ),
                 source,
                 context={
                     "batchDigest": batch.batch_digest,
@@ -130,9 +148,6 @@ class PostgresResolutionSnapshotApplier:
                     "resolve it again."
                 ),
             )
-        existing = self._existing_resolution(connection, source.run_id, snapshot.snapshot_digest)
-        if existing is not None:
-            return resolution_snapshot_result_digest(plan)
         now_utc = self._now_utc()
         resolution_id = uuid5(
             _RESOLUTION_NAMESPACE,
@@ -147,6 +162,9 @@ class PostgresResolutionSnapshotApplier:
             snapshot=snapshot,
             supersedes=supersedes,
             policy_digest=policy_digest,
+            # The resolution is recorded together with the exact operator decisions it
+            # reflected, so a later decision can be told apart from the one that produced it.
+            decision_basis_digest=decision_basis_digest(decisions),
             now_utc=now_utc,
             correlation_id=correlation_id,
         )
@@ -213,8 +231,14 @@ class PostgresResolutionSnapshotApplier:
         source: SucceededWorkOutput,
         batch: ResolutionBatch,
         profile: QualityProfileDocument,
+        *,
+        decisions: Sequence[ManualResolutionDecision],
     ) -> ResolutionBatch:
+        revisions = self._persisted_revisions(connection, source)
         try:
+            # Neither the supplied prior clusters nor the supplied manual decisions are trusted:
+            # both are re-derived from the owner's own persisted state, so a sealed payload can
+            # only ever describe evidence this run actually stored.
             returns = assemble_resolution_batch(
                 run_id=source.run_id,
                 market_area=ResolutionMarketArea(
@@ -222,8 +246,9 @@ class PostgresResolutionSnapshotApplier:
                     digest=batch.market_area_digest,
                 ),
                 quality_profile=profile,
-                revisions=self._persisted_revisions(connection, source),
-                prior_clusters=batch.prior_clusters,
+                revisions=revisions,
+                prior_clusters=read_prior_clusters(connection, source.run_id),
+                manual_decisions=decisions,
             )
         except ResolutionAssemblyError as exc:
             raise _conflict(
@@ -337,6 +362,7 @@ class PostgresResolutionSnapshotApplier:
         snapshot: ResolutionSnapshot,
         supersedes: UUID | None,
         policy_digest: str,
+        decision_basis_digest: str,
         now_utc: datetime,
         correlation_id: str,
     ) -> None:
@@ -345,11 +371,13 @@ class PostgresResolutionSnapshotApplier:
                 "INSERT INTO candidates.resolution_runs ("
                 "resolution_id, run_id, work_id, batch_id, batch_digest, snapshot_digest,"
                 "market_area_revision, market_area_digest, quality_policy_digest,"
-                "supersedes_resolution_id, applied_at_utc, correlation_id"
+                "decision_basis_digest, supersedes_resolution_id, applied_at_utc,"
+                "correlation_id"
                 ") VALUES ("
                 ":resolution_id, :run_id, :work_id, :batch_id, :batch_digest, :snapshot_digest,"
                 ":market_area_revision, :market_area_digest, :quality_policy_digest,"
-                ":supersedes_resolution_id, :applied_at_utc, :correlation_id)"
+                ":decision_basis_digest, :supersedes_resolution_id, :applied_at_utc,"
+                ":correlation_id)"
             ),
             {
                 "resolution_id": resolution_id,
@@ -361,6 +389,7 @@ class PostgresResolutionSnapshotApplier:
                 "market_area_revision": snapshot.market_area_revision,
                 "market_area_digest": snapshot.market_area_digest,
                 "quality_policy_digest": policy_digest,
+                "decision_basis_digest": decision_basis_digest,
                 "supersedes_resolution_id": supersedes,
                 "applied_at_utc": now_utc,
                 "correlation_id": correlation_id,
