@@ -165,6 +165,162 @@
         "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
+        "street": "Waldemarstraße",
+        "street_number": "33a"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Das Hörspielstudio XBerg",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-9375624f30fe2317",
+          "excerpt": "io Berlin-Kreuzberg Das Hörspielstudio XBerg GmbH Waldemarstraße 33a Hof 2 | Aufgang B 10999 Berlin Ansprechpartnerin: Stephanie Dreckmann Mail: stephanie@lauscherlounge.de Tel. +49 (0)30 301 074 75 Studio Berlin-Charlottenburg Das Hörspiel",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "2b3555ad758d622837bc195f417e81f84447604e4d13f0339fe144ca75b514cd",
+          "source_kind": "official_site",
+          "source_url": "https://dashoerspielstudio.de/kontakt/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-b7f2938aa4ea056f",
+          "excerpt": "io Berlin-Kreuzberg Das Hörspielstudio XBerg GmbH Waldemarstraße 33a Hof 2 | Aufgang B 10999 Berlin Ansprechpartnerin: Stephanie Dreckmann Mail: stephanie@lauscherlounge.de Tel. +49 (0)30 301 074 75 Studio Berlin-Charlottenburg Das Hörspiel",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "2b3555ad758d622837bc195f417e81f84447604e4d13f0339fe144ca75b514cd",
+          "source_kind": "official_site",
+          "source_url": "https://dashoerspielstudio.de/kontakt/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-14c249a99023bf35",
+          "excerpt": "io Berlin-Kreuzberg Das Hörspielstudio XBerg GmbH Waldemarstraße 33a Hof 2 | Aufgang B 10999 Berlin Ansprechpartnerin: Stephanie Dreckmann Mail: stephanie@lauscherlounge.de Tel. +49 (0)30 301 074 75 Studio Berlin-Charlottenburg Das Hörspiel",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "2b3555ad758d622837bc195f417e81f84447604e4d13f0339fe144ca75b514cd",
+          "source_kind": "official_site",
+          "source_url": "https://dashoerspielstudio.de/kontakt/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-69601ef95df9bb24",
+          "excerpt": " Das Hörspielstudio Toggle navigation Studios Team Leistungen stories Referenzen Blog Kontakt Über uns Lisa Falkenhan Wir trauern zutiefst um unsere liebe Kollegin, Mitarbeiterin und Fr",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "2b3555ad758d622837bc195f417e81f84447604e4d13f0339fe144ca75b514cd",
+          "source_kind": "official_site",
+          "source_url": "https://dashoerspielstudio.de/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-da464b74e1abcd11",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "9c59f3c609a206d06665d67851be182bf7b120672f469c7dc28b7869c511dcc9",
+          "source_kind": "official_site",
+          "source_url": "https://dashoerspielstudio.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "dashoerspielstudio.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "dashoerspielstudio.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "0340615c-3b76-5131-8b88-94a5738d98fc",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-69601ef95df9bb24"
+          ],
+          "source_text": " Das Hörspielstudio Toggle navigation Studios Team Leistungen stories Referenzen Blog Kontakt Über uns Lisa Falkenhan Wir trauern zutiefst um unsere liebe Kollegin, Mitarbeiterin und Fr"
+        }
+      ],
+      "source_original_name": "Das Hörspielstudio XBerg",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10999",
         "street": "Paul-Lincke-Ufer",
         "street_number": "29"
       },
@@ -297,6 +453,169 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "tempelhof-schoenberg",
+        "postal_code": "12247",
+        "street": "Wiesenweg",
+        "street_number": "9"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "fuchston",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-60bdd959d71d2f7a",
+          "excerpt": "e uns fuchston +49 30 250 966 80 info@fuchston.de Wiesenweg 9 12247 Berlin Start Portfolio Profil Wir bieten Anfangen Newsletter abonnieren E-Mail-Adresse Absenden Danke für die Nachricht! Folgen Sie uns: Cookies Impressum Datenschutz &copy",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48cd16ab8d7bd6d24a1d1d4c8e04e7eff0423176cfe9cddd1c23aadab32d61a0",
+          "source_kind": "official_site",
+          "source_url": "https://www.fuchston.studio/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-03deb5b6cfb2599a",
+          "excerpt": "e uns fuchston +49 30 250 966 80 info@fuchston.de Wiesenweg 9 12247 Berlin Start Portfolio Profil Wir bieten Anfangen Newsletter abonnieren E-Mail-Adresse Absenden Danke für die Nachricht! Folgen Sie uns: Cookies Impressum Datenschutz &copy",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48cd16ab8d7bd6d24a1d1d4c8e04e7eff0423176cfe9cddd1c23aadab32d61a0",
+          "source_kind": "official_site",
+          "source_url": "https://www.fuchston.studio/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-d1c5ca84757f8d74",
+          "excerpt": "e uns fuchston +49 30 250 966 80 info@fuchston.de Wiesenweg 9 12247 Berlin Start Portfolio Profil Wir bieten Anfangen Newsletter abonnieren E-Mail-Adresse Absenden Danke für die Nachricht! Folgen Sie uns: Cookies Impressum Datenschutz &copy",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48cd16ab8d7bd6d24a1d1d4c8e04e7eff0423176cfe9cddd1c23aadab32d61a0",
+          "source_kind": "official_site",
+          "source_url": "https://www.fuchston.studio/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-256c361dd14362fc",
+          "excerpt": "ebotserstellung bis zur Auslieferung der fertigen deutschen Synchronfassung wird jeder Schritt sorgf&auml;ltig von unserem qualifizierten und motivierten Team durchgef&uuml;hrt. Wir betreuen jedes einzelne Projekt mit Liebe zum Detail und g",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48cd16ab8d7bd6d24a1d1d4c8e04e7eff0423176cfe9cddd1c23aadab32d61a0",
+          "source_kind": "official_site",
+          "source_url": "https://fuchston.studio/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-eca52586273079cc",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=10",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "1f075a0ed769f7c3529e8e6c78b2f983e3aa0c3864fa1c611966ebd12fb0af1e",
+          "source_kind": "official_site",
+          "source_url": "https://fuchston.studio/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "fuchston.studio"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "fuchston.studio"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "08ff3c81-19ce-5ab2-b464-137a40d7e4d1",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-256c361dd14362fc"
+          ],
+          "source_text": "ebotserstellung bis zur Auslieferung der fertigen deutschen Synchronfassung wird jeder Schritt sorgf&auml;ltig von unserem qualifizierten und motivierten Team durchgef&uuml;hrt. Wir betreuen jedes einzelne Projekt mit Liebe zum Detail und g"
+        },
+        {
+          "catalog_category_key": "voice-over-adr-studio",
+          "evidence_refs": [
+            "ev-256c361dd14362fc"
+          ],
+          "source_text": "ebotserstellung bis zur Auslieferung der fertigen deutschen Synchronfassung wird jeder Schritt sorgf&auml;ltig von unserem qualifizierten und motivierten Team durchgef&uuml;hrt. Wir betreuen jedes einzelne Projekt mit Liebe zum Detail und g"
+        }
+      ],
+      "source_original_name": "fuchston",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
         "subject_id": null
       }
     },
@@ -555,6 +874,162 @@
         "decision": "link_existing",
         "listing_id": "01a1efea-372c-7100-a7c0-e59d540707a5",
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "steglitz-zehlendorf",
+        "postal_code": "14167",
+        "street": "Goerzallee",
+        "street_number": "299"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "RESIDENT Studios",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-3ee1750b2e5e8173",
+          "excerpt": "&nbsp; Jetzt deine Session planen 📍 im Goerzwerk, Goerzallee 299 14167 Berlin-Zehlendorf 1 &Uuml;BER DAS STUDIO 2 LEISTUNGEN 3 BUCHUNG &amp; PREISE Über das Studio Willkommen in den RESIDENT Studios &ndash; dein Tonstudio f&uuml;r das beste",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "b3a44ae3d5b17704198bc088e7321ec9e2f2ddac1740da8e5325fa1199c2d7c9",
+          "source_kind": "official_site",
+          "source_url": "https://www.rsdnt.de/studios",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-efba5217326f1046",
+          "excerpt": "&nbsp; Jetzt deine Session planen 📍 im Goerzwerk, Goerzallee 299 14167 Berlin-Zehlendorf 1 &Uuml;BER DAS STUDIO 2 LEISTUNGEN 3 BUCHUNG &amp; PREISE Über das Studio Willkommen in den RESIDENT Studios &ndash; dein Tonstudio f&uuml;r das beste",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "b3a44ae3d5b17704198bc088e7321ec9e2f2ddac1740da8e5325fa1199c2d7c9",
+          "source_kind": "official_site",
+          "source_url": "https://www.rsdnt.de/studios",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-b1f58e1ab389dd74",
+          "excerpt": "&nbsp; Jetzt deine Session planen 📍 im Goerzwerk, Goerzallee 299 14167 Berlin-Zehlendorf 1 &Uuml;BER DAS STUDIO 2 LEISTUNGEN 3 BUCHUNG &amp; PREISE Über das Studio Willkommen in den RESIDENT Studios &ndash; dein Tonstudio f&uuml;r das beste",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "b3a44ae3d5b17704198bc088e7321ec9e2f2ddac1740da8e5325fa1199c2d7c9",
+          "source_kind": "official_site",
+          "source_url": "https://www.rsdnt.de/studios",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3bd3ef8c2152fcf1",
+          "excerpt": "rlin top of page Phone Instagram - RESIDENT Menu Close Home Tonstudio zum Mieten DJs für Events aller Art DJ-Team | DJ Toby Webster DJ-Team | DJ Funkpreacher DJ-Team | DJ Enis Usta DJ-Team | DJ Arpie Low DJ-Team | DJ Larsen DJ-Team | DJ Roc",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "b3a44ae3d5b17704198bc088e7321ec9e2f2ddac1740da8e5325fa1199c2d7c9",
+          "source_kind": "official_site",
+          "source_url": "https://rsdnt.de/studios",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-ec32f6e243565cb1",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=10",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "31710328911de22678db2b8ad5f7c9bf1f6fcece06ad776bb7be8ffe878bd205",
+          "source_kind": "official_site",
+          "source_url": "https://rsdnt.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "rsdnt.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "rsdnt.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "11f2a51b-2367-5d5a-9599-6491fa7555c1",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-3bd3ef8c2152fcf1"
+          ],
+          "source_text": "rlin top of page Phone Instagram - RESIDENT Menu Close Home Tonstudio zum Mieten DJs für Events aller Art DJ-Team | DJ Toby Webster DJ-Team | DJ Funkpreacher DJ-Team | DJ Enis Usta DJ-Team | DJ Arpie Low DJ-Team | DJ Larsen DJ-Team | DJ Roc"
+        }
+      ],
+      "source_original_name": "RESIDENT Studios",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
         "subject_id": null
       }
     },
@@ -867,6 +1342,162 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10245",
+        "street": "Revaler Straße",
+        "street_number": "99"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Yard Guerilla Records",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-c95ca4dfe5db14af",
+          "excerpt": "OW TO FIND US - MAP ADRESSE YARD GUERILLA RECORDS Revaler Straße 99 D-10245 Berlin KONTAKT E-Mail: cont&#97;&#99;&#116;&#64;&#121;&#103;&#114;&#x65;&#x63;&#x6f;&#x72;&#x64;&#x73;&#x2e;&#x63;&#x6f;m Web: yardguerillarecords.com Phone: +49 (0",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "0abe8183e8352a4f1a0d855115b99d59069efaa399a4da013462625757f08c34",
+          "source_kind": "official_site",
+          "source_url": "https://yardguerillarecords.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-2136ea9074eef511",
+          "excerpt": "OW TO FIND US - MAP ADRESSE YARD GUERILLA RECORDS Revaler Straße 99 D-10245 Berlin KONTAKT E-Mail: cont&#97;&#99;&#116;&#64;&#121;&#103;&#114;&#x65;&#x63;&#x6f;&#x72;&#x64;&#x73;&#x2e;&#x63;&#x6f;m Web: yardguerillarecords.com Phone: +49 (0",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "0abe8183e8352a4f1a0d855115b99d59069efaa399a4da013462625757f08c34",
+          "source_kind": "official_site",
+          "source_url": "https://yardguerillarecords.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-a4ec48ee12210d79",
+          "excerpt": "OW TO FIND US - MAP ADRESSE YARD GUERILLA RECORDS Revaler Straße 99 D-10245 Berlin KONTAKT E-Mail: cont&#97;&#99;&#116;&#64;&#121;&#103;&#114;&#x65;&#x63;&#x6f;&#x72;&#x64;&#x73;&#x2e;&#x63;&#x6f;m Web: yardguerillarecords.com Phone: +49 (0",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "0abe8183e8352a4f1a0d855115b99d59069efaa399a4da013462625757f08c34",
+          "source_kind": "official_site",
+          "source_url": "https://yardguerillarecords.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-eebb3f6db68477b1",
+          "excerpt": " YARD GUERILLA RECORDS | Tonstudio Berlin RECORDING STUDIO PHONE +49 (0)170 2171253 YARD ABOUT STUDIO ROOMS PICTURES GEAR LISTS RECORDING SYSTEM OUTBOARDS MICROPHONES INSTRUMENTS WHAT WE DO OVERVIEW ROOM O",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "0abe8183e8352a4f1a0d855115b99d59069efaa399a4da013462625757f08c34",
+          "source_kind": "official_site",
+          "source_url": "https://yardguerillarecords.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-2c892d714565e56a",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "4adcb4eba489a16c051d12d6a75c17340e9fee2b89d85dbcfec4fdb0b0a23aa4",
+          "source_kind": "official_site",
+          "source_url": "https://yardguerillarecords.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "yardguerillarecords.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "yardguerillarecords.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "22f0f3ee-21b1-521d-a301-7273d23a454e",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-eebb3f6db68477b1"
+          ],
+          "source_text": " YARD GUERILLA RECORDS | Tonstudio Berlin RECORDING STUDIO PHONE +49 (0)170 2171253 YARD ABOUT STUDIO ROOMS PICTURES GEAR LISTS RECORDING SYSTEM OUTBOARDS MICROPHONES INSTRUMENTS WHAT WE DO OVERVIEW ROOM O"
+        }
+      ],
+      "source_original_name": "Yard Guerilla Records",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
         "subject_id": null
       }
     },
@@ -1344,6 +1975,318 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "postal_code",
+        "district_key": "pankow",
+        "postal_code": "13125",
+        "street": "Schwanebecker Chaussee",
+        "street_number": "5"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Hot Milk Studio",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-0524d52315fd086c",
+          "excerpt": "r Hot Milk Studio Berlin Inhaber: Robert Cummings Schwanebecker Chaussee 5 13125 Berlin Deutschland Kontakt E-Mail: contact@hotmilkstudio.de Telefon: &lt;auf Anfrage&gt; Umsatzsteuer-ID Umsatzsteuer-Identifikationsnummer gemäß §27a Umsatzst",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "a07e516036620a80e93ced5d4b54b9fcaa8458cec81ee9402f74f82f5a6abbd2",
+          "source_kind": "official_site",
+          "source_url": "https://www.hotmilkstudio.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0973aded467df374",
+          "excerpt": "r Hot Milk Studio Berlin Inhaber: Robert Cummings Schwanebecker Chaussee 5 13125 Berlin Deutschland Kontakt E-Mail: contact@hotmilkstudio.de Telefon: &lt;auf Anfrage&gt; Umsatzsteuer-ID Umsatzsteuer-Identifikationsnummer gemäß §27a Umsatzst",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "a07e516036620a80e93ced5d4b54b9fcaa8458cec81ee9402f74f82f5a6abbd2",
+          "source_kind": "official_site",
+          "source_url": "https://www.hotmilkstudio.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1823f857f9f5fef2",
+          "excerpt": "r Hot Milk Studio Berlin Inhaber: Robert Cummings Schwanebecker Chaussee 5 13125 Berlin Deutschland Kontakt E-Mail: contact@hotmilkstudio.de Telefon: &lt;auf Anfrage&gt; Umsatzsteuer-ID Umsatzsteuer-Identifikationsnummer gemäß §27a Umsatzst",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "a07e516036620a80e93ced5d4b54b9fcaa8458cec81ee9402f74f82f5a6abbd2",
+          "source_kind": "official_site",
+          "source_url": "https://www.hotmilkstudio.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-09014ee3c1fa1490",
+          "excerpt": " vor Ort oder im Studio. Klassik-Aufnahmen entdecken → Drum-Recording Zwei Räume fürs Schlagzeug – von straff und trocken bis groß und ambient. Drum-Recording entdecken → Session-Drums Benedikt Stehle am Schlagzeug, Robert am Pult. Session-",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "a07e516036620a80e93ced5d4b54b9fcaa8458cec81ee9402f74f82f5a6abbd2",
+          "source_kind": "official_site",
+          "source_url": "https://hotmilkstudio.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-08d4411a31a4de5f",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e78f34443abd685d824b222e603375644aa5659947fff13f573904146d8fc867",
+          "source_kind": "official_site",
+          "source_url": "https://www.hotmilkstudio.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "hotmilkstudio.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "hotmilkstudio.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "2dd48685-ceb6-52d2-97d2-5cd484963c03",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-09014ee3c1fa1490"
+          ],
+          "source_text": " vor Ort oder im Studio. Klassik-Aufnahmen entdecken → Drum-Recording Zwei Räume fürs Schlagzeug – von straff und trocken bis groß und ambient. Drum-Recording entdecken → Session-Drums Benedikt Stehle am Schlagzeug, Robert am Pult. Session-"
+        }
+      ],
+      "source_original_name": "Hot Milk Studio",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "pankow",
+        "postal_code": "10437",
+        "street": "Dunckerstr.21",
+        "street_number": null
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "tonus arcus",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-8c31f2444fa46617",
+          "excerpt": "445 1328 mob.: +49 1520 2058814 Büro: tonus arcus Dunckerstr.21 D- 10437 Berlin Tel.: +49 (0)30 445 1328 mob.: +49 1520 2058814 Impressum | Datenschutz | Cookie-Richtlinie | Gesetzliche Gewährleistung | Vertrag widerrufen © tonus arcus 2018",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3aae4434021fbbd0eb537a60afe2fe010c439bf591aaba3c1b90aaa8331aa5aa",
+          "source_kind": "official_site",
+          "source_url": "https://www.tonusarcus.com/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-29ecf0009fc9b5ca",
+          "excerpt": "445 1328 mob.: +49 1520 2058814 Büro: tonus arcus Dunckerstr.21 D- 10437 Berlin Tel.: +49 (0)30 445 1328 mob.: +49 1520 2058814 Impressum | Datenschutz | Cookie-Richtlinie | Gesetzliche Gewährleistung | Vertrag widerrufen © tonus arcus 2018",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3aae4434021fbbd0eb537a60afe2fe010c439bf591aaba3c1b90aaa8331aa5aa",
+          "source_kind": "official_site",
+          "source_url": "https://www.tonusarcus.com/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-9765c7a241416980",
+          "excerpt": "445 1328 mob.: +49 1520 2058814 Büro: tonus arcus Dunckerstr.21 D- 10437 Berlin Tel.: +49 (0)30 445 1328 mob.: +49 1520 2058814 Impressum | Datenschutz | Cookie-Richtlinie | Gesetzliche Gewährleistung | Vertrag widerrufen © tonus arcus 2018",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3aae4434021fbbd0eb537a60afe2fe010c439bf591aaba3c1b90aaa8331aa5aa",
+          "source_kind": "official_site",
+          "source_url": "https://www.tonusarcus.com/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-79b614c8cd55c925",
+          "excerpt": " angewandte Musik und künstlerisches Wort, Komposition, Tonstudio, Wortaufnahme, Berlin Prenzlauer Berg - tonus arcus | Berlin Prenzlauer Berg und Panketal / Zepernick ANGEWANDTE MUSIK &amp; KÜNSTLERISCHES WORT Home Konzert &amp; Kompos",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3aae4434021fbbd0eb537a60afe2fe010c439bf591aaba3c1b90aaa8331aa5aa",
+          "source_kind": "official_site",
+          "source_url": "https://tonusarcus.com/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-4ce2d9b98ca9b53c",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=5",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "eb3ed88c07f3c61c938426f13c2089d932d6c5827402b11673b66af73acd94f4",
+          "source_kind": "official_site",
+          "source_url": "https://tonusarcus.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "tonusarcus.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "tonusarcus.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "393af3ba-938d-53ef-9231-52711ed90eeb",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-79b614c8cd55c925"
+          ],
+          "source_text": " angewandte Musik und künstlerisches Wort, Komposition, Tonstudio, Wortaufnahme, Berlin Prenzlauer Berg - tonus arcus | Berlin Prenzlauer Berg und Panketal / Zepernick ANGEWANDTE MUSIK &amp; KÜNSTLERISCHES WORT Home Konzert &amp; Kompos"
+        }
+      ],
+      "source_original_name": "tonus arcus",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10119",
         "street": "Max-Beer-Str.",
@@ -1647,6 +2590,162 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "spandau",
+        "postal_code": "13597",
+        "street": "Am Schlangengraben",
+        "street_number": "9"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Probestudio Spandau",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-8508503d90d7b0c0",
+          "excerpt": "² durch Tür abgetrennt - 1 WC - 1 Dusche Adresse: Am Schlangengraben 9K, 13597 Berlin Anfahrt Auto: Stadtautobahnausfahrt Spandauerdamm, ca. 5km Richtung Spandau, nach IKEA rechts in die Pichelswerder- strasse einbiegen und über die Freihei",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "858736ace07a3153bd8fb4f84fb1bdc060f599fd48302e59e511a052ec0d9458",
+          "source_kind": "official_site",
+          "source_url": "https://probe-spandau.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-06eba31d6757588d",
+          "excerpt": "² durch Tür abgetrennt - 1 WC - 1 Dusche Adresse: Am Schlangengraben 9K, 13597 Berlin Anfahrt Auto: Stadtautobahnausfahrt Spandauerdamm, ca. 5km Richtung Spandau, nach IKEA rechts in die Pichelswerder- strasse einbiegen und über die Freihei",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "858736ace07a3153bd8fb4f84fb1bdc060f599fd48302e59e511a052ec0d9458",
+          "source_kind": "official_site",
+          "source_url": "https://probe-spandau.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-ebe76b8e322cb22f",
+          "excerpt": "² durch Tür abgetrennt - 1 WC - 1 Dusche Adresse: Am Schlangengraben 9K, 13597 Berlin Anfahrt Auto: Stadtautobahnausfahrt Spandauerdamm, ca. 5km Richtung Spandau, nach IKEA rechts in die Pichelswerder- strasse einbiegen und über die Freihei",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "858736ace07a3153bd8fb4f84fb1bdc060f599fd48302e59e511a052ec0d9458",
+          "source_kind": "official_site",
+          "source_url": "https://probe-spandau.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-ee48e145c57cafb8",
+          "excerpt": " Probe- und Fotostudio in Spandau Die besondere KREATIV-LOFT in Spandau Wir bieten Ihnen einen Mehrzweckstudio in dem Sie ihre Projekte erfolgreich umsetzen können. Das Studio ist für Fotoshooting",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "858736ace07a3153bd8fb4f84fb1bdc060f599fd48302e59e511a052ec0d9458",
+          "source_kind": "official_site",
+          "source_url": "https://probe-spandau.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-274917b633bfb79a",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "cf54e6b11833a02ea2b7a1e5fa113fcce258460b418b7a6d2c53c3d4a26c88e2",
+          "source_kind": "official_site",
+          "source_url": "https://probe-spandau.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "probe-spandau.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "probe-spandau.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "496971c6-74aa-50d0-987c-38097cdcd6fe",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-ee48e145c57cafb8"
+          ],
+          "source_text": " Probe- und Fotostudio in Spandau Die besondere KREATIV-LOFT in Spandau Wir bieten Ihnen einen Mehrzweckstudio in dem Sie ihre Projekte erfolgreich umsetzen können. Das Studio ist für Fotoshooting"
+        }
+      ],
+      "source_original_name": "Probestudio Spandau",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
         "subject_id": null
       }
     },
@@ -2108,6 +3207,162 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "postal_code",
+        "district_key": "reinickendorf",
+        "postal_code": "13509",
+        "street": "Bonifaziusstraße",
+        "street_number": "16-18"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Danov Music Studio",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-e35e38b282d13377",
+          "excerpt": " Kontakt [email&#160;protected] +49 175 413 75 18 Bonifaziusstraße 16-18, 13509 Berlin, Germany Studio-Standort Bonifaziusstraße 16-18, 13509 Berlin Karte laden Klicken um Google Maps zu laden (externer Dienst) In Google Maps öffnen Tonstud",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "461cc2c70de409fd94d197f356c9ef0d998bbc6c0841b0d15a7590f6761e3b28",
+          "source_kind": "official_site",
+          "source_url": "https://www.danovmusic.com/de/landing/tonstudio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-b6d5653887821fbe",
+          "excerpt": " Kontakt [email&#160;protected] +49 175 413 75 18 Bonifaziusstraße 16-18, 13509 Berlin, Germany Studio-Standort Bonifaziusstraße 16-18, 13509 Berlin Karte laden Klicken um Google Maps zu laden (externer Dienst) In Google Maps öffnen Tonstud",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "461cc2c70de409fd94d197f356c9ef0d998bbc6c0841b0d15a7590f6761e3b28",
+          "source_kind": "official_site",
+          "source_url": "https://www.danovmusic.com/de/landing/tonstudio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-badc3c6462fef94a",
+          "excerpt": " Kontakt [email&#160;protected] +49 175 413 75 18 Bonifaziusstraße 16-18, 13509 Berlin, Germany Studio-Standort Bonifaziusstraße 16-18, 13509 Berlin Karte laden Klicken um Google Maps zu laden (externer Dienst) In Google Maps öffnen Tonstud",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "461cc2c70de409fd94d197f356c9ef0d998bbc6c0841b0d15a7590f6761e3b28",
+          "source_kind": "official_site",
+          "source_url": "https://www.danovmusic.com/de/landing/tonstudio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5e076f0bc66a4545",
+          "excerpt": " Danov Music Studio – Tonstudio Berlin von Nikita Bogdanov Start Über uns Leistungen Scoring Technik Galerie --> Portfolio Künstler Bewertungen Awards Shop Songs & Beats Audio Branding Blog Buchen DE DE",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "461cc2c70de409fd94d197f356c9ef0d998bbc6c0841b0d15a7590f6761e3b28",
+          "source_kind": "official_site",
+          "source_url": "https://danovmusic.com/de/landing/tonstudio-berlin",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c3d6af1f934d8218",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "31db76f288829d2f2a5ec15df5e428763e1b32eb6ff595602c8a452c14b11003",
+          "source_kind": "official_site",
+          "source_url": "https://www.danovmusic.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "danovmusic.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "danovmusic.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "591bb424-8306-57f5-9627-9113cfb535e8",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-5e076f0bc66a4545"
+          ],
+          "source_text": " Danov Music Studio – Tonstudio Berlin von Nikita Bogdanov Start Über uns Leistungen Scoring Technik Galerie --> Portfolio Künstler Bewertungen Awards Shop Songs & Beats Audio Branding Blog Buchen DE DE"
+        }
+      ],
+      "source_original_name": "Danov Music Studio",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
         "district_key": "lichtenberg",
         "postal_code": "10365",
         "street": "Herzbergstr.",
@@ -2411,6 +3666,474 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10247",
+        "street": "Weidenweg",
+        "street_number": "60"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "TonInTon Audioproduktion",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-d98284f88fa3f89b",
+          "excerpt": "_____ &nbsp; __Kontakt__ TonInTon-Audioproduktion Weidenweg 60 10247 Berlin-Friedrichshain 030 - 652 622 90 kontakt [at] toninton.com &nbsp; &nbsp; Verkehrsanbindung: U 5 Frankfurter Tor Tram M 10 Bersarinplatz Tram 21 Bersarinplatz/Weidenw",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "098e1967bdbb783e12f9c3ea6f5a610959791f00bf105dc388d4866d80d4810b",
+          "source_kind": "official_site",
+          "source_url": "https://toninton.com/Kontakt.htm",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f9c7ba524efb95db",
+          "excerpt": "_____ &nbsp; __Kontakt__ TonInTon-Audioproduktion Weidenweg 60 10247 Berlin-Friedrichshain 030 - 652 622 90 kontakt [at] toninton.com &nbsp; &nbsp; Verkehrsanbindung: U 5 Frankfurter Tor Tram M 10 Bersarinplatz Tram 21 Bersarinplatz/Weidenw",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "098e1967bdbb783e12f9c3ea6f5a610959791f00bf105dc388d4866d80d4810b",
+          "source_kind": "official_site",
+          "source_url": "https://toninton.com/Kontakt.htm",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-fa1b02f8e963ba0f",
+          "excerpt": "_____ &nbsp; __Kontakt__ TonInTon-Audioproduktion Weidenweg 60 10247 Berlin-Friedrichshain 030 - 652 622 90 kontakt [at] toninton.com &nbsp; &nbsp; Verkehrsanbindung: U 5 Frankfurter Tor Tram M 10 Bersarinplatz Tram 21 Bersarinplatz/Weidenw",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "098e1967bdbb783e12f9c3ea6f5a610959791f00bf105dc388d4866d80d4810b",
+          "source_kind": "official_site",
+          "source_url": "https://toninton.com/Kontakt.htm",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-e000aaa3ea19866a",
+          "excerpt": "sicht Audioformate - Audioformat Museumsaudio - Audioformat Podcast - Audioformat eLearning - Audioformat H&ouml;rbuch - Audioformat H&ouml;rspiel - Audioformat Werbespot - Audioformat ContentMarketing Referenzen Auszeichnungen Jobs / Bewer",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "098e1967bdbb783e12f9c3ea6f5a610959791f00bf105dc388d4866d80d4810b",
+          "source_kind": "official_site",
+          "source_url": "https://toninton.com/Kontakt.htm",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-b81dfc096159b9c2",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "4246fc2eb7250f9c529f164932ae0b983a74ecf77f2bdcef388dc73da654e9a3",
+          "source_kind": "official_site",
+          "source_url": "https://toninton.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "toninton.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "toninton.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "7084eb3d-b23f-5091-a573-97e4f39854d3",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-e000aaa3ea19866a"
+          ],
+          "source_text": "sicht Audioformate - Audioformat Museumsaudio - Audioformat Podcast - Audioformat eLearning - Audioformat H&ouml;rbuch - Audioformat H&ouml;rspiel - Audioformat Werbespot - Audioformat ContentMarketing Referenzen Auszeichnungen Jobs / Bewer"
+        }
+      ],
+      "source_original_name": "TonInTon Audioproduktion",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "treptow-koepenick",
+        "postal_code": "12489",
+        "street": "Ernst-Augustin-Str.",
+        "street_number": "12"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Tonbüro",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-a712b0b9ac3868d2",
+          "excerpt": "sehen in Berlin Wir sind für Sie da Tonbuero GmbH Ernst-Augustin-Str. 12 12489 Berlin Telefon +4930644996300 Fax +4930644996363 &nbsp; &nbsp; Kontaktieren Sie uns &nbsp; tonbüro GmbH Ernst-Augustin-Str. 12 12489 Berlin Kontakt &nbsp; Folgen",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "582ea46d23a5977b439bdbe5319ef5a6d8cd66a3aa60682b66121f13ddd7db8f",
+          "source_kind": "official_site",
+          "source_url": "https://tonbuero.de/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-6e7539d03547a6c1",
+          "excerpt": "sehen in Berlin Wir sind für Sie da Tonbuero GmbH Ernst-Augustin-Str. 12 12489 Berlin Telefon +4930644996300 Fax +4930644996363 &nbsp; &nbsp; Kontaktieren Sie uns &nbsp; tonbüro GmbH Ernst-Augustin-Str. 12 12489 Berlin Kontakt &nbsp; Folgen",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "582ea46d23a5977b439bdbe5319ef5a6d8cd66a3aa60682b66121f13ddd7db8f",
+          "source_kind": "official_site",
+          "source_url": "https://tonbuero.de/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-4acd1c500171cdd4",
+          "excerpt": "sehen in Berlin Wir sind für Sie da Tonbuero GmbH Ernst-Augustin-Str. 12 12489 Berlin Telefon +4930644996300 Fax +4930644996363 &nbsp; &nbsp; Kontaktieren Sie uns &nbsp; tonbüro GmbH Ernst-Augustin-Str. 12 12489 Berlin Kontakt &nbsp; Folgen",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "582ea46d23a5977b439bdbe5319ef5a6d8cd66a3aa60682b66121f13ddd7db8f",
+          "source_kind": "official_site",
+          "source_url": "https://tonbuero.de/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5f88fd3090070f48",
+          "excerpt": "Geräusche Atelier Sprachatelier Filmmusik Downloads Kontakt Tonpostproduktion für Film und Fernsehen in Berlin Scrollen Tonpostproduktion für Film und Fernsehen&nbsp; &nbsp; Tonpostproduktion, Sound Design, Sprachaufnahmen und Filmmusik für",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "582ea46d23a5977b439bdbe5319ef5a6d8cd66a3aa60682b66121f13ddd7db8f",
+          "source_kind": "official_site",
+          "source_url": "https://tonbuero.de/kontakt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-8bba9f2daf06de31",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "2b710b1e71cd679f805f1efb52432acd88525f92aa86107ef28948fe83f4841e",
+          "source_kind": "official_site",
+          "source_url": "https://tonbuero.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "tonbuero.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "tonbuero.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "77d1bfc3-f6d4-553e-a82c-8a4825a72bb8",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-5f88fd3090070f48"
+          ],
+          "source_text": "Geräusche Atelier Sprachatelier Filmmusik Downloads Kontakt Tonpostproduktion für Film und Fernsehen in Berlin Scrollen Tonpostproduktion für Film und Fernsehen&nbsp; &nbsp; Tonpostproduktion, Sound Design, Sprachaufnahmen und Filmmusik für"
+        }
+      ],
+      "source_original_name": "Tonbüro",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "reinickendorf",
+        "postal_code": "13507",
+        "street": "Am Borsigturm",
+        "street_number": "46"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Schweiger Studios",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-237fe61b9cdbbe52",
+          "excerpt": "iger Nächster how to contact me Schweiger Studios Am Borsigturm 46 13507 Berlin Name Email Message Send Facebook Instagram Linkedin Youtube © Berlin 2019, Schweiger Studios, Impressum home about equipment service schweiger sessions contact ",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "f4a735b005ae276e9c24ef87a45251fba9339d32a52ee0c35800385803e1d666",
+          "source_kind": "official_site",
+          "source_url": "https://schweigerstudios.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-46313b8057a4268a",
+          "excerpt": "iger Nächster how to contact me Schweiger Studios Am Borsigturm 46 13507 Berlin Name Email Message Send Facebook Instagram Linkedin Youtube © Berlin 2019, Schweiger Studios, Impressum home about equipment service schweiger sessions contact ",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "f4a735b005ae276e9c24ef87a45251fba9339d32a52ee0c35800385803e1d666",
+          "source_kind": "official_site",
+          "source_url": "https://schweigerstudios.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0cc1aa5ec0173841",
+          "excerpt": "iger Nächster how to contact me Schweiger Studios Am Borsigturm 46 13507 Berlin Name Email Message Send Facebook Instagram Linkedin Youtube © Berlin 2019, Schweiger Studios, Impressum home about equipment service schweiger sessions contact ",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "f4a735b005ae276e9c24ef87a45251fba9339d32a52ee0c35800385803e1d666",
+          "source_kind": "official_site",
+          "source_url": "https://schweigerstudios.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0e99260f1facd4ef",
+          "excerpt": " Main - Schweiger Studios home about equipment service schweiger sessions contact Welcome to Schweiger Studios The Schweiger Studios are a recording and mixing facility, that opened doors in April 2",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "f4a735b005ae276e9c24ef87a45251fba9339d32a52ee0c35800385803e1d666",
+          "source_kind": "official_site",
+          "source_url": "https://schweigerstudios.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-e4cfdf49317cac3b",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "9311bab30d8b5d05f5fa5563a251b8c96b8470873bb77c62d3d17c146d7acab7",
+          "source_kind": "official_site",
+          "source_url": "https://schweigerstudios.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "schweigerstudios.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "schweigerstudios.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "7ab00d2a-ad45-5497-8b8f-40a8133ee2e3",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-0e99260f1facd4ef"
+          ],
+          "source_text": " Main - Schweiger Studios home about equipment service schweiger sessions contact Welcome to Schweiger Studios The Schweiger Studios are a recording and mixing facility, that opened doors in April 2"
+        }
+      ],
+      "source_original_name": "Schweiger Studios",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
         "subject_id": null
       }
     },
@@ -3125,6 +4848,305 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "postal_code",
+        "district_key": "pankow",
+        "postal_code": "13088",
+        "street": "Gürtelstr.",
+        "street_number": "12"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Hörbuch-Tonstudio Berlin",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-8a111ac3ab7adf87",
+          "excerpt": "Stunde Kontakt Berthold Heiland Hörbuch-Tonstudio Gürtelstr. 12 13088 Berlin Tel: 030 / 22364275 E-Mail: info@hoerbuch-tonstudio.de www.trivoo.net Wir setzen auf Frames zur Anzeige von externen Inhalten. Wir sind leider nicht in der Lage, a",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e670b5d4796c1a93552f29f5beff2284a978eac240b0029f162135cb6908b0e2",
+          "source_kind": "official_site",
+          "source_url": "https://hoerbuch-tonstudio.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5a665182599ca903",
+          "excerpt": "Stunde Kontakt Berthold Heiland Hörbuch-Tonstudio Gürtelstr. 12 13088 Berlin Tel: 030 / 22364275 E-Mail: info@hoerbuch-tonstudio.de www.trivoo.net Wir setzen auf Frames zur Anzeige von externen Inhalten. Wir sind leider nicht in der Lage, a",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e670b5d4796c1a93552f29f5beff2284a978eac240b0029f162135cb6908b0e2",
+          "source_kind": "official_site",
+          "source_url": "https://hoerbuch-tonstudio.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-027c015ed5141872",
+          "excerpt": "Stunde Kontakt Berthold Heiland Hörbuch-Tonstudio Gürtelstr. 12 13088 Berlin Tel: 030 / 22364275 E-Mail: info@hoerbuch-tonstudio.de www.trivoo.net Wir setzen auf Frames zur Anzeige von externen Inhalten. Wir sind leider nicht in der Lage, a",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e670b5d4796c1a93552f29f5beff2284a978eac240b0029f162135cb6908b0e2",
+          "source_kind": "official_site",
+          "source_url": "https://hoerbuch-tonstudio.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1003c764276626b3",
+          "excerpt": " Hörbuch-Tonstudio Berlin Toggle navigation Hörbuch-Tonstudio Berlin Über uns Werdegang Hörproben Referenzen Impressionen Preise Kontakt Willkommen beim Hörbuch-Tonstudio Berlin! Pr",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e670b5d4796c1a93552f29f5beff2284a978eac240b0029f162135cb6908b0e2",
+          "source_kind": "official_site",
+          "source_url": "https://hoerbuch-tonstudio.de/",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "hoerbuch-tonstudio.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "hoerbuch-tonstudio.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "a10cc1e8-d183-5272-b5bf-c9deea65fa38",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-1003c764276626b3"
+          ],
+          "source_text": " Hörbuch-Tonstudio Berlin Toggle navigation Hörbuch-Tonstudio Berlin Über uns Werdegang Hörproben Referenzen Impressionen Preise Kontakt Willkommen beim Hörbuch-Tonstudio Berlin! Pr"
+        }
+      ],
+      "source_original_name": "Hörbuch-Tonstudio Berlin",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "spandau",
+        "postal_code": "13585",
+        "street": "Eiswerderstraße",
+        "street_number": "18"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Peak Studios Eiswerder",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-16b3731d04dfe547",
+          "excerpt": "WhatsApp schreiben +49 (0)931 90879510 (Zentrale) Eiswerderstraße 18, Gebäude 129, Aufgang A, 13585 Berlin 5.0 Basierend auf 407 Rezensionen Wo kann ich in Berlin professionell aufnehmen? Professionelle Aufnahmen mit persönlichem Engineer m",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e9a305087ea4c7238c25ba30fbe4d0292742962e8da1ef39197ef81c9ef0b311",
+          "source_kind": "official_site",
+          "source_url": "https://www.peak-studios.de/recording/tonstudio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-68d71b2d40da932f",
+          "excerpt": "WhatsApp schreiben +49 (0)931 90879510 (Zentrale) Eiswerderstraße 18, Gebäude 129, Aufgang A, 13585 Berlin 5.0 Basierend auf 407 Rezensionen Wo kann ich in Berlin professionell aufnehmen? Professionelle Aufnahmen mit persönlichem Engineer m",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e9a305087ea4c7238c25ba30fbe4d0292742962e8da1ef39197ef81c9ef0b311",
+          "source_kind": "official_site",
+          "source_url": "https://www.peak-studios.de/recording/tonstudio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f0e94ac73c0a6ffd",
+          "excerpt": "WhatsApp schreiben +49 (0)931 90879510 (Zentrale) Eiswerderstraße 18, Gebäude 129, Aufgang A, 13585 Berlin 5.0 Basierend auf 407 Rezensionen Wo kann ich in Berlin professionell aufnehmen? Professionelle Aufnahmen mit persönlichem Engineer m",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e9a305087ea4c7238c25ba30fbe4d0292742962e8da1ef39197ef81c9ef0b311",
+          "source_kind": "official_site",
+          "source_url": "https://www.peak-studios.de/recording/tonstudio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-6be00a48d96851c5",
+          "excerpt": "EM-MASTERING TEST MASTERING VINYL MASTERING MASTERING TOOLS RECORDING WUNSCH-INSTRUMENTAL TONSTUDIO BERLIN TONSTUDIO WÜRZBURG MOBILES RECORDING MASTERCLASS UNTERRICHT PREISE GESCHENKE &#038; GUTSCHEINE ÜBER UNS BLOG EQUIPMENT GLOSSAR REFERE",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e9a305087ea4c7238c25ba30fbe4d0292742962e8da1ef39197ef81c9ef0b311",
+          "source_kind": "official_site",
+          "source_url": "https://peak-studios.de/recording/tonstudio-berlin",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-92537e876efa242b",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "8a0517fa6099b48d73005e7d0f38390e02bf70e0fd24b3b51e8ee4b11e6e0048",
+          "source_kind": "official_site",
+          "source_url": "https://www.peak-studios.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "peak-studios.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "peak-studios.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "a1874622-b780-53ef-b065-fe4a970a41a0",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-6be00a48d96851c5"
+          ],
+          "source_text": "EM-MASTERING TEST MASTERING VINYL MASTERING MASTERING TOOLS RECORDING WUNSCH-INSTRUMENTAL TONSTUDIO BERLIN TONSTUDIO WÜRZBURG MOBILES RECORDING MASTERCLASS UNTERRICHT PREISE GESCHENKE &#038; GUTSCHEINE ÜBER UNS BLOG EQUIPMENT GLOSSAR REFERE"
+        }
+      ],
+      "source_original_name": "Peak Studios Eiswerder",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10997",
         "street": "Pfuelstrasse",
@@ -3593,6 +5615,162 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "postal_code",
+        "district_key": "charlottenburg-wilmersdorf",
+        "postal_code": "14059",
+        "street": "Danckelmannstraße",
+        "street_number": "9"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Tonstudio Stimmgerecht",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-18150e58a48d2f78",
+          "excerpt": " senden → /kontakt Mo–Fr 9–18 Uhr 030 339 36 94-0 Danckelmannstraße 9 14059 Berlin Anfahrt → Bernd-Uwe Richter Projektmanagement Bernd Hagner Projektmanagement Philip Hansmann Tonstudios Birgit Hartig Geschäftsleitung, Projektmanagement Ral",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "42d64b8ed53174774f18f063df9328dcc58d8245b04715e02560c98f2fe7fc5f",
+          "source_kind": "official_site",
+          "source_url": "https://www.stimmgerecht.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-04a8de4936e67917",
+          "excerpt": " senden → /kontakt Mo–Fr 9–18 Uhr 030 339 36 94-0 Danckelmannstraße 9 14059 Berlin Anfahrt → Bernd-Uwe Richter Projektmanagement Bernd Hagner Projektmanagement Philip Hansmann Tonstudios Birgit Hartig Geschäftsleitung, Projektmanagement Ral",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "42d64b8ed53174774f18f063df9328dcc58d8245b04715e02560c98f2fe7fc5f",
+          "source_kind": "official_site",
+          "source_url": "https://www.stimmgerecht.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-4783176aa6df6dde",
+          "excerpt": " senden → /kontakt Mo–Fr 9–18 Uhr 030 339 36 94-0 Danckelmannstraße 9 14059 Berlin Anfahrt → Bernd-Uwe Richter Projektmanagement Bernd Hagner Projektmanagement Philip Hansmann Tonstudios Birgit Hartig Geschäftsleitung, Projektmanagement Ral",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "42d64b8ed53174774f18f063df9328dcc58d8245b04715e02560c98f2fe7fc5f",
+          "source_kind": "official_site",
+          "source_url": "https://www.stimmgerecht.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-8cc550cbfdc67dce",
+          "excerpt": "0 · [email&#160;protected] Stimmgerecht Sprecheragentur mit Tonstudios · seit 1998 /sprecher Bekannte Stimmen 121 Synchronsprecher 1.401 Native Speaker 743 Werbesprecher 2.021 Stimmen entdecken Quiz · Radio · Karte Imagefilme 1.132 Dokument",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "42d64b8ed53174774f18f063df9328dcc58d8245b04715e02560c98f2fe7fc5f",
+          "source_kind": "official_site",
+          "source_url": "https://tonstudio-stimmgerecht.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c8a30156247d9213",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "7492bf0feda6bc5babcf9ef12b4e15408fd7f7626fb706318ab1d7e462a83c61",
+          "source_kind": "official_site",
+          "source_url": "https://www.stimmgerecht.de/",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "tonstudio-stimmgerecht.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "tonstudio-stimmgerecht.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "aa4f2049-661b-5060-9f23-d6cc43672bdf",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-8cc550cbfdc67dce"
+          ],
+          "source_text": "0 · [email&#160;protected] Stimmgerecht Sprecheragentur mit Tonstudios · seit 1998 /sprecher Bekannte Stimmen 121 Synchronsprecher 1.401 Native Speaker 743 Werbesprecher 2.021 Stimmen entdecken Quiz · Radio · Karte Imagefilme 1.132 Dokument"
+        }
+      ],
+      "source_original_name": "Tonstudio Stimmgerecht",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Reichenberger Str.",
@@ -3740,6 +5918,162 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10999",
+        "street": "Reichenberger Straße",
+        "street_number": "107"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Reichenberger Studios",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-001c6e3af5f41129",
+          "excerpt": "e rest. Address & Contact Reichenberger Studios · Reichenberger Straße 107 · 10999 Berlin-Kreuzberg Our songwriting studio is part of Reichenberger Studios. your contact person Jan-Simon Wolff A&R Manager +43 (0) 676 340 36 63 jan@schedlerm",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e31940fb21855e47421d81ae17bbc3d7a210175c7177857b765f69d29222f55f",
+          "source_kind": "official_site",
+          "source_url": "https://schedlermusic.com/en/studio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-aa78a444a2c58381",
+          "excerpt": "e rest. Address & Contact Reichenberger Studios · Reichenberger Straße 107 · 10999 Berlin-Kreuzberg Our songwriting studio is part of Reichenberger Studios. your contact person Jan-Simon Wolff A&R Manager +43 (0) 676 340 36 63 jan@schedlerm",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e31940fb21855e47421d81ae17bbc3d7a210175c7177857b765f69d29222f55f",
+          "source_kind": "official_site",
+          "source_url": "https://schedlermusic.com/en/studio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c1e878c42fe00a1c",
+          "excerpt": "e rest. Address & Contact Reichenberger Studios · Reichenberger Straße 107 · 10999 Berlin-Kreuzberg Our songwriting studio is part of Reichenberger Studios. your contact person Jan-Simon Wolff A&R Manager +43 (0) 676 340 36 63 jan@schedlerm",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e31940fb21855e47421d81ae17bbc3d7a210175c7177857b765f69d29222f55f",
+          "source_kind": "official_site",
+          "source_url": "https://schedlermusic.com/en/studio-berlin/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1e9635235b99812a",
+          "excerpt": " Award von ihrem Label Sony&#8230; weiterlesen 28. Mai 2026 Songwriting Camp Vienna: Wir bringen kreative Stimmen aus dem deutschsprachigen Raum in Wien zusammen und stärken den Musikstandort Österreich Vom 19. bis 22. Mai veranstalteten wi",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e31940fb21855e47421d81ae17bbc3d7a210175c7177857b765f69d29222f55f",
+          "source_kind": "official_site",
+          "source_url": "https://schedlermusic.com/en/studio-berlin",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-9c5a5964b024753a",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "7e2e293392ab7267bb5cfc6e0662778f2773c06336c60b1be0b78fc36f7b4a35",
+          "source_kind": "official_site",
+          "source_url": "https://schedlermusic.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "schedlermusic.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "schedlermusic.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "b0c45c54-e3b0-54ce-b91a-561bd258b356",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-1e9635235b99812a"
+          ],
+          "source_text": " Award von ihrem Label Sony&#8230; weiterlesen 28. Mai 2026 Songwriting Camp Vienna: Wir bringen kreative Stimmen aus dem deutschsprachigen Raum in Wien zusammen und stärken den Musikstandort Österreich Vom 19. bis 22. Mai veranstalteten wi"
+        }
+      ],
+      "source_original_name": "Reichenberger Studios",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
         "subject_id": null
       }
     },
@@ -4136,6 +6470,481 @@
         "country_code": "DE",
         "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10963",
+        "street": "Stresemannstraße",
+        "street_number": "21"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Film Sound Design Avenwedde",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-ee397834a8fb24f8",
+          "excerpt": ")30 - 559 508 73 avenwedde&#64;filmsounddesign.de Stresemannstraße 21 10963 Berlin google maps Datenschutzerklärung Impressum © 2026 by Dominik Avenwedde WORK Re-Recording Sound Mix up to Dolby Atmos Home 7.1.4 Audio mixing for broadcast, f",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48f111bebc9078a2a6be2aa6f73db07d4fe44575543280c15bc6d18eb4a59ade",
+          "source_kind": "official_site",
+          "source_url": "https://www.filmsounddesign.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-48d9a6133ec5006b",
+          "excerpt": ")30 - 559 508 73 avenwedde&#64;filmsounddesign.de Stresemannstraße 21 10963 Berlin google maps Datenschutzerklärung Impressum © 2026 by Dominik Avenwedde WORK Re-Recording Sound Mix up to Dolby Atmos Home 7.1.4 Audio mixing for broadcast, f",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48f111bebc9078a2a6be2aa6f73db07d4fe44575543280c15bc6d18eb4a59ade",
+          "source_kind": "official_site",
+          "source_url": "https://www.filmsounddesign.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f252524534b0bfc2",
+          "excerpt": ")30 - 559 508 73 avenwedde&#64;filmsounddesign.de Stresemannstraße 21 10963 Berlin google maps Datenschutzerklärung Impressum © 2026 by Dominik Avenwedde WORK Re-Recording Sound Mix up to Dolby Atmos Home 7.1.4 Audio mixing for broadcast, f",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48f111bebc9078a2a6be2aa6f73db07d4fe44575543280c15bc6d18eb4a59ade",
+          "source_kind": "official_site",
+          "source_url": "https://www.filmsounddesign.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3aeca028196f81b1",
+          "excerpt": " Sound Design &amp; Tonmischung für Film und Fernsehen | Audio Postproduktion Berlin SCROLL DOWN Shards of Light Kinodokumentarfilm, 2025 R: M. Teshaieva / M. Lenz Sound Design &amp",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "48f111bebc9078a2a6be2aa6f73db07d4fe44575543280c15bc6d18eb4a59ade",
+          "source_kind": "official_site",
+          "source_url": "https://filmsounddesign.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-4f563111f7524123",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "66de353767d559e84bafe3622b722b7b11f801be0469b200a4d82ff26edff378",
+          "source_kind": "official_site",
+          "source_url": "https://www.filmsounddesign.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "filmsounddesign.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "filmsounddesign.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "ce3cef7e-071c-5641-844e-c60e281e7b91",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-3aeca028196f81b1"
+          ],
+          "source_text": " Sound Design &amp; Tonmischung für Film und Fernsehen | Audio Postproduktion Berlin SCROLL DOWN Shards of Light Kinodokumentarfilm, 2025 R: M. Teshaieva / M. Lenz Sound Design &amp"
+        }
+      ],
+      "source_original_name": "Film Sound Design Avenwedde",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "treptow-koepenick",
+        "postal_code": "12489",
+        "street": "Moriz Seeler Str.",
+        "street_number": "5-7"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "TV+Synchron",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-e7f9fc0608f445da",
+          "excerpt": "n www.tv-synchron.de ist: TV+SYNCHRON Berlin GmbH Moriz Seeler Str. 5-7 Franz Ehrlich Haus 12489 Berlin Telefon: +4930 677 749415 E-Mail: info(at)tv-synchron.de Geschäftsführerin: Jennifer Buch (buch@tv-synchron.de) Handelsregister: Amtsger",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "95b008832d1a76209cb3ec73065f00c33631cd888f675d5c6caddf0127666828",
+          "source_kind": "official_site",
+          "source_url": "https://tv-synchron.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3b746153cd705727",
+          "excerpt": "n www.tv-synchron.de ist: TV+SYNCHRON Berlin GmbH Moriz Seeler Str. 5-7 Franz Ehrlich Haus 12489 Berlin Telefon: +4930 677 749415 E-Mail: info(at)tv-synchron.de Geschäftsführerin: Jennifer Buch (buch@tv-synchron.de) Handelsregister: Amtsger",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "95b008832d1a76209cb3ec73065f00c33631cd888f675d5c6caddf0127666828",
+          "source_kind": "official_site",
+          "source_url": "https://tv-synchron.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5ad969bd352ec22d",
+          "excerpt": "n www.tv-synchron.de ist: TV+SYNCHRON Berlin GmbH Moriz Seeler Str. 5-7 Franz Ehrlich Haus 12489 Berlin Telefon: +4930 677 749415 E-Mail: info(at)tv-synchron.de Geschäftsführerin: Jennifer Buch (buch@tv-synchron.de) Handelsregister: Amtsger",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "95b008832d1a76209cb3ec73065f00c33631cd888f675d5c6caddf0127666828",
+          "source_kind": "official_site",
+          "source_url": "https://tv-synchron.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-eb0d8adf4fbfc47f",
+          "excerpt": " TV+Synchron | Synchronstudio aus Berlin Adlershof | Referenzen Über uns Standort &#038; Technik Stellenausschreibungen Kontakt English Deutsch Seit über 30 Jahren dreht sich bei uns a",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "95b008832d1a76209cb3ec73065f00c33631cd888f675d5c6caddf0127666828",
+          "source_kind": "official_site",
+          "source_url": "https://tv-synchron.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c3c17cbaa6a920b2",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "49df0007b4fcc5d07388b8cff8acd7ef776587193bdbc18c44c0e9c11dcb9733",
+          "source_kind": "official_site",
+          "source_url": "https://tv-synchron.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "tv-synchron.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "tv-synchron.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "d0a20386-0bbd-5206-878b-0a0573f98ded",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-eb0d8adf4fbfc47f"
+          ],
+          "source_text": " TV+Synchron | Synchronstudio aus Berlin Adlershof | Referenzen Über uns Standort &#038; Technik Stellenausschreibungen Kontakt English Deutsch Seit über 30 Jahren dreht sich bei uns a"
+        },
+        {
+          "catalog_category_key": "voice-over-adr-studio",
+          "evidence_refs": [
+            "ev-eb0d8adf4fbfc47f"
+          ],
+          "source_text": " TV+Synchron | Synchronstudio aus Berlin Adlershof | Referenzen Über uns Standort &#038; Technik Stellenausschreibungen Kontakt English Deutsch Seit über 30 Jahren dreht sich bei uns a"
+        }
+      ],
+      "source_original_name": "TV+Synchron",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "treptow-koepenick",
+        "postal_code": "12459",
+        "street": "Tabbertstraße",
+        "street_number": "32"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Comart Studio",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-3c8814c5f0f8868e",
+          "excerpt": "as dein Projekt kostet? Preis kalkulieren Adresse Tabbertstraße 32, 12459 Berlin Telefon 030 … Mail mail [at] comartstudio.de Zeiten Mo bis Fr 10 bis 20 Uhr · Sa/So 11 bis 23 Uhr Instagram @tonstudioberlin Karte laden Tabbertstraße 32, 1245",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3601175f61ef3759fcdb9ce96eb3817cb907cd9d832e2475a1bf394904fded1c",
+          "source_kind": "official_site",
+          "source_url": "https://comartstudio.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f23350baafdc82e4",
+          "excerpt": "as dein Projekt kostet? Preis kalkulieren Adresse Tabbertstraße 32, 12459 Berlin Telefon 030 … Mail mail [at] comartstudio.de Zeiten Mo bis Fr 10 bis 20 Uhr · Sa/So 11 bis 23 Uhr Instagram @tonstudioberlin Karte laden Tabbertstraße 32, 1245",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3601175f61ef3759fcdb9ce96eb3817cb907cd9d832e2475a1bf394904fded1c",
+          "source_kind": "official_site",
+          "source_url": "https://comartstudio.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3f1c602a707c01ec",
+          "excerpt": "as dein Projekt kostet? Preis kalkulieren Adresse Tabbertstraße 32, 12459 Berlin Telefon 030 … Mail mail [at] comartstudio.de Zeiten Mo bis Fr 10 bis 20 Uhr · Sa/So 11 bis 23 Uhr Instagram @tonstudioberlin Karte laden Tabbertstraße 32, 1245",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3601175f61ef3759fcdb9ce96eb3817cb907cd9d832e2475a1bf394904fded1c",
+          "source_kind": "official_site",
+          "source_url": "https://comartstudio.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5c3d7c0778d32c1b",
+          "excerpt": " comart Studio — Tonstudio Berlin | Recording, Mixing, Mastering Komplette Produktion — 2 Std Recording + Mixing + Mastering, Beat gratis · nur 169 € Komplette Produktion — 2 Std Recording + Mixing + Mastering, Beat ",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "3601175f61ef3759fcdb9ce96eb3817cb907cd9d832e2475a1bf394904fded1c",
+          "source_kind": "official_site",
+          "source_url": "https://comartstudio.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-e0a8f39068a648e7",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "ade9a8f2f0961764b67404365fb992ce99f2a625da2da856ba88d099616dcf0f",
+          "source_kind": "official_site",
+          "source_url": "https://comartstudio.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "comartstudio.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "comartstudio.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "d0ec932f-41e3-567b-adaa-196b88ccb21d",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-5c3d7c0778d32c1b"
+          ],
+          "source_text": " comart Studio — Tonstudio Berlin | Recording, Mixing, Mastering Komplette Produktion — 2 Std Recording + Mixing + Mastering, Beat gratis · nur 169 € Komplette Produktion — 2 Std Recording + Mixing + Mastering, Beat "
+        }
+      ],
+      "source_original_name": "Comart Studio",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10997",
         "street": "Schlesische Straße",
         "street_number": "31"
@@ -4447,6 +7256,162 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "postal_code",
+        "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10999",
+        "street": "Skalitzerstr.",
+        "street_number": "136"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Allzeit Musik",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-7a63485f076d9aed",
+          "excerpt": " / select &nbsp; 2004 - Allzeit Musik/G. Bertram, Skalitzerstr. 136, 10999 Berlin, Phone: 030-61107188 ",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "8c2f6406175a99fea72b0401585bbf307c2f4b1d4c1f0bea92774595751ca335",
+          "source_kind": "official_site",
+          "source_url": "https://allzeitmusik.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-bb7482cc740bdb06",
+          "excerpt": " / select &nbsp; 2004 - Allzeit Musik/G. Bertram, Skalitzerstr. 136, 10999 Berlin, Phone: 030-61107188 ",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "8c2f6406175a99fea72b0401585bbf307c2f4b1d4c1f0bea92774595751ca335",
+          "source_kind": "official_site",
+          "source_url": "https://allzeitmusik.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-11bc3f026ff36e6f",
+          "excerpt": " / select &nbsp; 2004 - Allzeit Musik/G. Bertram, Skalitzerstr. 136, 10999 Berlin, Phone: 030-61107188 ",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "8c2f6406175a99fea72b0401585bbf307c2f4b1d4c1f0bea92774595751ca335",
+          "source_kind": "official_site",
+          "source_url": "https://allzeitmusik.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-6697b2899043797e",
+          "excerpt": " Allzeit_Musik_Label_Tonstudio_Berlin WILLKOMMEN - WELCOME&nbsp; Tontechnik, Live &amp; Studio, Mix/Mastering, CD-Herstellung, Audio/Video Service... Logic X Schulung u.v.m. Das Indiependent-Label aus Ber",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "8c2f6406175a99fea72b0401585bbf307c2f4b1d4c1f0bea92774595751ca335",
+          "source_kind": "official_site",
+          "source_url": "https://allzeitmusik.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0d2a0d7831a6c1bb",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "fd89345af6aca5dab85f2aa6a830e270a362b1fa6b5f19607ddd773a081ed651",
+          "source_kind": "official_site",
+          "source_url": "https://allzeitmusik.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "allzeitmusik.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "allzeitmusik.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "e145a900-8a63-5e0e-9082-feb8470b8c4a",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-6697b2899043797e"
+          ],
+          "source_text": " Allzeit_Musik_Label_Tonstudio_Berlin WILLKOMMEN - WELCOME&nbsp; Tontechnik, Live &amp; Studio, Mix/Mastering, CD-Herstellung, Audio/Video Service... Logic X Schulung u.v.m. Das Indiependent-Label aus Ber"
+        }
+      ],
+      "source_original_name": "Allzeit Musik",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10405",
         "street": "Winsstr.",
@@ -4594,6 +7559,162 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
+        "district_key": "reinickendorf",
+        "postal_code": "13509",
+        "street": "Breitenbachstraße",
+        "street_number": "34"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "City Lock Studio",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch2-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-6f32e1f209b2802c",
+          "excerpt": "ION · MIXING · MASTERING · LABEL City Lock Studio Breitenbachstraße 34–36 13509 Berlin-Reinickendorf, Germany © 2026 CITY LOCK UG · IMPRINT · PRIVACY POLICY · COOKIE POLICY studio@citylock.net WHATSAPP +49 179 5499394 ",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "fb0e82c196b2d9747d615d5a51299aea2b2f511edaae850c9aaf0071435a6652",
+          "source_kind": "official_site",
+          "source_url": "https://www.citylock.net/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1fdd9195c28c785c",
+          "excerpt": "ION · MIXING · MASTERING · LABEL City Lock Studio Breitenbachstraße 34–36 13509 Berlin-Reinickendorf, Germany © 2026 CITY LOCK UG · IMPRINT · PRIVACY POLICY · COOKIE POLICY studio@citylock.net WHATSAPP +49 179 5499394 ",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "fb0e82c196b2d9747d615d5a51299aea2b2f511edaae850c9aaf0071435a6652",
+          "source_kind": "official_site",
+          "source_url": "https://www.citylock.net/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-ca83bc7f53d49e55",
+          "excerpt": "ION · MIXING · MASTERING · LABEL City Lock Studio Breitenbachstraße 34–36 13509 Berlin-Reinickendorf, Germany © 2026 CITY LOCK UG · IMPRINT · PRIVACY POLICY · COOKIE POLICY studio@citylock.net WHATSAPP +49 179 5499394 ",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "fb0e82c196b2d9747d615d5a51299aea2b2f511edaae850c9aaf0071435a6652",
+          "source_kind": "official_site",
+          "source_url": "https://www.citylock.net/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-59584e9c22de98c7",
+          "excerpt": " City Lock Studio | Tonstudio &amp; Recording Studio Berlin 0 Skip to Content Services Vocal Recording Songwriting &amp; Production Mixing &amp; Mastering City Lock — The Label Artist Development &amp; Distribution A",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "fb0e82c196b2d9747d615d5a51299aea2b2f511edaae850c9aaf0071435a6652",
+          "source_kind": "official_site",
+          "source_url": "https://citylock.net/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-897c131c5bc20404",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "e44cc47425f309bcd28a5232f20518a78c01b13022dd8d375210489405198453",
+          "source_kind": "official_site",
+          "source_url": "https://citylock.net/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "citylock.net"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "citylock.net"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "f585532a-7c16-546e-a35e-f355507f94da",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-59584e9c22de98c7"
+          ],
+          "source_text": " City Lock Studio | Tonstudio &amp; Recording Studio Berlin 0 Skip to Content Services Vocal Recording Songwriting &amp; Production Mixing &amp; Mastering City Lock — The Label Artist Development &amp; Distribution A"
+        }
+      ],
+      "source_original_name": "City Lock Studio",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
         "subject_id": null
       }
     },
