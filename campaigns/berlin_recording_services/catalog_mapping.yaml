@@ -19,7 +19,7 @@
 schema_revision: catalog-category-mapping-v1
 site_key: berlin-recording
 catalog_key: berlin-recording-services
-configuration_revision_id: 01a1ed05-f418-7098-c488-da32210e0000
+configuration_revision_id: 46fb742c-f4d9-45dd-99ee-a364cf44b3c2
 coordinate_precision_meters: 25
 # The Catalog publishes names under display locales only, so a language must be established
 # before a name reaches it: by the source that published it, or by the operator who entered
@@ -40,6 +40,8 @@ categories:
     catalog_category: drum-recording-studio
   - campaign_category: podcast_studio
     catalog_category: podcast-studio
+  - campaign_category: mixing_studio
+    catalog_category: mixing-studio
   - campaign_category: voice_over_adr
     catalog_category: voice-over-adr-studio
   - campaign_category: producer
