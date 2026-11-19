@@ -20,6 +20,8 @@ def test_real_campaign_bundle_contains_only_allowlisted_files() -> None:
         "campaign.yaml",
         "catalog_mapping.yaml",
         "discovery/manual_seeds.csv",
+        "discovery/studios-verified.json",
+        "discovery/studios.json",
         "entity_kinds.yaml",
         "geography.yaml",
         "geography/berlin-boundary.geojson",
@@ -89,6 +91,22 @@ def test_symlink_is_rejected(tmp_path: Path) -> None:
 
     assert captured.value.envelope.code == "CAMPAIGN_PATH_BOUNDARY_VIOLATION"
     assert captured.value.envelope.context["reason"] == "symlink_not_allowed"
+
+
+def test_studio_registry_allowlist_is_exact_and_bounded(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaigns" / "example"
+    discovery = campaign / "discovery"
+    discovery.mkdir(parents=True)
+    (discovery / "studios.json").write_text('{"records": []}\n', encoding="utf-8")
+    (discovery / "studios-verified.json").write_text('{"records": []}\n', encoding="utf-8")
+    (discovery / "studios.tmp.json").write_text('{"records": []}\n', encoding="utf-8")
+    source = FilesystemCampaignBundleSource(tmp_path / "campaigns")
+
+    with pytest.raises(OwnerContextError) as captured:
+        source.read("example", "correlation-registry-sibling")
+
+    assert captured.value.envelope.code == "CAMPAIGN_FILE_UNEXPECTED"
+    assert captured.value.envelope.context["path"] == "discovery/studios.tmp.json"
 
 
 def test_campaign_geography_owner_paths_are_bounded_and_allowlisted(tmp_path: Path) -> None:
