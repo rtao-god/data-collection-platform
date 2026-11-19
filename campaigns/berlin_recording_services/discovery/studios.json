@@ -7568,6 +7568,162 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "postal_code",
+        "district_key": "treptow-koepenick",
+        "postal_code": "12459",
+        "street": "Rummelsburger Landstraße",
+        "street_number": "32"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Planet Earth Studios",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch3-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-85f3bc77eeee8fb3",
+          "excerpt": "ETZT ANFRAGEN Studioadresse: Planet Earth Studios Rummelsburger Landstraße 32 12459 Berlin ÖPNV : Tram 21 &#8211; Blockdammweg/Köpenicker Chaussee Services Raum Mieten Band Recording Gesang, Rap, Sprache Mix Mastering Produktion Raum Mieten",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "caf34d5045df43e30d00b951706e6b44197086c6788e0fc73c20aff459b563c4",
+          "source_kind": "official_site",
+          "source_url": "https://planet-earth-studios.de/info/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-90064ff56af401e1",
+          "excerpt": "ETZT ANFRAGEN Studioadresse: Planet Earth Studios Rummelsburger Landstraße 32 12459 Berlin ÖPNV : Tram 21 &#8211; Blockdammweg/Köpenicker Chaussee Services Raum Mieten Band Recording Gesang, Rap, Sprache Mix Mastering Produktion Raum Mieten",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "caf34d5045df43e30d00b951706e6b44197086c6788e0fc73c20aff459b563c4",
+          "source_kind": "official_site",
+          "source_url": "https://planet-earth-studios.de/info/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-cef39b759d660dc0",
+          "excerpt": "ETZT ANFRAGEN Studioadresse: Planet Earth Studios Rummelsburger Landstraße 32 12459 Berlin ÖPNV : Tram 21 &#8211; Blockdammweg/Köpenicker Chaussee Services Raum Mieten Band Recording Gesang, Rap, Sprache Mix Mastering Produktion Raum Mieten",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "caf34d5045df43e30d00b951706e6b44197086c6788e0fc73c20aff459b563c4",
+          "source_kind": "official_site",
+          "source_url": "https://planet-earth-studios.de/info/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-d9b69fc3d890ca6a",
+          "excerpt": "io Info You have landed safely. Planet Earth Studios bieten Aufnahme- und Produktionsmöglichkeiten für Audioprojekte aller Art. Unsere grosszügige Aufnahme- und Regieräume wurden von JV-Acoustics geplant und bieten einige Highlights, wie di",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "caf34d5045df43e30d00b951706e6b44197086c6788e0fc73c20aff459b563c4",
+          "source_kind": "official_site",
+          "source_url": "https://planet-earth-studios.de/info",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c670390651a3e931",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T00:00:00Z",
+          "policy_decision": null,
+          "response_digest_sha256": "9f95ca2c2dedc692d0259b8352a6bef18782c76173b169930f028d50d7b65eb6",
+          "source_kind": "official_site",
+          "source_url": "https://planet-earth-studios.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "planet-earth-studios.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "planet-earth-studios.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "eb278cb1-9ca9-5f87-9796-4980e64d2c41",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "market_classification_unconfirmed",
+            "detail": "primary market classification is campaign-level and needs operator confirmation",
+            "severity": "review"
+          },
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-d9b69fc3d890ca6a"
+          ],
+          "source_text": "io Info You have landed safely. Planet Earth Studios bieten Aufnahme- und Produktionsmöglichkeiten für Audioprojekte aller Art. Unsere grosszügige Aufnahme- und Regieräume wurden von JV-Acoustics geplant und bieten einige Highlights, wie di"
+        }
+      ],
+      "source_original_name": "Planet Earth Studios",
+      "subject_match": {
+        "decision": "undecided",
+        "listing_id": null,
+        "reason": "no reviewed identity decision recorded yet",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "postal_code",
         "district_key": "reinickendorf",
         "postal_code": "13509",
         "street": "Breitenbachstraße",
