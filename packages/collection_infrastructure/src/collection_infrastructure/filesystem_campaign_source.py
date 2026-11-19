@@ -24,8 +24,18 @@ _ROOT_FILES = frozenset(
 )
 _MAX_YAML_BYTES = 1_048_576
 _MAX_SEED_BYTES = 10_485_760
+# The studio research registry is a versioned worklist of candidates and their
+# evidence references. It is not campaign configuration: it is read as data, never
+# parsed into the campaign config snapshot.
+_MAX_STUDIO_REGISTRY_BYTES = 16 * 1024 * 1024
 _MAX_GEOGRAPHY_BYTES = 16 * 1024 * 1024
 _MAX_PROVENANCE_BYTES = 262_144
+_STUDIO_REGISTRY_FILES = frozenset(
+    {
+        "discovery/studios.json",
+        "discovery/studios-verified.json",
+    }
+)
 
 
 class FilesystemCampaignBundleSource:
@@ -132,6 +142,8 @@ class FilesystemCampaignBundleSource:
             return _MAX_YAML_BYTES
         if relative == "discovery/manual_seeds.csv":
             return _MAX_SEED_BYTES
+        if relative in _STUDIO_REGISTRY_FILES:
+            return _MAX_STUDIO_REGISTRY_BYTES
         if (
             relative.startswith("geography/")
             and relative.count("/") == 1
