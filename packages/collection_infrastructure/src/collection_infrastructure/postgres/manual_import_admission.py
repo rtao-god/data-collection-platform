@@ -6,6 +6,7 @@ from typing import Protocol
 from uuid import UUID
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -59,84 +60,101 @@ class PostgresManualImportAdmissionStore:
         command: AdmitManualImportPlan,
         children: Sequence[ManualImportChildWork],
     ) -> ManualImportAdmissionResult:
+        """Admit a plan in its own transaction.
+
+        Callers that already own the transaction (the pipeline transition that admits the
+        plan) use `admit_on_connection`, so the admission and the advancement that requested
+        it commit or roll back together.
+        """
+
+        with self._engine.begin() as connection:
+            return self.admit_on_connection(connection, command, children)
+
+    def admit_on_connection(
+        self,
+        connection: Connection,
+        command: AdmitManualImportPlan,
+        children: Sequence[ManualImportChildWork],
+    ) -> ManualImportAdmissionResult:
+        """Admit a plan inside the caller's transaction."""
+
         try:
-            with self._engine.begin() as connection:
-                self._lock_identity(connection, command)
-                existing = self._load_existing(connection, command)
-                if existing is not None:
-                    child_ids = self._require_existing_identity(
-                        connection,
-                        existing,
-                        command,
-                        children,
-                    )
-                    return _result(
-                        existing,
-                        child_work_ids=child_ids,
-                        status="already_applied",
-                    )
-                self._require_parent_and_artifacts(connection, command)
-                child_ids = self._child_writer.enqueue(connection, command, children)
-                if child_ids != tuple(child.work_id for child in children):
-                    raise _conflict(
-                        code="MANUAL_IMPORT_CHILD_IDENTITY_CONFLICT",
-                        message="The Work Engine returned a different child identity.",
-                        command=command,
-                        required_action=("Inspect the Work Engine identity and retry admission."),
-                    )
-                result_digest = admission_result_digest(
-                    command.admission_id,
-                    command.plan.plan_digest,
-                    child_ids,
+            self._lock_identity(connection, command)
+            existing = self._load_existing(connection, command)
+            if existing is not None:
+                child_ids = self._require_existing_identity(
+                    connection,
+                    existing,
+                    command,
+                    children,
                 )
-                admitted_at_utc = datetime.now(UTC)
-                plan = command.plan.plan
-                connection.execute(
-                    sa.insert(plan_admissions).values(
-                        admission_id=command.admission_id,
-                        parent_work_id=command.parent_work_id,
-                        run_id=command.run_id,
-                        plan_artifact_id=command.plan.plan_artifact_id,
-                        source_artifact_id=command.plan.source_artifact_id,
-                        source_artifact_role=command.plan.source_artifact_role,
-                        plan_digest=plan.plan_digest,
-                        source_digest=plan.source_digest,
-                        mode=plan.mode.value,
-                        plan_disposition=plan.disposition.value,
-                        target_stage=command.target_stage,
-                        target_capability=command.target_capability,
-                        target_output_contract=command.target_output_contract,
-                        valid_record_count=plan.valid_record_count,
-                        issue_count=plan.issue_count,
-                        child_work_count=len(child_ids),
-                        result_digest=result_digest,
-                        admitted_at_utc=admitted_at_utc,
-                        correlation_id=command.correlation_id,
-                        revision=0,
-                    )
-                )
-                if children:
-                    connection.execute(
-                        sa.insert(plan_admission_items),
-                        [
-                            {
-                                "admission_id": command.admission_id,
-                                "position": child.position,
-                                "child_work_id": child.work_id,
-                                "locator_kind": child.record.locator.kind,
-                                "locator_value": child.record.locator.pointer,
-                                "record_digest": child.record.record_digest,
-                            }
-                            for child in children
-                        ],
-                    )
-                return ManualImportAdmissionResult(
-                    admission_id=command.admission_id,
-                    plan_digest=plan.plan_digest,
+                return _result(
+                    existing,
                     child_work_ids=child_ids,
-                    status="applied",
-                    result_digest=result_digest,
+                    status="already_applied",
                 )
+            self._require_parent_and_artifacts(connection, command)
+            child_ids = self._child_writer.enqueue(connection, command, children)
+            if child_ids != tuple(child.work_id for child in children):
+                raise _conflict(
+                    code="MANUAL_IMPORT_CHILD_IDENTITY_CONFLICT",
+                    message="The Work Engine returned a different child identity.",
+                    command=command,
+                    required_action=("Inspect the Work Engine identity and retry admission."),
+                )
+            result_digest = admission_result_digest(
+                command.admission_id,
+                command.plan.plan_digest,
+                child_ids,
+            )
+            admitted_at_utc = datetime.now(UTC)
+            plan = command.plan.plan
+            connection.execute(
+                sa.insert(plan_admissions).values(
+                    admission_id=command.admission_id,
+                    parent_work_id=command.parent_work_id,
+                    run_id=command.run_id,
+                    plan_artifact_id=command.plan.plan_artifact_id,
+                    source_artifact_id=command.plan.source_artifact_id,
+                    source_artifact_role=command.plan.source_artifact_role,
+                    plan_digest=plan.plan_digest,
+                    source_digest=plan.source_digest,
+                    mode=plan.mode.value,
+                    plan_disposition=plan.disposition.value,
+                    target_stage=command.target_stage,
+                    target_capability=command.target_capability,
+                    target_output_contract=command.target_output_contract,
+                    valid_record_count=plan.valid_record_count,
+                    issue_count=plan.issue_count,
+                    child_work_count=len(child_ids),
+                    result_digest=result_digest,
+                    admitted_at_utc=admitted_at_utc,
+                    correlation_id=command.correlation_id,
+                    revision=0,
+                )
+            )
+            if children:
+                connection.execute(
+                    sa.insert(plan_admission_items),
+                    [
+                        {
+                            "admission_id": command.admission_id,
+                            "position": child.position,
+                            "child_work_id": child.work_id,
+                            "locator_kind": child.record.locator.kind,
+                            "locator_value": child.record.locator.pointer,
+                            "record_digest": child.record.record_digest,
+                        }
+                        for child in children
+                    ],
+                )
+            return ManualImportAdmissionResult(
+                admission_id=command.admission_id,
+                plan_digest=plan.plan_digest,
+                child_work_ids=child_ids,
+                status="applied",
+                result_digest=result_digest,
+            )
         except ManualImportAdmissionConflict:
             raise
         except SQLAlchemyError as exc:
@@ -150,27 +168,25 @@ class PostgresManualImportAdmissionStore:
 
     @staticmethod
     def _lock_identity(connection: Connection, command: AdmitManualImportPlan) -> None:
-        identities = (
+        identities = [
             f"manual-import-admission-id:{command.admission_id}",
             (
                 "manual-import-admission-source:"
                 f"{command.parent_work_id}:{command.plan.plan_artifact_id}"
             ),
-        )
-        connection.execute(
-            sa.text(
-                """
-                WITH identities(value) AS MATERIALIZED (
-                    SELECT value
-                    FROM unnest(CAST(:identities AS text[])) AS identity(value)
-                    ORDER BY value
-                )
-                SELECT pg_advisory_xact_lock(hashtextextended(value, 0))
-                FROM identities
-                """
-            ),
-            {"identities": identities},
-        )
+        ]
+        statement = sa.text(
+            """
+            WITH identities(value) AS MATERIALIZED (
+                SELECT value
+                FROM unnest(CAST(:identities AS text[])) AS identity(value)
+                ORDER BY value
+            )
+            SELECT pg_advisory_xact_lock(hashtextextended(value, 0))
+            FROM identities
+            """
+        ).bindparams(sa.bindparam("identities", type_=postgresql.ARRAY(sa.Text())))
+        connection.execute(statement, {"identities": identities})
 
     @staticmethod
     def _load_existing(connection: Connection, command: AdmitManualImportPlan) -> RowMapping | None:

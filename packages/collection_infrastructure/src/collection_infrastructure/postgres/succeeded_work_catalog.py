@@ -233,6 +233,9 @@ class PostgresSucceededWorkCatalog:
             capability == WorkCapability.ENTITY_RESOLUTION.value
             and output_contract == _ENTITY_RESOLUTION_SNAPSHOT_CONTRACT
         )
+        is_manual_import_plan = (
+            capability == "manual_import" and output_contract == "manual-import-plan@1"
+        )
         resolution_batch_content: bytes | None = None
         wikidata_query_spec_content: bytes | None = None
         if is_official_http:
@@ -478,6 +481,15 @@ class PostgresSucceededWorkCatalog:
         is_manual_record = (
             capability == "manual_record" and output_contract == "manual-import-record@1"
         )
+        if is_manual_import_plan:
+            # The admission transition states the exact child work it will create, so the plan
+            # document itself must be readable here, not only its artifact identity.
+            output_content = self._read_artifact_content(
+                connection,
+                output,
+                source_work_unit_id,
+                maximum_bytes=64 * 1024 * 1024,
+            )
         if (
             is_manual_record
             or needs_page_snapshot

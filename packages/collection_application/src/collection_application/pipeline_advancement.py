@@ -15,6 +15,15 @@ from uuid import UUID, uuid5
 
 from collection_application.canonicalization import sha256_json
 from collection_application.geography import decode_boundary_geojson
+from collection_application.manual_import_admission import (
+    ManualImportAdmissionSummary,
+    ManualImportPlanRejected,
+    manual_import_admission_id,
+    manual_import_admission_summary,
+)
+from collection_application.manual_import_plan_document import (
+    decode_manual_import_plan,
+)
 from collection_contracts import (
     ExtractedRecord,
     ExtractionRequest,
@@ -52,7 +61,10 @@ from collection_contracts.wikidata_entity_result import (
     decode_wikidata_entity_result,
 )
 from collection_domain import WorkCapability, WorkStage
-from manual_import_core import decode_canonical_manual_import_record
+from manual_import_core import (
+    ManualImportPlanDocumentError,
+    decode_canonical_manual_import_record,
+)
 from official_http_contracts import HttpAcquisitionManifest
 from resolution_contracts import (
     decode_resolution_batch,
@@ -69,6 +81,7 @@ _MANUAL_SOURCE_ROLES = (
 _WEBSITE_ROUTE_NAMESPACE = UUID("01dd1c8e-4ee6-5f1c-a93b-b5fa058370e5")
 _NORMALIZATION_WORK_NAMESPACE = UUID("1f315e17-25b0-5a91-81a3-0bb93e3a1a1e")
 _PAGE_EXTRACTION_TRANSITION_KEY = "official-http-page-extraction-v1"
+_MANUAL_IMPORT_ADMISSION_TRANSITION_KEY = "manual-import-plan-admission"
 _NORMALIZATION_TRANSITION_KEY = "extracted-record-normalization-v1"
 _CANDIDATE_INTAKE_TRANSITION_KEY = "field-observation-batch-candidate-intake-v1"
 _CANDIDATE_INTAKE_OUTPUT_CONTRACT = "field-observation-batch@1"
@@ -497,6 +510,7 @@ class PipelineTransitionPlan:
     source_record_mapping_actions: tuple[SourceRecordMappingAction, ...] = ()
     candidate_intake_actions: tuple[CandidateIntakeAction, ...] = ()
     resolution_snapshot_actions: tuple[ResolutionSnapshotAction, ...] = ()
+    manual_import_admission: ManualImportAdmissionSummary | None = None
 
     def __post_init__(self) -> None:
         _require_token("pipeline transition key", self.transition_key)
@@ -776,7 +790,7 @@ class PipelineTransitionRegistry:
         if len(parents) != 1:
             return self._blocked(
                 source,
-                transition_key="manual-import-plan-admission",
+                transition_key=_MANUAL_IMPORT_ADMISSION_TRANSITION_KEY,
                 code="PIPELINE_INPUT_ARTIFACT_CONFLICT",
                 message="The manual-import plan has multiple canonical source artifact bindings.",
                 required_action=(
@@ -785,11 +799,66 @@ class PipelineTransitionRegistry:
                 ),
                 context={"matchingArtifactIds": [str(item.artifact_id) for item in parents]},
             )
+        if source.output_content is None:
+            return self._blocked(
+                source,
+                transition_key=_MANUAL_IMPORT_ADMISSION_TRANSITION_KEY,
+                code="MANUAL_IMPORT_PLAN_ARTIFACT_UNREADABLE",
+                message="The succeeded manual-import plan bytes are not available.",
+                required_action=(
+                    "Restore the exact plan artifact before the plan may be admitted."
+                ),
+                context={"planArtifactId": str(source.output_artifact.artifact_id)},
+            )
+        try:
+            binding = decode_manual_import_plan(
+                source.output_content,
+                plan_artifact_id=source.output_artifact.artifact_id,
+                plan_artifact_digest=source.output_artifact.content_digest,
+                source_artifact_id=parents[0].artifact_id,
+                source_artifact_role=parents[0].role,
+                expected_plan_digest=source.output_digest,
+                expected_source_digest=parents[0].content_digest,
+            )
+            admission = manual_import_admission_summary(
+                admission_id=manual_import_admission_id(
+                    parent_work_id=source.source_work_unit_id,
+                    plan_artifact_id=source.output_artifact.artifact_id,
+                ),
+                parent_work_id=source.source_work_unit_id,
+                run_id=source.run_id,
+                plan=binding,
+            )
+        except ManualImportPlanRejected as exc:
+            return self._blocked(
+                source,
+                transition_key=_MANUAL_IMPORT_ADMISSION_TRANSITION_KEY,
+                code=exc.code,
+                message=str(exc),
+                required_action=(
+                    "Repair the authored manual source and re-run the manual import work; a "
+                    "rejected plan never becomes candidate work."
+                ),
+                context=exc.context,
+            )
+        except (ManualImportPlanDocumentError, ValueError) as exc:
+            return self._blocked(
+                source,
+                transition_key=_MANUAL_IMPORT_ADMISSION_TRANSITION_KEY,
+                code=getattr(exc, "code", "MANUAL_IMPORT_PLAN_CONTRACT_INVALID"),
+                message=str(exc),
+                required_action=(
+                    "Re-run the exact manual import work so its plan matches the canonical "
+                    "plan contract and its source artifacts."
+                ),
+                context=dict(getattr(exc, "context", {})),
+            )
         return self._plan(
             source,
-            transition_key="manual-import-plan-admission",
+            transition_key=_MANUAL_IMPORT_ADMISSION_TRANSITION_KEY,
             disposition=PipelineTransitionDisposition.APPLY,
             blocker=None,
+            manual_import_admission=admission,
         )
 
     def _manual_record(self, source: SucceededWorkOutput) -> PipelineTransitionPlan:
@@ -1400,6 +1469,7 @@ class PipelineTransitionRegistry:
         candidate_intake_actions: tuple[CandidateIntakeAction, ...] = (),
         source_record_mapping_actions: tuple[SourceRecordMappingAction, ...] = (),
         resolution_snapshot_actions: tuple[ResolutionSnapshotAction, ...] = (),
+        manual_import_admission: ManualImportAdmissionSummary | None = None,
     ) -> PipelineTransitionPlan:
         digest = _transition_plan_digest(
             source,
@@ -1412,6 +1482,7 @@ class PipelineTransitionRegistry:
             candidate_intake_actions=candidate_intake_actions,
             source_record_mapping_actions=source_record_mapping_actions,
             resolution_snapshot_actions=resolution_snapshot_actions,
+            manual_import_admission=manual_import_admission,
         )
         return PipelineTransitionPlan(
             source_work_unit_id=source.source_work_unit_id,
@@ -1425,6 +1496,7 @@ class PipelineTransitionRegistry:
             candidate_intake_actions=candidate_intake_actions,
             source_record_mapping_actions=source_record_mapping_actions,
             resolution_snapshot_actions=resolution_snapshot_actions,
+            manual_import_admission=manual_import_admission,
         )
 
 
@@ -3513,6 +3585,7 @@ def _transition_plan_digest(
     candidate_intake_actions: tuple[CandidateIntakeAction, ...] = (),
     source_record_mapping_actions: tuple[SourceRecordMappingAction, ...] = (),
     resolution_snapshot_actions: tuple[ResolutionSnapshotAction, ...] = (),
+    manual_import_admission: ManualImportAdmissionSummary | None = None,
 ) -> str:
     payload = {
         "sourceWorkUnitId": str(source.source_work_unit_id),
@@ -3574,10 +3647,35 @@ def _transition_plan_digest(
         payload["resolutionSnapshotActions"] = [
             _resolution_snapshot_action_payload(action) for action in resolution_snapshot_actions
         ]
+    if transition_key == _MANUAL_IMPORT_ADMISSION_TRANSITION_KEY and manual_import_admission:
+        # The admission identity is part of the plan, so a registered plan names exactly the
+        # admission it will produce and an already-admitted plan is recognised as such.
+        payload["manualImportAdmission"] = {
+            "admissionId": str(manual_import_admission.admission_id),
+            "documentPlanDigest": manual_import_admission.document_plan_digest,
+            "childWorkIds": [str(value) for value in manual_import_admission.child_work_ids],
+        }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
         "utf-8"
     )
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def manual_import_admission_result_digest(plan: PipelineTransitionPlan) -> str:
+    """The result an admission of this exact plan must report.
+
+    The digest is the admission owner's own identity for the persisted admission, so the
+    supervisor can state the completion before it is written and the advancement repository
+    can refuse a completion that does not match what the applier actually admitted.
+    """
+
+    if (
+        plan.transition_key != _MANUAL_IMPORT_ADMISSION_TRANSITION_KEY
+        or plan.manual_import_admission is None
+        or plan.disposition is not PipelineTransitionDisposition.APPLY
+    ):
+        raise ValueError("manual import admission result requires an apply plan with an identity")
+    return plan.manual_import_admission.result_digest
 
 
 def source_record_mapping_result_digest(plan: PipelineTransitionPlan) -> str:
@@ -4001,3 +4099,24 @@ def _require_plain_text(name: str, value: str, *, maximum: int) -> None:
 def _require_aware_utc(name: str, value: datetime) -> None:
     if value.tzinfo is None or value.utcoffset() != timedelta(0):
         raise ValueError(f"{name} must be timezone-aware UTC")
+
+
+# The canonical result digest of each registered pipeline transition. A composition root
+# resolves the supervisor's preview from this table, so no root restates transition keys or
+# decides a completion digest on its own.
+TRANSITION_RESULT_DIGESTS: Mapping[str, Callable[[PipelineTransitionPlan], str]] = (
+    MappingProxyType(
+        {
+            _MANUAL_IMPORT_ADMISSION_TRANSITION_KEY: manual_import_admission_result_digest,
+            "manual-record-website-routing-v1": website_route_result_digest,
+            "official-http-robots-routing-v1": website_route_result_digest,
+            _PAGE_EXTRACTION_TRANSITION_KEY: extraction_work_result_digest,
+            _NORMALIZATION_TRANSITION_KEY: normalization_work_result_digest,
+            _SOURCE_RECORD_MAPPING_TRANSITION_KEY: source_record_mapping_result_digest,
+            _WIKIDATA_RESULT_TRANSITION_KEY: source_record_mapping_result_digest,
+            _CANDIDATE_INTAKE_TRANSITION_KEY: candidate_intake_result_digest,
+            _SOURCE_RECORD_INTAKE_TRANSITION_KEY: candidate_intake_result_digest,
+            _ENTITY_RESOLUTION_TRANSITION_KEY: resolution_snapshot_result_digest,
+        }
+    )
+)

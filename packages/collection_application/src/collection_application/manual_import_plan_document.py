@@ -3,7 +3,11 @@ from __future__ import annotations
 import hashlib
 from uuid import UUID
 
-from collection_application.manual_import_admission import ManualImportPlanForAdmission
+from collection_application.manual_import_admission import (
+    AdmitManualImportPlan,
+    ManualImportPlanForAdmission,
+    manual_import_admission_id,
+)
 from collection_contracts import ManualImportRecordDocument
 from manual_import_core import (
     ManualImportPlanDocumentError,
@@ -54,6 +58,46 @@ def decode_manual_import_plan(
                 "causeType": type(exc).__name__,
             },
         ) from exc
+
+
+def manual_import_admission_command(
+    payload: bytes,
+    *,
+    parent_work_id: UUID,
+    run_id: UUID,
+    correlation_id: str,
+    plan_artifact_id: UUID,
+    plan_artifact_digest: str,
+    plan_digest: str,
+    source_artifact_id: UUID,
+    source_artifact_role: str,
+    source_digest: str,
+) -> AdmitManualImportPlan:
+    """Bind one succeeded manual-import plan output to its exact admission command.
+
+    The identity and the command are derived only from the exact artifacts the work unit
+    published, so the transition planner and the transition applier cannot disagree about
+    which admission the same output produces.
+    """
+
+    return AdmitManualImportPlan(
+        admission_id=manual_import_admission_id(
+            parent_work_id=parent_work_id,
+            plan_artifact_id=plan_artifact_id,
+        ),
+        parent_work_id=parent_work_id,
+        run_id=run_id,
+        correlation_id=correlation_id,
+        plan=decode_manual_import_plan(
+            payload,
+            plan_artifact_id=plan_artifact_id,
+            plan_artifact_digest=plan_artifact_digest,
+            source_artifact_id=source_artifact_id,
+            source_artifact_role=source_artifact_role,
+            expected_plan_digest=plan_digest,
+            expected_source_digest=source_digest,
+        ),
+    )
 
 
 def verify_manual_import_record_source_provenance(

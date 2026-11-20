@@ -27,6 +27,10 @@ _SOURCE_ROLE = re.compile(
     r"(?P<format>csv|json|jsonl):(?P<mode>atomic|partial)$"
 )
 _CHILD_NAMESPACE = UUID("bd46bc6f-bd7b-5c60-b4d4-d4eb106e5417")
+# An admission identity is derived from the exact plan it admits, so the pipeline transition
+# that admits a plan can name its result before writing it and a replay resolves to the same
+# immutable admission instead of allocating a second one.
+_ADMISSION_NAMESPACE = UUID("8f57cf3a-0d3f-5c2d-9a4b-6c5e71d0b2a9")
 
 MANUAL_IMPORT_ADMISSION_STAGE_NAME = "manual_import_admission"
 MANUAL_RECORD_STAGE = WorkStage.DISCOVERY
@@ -145,6 +149,34 @@ class ManualImportAdmissionResult:
             raise ValueError("manual import admission result status is unsupported")
 
 
+@dataclass(frozen=True, slots=True)
+class ManualImportAdmissionSummary:
+    """The immutable identity an admission of one plan resolves to.
+
+    The summary is derived from the exact plan artifacts before anything is written, so the
+    transition plan can state the digest the admission will produce. It is not a second copy
+    of the admission state: the store still owns the persisted result and refuses any replay
+    that would bind these identities to different input.
+    """
+
+    admission_id: UUID
+    document_plan_digest: str
+    child_work_ids: tuple[UUID, ...]
+
+    def __post_init__(self) -> None:
+        _require_digest("document_plan_digest", self.document_plan_digest)
+        if len(self.child_work_ids) != len(set(self.child_work_ids)):
+            raise ValueError("manual import child work identities must be unique")
+
+    @property
+    def result_digest(self) -> str:
+        return admission_result_digest(
+            self.admission_id,
+            self.document_plan_digest,
+            self.child_work_ids,
+        )
+
+
 class ManualImportPlanRejected(RuntimeError):
     def __init__(self, plan: ManualImportPlan) -> None:
         self.code = "MANUAL_IMPORT_PLAN_REJECTED"
@@ -170,57 +202,125 @@ class ManualImportAdmissionService:
         self._store = store
 
     def admit(self, command: AdmitManualImportPlan) -> ManualImportAdmissionResult:
-        plan = command.plan.plan
-        verify_manual_import_plan(plan)
-        records = schedulable_manual_import_records(plan)
-        if plan.disposition is ManualImportDisposition.REJECTED or not records:
-            raise ManualImportPlanRejected(plan)
-        children = tuple(
-            _child_work(command, position, record) for position, record in enumerate(records)
+        return self._store.admit(command, manual_import_admission_children(command))
+
+
+def manual_import_admission_id(*, parent_work_id: UUID, plan_artifact_id: UUID) -> UUID:
+    """The one admission identity the exact parent plan can ever produce."""
+
+    return uuid5(_ADMISSION_NAMESPACE, f"{parent_work_id}:{plan_artifact_id}")
+
+
+def manual_import_admission_children(
+    command: AdmitManualImportPlan,
+) -> tuple[ManualImportChildWork, ...]:
+    """The child work an admission would create, derived from the plan alone."""
+
+    return manual_import_child_work_for_plan(
+        parent_work_id=command.parent_work_id,
+        run_id=command.run_id,
+        plan=command.plan,
+    )
+
+
+def manual_import_child_work_for_plan(
+    *,
+    parent_work_id: UUID,
+    run_id: UUID,
+    plan: ManualImportPlanForAdmission,
+) -> tuple[ManualImportChildWork, ...]:
+    """Derive the admission's child work from the immutable plan bindings alone.
+
+    Child identities depend on the exact plan, its artifacts, the run and the declared target
+    stage, never on who requests the admission or in which order. The transition planner uses
+    this to state the admission result before it is written, and the applier reuses the same
+    derivation, so both can only ever name one admission per plan.
+    """
+
+    canonical = plan.plan
+    verify_manual_import_plan(canonical)
+    records = schedulable_manual_import_records(canonical)
+    if canonical.disposition is ManualImportDisposition.REJECTED or not records:
+        raise ManualImportPlanRejected(canonical)
+    return tuple(
+        _child_work(
+            parent_work_id=parent_work_id,
+            run_id=run_id,
+            plan=plan,
+            position=position,
+            record=record,
         )
-        return self._store.admit(command, children)
+        for position, record in enumerate(records)
+    )
+
+
+def manual_import_admission_summary(
+    *,
+    admission_id: UUID,
+    parent_work_id: UUID,
+    run_id: UUID,
+    plan: ManualImportPlanForAdmission,
+) -> ManualImportAdmissionSummary:
+    """The admission identity and result the exact plan will resolve to."""
+
+    children = manual_import_child_work_for_plan(
+        parent_work_id=parent_work_id,
+        run_id=run_id,
+        plan=plan,
+    )
+    return ManualImportAdmissionSummary(
+        admission_id=admission_id,
+        document_plan_digest=plan.plan_digest,
+        child_work_ids=tuple(child.work_id for child in children),
+    )
 
 
 def _child_work(
-    command: AdmitManualImportPlan,
+    *,
+    parent_work_id: UUID,
+    run_id: UUID,
+    plan: ManualImportPlanForAdmission,
     position: int,
     record: ManualImportRecord,
 ) -> ManualImportChildWork:
+    target_stage = MANUAL_RECORD_STAGE.value
+    target_capability = MANUAL_RECORD_CAPABILITY.value
+    target_output_contract = MANUAL_RECORD_OUTPUT_CONTRACT
     semantic_material = _canonical_bytes(
         {
             "contract": "manual-import-record-work-identity",
             "contractRevision": "manual-import-record-work-identity-v1",
-            "planArtifactDigest": command.plan.plan_artifact_digest,
-            "planDigest": command.plan.plan_digest,
-            "sourceDigest": command.plan.source_digest,
-            "sourceArtifactRole": command.plan.source_artifact_role,
+            "planArtifactDigest": plan.plan_artifact_digest,
+            "planDigest": plan.plan_digest,
+            "sourceDigest": plan.source_digest,
+            "sourceArtifactRole": plan.source_artifact_role,
             "position": position,
             "recordDigest": record.record_digest,
-            "targetStage": command.target_stage,
-            "targetCapability": command.target_capability,
-            "targetOutputContract": command.target_output_contract,
+            "targetStage": target_stage,
+            "targetCapability": target_capability,
+            "targetOutputContract": target_output_contract,
         }
     )
     semantic_key = f"sha256:{sha256(semantic_material).hexdigest()}"
-    work_id = uuid5(_CHILD_NAMESPACE, f"{command.run_id}:{semantic_key}")
+    work_id = uuid5(_CHILD_NAMESPACE, f"{run_id}:{semantic_key}")
     payload = _canonical_bytes(
         {
             "contract": "manual-import-record-input",
             "contractRevision": "manual-import-record-input-v1",
-            "parentWorkId": str(command.parent_work_id),
-            "planArtifactId": str(command.plan.plan_artifact_id),
-            "planArtifactDigest": command.plan.plan_artifact_digest,
-            "planDigest": command.plan.plan_digest,
-            "sourceArtifactId": str(command.plan.source_artifact_id),
-            "sourceArtifactRole": command.plan.source_artifact_role,
-            "sourceDigest": command.plan.source_digest,
+            "parentWorkId": str(parent_work_id),
+            "planArtifactId": str(plan.plan_artifact_id),
+            "planArtifactDigest": plan.plan_artifact_digest,
+            "planDigest": plan.plan_digest,
+            "sourceArtifactId": str(plan.source_artifact_id),
+            "sourceArtifactRole": plan.source_artifact_role,
+            "sourceDigest": plan.source_digest,
             "position": position,
             "locator": record.locator.model_dump(mode="json", by_alias=True),
             "recordDigest": record.record_digest,
             "record": record.record.model_dump(mode="json", by_alias=True),
-            "targetStage": command.target_stage,
-            "targetCapability": command.target_capability,
-            "targetOutputContract": command.target_output_contract,
+            "targetStage": target_stage,
+            "targetCapability": target_capability,
+            "targetOutputContract": target_output_contract,
         }
     )
     return ManualImportChildWork(

@@ -11,11 +11,9 @@ from sqlalchemy.engine import Engine
 
 from collection_application import ArtifactTransferService, WorkEngineService
 from collection_application.pipeline_advancement import (
+    TRANSITION_RESULT_DIGESTS,
     PipelineAdvancementService,
     PipelineTransitionRegistry,
-    extraction_work_result_digest,
-    normalization_work_result_digest,
-    website_route_result_digest,
 )
 from collection_application.pipeline_supervision import (
     PipelinePreviewBlocked,
@@ -28,6 +26,15 @@ from collection_infrastructure import (
 )
 from collection_infrastructure.postgres.candidate_intake_applier import (
     candidate_intake_transition_appliers,
+)
+from collection_infrastructure.postgres.manual_import_admission import (
+    PostgresManualImportAdmissionStore,
+)
+from collection_infrastructure.postgres.manual_import_admission_applier import (
+    manual_import_admission_transition_appliers,
+)
+from collection_infrastructure.postgres.manual_import_child_writer import (
+    PostgresManualImportChildWorkWriter,
 )
 from collection_infrastructure.postgres.normalization_applier import (
     normalization_transition_appliers,
@@ -105,7 +112,12 @@ def build_runtime() -> tuple[FastAPI, Engine]:
     succeeded_catalog = PostgresSucceededWorkCatalog(engine, object_store=object_store)
     transition_registry = PipelineTransitionRegistry()
     artifact_publisher = PostgresOwnedArtifactPublisher(engine, object_store)
+    manual_import_admission_store = PostgresManualImportAdmissionStore(
+        engine,
+        PostgresManualImportChildWorkWriter(engine),
+    )
     transition_appliers: dict[str, PipelineTransitionApplier] = {
+        **manual_import_admission_transition_appliers(manual_import_admission_store),
         **website_route_transition_appliers(postgres_work_engine, artifact_publisher),
         **page_extraction_transition_appliers(postgres_work_engine, artifact_publisher),
         **normalization_transition_appliers(postgres_work_engine, artifact_publisher),
@@ -126,7 +138,7 @@ def build_runtime() -> tuple[FastAPI, Engine]:
     )
     advancement = PipelineAdvancementService(advancement_repository)
 
-    class WebsiteRoutePreviewer:
+    class TransitionPlanPreviewer:
         def preview_result_digest(
             self,
             source_work_unit_id: UUID,
@@ -142,26 +154,19 @@ def build_runtime() -> tuple[FastAPI, Engine]:
                 raise RuntimeError("pipeline transition plan changed after registration")
             if plan.blocker is not None:
                 raise PipelinePreviewBlocked(plan.blocker)
-            if plan.transition_key == "official-http-page-extraction-v1":
-                return extraction_work_result_digest(plan)
-            if plan.transition_key == "extracted-record-normalization-v1":
-                return normalization_work_result_digest(plan)
-            if plan.transition_key not in {
-                "manual-record-website-routing-v1",
-                "official-http-robots-routing-v1",
-            }:
+            result_digest = TRANSITION_RESULT_DIGESTS.get(plan.transition_key)
+            if result_digest is None:
                 raise RuntimeError("pipeline preview received an unsupported transition")
-            return website_route_result_digest(plan)
+            return result_digest(plan)
 
+    # Every registered transition has a preview owner: the preview is the transition's own
+    # canonical result identity, so the supervisor can state a completion the applier must
+    # reproduce, for every route and not only for the ones a preview happened to cover.
+    previewer = TransitionPlanPreviewer()
     pipeline_supervisor = PipelineSupervisorService(
         advancement,
         succeeded_catalog,
-        {
-            "manual-record-website-routing-v1": WebsiteRoutePreviewer(),
-            "official-http-robots-routing-v1": WebsiteRoutePreviewer(),
-            "official-http-page-extraction-v1": WebsiteRoutePreviewer(),
-            "extracted-record-normalization-v1": WebsiteRoutePreviewer(),
-        },
+        dict.fromkeys(transition_appliers, previewer),
     )
 
     def readiness_probe() -> None:
