@@ -29,6 +29,7 @@ from collection_application.work_engine import WorkEngineConflict
 from collection_infrastructure.postgres.owned_artifact_publisher import (
     PostgresOwnedArtifactPublisher,
 )
+from collection_infrastructure.postgres.stage_start import start_scheduled_stage
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import stage_runs
 
@@ -87,6 +88,14 @@ class PostgresNormalizationApplier:
 
         stage_run_id = self._normalization_stage_run_id(connection, source.run_id)
         now_utc = self._now_utc()
+        start_scheduled_stage(
+            connection,
+            stage_run_id=stage_run_id,
+            stage_name="normalization",
+            code_prefix="PIPELINE_NORMALIZATION",
+            now_utc=now_utc,
+            correlation_id=correlation_id,
+        )
         profile_artifact_id = self._publish_profile(
             connection,
             action=action,

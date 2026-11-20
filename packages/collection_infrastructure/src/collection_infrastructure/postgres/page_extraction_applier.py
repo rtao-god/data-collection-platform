@@ -28,6 +28,7 @@ from collection_application.work_engine import WorkEngineConflict
 from collection_infrastructure.postgres.owned_artifact_publisher import (
     PostgresOwnedArtifactPublisher,
 )
+from collection_infrastructure.postgres.stage_start import start_scheduled_stage
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import stage_runs
 
@@ -110,6 +111,14 @@ class PostgresPageExtractionApplier:
 
         stage_run_id = self._extraction_stage_run_id(connection, source.run_id)
         now_utc = self._now_utc()
+        start_scheduled_stage(
+            connection,
+            stage_run_id=stage_run_id,
+            stage_name="extraction",
+            code_prefix="PIPELINE_PAGE_EXTRACTION",
+            now_utc=now_utc,
+            correlation_id=correlation_id,
+        )
         request_artifact_id = self._publish_request(
             connection,
             work_id=action.work_id,

@@ -12,7 +12,6 @@ from collection_application import (
     OwnedArtifactPublishConflict,
     PublishOwnedArtifact,
     RetryPolicy,
-    StageRunState,
     WorkCapability,
     WorkInputArtifact,
     WorkStage,
@@ -31,6 +30,7 @@ from collection_contracts.wikidata_entity_result import RESULT_CONTRACT as WIKID
 from collection_infrastructure.postgres.owned_artifact_publisher import (
     PostgresOwnedArtifactPublisher,
 )
+from collection_infrastructure.postgres.stage_start import start_scheduled_stage
 from collection_infrastructure.postgres.work_engine import PostgresWorkEngine
 from collection_infrastructure.postgres.work_metadata import stage_runs
 
@@ -91,9 +91,11 @@ class PostgresSourceRecordMappingApplier:
             )
         stage_run_id = self._normalization_stage_run_id(connection, source.run_id)
         now_utc = self._now_utc()
-        self._ensure_stage_running(
+        start_scheduled_stage(
             connection,
-            stage_run_id,
+            stage_run_id=stage_run_id,
+            stage_name="normalization",
+            code_prefix="PIPELINE_SOURCE_RECORD_MAPPING",
             now_utc=now_utc,
             correlation_id=correlation_id,
         )
@@ -318,58 +320,6 @@ class PostgresSourceRecordMappingApplier:
                 ),
             )
         return values[0]
-
-    @staticmethod
-    def _ensure_stage_running(
-        connection: Connection,
-        stage_run_id: UUID,
-        *,
-        now_utc: datetime,
-        correlation_id: str,
-    ) -> None:
-        """Make the stage that receives the new units operational.
-
-        Bootstrap starts only DISCOVERY; a later stage stays pending until work is
-        scheduled into it. Scheduling that work and leaving its stage pending would
-        produce units no worker can lease, so the same transition starts the stage.
-        A stage that is already running is left untouched; a finished or blocked stage
-        is refused instead of being reopened by a scheduler.
-        """
-
-        state = connection.execute(
-            sa.select(stage_runs.c.state).where(stage_runs.c.stage_run_id == stage_run_id)
-        ).scalar_one_or_none()
-        if state is None:
-            raise PipelineAdvancementConflict(
-                code="PIPELINE_SOURCE_RECORD_MAPPING_STAGE_OWNER_INVALID",
-                message="The scheduled stage no longer exists.",
-                context={"stageRunId": str(stage_run_id)},
-                required_action="Repair the run's stage ownership before mapping dispatch.",
-            )
-        if state == StageRunState.RUNNING.value:
-            return
-        if state != StageRunState.PENDING.value:
-            raise PipelineAdvancementConflict(
-                code="PIPELINE_SOURCE_RECORD_MAPPING_STAGE_NOT_STARTABLE",
-                message="The scheduled stage is not pending, so new work cannot start it.",
-                context={"stageRunId": str(stage_run_id), "stageState": str(state)},
-                required_action=(
-                    "Resolve the stage's own state before scheduling mapping work into it."
-                ),
-            )
-        connection.execute(
-            sa.update(stage_runs)
-            .where(
-                stage_runs.c.stage_run_id == stage_run_id,
-                stage_runs.c.state == StageRunState.PENDING.value,
-            )
-            .values(
-                state=StageRunState.RUNNING.value,
-                revision=stage_runs.c.revision + 1,
-                updated_at_utc=now_utc,
-                correlation_id=correlation_id,
-            )
-        )
 
     def _now_utc(self) -> datetime:
         value = self._clock()
