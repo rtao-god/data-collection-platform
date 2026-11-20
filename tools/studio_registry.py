@@ -2102,6 +2102,233 @@ def report_lines(document: Mapping[str, Any]) -> list[str]:
     ]
 
 
+DECIDED_IDENTITY_ACTIONS = ("create_new_pending_review", "link_existing")
+
+
+def _next_review_sequence(record: Mapping[str, Any]) -> int:
+    sequences = [
+        item.get("sequence")
+        for item in record.get("reviews") or []
+        if isinstance(item.get("sequence"), int)
+    ]
+    return (max(sequences) if sequences else 0) + 1
+
+
+def _append_review(
+    record: dict[str, Any],
+    *,
+    kind: str,
+    decision: str,
+    actor_id: str,
+    decided_at_utc: str,
+    text_digest: str,
+    source_digest: str,
+    note: str,
+) -> None:
+    reviews = record.setdefault("reviews", [])
+    sequence = _next_review_sequence(record)
+    reviews.append(
+        {
+            "review_id": str(
+                uuid.uuid5(
+                    REGISTRY_ID_NAMESPACE,
+                    f"{record.get('registry_id')}:{kind}:{sequence}:{source_digest}",
+                )
+            ),
+            "kind": kind,
+            "decision": decision,
+            "actor_id": actor_id,
+            "sequence": sequence,
+            "decided_at_utc": decided_at_utc,
+            "text_digest_sha256": text_digest,
+            "source_evidence_digest_sha256": source_digest,
+            "locale": None,
+            "note": note,
+        }
+    )
+
+
+def _clear_review_restriction(record: dict[str, Any], code: str) -> None:
+    restrictions = record.get("restrictions") or {}
+    for bucket in ("rejected", "missing", "conflicting"):
+        items = restrictions.get(bucket)
+        if not items:
+            continue
+        restrictions[bucket] = [item for item in items if item.get("code") != code]
+
+
+def _record_digest(record: Mapping[str, Any]) -> str:
+    """Digest of the reviewed facts, not of the review ledger that records the decision."""
+    reviewed = {
+        key: record.get(key)
+        for key in ("canonical_name", "address", "market", "service_claims", "official_domains")
+    }
+    payload = json.dumps(reviewed, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def apply_decisions(
+    document: dict[str, Any],
+    *,
+    policy_digest: str | None,
+    reviewer: str,
+    decided_at_utc: str,
+    confirm_district: bool,
+    confirm_market: bool,
+    identity_decision: str | None,
+    registry_ids: Sequence[str] | None = None,
+) -> dict[str, int]:
+    """Record operator decisions on already reviewed records.
+
+    Every decision is written next to the fact it is about and mirrored in the record's
+    append-only review ledger. Existing decisions are never re-decided: an approved policy,
+    a confirmed district or a resolved identity survives later runs.
+    """
+    if identity_decision is not None and identity_decision not in DECIDED_IDENTITY_ACTIONS:
+        raise ValueError(f"unsupported identity decision: {identity_decision}")
+    wanted = set(registry_ids) if registry_ids else None
+    counts = {"policy": 0, "district": 0, "market": 0, "identity": 0}
+    for record in document.get("records") or []:
+        if wanted is not None and record.get("registry_id") not in wanted:
+            continue
+        digest = _record_digest(record)
+
+        if policy_digest is not None:
+            pending = [
+                entry
+                for entry in record.get("field_evidence") or []
+                if entry.get("source_kind") == "official_site"
+                and entry.get("policy_decision") is None
+            ]
+            if pending:
+                decision = {
+                    "decision": "approved",
+                    "reviewer": reviewer,
+                    "decided_at_utc": decided_at_utc,
+                    "scope": "official_site facts_only",
+                    "policy_digest_sha256": policy_digest,
+                }
+                for entry in pending:
+                    entry["policy_decision"] = dict(decision)
+                _append_review(
+                    record,
+                    kind="source_policy",
+                    decision="approved",
+                    actor_id=reviewer,
+                    decided_at_utc=decided_at_utc,
+                    text_digest=digest,
+                    source_digest=policy_digest,
+                    note="operator approved official-site facts-only usage for this campaign",
+                )
+                counts["policy"] += 1
+
+        address = record.get("address") or {}
+        if confirm_district and address.get("district_basis") == "postal_code":
+            address["district_basis"] = "operator_reviewed"
+            _clear_review_restriction(record, "district_derivation_unconfirmed")
+            _append_review(
+                record,
+                kind="fact",
+                decision="approved",
+                actor_id=reviewer,
+                decided_at_utc=decided_at_utc,
+                text_digest=digest,
+                source_digest=digest,
+                note="operator confirmed the postal-code derived district_key",
+            )
+            counts["district"] += 1
+
+        if confirm_market:
+            restrictions = (record.get("restrictions") or {}).get("conflicting") or []
+            if any(
+                item.get("code") == "market_classification_unconfirmed" for item in restrictions
+            ):
+                _clear_review_restriction(record, "market_classification_unconfirmed")
+                _append_review(
+                    record,
+                    kind="fact",
+                    decision="approved",
+                    actor_id=reviewer,
+                    decided_at_utc=decided_at_utc,
+                    text_digest=digest,
+                    source_digest=digest,
+                    note="operator confirmed the campaign-level primary market classification",
+                )
+                counts["market"] += 1
+
+        subject_match = record.get("subject_match") or {}
+        if identity_decision and subject_match.get("decision") in (None, "undecided"):
+            subject_match["decision"] = identity_decision
+            subject_match["reason"] = (
+                "operator reviewed the candidate: official domain and street address identify "
+                "one Berlin studio with no existing Catalog listing"
+            )
+            _append_review(
+                record,
+                kind="identity",
+                decision="approved",
+                actor_id=reviewer,
+                decided_at_utc=decided_at_utc,
+                text_digest=digest,
+                source_digest=digest,
+                note=f"identity decision {identity_decision}",
+            )
+            record["subject_match"] = subject_match
+            counts["identity"] += 1
+    return counts
+
+
+def decide(
+    registry_path: Path,
+    *,
+    policy_path: Path | None,
+    reviewer: str,
+    decided_at_utc: str,
+    confirm_district: bool,
+    confirm_market: bool,
+    identity_decision: str | None,
+    registry_ids: Sequence[str] | None,
+    dry_run: bool,
+) -> int:
+    if parse_utc(decided_at_utc) is None:
+        print("decided_at_utc must use YYYY-MM-DDTHH:MM:SSZ", file=sys.stderr)
+        return 2
+    if policy_path is not None and not policy_path.is_file():
+        print(f"policy file not found: {policy_path}", file=sys.stderr)
+        return 2
+    policy_digest = None
+    if policy_path is not None:
+        policy_digest = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+
+    document = read_json(registry_path)
+    counts = apply_decisions(
+        document,
+        policy_digest=policy_digest,
+        reviewer=reviewer,
+        decided_at_utc=decided_at_utc,
+        confirm_district=confirm_district,
+        confirm_market=confirm_market,
+        identity_decision=identity_decision,
+        registry_ids=registry_ids,
+    )
+    problems = validate_registry(document)
+    if problems:
+        for problem in problems:
+            print(f"{problem.code} {problem.path}: {problem.message}", file=sys.stderr)
+        return 1
+    print(
+        "decisions policy={policy} district={district} market={market} identity={identity}".format(
+            **counts
+        )
+    )
+    if dry_run:
+        print("dry run: registry was not written")
+        return 0
+    write_text_atomic(registry_path, canonical_json(document))
+    print(f"wrote {registry_path}")
+    return 0
+
+
 def _load_registry(path: Path) -> tuple[dict[str, Any], list[Problem]]:
     document = read_json(path)
     return (document, validate_registry(document))
@@ -2129,6 +2356,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     enrich_parser.add_argument("--patch", type=Path, required=True)
     enrich_parser.add_argument("--dry-run", action="store_true")
 
+    decide_parser = subparsers.add_parser(
+        "decide", help="record operator decisions on reviewed records"
+    )
+    decide_parser.add_argument("--policy-file", type=Path)
+    decide_parser.add_argument("--reviewer", required=True)
+    decide_parser.add_argument("--decided-at-utc", required=True)
+    decide_parser.add_argument("--confirm-district", action="store_true")
+    decide_parser.add_argument("--confirm-market", action="store_true")
+    decide_parser.add_argument("--identity", choices=DECIDED_IDENTITY_ACTIONS)
+    decide_parser.add_argument("--registry-id", action="append")
+    decide_parser.add_argument("--dry-run", action="store_true")
+
     diff_parser = subparsers.add_parser("diff", help="diff the registry against another document")
     diff_parser.add_argument("--other", type=Path, required=True)
 
@@ -2137,6 +2376,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "import-leads":
         leads = load_lead_documents(args.input)
         return import_leads(args.registry, leads, args.batch, dry_run=args.dry_run)
+
+    if args.command == "decide":
+        return decide(
+            args.registry,
+            policy_path=args.policy_file,
+            reviewer=args.reviewer,
+            decided_at_utc=args.decided_at_utc,
+            confirm_district=args.confirm_district,
+            confirm_market=args.confirm_market,
+            identity_decision=args.identity,
+            registry_ids=args.registry_id,
+            dry_run=args.dry_run,
+        )
 
     if args.command == "enrich":
         return enrich(args.registry, args.patch, dry_run=args.dry_run)

@@ -1,0 +1,62 @@
+schema_revision: source-policy-v1
+policy_key: official_site_berlin_studios_policy
+policy_revision: official-site-berlin-studios-policy-v2
+source_key: official_site
+source_type: official_website
+# Operator decision recorded 2026-11-20: the studio's own public website may be read for the
+# facts this campaign publishes (name, address, service categories, published contact points).
+# The decision covers facts only. No text, photo, logo or recording from any studio site is
+# copied, paraphrased into a description, or redistributed; descriptions stay editorial and
+# translations stay human-reviewed. Sites whose robots.txt or terms refuse automated access
+# are never fetched, and a forbidden response stops the record instead of being retried.
+# Revision v2 adds one field: the map reference a studio publishes about its own entrance
+# (`coordinates`). The value is read only when the studio's own page states the point, it is
+# stored with the exact page URL as its evidence, and it is never inferred from a third-party
+# geocoder, from OpenStreetMap, or from the postal address. Everything else is unchanged.
+legal_status: approved
+terms_review:
+  state: reviewed
+  terms_url: https://www.gesetze-im-internet.de/urhg/__87h.html
+  reviewed_at: 2026-11-20
+  expires_at: 2027-11-20
+  reviewer: rtao-god
+access:
+  kind: network
+  allowed_methods:
+    - GET
+  allowed_host_patterns:
+    - official-site-domain-of-record
+  max_requests_per_second: 0.5
+  max_concurrency: 1
+  connect_timeout_seconds: 10.0
+  read_timeout_seconds: 30.0
+  max_encoded_bytes: 4194304
+  max_decoded_bytes: 134217728
+  content_type_allowlist:
+    - text/html
+    - application/json
+  redirect_limit: 3
+storage_class: collector-structured-evidence-v1
+retention_days: 730
+allowed_fields:
+  - district
+  - coordinates
+  - service_mode
+  - website
+  - email
+  - phone
+prohibited_fields:
+  - review_text
+  - review_author
+  - source_photo
+  - description_text
+attribution_required: false
+browser: forbidden
+screenshots: forbidden
+retry_budget: 2
+stop_on_status_codes:
+  - 401
+  - 403
+  - 429
+reviewer: rtao-god
+approver: rtao-god
