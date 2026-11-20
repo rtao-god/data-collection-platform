@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from contextlib import AbstractContextManager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -19,10 +20,12 @@ from collection_application.pipeline_advancement import (
     PipelineTransitionRegistry,
     SucceededWorkOutput,
 )
+from collection_contracts import ManualImportFormat, ManualImportMode
 from collection_domain import WorkStage
 from collection_infrastructure.postgres.pipeline_advancement import (
     PostgresPipelineAdvancementRepository,
 )
+from manual_import_core import build_manual_import_plan, canonical_manual_import_plan_json
 
 _RUN_ID = UUID("00000000-0000-0000-0000-000000000301")
 _STAGE_RUN_ID = UUID("00000000-0000-0000-0000-000000000302")
@@ -38,21 +41,28 @@ _EVENT_IDS = iter(
     )
 )
 _NOW = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
-_OUTPUT_DIGEST = "sha256:" + "a" * 64
 _RESULT_DIGEST = "sha256:" + "b" * 64
 
 
-def _artifact(artifact_id: UUID, role: str) -> ArtifactIdentity:
-    return ArtifactIdentity(
-        artifact_id=artifact_id,
-        role=role,
-        content_digest=_OUTPUT_DIGEST,
-        size_bytes=123,
-        content_type="application/json",
-    )
+_SEED_CSV = (
+    b"expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,"
+    b"provenance\n"
+    b"place,Studio A,recording_studio,https://studio.example,,\"https://studio.example/"
+    b"contact\",,Operator reviewed the official site\n"
+)
+
+
+def _digest(content: bytes) -> str:
+    return "sha256:" + hashlib.sha256(content).hexdigest()
 
 
 def _source() -> SucceededWorkOutput:
+    plan = build_manual_import_plan(
+        _SEED_CSV,
+        format=ManualImportFormat.CSV,
+        mode=ManualImportMode.PARTIAL,
+    )
+    plan_bytes = canonical_manual_import_plan_json(plan).encode("utf-8")
     return SucceededWorkOutput(
         source_work_unit_id=_WORK_ID,
         run_id=_RUN_ID,
@@ -60,10 +70,25 @@ def _source() -> SucceededWorkOutput:
         stage=WorkStage.DISCOVERY,
         capability="manual_import",
         output_contract="manual-import-plan@1",
-        output_digest=_OUTPUT_DIGEST,
-        output_artifact=_artifact(_OUTPUT_ID, "manual_import_plan"),
-        input_artifacts=(_artifact(_SOURCE_ID, "manual_source:csv:partial"),),
+        output_digest=plan.plan_digest,
+        output_artifact=ArtifactIdentity(
+            artifact_id=_OUTPUT_ID,
+            role="manual_import_plan",
+            content_digest=_digest(plan_bytes),
+            size_bytes=len(plan_bytes),
+            content_type="application/json",
+        ),
+        input_artifacts=(
+            ArtifactIdentity(
+                artifact_id=_SOURCE_ID,
+                role="manual_source:csv:partial",
+                content_digest=_digest(_SEED_CSV),
+                size_bytes=len(_SEED_CSV),
+                content_type="text/csv",
+            ),
+        ),
         source_binding_key="manual_seed_import",
+        output_content=plan_bytes,
     )
 
 

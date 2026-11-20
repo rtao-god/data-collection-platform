@@ -126,15 +126,40 @@ def _artifact(
     artifact_id: UUID,
     role: str,
     digest: str,
+    size_bytes: int = 128,
 ) -> dict[str, object]:
     return {
         "binding_position": 0,
         "binding_role": role,
         "artifact_id": artifact_id,
         "content_digest": digest,
-        "size_bytes": 128,
+        "size_bytes": size_bytes,
         "content_type": "application/json",
     }
+
+
+_CATALOG_PLAN_BYTES = canonical_manual_import_plan_json(
+    build_manual_import_plan(
+        (
+            b"expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,"
+            b"provenance\n"
+            b"place,Studio A,recording_studio,https://studio.example,"
+            b"\"https://studio.example/contact\",,Operator reviewed the official site\n"
+        ),
+        format=ManualImportFormat.CSV,
+        mode=ManualImportMode.PARTIAL,
+    )
+).encode("utf-8")
+_CATALOG_PLAN_DIGEST = f"sha256:{hashlib.sha256(_CATALOG_PLAN_BYTES).hexdigest()}"
+
+
+class _PlanReader:
+    """Returns the plan bytes the catalogue is expected to verify."""
+
+    def read_verified(self, **kwargs: object) -> bytes:
+        assert kwargs["expected_digest"] == _CATALOG_PLAN_DIGEST
+        assert kwargs["expected_size_bytes"] == len(_CATALOG_PLAN_BYTES)
+        return _CATALOG_PLAN_BYTES
 
 
 def test_read_rehydrates_exact_canonical_succeeded_work() -> None:
@@ -156,15 +181,30 @@ def test_read_rehydrates_exact_canonical_succeeded_work() -> None:
                     _artifact(
                         artifact_id=_OUTPUT_ARTIFACT_ID,
                         role="manual_import_plan",
-                        digest=_OUTPUT_DIGEST,
+                        digest=_CATALOG_PLAN_DIGEST,
+                        size_bytes=len(_CATALOG_PLAN_BYTES),
                     ),
                 )
             ),
             _Result((_run(),)),
+            _Result(
+                (
+                    {
+                        "content_type": "application/json",
+                        "artifact_kind": "manual_import_plan",
+                        "content_digest": _CATALOG_PLAN_DIGEST,
+                        "size_bytes": len(_CATALOG_PLAN_BYTES),
+                        "storage_reference": "raw-artifacts/test-plan",
+                    },
+                )
+            ),
         )
     )
 
-    result = PostgresSucceededWorkCatalog(object()).read(connection, _WORK_ID)  # type: ignore[arg-type]
+    result = PostgresSucceededWorkCatalog(
+        object(),  # type: ignore[arg-type]
+        object_store=_PlanReader(),  # type: ignore[arg-type]
+    ).read(connection, _WORK_ID)
 
     assert result.source_work_unit_id == _WORK_ID
     assert result.run_id == _RUN_ID
@@ -172,12 +212,48 @@ def test_read_rehydrates_exact_canonical_succeeded_work() -> None:
     assert result.stage.value == "discovery"
     assert result.capability == "manual_import"
     assert result.output_contract == "manual-import-plan@1"
-    assert result.output_digest == _OUTPUT_DIGEST
-    assert result.source_binding_key == "manual_seed_import"
     assert result.output_artifact.artifact_id == _OUTPUT_ARTIFACT_ID
     assert result.output_artifact.role == "manual_import_plan"
+    assert result.output_artifact.content_digest == _CATALOG_PLAN_DIGEST
     assert tuple(item.artifact_id for item in result.input_artifacts) == (_INPUT_ARTIFACT_ID,)
+    # The plan document is part of the output: the admission transition cannot state its
+    # child work from an artifact identity alone.
+    assert result.output_content == _CATALOG_PLAN_BYTES
     connection.assert_consumed()
+
+
+def test_read_reports_a_missing_plan_reader_instead_of_inventing_content() -> None:
+    connection = _Connection(
+        (
+            _Result((_work(),)),
+            _Result((_stage(),)),
+            _Result(
+                (
+                    _artifact(
+                        artifact_id=_INPUT_ARTIFACT_ID,
+                        role="manual_source:csv:atomic",
+                        digest=_INPUT_DIGEST,
+                    ),
+                )
+            ),
+            _Result(
+                (
+                    _artifact(
+                        artifact_id=_OUTPUT_ARTIFACT_ID,
+                        role="manual_import_plan",
+                        digest=_CATALOG_PLAN_DIGEST,
+                        size_bytes=len(_CATALOG_PLAN_BYTES),
+                    ),
+                )
+            ),
+            _Result((_run(),)),
+        )
+    )
+
+    with pytest.raises(PipelineAdvancementConflict) as error:
+        PostgresSucceededWorkCatalog(object()).read(connection, _WORK_ID)  # type: ignore[arg-type]
+
+    assert error.value.code == "PIPELINE_ARTIFACT_READER_UNAVAILABLE"
 
 
 def test_catalog_reads_canonical_bundle_produced_by_snapshot_owner() -> None:
@@ -488,21 +564,34 @@ def test_read_preserves_distinct_semantic_and_artifact_digests() -> None:
                     _artifact(
                         artifact_id=_OUTPUT_ARTIFACT_ID,
                         role="manual_import_plan",
-                        digest=_OUTPUT_DIGEST,
+                        digest=_CATALOG_PLAN_DIGEST,
+                        size_bytes=len(_CATALOG_PLAN_BYTES),
                     ),
                 )
             ),
             _Result((_run(),)),
+            _Result(
+                (
+                    {
+                        "content_type": "application/json",
+                        "artifact_kind": "manual_import_plan",
+                        "content_digest": _CATALOG_PLAN_DIGEST,
+                        "size_bytes": len(_CATALOG_PLAN_BYTES),
+                        "storage_reference": "raw-artifacts/test-plan",
+                    },
+                )
+            ),
         )
     )
 
-    result = PostgresSucceededWorkCatalog(object()).read(  # type: ignore[arg-type]
-        connection,
-        _WORK_ID,
-    )
+    result = PostgresSucceededWorkCatalog(
+        object(),  # type: ignore[arg-type]
+        object_store=_PlanReader(),  # type: ignore[arg-type]
+    ).read(connection, _WORK_ID)
 
     assert result.output_digest == semantic_digest
-    assert result.output_artifact.content_digest == _OUTPUT_DIGEST
+    assert result.output_artifact.content_digest == _CATALOG_PLAN_DIGEST
+    assert result.output_content == _CATALOG_PLAN_BYTES
     connection.assert_consumed()
 
 

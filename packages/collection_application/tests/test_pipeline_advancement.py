@@ -32,6 +32,7 @@ from collection_application.pipeline_advancement import (
 from collection_contracts import (
     ExtractionRequest,
     ManualImportFormat,
+    ManualImportMode,
     OwnerContextError,
     decode_website_route_context,
 )
@@ -72,12 +73,36 @@ def _artifact(
     )
 
 
+def _manual_seed_csv() -> bytes:
+    return (
+        b"expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,"
+        b"provenance\n"
+        b"place,Studio A,recording_studio,https://studio.example,,\"https://studio.example/"
+        b"contact\",,Operator reviewed the official site\n"
+    )
+
+
 def _manual_plan_source(
     *,
     output_role: str = "manual_import_plan",
-    output_digest: str = _DIGEST_B,
+    output_digest: str | None = None,
     input_artifacts: tuple[ArtifactIdentity, ...] | None = None,
 ) -> SucceededWorkOutput:
+    """A manual-import plan output that carries the exact plan bytes an admission needs.
+
+    The transition states the admission it will produce, so the plan document itself is part
+    of the output: a bare artifact identity is no longer enough evidence to advance.
+    """
+
+    source_bytes = _manual_seed_csv()
+    plan = build_manual_import_plan(
+        source_bytes,
+        format=ManualImportFormat.CSV,
+        mode=ManualImportMode.PARTIAL,
+    )
+    plan_bytes = canonical_manual_import_plan_json(plan).encode("utf-8")
+    plan_artifact_digest = "sha256:" + hashlib.sha256(plan_bytes).hexdigest()
+    source_digest = "sha256:" + hashlib.sha256(source_bytes).hexdigest()
     return SucceededWorkOutput(
         source_work_unit_id=_WORK_ID,
         run_id=_RUN_ID,
@@ -85,13 +110,14 @@ def _manual_plan_source(
         stage=WorkStage.DISCOVERY,
         capability="manual_import",
         output_contract="manual-import-plan@1",
-        output_digest=output_digest,
-        output_artifact=_artifact(_OUTPUT_ID, output_role, output_digest),
+        output_digest=output_digest or plan.plan_digest,
+        output_artifact=_artifact(_OUTPUT_ID, output_role, plan_artifact_digest),
         input_artifacts=(
-            (_artifact(_SOURCE_ID, "manual_source:csv:partial"),)
+            (_artifact(_SOURCE_ID, "manual_source:csv:partial", source_digest),)
             if input_artifacts is None
             else input_artifacts
         ),
+        output_content=plan_bytes,
     )
 
 
@@ -119,6 +145,52 @@ def test_manual_import_plan_routes_to_exact_admission_owner() -> None:
     assert plan.disposition is PipelineTransitionDisposition.APPLY
     assert plan.blocker is None
     assert plan.plan_digest.startswith("sha256:")
+
+
+def test_a_rejected_manual_plan_blocks_admission_without_an_identity() -> None:
+    source_bytes = (
+        b"expected_entity_kind,display_name,category,website,osm_id,reference_urls,note,"
+        b"provenance\n"
+        b"place,Studio Without Provenance,recording_studio,https://studio.example,"
+        b",\"https://studio.example/contact\",,\n"
+    )
+    plan = build_manual_import_plan(
+        source_bytes,
+        format=ManualImportFormat.CSV,
+        mode=ManualImportMode.ATOMIC,
+    )
+    assert plan.disposition.value == "rejected"
+    plan_bytes = canonical_manual_import_plan_json(plan).encode("utf-8")
+    source = SucceededWorkOutput(
+        source_work_unit_id=_WORK_ID,
+        run_id=_RUN_ID,
+        stage_run_id=_STAGE_RUN_ID,
+        stage=WorkStage.DISCOVERY,
+        capability="manual_import",
+        output_contract="manual-import-plan@1",
+        output_digest=plan.plan_digest,
+        output_artifact=_artifact(
+            _OUTPUT_ID,
+            "manual_import_plan",
+            "sha256:" + hashlib.sha256(plan_bytes).hexdigest(),
+        ),
+        input_artifacts=(
+            _artifact(
+                _SOURCE_ID,
+                "manual_source:csv:atomic",
+                "sha256:" + hashlib.sha256(source_bytes).hexdigest(),
+            ),
+        ),
+        output_content=plan_bytes,
+    )
+
+    blocked = PipelineTransitionRegistry().plan(source)
+
+    assert blocked.transition_key == "manual-import-plan-admission"
+    assert blocked.disposition is PipelineTransitionDisposition.BLOCK
+    assert blocked.blocker is not None
+    assert blocked.blocker.code == "MANUAL_IMPORT_PLAN_REJECTED"
+    assert blocked.manual_import_admission is None
 
 
 def test_transition_digest_is_order_independent_but_evidence_bound() -> None:
