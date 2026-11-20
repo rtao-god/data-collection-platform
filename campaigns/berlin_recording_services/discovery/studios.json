@@ -1423,6 +1423,196 @@
           "source_kind": "official_site",
           "source_url": "https://rsdnt.de/robots.txt",
           "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-4a417e7011da5151",
+          "excerpt": "aben gemäß § 5 TMG RESIDENT Studios UG (haftungsbeschränkt) Goerzallee 299 14167 Berlin-Zehlendorf Goerzwerk, 2. Stock, Raum 2104 & 2108 Tel",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d9a1729b6fb5f933e13ed8f9b3e951286ad935d20d65b90410be3383c1ad6ca6",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c14dd84e75327ccb",
+          "excerpt": "aben gemäß § 5 TMG RESIDENT Studios UG (haftungsbeschränkt) Goerzallee 299 14167 Berlin-Zehlendorf Goerzwerk, 2. Stock, Raum 2104 & 2108 Tel",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d9a1729b6fb5f933e13ed8f9b3e951286ad935d20d65b90410be3383c1ad6ca6",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-4b14d0a3d0cee034",
+          "excerpt": "aben gemäß § 5 TMG RESIDENT Studios UG (haftungsbeschränkt) Goerzallee 299 14167 Berlin-Zehlendorf Goerzwerk, 2. Stock, Raum 2104 & 2108 Tel",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d9a1729b6fb5f933e13ed8f9b3e951286ad935d20d65b90410be3383c1ad6ca6",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-7270bb4383999257",
+          "excerpt": "shless Payment Community Supporter Newsletter Markenbotschafter © 2026 RESIDENT Studios UG (haftungsbeschränkt). Alle Rechte vorbehalten. Impressum Datenschutz AGB Cookie Einstellungen Konzept & Umsetzung von ",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "444d8cb5c006ccfbb4c93128ac521887cb05a3008ea6345a9dbbf36ec4bf4e04",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-d4fb60879a9d6255",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "55eb5864273bd396965109dce0ed219c7e47aa733cb43f9720eb6636039e657a",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/robots.txt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-571ad182662216a2",
+          "excerpt": "aben gemäß § 5 TMG RESIDENT Studios UG (haftungsbeschränkt) Goerzallee 299 14167 Berlin-Zehlendorf Goerzwerk, 2. Stock, Raum 2104 & 2108 Tel",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d9a1729b6fb5f933e13ed8f9b3e951286ad935d20d65b90410be3383c1ad6ca6",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0c649b7022df7720",
+          "excerpt": "aben gemäß § 5 TMG RESIDENT Studios UG (haftungsbeschränkt) Goerzallee 299 14167 Berlin-Zehlendorf Goerzwerk, 2. Stock, Raum 2104 & 2108 Tel",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d9a1729b6fb5f933e13ed8f9b3e951286ad935d20d65b90410be3383c1ad6ca6",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3f5c5fbf3a998f9e",
+          "excerpt": "aben gemäß § 5 TMG RESIDENT Studios UG (haftungsbeschränkt) Goerzallee 299 14167 Berlin-Zehlendorf Goerzwerk, 2. Stock, Raum 2104 & 2108 Tel",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d9a1729b6fb5f933e13ed8f9b3e951286ad935d20d65b90410be3383c1ad6ca6",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-2014ac542c266697",
+          "excerpt": "shless Payment Community Supporter Newsletter Markenbotschafter © 2026 RESIDENT Studios UG (haftungsbeschränkt). Alle Rechte vorbehalten. Impressum Datenschutz AGB Cookie Einstellungen Konzept & Umsetzung von ",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "444d8cb5c006ccfbb4c93128ac521887cb05a3008ea6345a9dbbf36ec4bf4e04",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-52233e7df0035720",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:05:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "55eb5864273bd396965109dce0ed219c7e47aa733cb43f9720eb6636039e657a",
+          "source_kind": "official_site",
+          "source_url": "https://www.dynabeat.de/robots.txt",
+          "usage_policy": "facts_only"
         }
       ],
       "identity_keys": [
@@ -1442,7 +1632,9 @@
         "source_kind": "manual_operator"
       },
       "official_domains": {
-        "alternates": [],
+        "alternates": [
+          "dynabeat.de"
+        ],
         "primary": "rsdnt.de"
       },
       "photo_candidates": [],
@@ -1512,6 +1704,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "cf345849f60c0bf31d2d776aeaf5f8cc8cc4ff9d78c97137d276d3cc4d146531",
           "text_digest_sha256": "cf345849f60c0bf31d2d776aeaf5f8cc8cc4ff9d78c97137d276d3cc4d146531"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:30:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "Dynabeat is the same studio at Goerzallee 299 as RESIDENT Studios (rsdnt.de); merged the batch10 record into the batch2 record",
+          "review_id": "8cee88ef-fb21-5cc7-9783-627bbd0984d8",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "d9f4fcd502b28306b16874521606d76f9b6118413df4664efec42c79b3e6ef1c",
+          "text_digest_sha256": "8efa5fcbccebfd1d74ccb04800bcd6256bab5b5b3ffc218b43d1f567bf3014fe"
         }
       ],
       "service_claims": [
@@ -2371,6 +2575,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "a63ce9133cadc8143d812bac9de503fe57236f0672867138621ebdd54b2c3f38",
           "text_digest_sha256": "a63ce9133cadc8143d812bac9de503fe57236f0672867138621ebdd54b2c3f38"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:20:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged a batch10 duplicate created with a www-prefixed identity key; no new evidence was unique",
+          "review_id": "811b8142-a01c-5bb8-8a32-2c458a9343cc",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "5ba35be98aaf5357271356a3bd200ae71fa46bf3b89fbeb71cd01e4e18129e81",
+          "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
         }
       ],
       "service_claims": [
@@ -4935,6 +5151,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "6c8dc12054b30d16d8926bc342f45ecec620e09ca52d5cd5319a14d8845ebc26",
           "text_digest_sha256": "6c8dc12054b30d16d8926bc342f45ecec620e09ca52d5cd5319a14d8845ebc26"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:20:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged a batch10 duplicate created with a www-prefixed identity key; no new evidence was unique",
+          "review_id": "3af5ac56-bf9f-59ea-910a-47af6a4d9761",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "60b406ed0c3cdb6cf7753509484c7f2ae846143d04bd21e2609ca5b1d3385e4b",
+          "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
         }
       ],
       "service_claims": [
@@ -7525,6 +7753,231 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "operator_reviewed",
+        "district_key": "steglitz-zehlendorf",
+        "postal_code": "14167",
+        "street": "Hammerstr. 17 D",
+        "street_number": null
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "MPP-Studio",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch12-berlin-local-index",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-f4d3e2741be48c58",
+          "excerpt": "ktionen Referenzen Presse Info Shop Kontakt uniSono-Records Inh. Patrick Römer Hammerstr. 17 D- 14167 Berlin info@unisono-records.de Tel. +49 (0)30 817 42 44 Fax",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ff1c5b57fcebb2fa0c7ec759d11799775230bf6b188a6e31419018d9f15042b9",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-33aebb75982e74ba",
+          "excerpt": "ktionen Referenzen Presse Info Shop Kontakt uniSono-Records Inh. Patrick Römer Hammerstr. 17 D- 14167 Berlin info@unisono-records.de Tel. +49 (0)30 817 42 44 Fax",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ff1c5b57fcebb2fa0c7ec759d11799775230bf6b188a6e31419018d9f15042b9",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-6a216455eedf0106",
+          "excerpt": "ktionen Referenzen Presse Info Shop Kontakt uniSono-Records Inh. Patrick Römer Hammerstr. 17 D- 14167 Berlin info@unisono-records.de Tel. +49 (0)30 817 42 44 Fax",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ff1c5b57fcebb2fa0c7ec759d11799775230bf6b188a6e31419018d9f15042b9",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-4f5dd5c2d10192be",
+          "excerpt": " uniSono-Records – Musiklabel | Tonstudio | Produktion Toggle navigation Produktionen Referenzen Presse Info Shop Kontakt uniSono-Records Musiklabel | Tonstudio | Produktion Toggle navigation Pro",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d794148b12573028aabb068bd8729296b91a22073c7771872eafd8ab80e7e287",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-46a60e794a7e5533",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "65c5b6b28b45da67b2c4cccc31553a5360f65aa2dff59c7ed1693ef2efcc63cf",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "mpp-studio.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "mpp-studio.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "5ce5bf53-5559-588f-b1b4-564c6d8d9bd9",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "30b4602f-8844-5f50-a1fc-354b33eaa556",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "d3749c952c6c86139f72d29a4297c63b0d5577d5019a6d53a3839fde6637a052",
+          "text_digest_sha256": "d3749c952c6c86139f72d29a4297c63b0d5577d5019a6d53a3839fde6637a052"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "4a54da47-233f-5a4d-addc-07bc2145862a",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "d3749c952c6c86139f72d29a4297c63b0d5577d5019a6d53a3839fde6637a052",
+          "text_digest_sha256": "d3749c952c6c86139f72d29a4297c63b0d5577d5019a6d53a3839fde6637a052"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "identity decision create_new_pending_review",
+          "review_id": "a24c6b8b-a4c3-5eda-bb7e-f81e36fac41b",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "d3749c952c6c86139f72d29a4297c63b0d5577d5019a6d53a3839fde6637a052",
+          "text_digest_sha256": "d3749c952c6c86139f72d29a4297c63b0d5577d5019a6d53a3839fde6637a052"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:15:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "e8830525-6cba-55d2-b3a6-9fd9526095ab",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "a91b0ba84f2e6172a6770bda74571726e3e5d7dce54016dab45cde62dd409cd9"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-4f5dd5c2d10192be"
+          ],
+          "source_text": " uniSono-Records – Musiklabel | Tonstudio | Produktion Toggle navigation Produktionen Referenzen Presse Info Shop Kontakt uniSono-Records Musiklabel | Tonstudio | Produktion Toggle navigation Pro"
+        }
+      ],
+      "source_original_name": "MPP-Studio",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "operator reviewed the candidate: official domain and street address identify one Berlin studio with no existing Catalog listing",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
         "district_key": "pankow",
         "postal_code": "10439",
         "street": "Czarnikauer Straße",
@@ -9821,7 +10274,9 @@
         "source_kind": "manual_operator"
       },
       "official_domains": {
-        "alternates": [],
+        "alternates": [
+          "studiobrod.com"
+        ],
         "primary": "www.studiobrod.com"
       },
       "photo_candidates": [],
@@ -9879,6 +10334,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "19b772b454c595fdbac1e4530f936cfd8b31c3fa45cde22971b8657552f4a01e",
           "text_digest_sha256": "19b772b454c595fdbac1e4530f936cfd8b31c3fa45cde22971b8657552f4a01e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:30:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged a batch10 duplicate of Studio Brod created with a www-prefixed identity key",
+          "review_id": "631ebc44-865e-59a5-a9d1-7ab05c4ccb7f",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "0e89935d3673199960e5adfaba5d6d6091806b7b1316f0ffe6e938b35d064806",
+          "text_digest_sha256": "a20edf5c5c429c36eb22550b2cfaef942190a18b6da41a07f4a355832a3535eb"
         }
       ],
       "service_claims": [
@@ -9895,6 +10362,231 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
+        "district_key": "spandau",
+        "postal_code": "13585",
+        "street": "Eiswerderstraße",
+        "street_number": "18"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Blactronic West",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch12-berlin-local-index",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-851e2283f6d18ff9",
+          "excerpt": "ame E-mail Adresse Nachricht Senden Impressum & Datenschutz Folgen Kontaktiere mich Eiswerderstraße 18, 13585 Berlin info@blactronic-west.com Navigation Portfolio Servic",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9895098e0fa5f73937e7306fafb0115c9b3a88db3eea617691e7163400f8dfd8",
+          "source_kind": "official_site",
+          "source_url": "https://blactronic-west.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-282f03d88906e138",
+          "excerpt": "ame E-mail Adresse Nachricht Senden Impressum & Datenschutz Folgen Kontaktiere mich Eiswerderstraße 18, 13585 Berlin info@blactronic-west.com Navigation Portfolio Servic",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9895098e0fa5f73937e7306fafb0115c9b3a88db3eea617691e7163400f8dfd8",
+          "source_kind": "official_site",
+          "source_url": "https://blactronic-west.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5b7d1dec2eba0200",
+          "excerpt": "ame E-mail Adresse Nachricht Senden Impressum & Datenschutz Folgen Kontaktiere mich Eiswerderstraße 18, 13585 Berlin info@blactronic-west.com Navigation Portfolio Servic",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9895098e0fa5f73937e7306fafb0115c9b3a88db3eea617691e7163400f8dfd8",
+          "source_kind": "official_site",
+          "source_url": "https://blactronic-west.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-e218108338a12c3f",
+          "excerpt": " Tonstudio Berlin - Blactronic Studio West Start Über mich Services Portfolio Kontakt Seite wählen BLACTRONIC Studio West Dein Sound, Dein Tonstudio in Berlin! Will",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9895098e0fa5f73937e7306fafb0115c9b3a88db3eea617691e7163400f8dfd8",
+          "source_kind": "official_site",
+          "source_url": "https://blactronic-west.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-e62dc6a5cabff022",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "32835db111fca4d6b92d7bbb4c6cbc01b7ac82f96ecfafd0e75b49f04d459d55",
+          "source_kind": "official_site",
+          "source_url": "https://blactronic-west.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "blactronic-west.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "blactronic-west.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "869436e5-3be7-5424-aa0f-9915a22cd047",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "eca11815-09f1-50af-89fb-a0a4c63ca630",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "cefe7d13f28a92a0302de1df577a77a2e74d170beb01085413c249194a90961e",
+          "text_digest_sha256": "cefe7d13f28a92a0302de1df577a77a2e74d170beb01085413c249194a90961e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "1148cf67-af46-5ce4-a4f6-dc52c809a8ef",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "cefe7d13f28a92a0302de1df577a77a2e74d170beb01085413c249194a90961e",
+          "text_digest_sha256": "cefe7d13f28a92a0302de1df577a77a2e74d170beb01085413c249194a90961e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "identity decision create_new_pending_review",
+          "review_id": "6cd478bd-a81d-5c10-9b80-e3f4d657825a",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "cefe7d13f28a92a0302de1df577a77a2e74d170beb01085413c249194a90961e",
+          "text_digest_sha256": "cefe7d13f28a92a0302de1df577a77a2e74d170beb01085413c249194a90961e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:15:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "e6f232b1-e7db-50f0-a068-d0cddc9d2605",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "0b769d4b2ca74b8ebc142990e4045b2ce12a46bc9ea70f49bef16e9b5206c193"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-e218108338a12c3f"
+          ],
+          "source_text": " Tonstudio Berlin - Blactronic Studio West Start Über mich Services Portfolio Kontakt Seite wählen BLACTRONIC Studio West Dein Sound, Dein Tonstudio in Berlin! Will"
+        }
+      ],
+      "source_original_name": "Blactronic West",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "operator reviewed the candidate: official domain and street address identify one Berlin studio with no existing Catalog listing",
         "subject_id": null
       }
     },
@@ -10092,6 +10784,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b",
           "text_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:00:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged duplicate e66b4d02-f738-540c-82ce-a8362510b3bf of Klangatelier Berlin imported with a www-prefixed identity key",
+          "review_id": "c804ebe9-6817-5703-943e-54af94527b39",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "d3d33b9a95acd131221baf2c145aabcda5bd1a8b4487f224b1c142f1e37b5fb8",
+          "text_digest_sha256": "dbe2b5e1d6e9539d9cb87639b599544a8d7a2b86f30c11ab27c7d3feed34a85f"
         }
       ],
       "service_claims": [
@@ -12003,6 +12707,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "97d93f14e7ccbd954bb5913bba2f6ac5716776049d167b29a1da0ad86b64e3aa",
           "text_digest_sha256": "97d93f14e7ccbd954bb5913bba2f6ac5716776049d167b29a1da0ad86b64e3aa"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:40:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged a batch10 duplicate of Leon Griese created with a www-prefixed identity key",
+          "review_id": "34346c44-f827-5670-a641-c41ba747c288",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "34d3dea44d86e0592d59312e6364e7b5056a15f3a6859b0986284db541453c05",
+          "text_digest_sha256": "3d2274633e7f237d25198553ab27221fd6364a8e27c93428e03f4d17700f3d24"
         }
       ],
       "service_claims": [
@@ -12197,6 +12913,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "dec980dda4991a5af5b5cd2cf884c07a6a132b4297b72a1be4352e5ac609ad1d",
           "text_digest_sha256": "dec980dda4991a5af5b5cd2cf884c07a6a132b4297b72a1be4352e5ac609ad1d"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:20:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged a batch10 duplicate created with a www-prefixed identity key; no new evidence was unique",
+          "review_id": "ba991e54-bcff-5764-bd38-afc10c4cef30",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "571977889597ce29dd67b18f9cba44390946642fab3085b0cd2a17d746ce4aed",
+          "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
         }
       ],
       "service_claims": [
@@ -15053,6 +15781,231 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "operator_reviewed",
+        "district_key": "charlottenburg-wilmersdorf",
+        "postal_code": "13627",
+        "street": "Halemweg",
+        "street_number": "21"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "BeatLab HQ",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch11-berlin-local-index",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-bd522fba28bfef55",
+          "excerpt": "MICH GEAR ANFRAGE STELLEN Impressum   Angaben gemäß § 5 TMG Piotr DeSade Kucharzak Halemweg 21 13627 Berlin Deutschland   Kontakt Telefon: 0172 44 777 84 E-Mail",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:55:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "87146eb80ee4245ae93c8b2f9ce5393f5b23c3908744b37fe6105c06b1164ef4",
+          "source_kind": "official_site",
+          "source_url": "https://www.beatnerdstudio.com/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f21416bd22394088",
+          "excerpt": "MICH GEAR ANFRAGE STELLEN Impressum   Angaben gemäß § 5 TMG Piotr DeSade Kucharzak Halemweg 21 13627 Berlin Deutschland   Kontakt Telefon: 0172 44 777 84 E-Mail",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:55:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "87146eb80ee4245ae93c8b2f9ce5393f5b23c3908744b37fe6105c06b1164ef4",
+          "source_kind": "official_site",
+          "source_url": "https://www.beatnerdstudio.com/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0bad73d7a061bb0f",
+          "excerpt": "MICH GEAR ANFRAGE STELLEN Impressum   Angaben gemäß § 5 TMG Piotr DeSade Kucharzak Halemweg 21 13627 Berlin Deutschland   Kontakt Telefon: 0172 44 777 84 E-Mail",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:55:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "87146eb80ee4245ae93c8b2f9ce5393f5b23c3908744b37fe6105c06b1164ef4",
+          "source_kind": "official_site",
+          "source_url": "https://www.beatnerdstudio.com/impressum",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1fa3e88862b7ec9f",
+          "excerpt": " Musikproduktion & Tonstudio Berlin | Beatnerd Studio top of page Beatnerdworkshop Studioguitar SERVICES ARBEITEN ÜBER MICH GEAR ANFRAGE STELLEN CREATE IMPACT Musikproduktion in Berl",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:55:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "87146eb80ee4245ae93c8b2f9ce5393f5b23c3908744b37fe6105c06b1164ef4",
+          "source_kind": "official_site",
+          "source_url": "https://www.beatnerdstudio.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1d4ea7434fa824b9",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T21:55:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "6e786d23e261471d3913f1c7c805502efa80f6b576877e0d55423b8ae04bd256",
+          "source_kind": "official_site",
+          "source_url": "https://www.beatnerdstudio.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "beatnerdstudio.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "beatnerdstudio.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "abf0a946-5960-5b36-9b14-3d3ea01bf531",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:50:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "6403d775-3034-5daf-9daa-63342297627d",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "bed66bcf2a6f433db66149b578ccfde19e2c302bb52319f5285dac851030d21a",
+          "text_digest_sha256": "bed66bcf2a6f433db66149b578ccfde19e2c302bb52319f5285dac851030d21a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:50:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "54d8b53e-32e9-551f-af0b-a916f94caccc",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "bed66bcf2a6f433db66149b578ccfde19e2c302bb52319f5285dac851030d21a",
+          "text_digest_sha256": "bed66bcf2a6f433db66149b578ccfde19e2c302bb52319f5285dac851030d21a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:50:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "identity decision create_new_pending_review",
+          "review_id": "50c4df73-b635-5a69-b16a-e77f21db5913",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "bed66bcf2a6f433db66149b578ccfde19e2c302bb52319f5285dac851030d21a",
+          "text_digest_sha256": "bed66bcf2a6f433db66149b578ccfde19e2c302bb52319f5285dac851030d21a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:55:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "3d4e5bac-c6f9-5d9c-957b-d492893db674",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "aecfa2cd1e88e101d89c40b9acea2cee6e1354d119516ee418c11a050d15b6f6"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-1fa3e88862b7ec9f"
+          ],
+          "source_text": " Musikproduktion & Tonstudio Berlin | Beatnerd Studio top of page Beatnerdworkshop Studioguitar SERVICES ARBEITEN ÜBER MICH GEAR ANFRAGE STELLEN CREATE IMPACT Musikproduktion in Berl"
+        }
+      ],
+      "source_original_name": "BeatLab HQ",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "operator reviewed the candidate: official domain and street address identify one Berlin studio with no existing Catalog listing",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Reichenberger Straße",
@@ -15466,6 +16419,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "509cb2aa9ee9b4bfefe63d0a7d820a1fdfb163df353ed1100fa6ef3f354b42ca",
           "text_digest_sha256": "509cb2aa9ee9b4bfefe63d0a7d820a1fdfb163df353ed1100fa6ef3f354b42ca"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:00:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged duplicate 97332d43-71ee-5a63-bf05-5d28b800e91b of Redbox Studios Berlin imported with a www-prefixed identity key",
+          "review_id": "a31312ac-4f6b-5a73-a20d-a25ac23ff565",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "b06277235304ae0ea7568478af61ee3f66447ab95f032c3d35d22e792340ef3d",
+          "text_digest_sha256": "fdca77256da088129439a9211eb2db82b32c09780f07dfcc734bf0b963f55450"
         }
       ],
       "service_claims": [
@@ -15679,6 +16644,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "58eeb1dd62985bd275b1f819ce5e58fc0aba50bfd9da0962e27026b635cffbc5",
           "text_digest_sha256": "58eeb1dd62985bd275b1f819ce5e58fc0aba50bfd9da0962e27026b635cffbc5"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:20:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged a batch10 duplicate created with a www-prefixed identity key; no new evidence was unique",
+          "review_id": "9f2efdab-8f17-526d-8c50-c796e69a94d0",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "412ec428afbf534ff740e78fdf471f41f4302b8bd0ebf301c27f8a98f1bfc890",
+          "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
         }
       ],
       "service_claims": [
@@ -17163,6 +18140,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "f42639c6af957b2c3b34cb9bfb1c1886c536b83406d8e234cd2a287f340a677a",
           "text_digest_sha256": "f42639c6af957b2c3b34cb9bfb1c1886c536b83406d8e234cd2a287f340a677a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:00:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged duplicate b605a2a4-1365-562e-b869-107a26185498 of Greve Studio imported with a www-prefixed identity key",
+          "review_id": "3e97c793-cb90-5dba-80b3-0674f64b9494",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "9660073aefa3f0fcfa7d91329e8e7c9c8f20a1dcd84753573885d2b4d41ea82f",
+          "text_digest_sha256": "6147118837b60e1b664d0ff374fb66d75f7c6bc8a0d5fb382b47516d55fedcb9"
         }
       ],
       "service_claims": [
@@ -17796,6 +18785,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "2e692cc1f5ef667d10bbae7546ce232b54745b1d614b00570aa436f8ddc30e20",
           "text_digest_sha256": "2e692cc1f5ef667d10bbae7546ce232b54745b1d614b00570aa436f8ddc30e20"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T21:20:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged a batch10 duplicate created with a www-prefixed identity key; no new evidence was unique",
+          "review_id": "321a2125-e834-5aa6-94d3-ab65bb688d36",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "487c93de1aa9cf524c1cc69135d41b369fcf4f908e89d719484bb6c27111847a",
+          "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
         }
       ],
       "service_claims": [
@@ -19768,6 +20769,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "6cef5a217bceb2444c299f139484536b654dae513b072098bdc0e91817452472",
           "text_digest_sha256": "6cef5a217bceb2444c299f139484536b654dae513b072098bdc0e91817452472"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:00:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "merged duplicate 74095c40-fc49-54a2-9257-4c824171eb62 of Recordings Jan Siekmann imported with a www-prefixed identity key",
+          "review_id": "4d856791-a969-529b-a7f7-4a44f0cded2c",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "f3f46e4e17260cbea3423df7b80c1c75f73759a000c9c33a2dd8d465fec773c9",
+          "text_digest_sha256": "163d8ba505a30fc89a5471b38bb538b54494cc5d5493f3a8c6c0da8bad8f9873"
         }
       ],
       "service_claims": [
@@ -21185,6 +22198,231 @@
         }
       ],
       "source_original_name": "City Lock Studio",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "operator reviewed the candidate: official domain and street address identify one Berlin studio with no existing Catalog listing",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
+        "district_key": "treptow-koepenick",
+        "postal_code": "12439",
+        "street": "Schnellerstraße",
+        "street_number": "1-5"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Tonstudio 9Roove",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch12-berlin-local-index",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-b8d4a7cef80a10f1",
+          "excerpt": "ist innerhalb von 24 Stunden. Keine Zahlung, unverbindlich. Schnellerstraße 1-5, 12439 Berlin contact@9immy.com Website Name * E-Mail * Telefon (o",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "59d5a4fb1271b3107b59d7f2a826cfc5070e2f20d8732582680792bc1c89cc14",
+          "source_kind": "official_site",
+          "source_url": "https://9immy.com/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-98db957bd1f191c8",
+          "excerpt": "ist innerhalb von 24 Stunden. Keine Zahlung, unverbindlich. Schnellerstraße 1-5, 12439 Berlin contact@9immy.com Website Name * E-Mail * Telefon (o",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "59d5a4fb1271b3107b59d7f2a826cfc5070e2f20d8732582680792bc1c89cc14",
+          "source_kind": "official_site",
+          "source_url": "https://9immy.com/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c5758311db890109",
+          "excerpt": "ist innerhalb von 24 Stunden. Keine Zahlung, unverbindlich. Schnellerstraße 1-5, 12439 Berlin contact@9immy.com Website Name * E-Mail * Telefon (o",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "59d5a4fb1271b3107b59d7f2a826cfc5070e2f20d8732582680792bc1c89cc14",
+          "source_kind": "official_site",
+          "source_url": "https://9immy.com/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-418f623af291c52e",
+          "excerpt": " Tonstudio Berlin | 9IMMY – Artist, Producer & Vocal Coach 9immy Home Musik Referenzen Studio / Über mich Leistungen Recording Mixing Mastering Kurse Preise Kontakt",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "59d5a4fb1271b3107b59d7f2a826cfc5070e2f20d8732582680792bc1c89cc14",
+          "source_kind": "official_site",
+          "source_url": "https://9immy.com/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5b7d90e62bc57d41",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T22:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "59d5a4fb1271b3107b59d7f2a826cfc5070e2f20d8732582680792bc1c89cc14",
+          "source_kind": "official_site",
+          "source_url": "https://9immy.com/de/",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "9roove.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "9roove.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "f66bb06b-719b-5e21-8871-65b0da3e0fc8",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "2db3b167-487b-54d2-af35-6b7e179a973c",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "ccf6cc1f7dd6175088b7e011a35245d7668a0492869156c32595ac391c33c6cd",
+          "text_digest_sha256": "ccf6cc1f7dd6175088b7e011a35245d7668a0492869156c32595ac391c33c6cd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "99b70aa7-7d58-5598-8807-b87bf458305b",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "ccf6cc1f7dd6175088b7e011a35245d7668a0492869156c32595ac391c33c6cd",
+          "text_digest_sha256": "ccf6cc1f7dd6175088b7e011a35245d7668a0492869156c32595ac391c33c6cd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:10:00Z",
+          "decision": "approved",
+          "kind": "identity",
+          "locale": null,
+          "note": "identity decision create_new_pending_review",
+          "review_id": "06013049-0892-596f-aa65-1160171616f8",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "ccf6cc1f7dd6175088b7e011a35245d7668a0492869156c32595ac391c33c6cd",
+          "text_digest_sha256": "ccf6cc1f7dd6175088b7e011a35245d7668a0492869156c32595ac391c33c6cd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T22:15:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "75ce8062-4d26-5975-bebc-3911ae87972e",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "df9d6d1b1f6ebfd87c8b5b9d88813d4b17fa425f2b24aae49f16e5de1ffbd485"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-418f623af291c52e"
+          ],
+          "source_text": " Tonstudio Berlin | 9IMMY – Artist, Producer & Vocal Coach 9immy Home Musik Referenzen Studio / Über mich Leistungen Recording Mixing Mastering Kurse Preise Kontakt"
+        }
+      ],
+      "source_original_name": "Tonstudio 9Roove",
       "subject_match": {
         "decision": "create_new_pending_review",
         "listing_id": null,

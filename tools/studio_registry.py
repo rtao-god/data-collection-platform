@@ -208,8 +208,11 @@ def derive_registry_id(kind: str, value: str) -> str:
     return str(uuid.uuid5(REGISTRY_ID_NAMESPACE, registry_identity_key(kind, value)))
 
 
-def derive_evidence_id(source_url: str, digest: str, field_path: str) -> str:
-    material = f"{source_url}\n{digest}\n{field_path}".encode()
+def derive_evidence_id(
+    source_url: str, digest: str, field_path: str, owner_id: str = ""
+) -> str:
+    """Evidence ids are unique per owner: two records may cite the same page."""
+    material = f"{owner_id}\n{source_url}\n{digest}\n{field_path}".encode()
     return "ev-" + hashlib.sha256(material).hexdigest()[:16]
 
 
@@ -1468,9 +1471,10 @@ def _evidence_entry(
     usage_policy: str = "facts_only",
     source_kind: str = "official_site",
     external_id: str | None = None,
+    owner_id: str = "",
 ) -> dict[str, Any]:
     return {
-        "evidence_id": derive_evidence_id(source_url, digest, field_path),
+        "evidence_id": derive_evidence_id(source_url, digest, field_path, owner_id),
         "field_path": field_path,
         "source_kind": source_kind,
         "source_url": source_url,
@@ -1486,6 +1490,7 @@ def _evidence_entry(
 
 def _lead_evidence(
     lead: Mapping[str, Any],
+    owner_id: str = "",
 ) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
     evidence: list[dict[str, Any]] = []
     role_refs: dict[str, list[str]] = {}
@@ -1515,6 +1520,7 @@ def _lead_evidence(
                 digest=digest,
                 observed_at=observed_at,
                 excerpt=excerpt,
+                owner_id=owner_id,
             )
             evidence.append(entry)
             role_refs.setdefault(role or "unknown", []).append(entry["evidence_id"])
@@ -1629,7 +1635,7 @@ def lead_to_record(lead: Mapping[str, Any], batch: str) -> dict[str, Any] | None
     if not (isinstance(registry_id, str) and _is_uuid(registry_id)):
         registry_id = derive_registry_id("official_domain", domain)
 
-    evidence, _role_refs = _lead_evidence(lead)
+    evidence, _role_refs = _lead_evidence(lead, registry_id)
     claims, restrictions = _lead_claims(lead, evidence)
 
     robots = lead.get("robots") or {}
@@ -1646,6 +1652,7 @@ def lead_to_record(lead: Mapping[str, Any], batch: str) -> dict[str, Any] | None
                 digest=robots["sha256"],
                 observed_at=(evidence[0]["observed_at_utc"] if evidence else now_utc()),
                 excerpt=robots_excerpt,
+                owner_id=registry_id,
             )
         )
 

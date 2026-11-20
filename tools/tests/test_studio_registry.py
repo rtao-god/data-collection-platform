@@ -571,3 +571,49 @@ def test_merge_drops_a_stale_taxonomy_blocker_once_the_service_is_classified() -
         entry["code"] == "catalog_category_missing"
         for entry in merged["restrictions"]["conflicting"]
     )
+
+
+def _shared_page_lead(domain: str) -> dict:
+    return {
+        "canonical_name": "Shared Page Studio",
+        "domain": domain,
+        "street": "Example Str. 3",
+        "plz": "10963",
+        "bezirk": "friedrichshain-kreuzberg",
+        "bezirk_basis": "postal_code",
+        "categories": ["recording-studio"],
+        "service": "Aufnahme im Studio.",
+        "evidence": [
+            {
+                "role": "address",
+                "url": "https://directory.example/studios/",
+                "sha256": "f" * 64,
+                "observed_at_utc": "2026-11-20T20:00:00Z",
+                "excerpt": "Shared Page Studio, Example Str. 3, 10963 Berlin",
+            },
+            {
+                "role": "service",
+                "url": "https://directory.example/studios/",
+                "sha256": "f" * 64,
+                "observed_at_utc": "2026-11-20T20:00:00Z",
+                "excerpt": "Aufnahme, Mixing und Mastering im Studio.",
+            },
+        ],
+    }
+
+
+def test_two_records_citing_one_page_get_distinct_evidence_ids() -> None:
+    """Registry validity requires document-wide evidence ids, so the owner is part of the id."""
+    first = sr.lead_to_record(_shared_page_lead("first-studio.de"), "tests")
+    second = sr.lead_to_record(_shared_page_lead("second-studio.de"), "tests")
+    assert first is not None and second is not None
+    first_ids = {entry["evidence_id"] for entry in first["field_evidence"]}
+    second_ids = {entry["evidence_id"] for entry in second["field_evidence"]}
+    assert first_ids and second_ids
+    assert not first_ids & second_ids
+    document = {
+        "schema_revision": sr.SCHEMA_REVISION,
+        "campaign_key": sr.CAMPAIGN_KEY,
+        "records": [first, second],
+    }
+    assert sr.validate_registry(document) == []
