@@ -72,6 +72,7 @@ from collection_contracts.manual_record_lineage import (
     decode_manual_record_lineage,
 )
 from collection_contracts.observations import (
+    MAX_EXTRACTED_TEXT_BLOCKS,
     BooleanObservationValue,
     BooleanPatternRule,
     EmailObservationValue,
@@ -206,6 +207,7 @@ from collection_contracts.wikidata_entity_result import (
 )
 
 __all__ = [
+    "MAX_EXTRACTED_TEXT_BLOCKS",
     "QUALITY_PROFILE_SCHEMA_REVISION",
     "WIKIDATA_QUERY_SPEC_CONTRACT",
     "WIKIDATA_RESULT_CONTRACT",

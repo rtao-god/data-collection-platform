@@ -13,6 +13,7 @@ from lxml import etree, html
 from lxml.html import HtmlElement
 
 from collection_contracts import (
+    MAX_EXTRACTED_TEXT_BLOCKS,
     EvidenceLocatorKind,
     EvidenceReference,
     EvidenceTextBlock,
@@ -145,6 +146,22 @@ class _Accumulator:
     def add_text_block(self, element: HtmlElement, text: str, *, locator: str) -> None:
         normalized = _bounded_text(text, self.request.maximum_evidence_chars)
         if not normalized:
+            return
+        if len(self.text_blocks) >= MAX_EXTRACTED_TEXT_BLOCKS:
+            # The output contract bounds the evidence sample, so a larger page keeps its
+            # first blocks in document order and states the cut instead of failing sealing.
+            if not any(
+                issue.code == "EXTRACTION_TEXT_BLOCKS_TRUNCATED" for issue in self.issues
+            ):
+                self.issues.append(
+                    ExtractionIssue(
+                        code="EXTRACTION_TEXT_BLOCKS_TRUNCATED",
+                        message=(
+                            "The page holds more text blocks than the extraction contract "
+                            f"allows ({MAX_EXTRACTED_TEXT_BLOCKS}); later blocks are omitted."
+                        ),
+                    )
+                )
             return
         identity = (locator, _digest_text(normalized))
         if identity in self._text_identities:
