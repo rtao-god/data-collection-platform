@@ -12450,6 +12450,219 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "operator_reviewed",
+        "district_key": "steglitz-zehlendorf",
+        "postal_code": "14167",
+        "street": "Hammerstr. 17 D",
+        "street_number": null
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "uniSono Records",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch9-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-997061623ef63e41",
+          "excerpt": "ktionen Referenzen Presse Info Shop Kontakt uniSono-Records Inh. Patrick Römer Hammerstr. 17 D- 14167 Berlin info@unisono-records.de Tel. +49 (0)30 817 42 44 Fax",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ff1c5b57fcebb2fa0c7ec759d11799775230bf6b188a6e31419018d9f15042b9",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c6f98b1d145a98f2",
+          "excerpt": "ktionen Referenzen Presse Info Shop Kontakt uniSono-Records Inh. Patrick Römer Hammerstr. 17 D- 14167 Berlin info@unisono-records.de Tel. +49 (0)30 817 42 44 Fax",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ff1c5b57fcebb2fa0c7ec759d11799775230bf6b188a6e31419018d9f15042b9",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-2f8281ef28a5369b",
+          "excerpt": "ktionen Referenzen Presse Info Shop Kontakt uniSono-Records Inh. Patrick Römer Hammerstr. 17 D- 14167 Berlin info@unisono-records.de Tel. +49 (0)30 817 42 44 Fax",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ff1c5b57fcebb2fa0c7ec759d11799775230bf6b188a6e31419018d9f15042b9",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1e76cc878860af3d",
+          "excerpt": " uniSono-Records – Musiklabel | Tonstudio | Produktion Toggle navigation Produktionen Referenzen Presse Info Shop Kontakt uniSono-Records Musiklabel | Tonstudio | Produktion Toggle navigation Pro",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "d794148b12573028aabb068bd8729296b91a22073c7771872eafd8ab80e7e287",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-aa60c798860c6501",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "65c5b6b28b45da67b2c4cccc31553a5360f65aa2dff59c7ed1693ef2efcc63cf",
+          "source_kind": "official_site",
+          "source_url": "https://unisono-records.de/",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "unisono-records.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "unisono-records.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "b48e71bb-2d57-5e9d-b753-1a0345e8cc1a",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "0846a1ec-4b48-5228-9bc7-8aca0e5408f8",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "0b966f44-33c9-5187-bd45-a38ad478d721",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b",
+          "text_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "b5e6df03-3ce3-5706-99b4-be40dd4ee164",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b",
+          "text_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-1e76cc878860af3d"
+          ],
+          "source_text": " uniSono-Records – Musiklabel | Tonstudio | Produktion Toggle navigation Produktionen Referenzen Presse Info Shop Kontakt uniSono-Records Musiklabel | Tonstudio | Produktion Toggle navigation Pro"
+        }
+      ],
+      "source_original_name": "uniSono Records",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
         "district_key": "treptow-koepenick",
         "postal_code": "12435",
         "street": "Bouchéstr.",
@@ -14928,6 +15141,219 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "operator_reviewed",
+        "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10961",
+        "street": "Gneisenaustr.",
+        "street_number": "65"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Blackwood Audio",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch9-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-e9b4c1c12aeb0ea2",
+          "excerpt": "ct Verantwortlich für den Inhalt dieser Webseite: BLACKWOOD AUDIO Kai Mäder Gneisenaustr. 65 10961 Berlin [email protected] www.blackwoodmusic.de Tel.: 0176/4",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c5e0991d655df887f64054be7146914396e656be7d578ecb377dc00de10f1fd5",
+          "source_kind": "official_site",
+          "source_url": "https://www.kaimaeder.de/about/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-9fb2897f0380e76c",
+          "excerpt": "ct Verantwortlich für den Inhalt dieser Webseite: BLACKWOOD AUDIO Kai Mäder Gneisenaustr. 65 10961 Berlin [email protected] www.blackwoodmusic.de Tel.: 0176/4",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c5e0991d655df887f64054be7146914396e656be7d578ecb377dc00de10f1fd5",
+          "source_kind": "official_site",
+          "source_url": "https://www.kaimaeder.de/about/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-16e0aca0d3db2988",
+          "excerpt": "ct Verantwortlich für den Inhalt dieser Webseite: BLACKWOOD AUDIO Kai Mäder Gneisenaustr. 65 10961 Berlin [email protected] www.blackwoodmusic.de Tel.: 0176/4",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c5e0991d655df887f64054be7146914396e656be7d578ecb377dc00de10f1fd5",
+          "source_kind": "official_site",
+          "source_url": "https://www.kaimaeder.de/about/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-d1857471a293bb14",
+          "excerpt": "heater, theater, trade shows, video, light and more. www.kaimaeder.de Kai Mäder Studio & Acoustic Design Contact Kai Mäder Studio & Acoustic Design Contact Kai Mäder Broadcast | Konzert | Live Sound | Mix | Musical | Musiktheater | Oper | P",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "16e4542f7473c9252cba99f020c6e784eda40d6b38dc0f8f4afe36790f30fc38",
+          "source_kind": "official_site",
+          "source_url": "https://www.kaimaeder.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5099a268c2ef90ff",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "f9519da748c54ebc152700c22097aa42dded698eead556dd9c3da8d0d779d41a",
+          "source_kind": "official_site",
+          "source_url": "https://blackwoodmusic.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "blackwoodmusic.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "blackwoodmusic.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "d5fb1e30-38f9-5907-b1ad-78b63822e2f5",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "bf150b21-7f28-5dc7-bc69-06fa922da210",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "e87a47b3-8569-5927-91d3-ce6b91cc4dd0",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c",
+          "text_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "90955b4b-1aff-5ca3-9b9c-4302eae7e505",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c",
+          "text_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-d1857471a293bb14"
+          ],
+          "source_text": "heater, theater, trade shows, video, light and more. www.kaimaeder.de Kai Mäder Studio & Acoustic Design Contact Kai Mäder Studio & Acoustic Design Contact Kai Mäder Broadcast | Konzert | Live Sound | Mix | Musical | Musiktheater | Oper | P"
+        }
+      ],
+      "source_original_name": "Blackwood Audio",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
         "district_key": "mitte",
         "postal_code": "10178",
         "street": "Oranienburgerstr.",
@@ -16434,6 +16860,200 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "operator reviewed the candidate: official domain and street address identify one Berlin studio with no existing Catalog listing",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
+        "district_key": "tempelhof-schoenberg",
+        "postal_code": "10829",
+        "street": "Gotenstr.",
+        "street_number": "10"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "soundtrax",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch9-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-2933841ad6dc47cf",
+          "excerpt": " soundtrax, Berlin info (at) soundtrax.de contact soundtrax Andre Abshagen Gotenstr. 10 10829 Berlin Germany phone: +49 30 20 66 21 97 email: info(at)sou",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "662c43dbc653209377668d09ff2669a0e7e84e972378dffa1bf12de0addf4e42",
+          "source_kind": "official_site",
+          "source_url": "https://soundtrax.de/contact.html",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-44d40f86261b70df",
+          "excerpt": " soundtrax, Berlin info (at) soundtrax.de contact soundtrax Andre Abshagen Gotenstr. 10 10829 Berlin Germany phone: +49 30 20 66 21 97 email: info(at)sou",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "662c43dbc653209377668d09ff2669a0e7e84e972378dffa1bf12de0addf4e42",
+          "source_kind": "official_site",
+          "source_url": "https://soundtrax.de/contact.html",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f29204138d6ad6da",
+          "excerpt": " soundtrax, Berlin info (at) soundtrax.de contact soundtrax Andre Abshagen Gotenstr. 10 10829 Berlin Germany phone: +49 30 20 66 21 97 email: info(at)sou",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "662c43dbc653209377668d09ff2669a0e7e84e972378dffa1bf12de0addf4e42",
+          "source_kind": "official_site",
+          "source_url": "https://soundtrax.de/contact.html",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-969c139a688192c8",
+          "excerpt": "uch Gelesen von Andreas Fröhlich der Hörverlag 2025 Credits: Voice Recordings @ Studio Wort/Berlin HAN KANG UNMÖGLICHER ABSCHIED Hörbuch Gelesen von Rike Schmied Finch & Zebra 2025 Credits: Voice Recordings @ Studio Wort/Berlin DIE TRIBUTE ",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T14:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9a35e1db0c6e37f585f47ca087d89a8cbeb683e4299dead63b0df91e2796c2a4",
+          "source_kind": "official_site",
+          "source_url": "https://soundtrax.de/",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "soundtrax.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "soundtrax.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "ef3d546a-e3fb-5359-a76a-326a9db24fde",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "fed0d997-eb0c-5c68-aedf-487240d77dbd",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "06291255-91d0-5185-9850-f1e1231ac2e9",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220",
+          "text_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T14:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "ad1c9596-5ef2-56dd-bf4b-3f96ccdc993b",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220",
+          "text_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-969c139a688192c8"
+          ],
+          "source_text": "uch Gelesen von Andreas Fröhlich der Hörverlag 2025 Credits: Voice Recordings @ Studio Wort/Berlin HAN KANG UNMÖGLICHER ABSCHIED Hörbuch Gelesen von Rike Schmied Finch & Zebra 2025 Credits: Voice Recordings @ Studio Wort/Berlin DIE TRIBUTE "
+        }
+      ],
+      "source_original_name": "soundtrax",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
         "subject_id": null
       }
     },
