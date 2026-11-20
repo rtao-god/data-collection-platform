@@ -6,7 +6,7 @@ from hashlib import sha256
 
 import pytest
 
-from collection_contracts import ExtractionRequest
+from collection_contracts import MAX_EXTRACTED_TEXT_BLOCKS, ExtractionRequest
 from extraction_core import ExtractionError, extract_html_document
 
 _HTML = b"""<!doctype html>
@@ -139,3 +139,26 @@ def test_rejects_document_over_request_limit() -> None:
         extract_html_document(content, request, metadata_extractor=_Metadata())
 
     assert failure.value.code == "EXTRACTION_DOCUMENT_TOO_LARGE"
+
+
+def test_a_page_with_more_text_blocks_than_the_contract_holds_stays_sealable() -> None:
+    paragraphs = "".join(f"<p>Absatz {index} des Studios.</p>" for index in range(700))
+    content = (
+        "<!doctype html><html lang='de'><head><title>Example Studio</title></head>"
+        f"<body><h1>Example Studio</h1>{paragraphs}</body></html>"
+    ).encode()
+    request = _request().model_copy(
+        update={
+            "raw_artifact_digest": f"sha256:{sha256(content).hexdigest()}",
+            "maximum_document_bytes": len(content) + 1024,
+        }
+    )
+
+    record = extract_html_document(content, request, metadata_extractor=_Metadata())
+
+    assert len(record.text_blocks) == MAX_EXTRACTED_TEXT_BLOCKS
+    truncated = [
+        issue for issue in record.issues if issue.code == "EXTRACTION_TEXT_BLOCKS_TRUNCATED"
+    ]
+    assert len(truncated) == 1
+    assert str(MAX_EXTRACTED_TEXT_BLOCKS) in truncated[0].message
