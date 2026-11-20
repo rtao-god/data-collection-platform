@@ -66,7 +66,13 @@ SUBJECT_MATCH_DECISIONS = (
     "rejected",
 )
 MARKET_CLASSIFICATIONS = ("primary_market", "nearby_market", "out_of_market")
-DISTRICT_BASES = ("observed_source", "operator_reviewed", "postal_code", "unknown")
+DISTRICT_BASES = (
+    "address_source_verified",
+    "observed_source",
+    "operator_reviewed",
+    "postal_code",
+    "unknown",
+)
 DESCRIPTION_STATES = ("missing", "draft", "approved")
 DESCRIPTION_ORIGINS = ("editorial", "argos_draft", "owner_submission", "imported")
 REVIEW_DECISIONS = ("approved", "rejected")
@@ -1480,6 +1486,7 @@ def _evidence_entry(
     source_kind: str = "official_site",
     external_id: str | None = None,
     owner_id: str = "",
+    policy_decision: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "evidence_id": derive_evidence_id(source_url, digest, field_path, owner_id),
@@ -1491,7 +1498,7 @@ def _evidence_entry(
         "response_digest_sha256": digest,
         "excerpt": excerpt[:400],
         "usage_policy": usage_policy,
-        "policy_decision": None,
+        "policy_decision": dict(policy_decision) if policy_decision else None,
         "attribution": None,
     }
 
@@ -2182,6 +2189,38 @@ def _record_digest(record: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+_BEZIRK_TRANSLITERATION = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
+
+
+def _normalize_bezirk(value: Any) -> str:
+    """Bezirk spellings differ (umlauts, spaces, "Berlin-" prefix); compare by canonical key."""
+    text = str(value or "").strip().lower()
+    for source, target in _BEZIRK_TRANSLITERATION.items():
+        text = text.replace(source, target)
+    text = re.sub(r"^berlin[\s-]+", "", text)
+    return re.sub(r"[\s_]+", "-", text)
+
+
+def _district_evidence_matches(
+    address: Mapping[str, Any], evidence: Mapping[str, Any] | None
+) -> bool:
+    """A district confirmation needs evidence that names the same Bezirk it would certify."""
+    if not isinstance(evidence, Mapping):
+        return False
+    required = ("source_url", "sha256", "observed_at_utc", "method", "boundary_contract", "boundary_digest", "bezirk", "excerpt")
+    if any(not evidence.get(field) for field in required):
+        return False
+    if not is_http_url(str(evidence["source_url"])):
+        return False
+    if not HEX64_RE.match(str(evidence["sha256"])):
+        return False
+    if parse_utc(str(evidence["observed_at_utc"])) is None:
+        return False
+    if _normalize_bezirk(evidence["bezirk"]) != _normalize_bezirk(address.get("district_key")):
+        return False
+    return True
+
+
 def apply_decisions(
     document: dict[str, Any],
     *,
@@ -2192,6 +2231,8 @@ def apply_decisions(
     confirm_market: bool,
     identity_decision: str | None,
     registry_ids: Sequence[str] | None = None,
+    district_evidence: Mapping[str, Mapping[str, Any]] | None = None,
+    district_policy_digest: str | None = None,
 ) -> dict[str, int]:
     """Record operator decisions on already reviewed records.
 
@@ -2202,7 +2243,7 @@ def apply_decisions(
     if identity_decision is not None and identity_decision not in DECIDED_IDENTITY_ACTIONS:
         raise ValueError(f"unsupported identity decision: {identity_decision}")
     wanted = set(registry_ids) if registry_ids else None
-    counts = {"policy": 0, "district": 0, "market": 0, "identity": 0}
+    counts = {"policy": 0, "district": 0, "district_refused": 0, "market": 0, "identity": 0}
     for record in document.get("records") or []:
         if wanted is not None and record.get("registry_id") not in wanted:
             continue
@@ -2239,19 +2280,46 @@ def apply_decisions(
 
         address = record.get("address") or {}
         if confirm_district and address.get("district_basis") == "postal_code":
-            address["district_basis"] = "operator_reviewed"
-            _clear_review_restriction(record, "district_derivation_unconfirmed")
-            _append_review(
-                record,
-                kind="fact",
-                decision="approved",
-                actor_id=reviewer,
-                decided_at_utc=decided_at_utc,
-                text_digest=digest,
-                source_digest=digest,
-                note="operator confirmed the postal-code derived district_key",
-            )
-            counts["district"] += 1
+            evidence = (district_evidence or {}).get(record.get("registry_id") or "")
+            if not _district_evidence_matches(address, evidence):
+                counts["district_refused"] += 1
+            else:
+                observed_at = evidence["observed_at_utc"]
+                entry = _evidence_entry(
+                    field_path="address.district_key",
+                    source_url=evidence["source_url"],
+                    digest=evidence["sha256"],
+                    observed_at=observed_at,
+                    excerpt=evidence["excerpt"],
+                    owner_id=record["registry_id"],
+                    policy_decision={
+                        "decision": "approved",
+                        "reviewer": reviewer,
+                        "decided_at_utc": decided_at_utc,
+                        "scope": "official_site facts_only",
+                        "policy_digest_sha256": district_policy_digest,
+                    },
+                )
+                record.setdefault("field_evidence", []).append(entry)
+                address["district_basis"] = "address_source_verified"
+                _clear_review_restriction(record, "district_derivation_unconfirmed")
+                _append_review(
+                    record,
+                    kind="fact",
+                    decision="approved",
+                    actor_id=reviewer,
+                    decided_at_utc=decided_at_utc,
+                    text_digest=hashlib.sha256(
+                        canonical_json(evidence).encode("utf-8")
+                    ).hexdigest(),
+                    source_digest=evidence["sha256"],
+                    note=(
+                        "district_key verified against an address source: "
+                        f"{evidence['source_url']} method={evidence['method']} "
+                        f"boundary={evidence['boundary_contract']}@{evidence['boundary_digest']}"
+                    ),
+                )
+                counts["district"] += 1
 
         if confirm_market:
             restrictions = (record.get("restrictions") or {}).get("conflicting") or []
@@ -2304,6 +2372,7 @@ def decide(
     identity_decision: str | None,
     registry_ids: Sequence[str] | None,
     dry_run: bool,
+    district_evidence_path: Path | None = None,
 ) -> int:
     if parse_utc(decided_at_utc) is None:
         print("decided_at_utc must use YYYY-MM-DDTHH:MM:SSZ", file=sys.stderr)
@@ -2316,6 +2385,25 @@ def decide(
         policy_digest = hashlib.sha256(policy_path.read_bytes()).hexdigest()
 
     document = read_json(registry_path)
+    district_evidence = None
+    district_policy_digest = None
+    if district_evidence_path is not None:
+        if not district_evidence_path.is_file():
+            print(f"district evidence file not found: {district_evidence_path}", file=sys.stderr)
+            return 2
+        payload = json.loads(district_evidence_path.read_text(encoding="utf-8"))
+        district_evidence = payload.get("records") if isinstance(payload, dict) else None
+        if not isinstance(district_evidence, dict):
+            print("district evidence must be an object with a records map", file=sys.stderr)
+            return 2
+        district_policy_digest = hashlib.sha256(district_evidence_path.read_bytes()).hexdigest()
+    if confirm_district and district_evidence is None:
+        print(
+            "refused: --confirm-district needs --district-evidence; a postal code is not a Bezirk",
+            file=sys.stderr,
+        )
+        return 2
+
     counts = apply_decisions(
         document,
         policy_digest=policy_digest,
@@ -2325,6 +2413,8 @@ def decide(
         confirm_market=confirm_market,
         identity_decision=identity_decision,
         registry_ids=registry_ids,
+        district_evidence=district_evidence,
+        district_policy_digest=district_policy_digest,
     )
     problems = validate_registry(document)
     if problems:
@@ -2332,7 +2422,8 @@ def decide(
             print(f"{problem.code} {problem.path}: {problem.message}", file=sys.stderr)
         return 1
     print(
-        "decisions policy={policy} district={district} market={market} identity={identity}".format(
+        "decisions policy={policy} district={district} district_refused={district_refused} "
+        "market={market} identity={identity}".format(
             **counts
         )
     )
@@ -2378,6 +2469,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     decide_parser.add_argument("--reviewer", required=True)
     decide_parser.add_argument("--decided-at-utc", required=True)
     decide_parser.add_argument("--confirm-district", action="store_true")
+    decide_parser.add_argument("--district-evidence", type=Path, default=None)
     decide_parser.add_argument("--confirm-market", action="store_true")
     decide_parser.add_argument("--identity", choices=DECIDED_IDENTITY_ACTIONS)
     decide_parser.add_argument("--registry-id", action="append")
@@ -2399,6 +2491,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             reviewer=args.reviewer,
             decided_at_utc=args.decided_at_utc,
             confirm_district=args.confirm_district,
+            district_evidence_path=args.district_evidence,
             confirm_market=args.confirm_market,
             identity_decision=args.identity,
             registry_ids=args.registry_id,

@@ -636,3 +636,121 @@ def test_www_and_bare_host_share_one_identity_and_one_record(tmp_path: Path) -> 
     assert len(document["records"]) == 1
     stored = document["records"][0]["official_domains"]["primary"]
     assert stored == plain["domain"]
+
+
+def _registry_with_postal_code_district(tmp_path: Path) -> Path:
+    registry = tmp_path / "studios.json"
+    registry.write_text(
+        json.dumps(
+            {"schema_revision": sr.SCHEMA_REVISION, "campaign_key": sr.CAMPAIGN_KEY, "records": []}
+        ),
+        encoding="utf-8",
+    )
+    sr.import_leads(registry, [_shared_page_lead("shared-host.de")], "tests", dry_run=False)
+    return registry
+
+
+def _district_evidence_file(tmp_path: Path, registry_id: str, bezirk: str = "Friedrichshain-Kreuzberg") -> Path:
+    path = tmp_path / "district-evidence.json"
+    path.write_text(
+        json.dumps(
+            {
+                "records": {
+                    registry_id: {
+                        "bezirk": bezirk,
+                        "source_url": "https://www.berlin.de/ba-friedrichshain-kreuzberg/",
+                        "sha256": "c" * 64,
+                        "observed_at_utc": "2026-11-20T20:00:00Z",
+                        "method": "official_address_source",
+                        "boundary_contract": "campaign-geography-provenance-v1",
+                        "boundary_digest": "sha256:" + "d" * 64,
+                        "excerpt": "Example Str. 3, 10963 Berlin, Bezirk Friedrichshain-Kreuzberg",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_confirm_district_requires_evidence_and_refuses_a_bare_flag(tmp_path: Path) -> None:
+    registry = _registry_with_postal_code_district(tmp_path)
+    result = sr.decide(
+        registry,
+        policy_path=None,
+        reviewer="tester",
+        decided_at_utc="2026-11-20T20:10:00Z",
+        confirm_district=True,
+        confirm_market=False,
+        identity_decision=None,
+        registry_ids=None,
+        dry_run=False,
+    )
+    assert result == 2
+    record = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    assert record["address"]["district_basis"] == "postal_code"
+    assert any(
+        entry["code"] == "district_derivation_unconfirmed"
+        for entry in record["restrictions"].get("conflicting", [])
+    )
+    assert not sr.publication_blockers(record) == []
+
+
+def test_district_evidence_verifies_the_bezirk_and_records_its_provenance(tmp_path: Path) -> None:
+    registry = _registry_with_postal_code_district(tmp_path)
+    record = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    evidence = _district_evidence_file(tmp_path, record["registry_id"])
+    result = sr.decide(
+        registry,
+        policy_path=None,
+        reviewer="tester",
+        decided_at_utc="2026-11-20T20:10:00Z",
+        confirm_district=True,
+        confirm_market=False,
+        identity_decision=None,
+        registry_ids=None,
+        dry_run=False,
+        district_evidence_path=evidence,
+    )
+    assert result == 0
+    stored = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    assert stored["address"]["district_basis"] == "address_source_verified"
+    review = [entry for entry in stored["reviews"] if entry["kind"] == "fact"][-1]
+    assert "official_address_source" in review["note"]
+    assert "sha256:" + "d" * 64 in review["note"]
+    assert review["source_evidence_digest_sha256"] == "c" * 64
+    assert any(
+        entry["field_path"] == "address.district_key" and entry["source_url"].endswith("/ba-friedrichshain-kreuzberg/")
+        for entry in stored["field_evidence"]
+    )
+    assert not any(
+        entry["code"] == "district_derivation_unconfirmed"
+        for entry in stored["restrictions"].get("conflicting", [])
+    )
+    assert "district_derivation_not_confirmed" not in sr.publication_blockers(stored)
+
+
+def test_district_evidence_for_another_bezirk_is_refused(tmp_path: Path) -> None:
+    registry = _registry_with_postal_code_district(tmp_path)
+    record = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    evidence = _district_evidence_file(tmp_path, record["registry_id"], bezirk="Pankow")
+    result = sr.decide(
+        registry,
+        policy_path=None,
+        reviewer="tester",
+        decided_at_utc="2026-11-20T20:10:00Z",
+        confirm_district=True,
+        confirm_market=False,
+        identity_decision=None,
+        registry_ids=None,
+        dry_run=False,
+        district_evidence_path=evidence,
+    )
+    assert result == 0
+    stored = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    assert stored["address"]["district_basis"] == "postal_code"
+    assert any(
+        entry["code"] == "district_derivation_unconfirmed"
+        for entry in stored["restrictions"].get("conflicting", [])
+    )

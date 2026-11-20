@@ -6,7 +6,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10969",
         "street": "Prinzessinnenstrasse",
@@ -230,6 +230,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -283,6 +288,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "1aa00a358bf4d23395a98fb2242ecbed3238856973f3bed11c4d3fe428ad9b48"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "a3d4fafe-1835-5627-ab07-f8146d99a825",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "809cb7596991aa0c4b2f651b6f6484064dd498c8181d53448b61704ac8ea8d63",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -321,7 +338,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Waldemarstraße",
@@ -469,6 +486,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -522,6 +544,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "2a8cca16f6ee70840dc2bf44176ba4b86ac6be4df9344f832783651e10ad16c2",
           "text_digest_sha256": "2a8cca16f6ee70840dc2bf44176ba4b86ac6be4df9344f832783651e10ad16c2"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "8be76184-0bbc-56ff-a8a2-984f47e80ee2",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "2a8cca16f6ee70840dc2bf44176ba4b86ac6be4df9344f832783651e10ad16c2",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -546,7 +580,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Paul-Lincke-Ufer",
@@ -675,6 +709,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -716,6 +755,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "240f263a6eae0ab654efb4ef696d594b618fdbdb0952583f9f6888c898bea28e",
           "text_digest_sha256": "240f263a6eae0ab654efb4ef696d594b618fdbdb0952583f9f6888c898bea28e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "1f5e9f00-e461-555e-8809-58a971620e25",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "240f263a6eae0ab654efb4ef696d594b618fdbdb0952583f9f6888c898bea28e",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -740,7 +791,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "tempelhof-schoenberg",
         "postal_code": "12247",
         "street": "Wiesenweg",
@@ -888,6 +939,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -941,6 +997,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "11d08823b03b3c7db8219bde2d458d458a3481a46de22144c9d6cc3c92fee387",
           "text_digest_sha256": "11d08823b03b3c7db8219bde2d458d458a3481a46de22144c9d6cc3c92fee387"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "a012db35-d103-5bee-8711-c0fa02c91101",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "11d08823b03b3c7db8219bde2d458d458a3481a46de22144c9d6cc3c92fee387",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -972,7 +1040,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10963",
         "street": "Köthener Str.",
@@ -1239,6 +1307,11 @@
             "code": "evidence_digest_changed",
             "detail": "new digest for https://hansastudios.de/contact/ on address.district_key",
             "severity": "review"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -1280,6 +1353,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "24afb3781a336ffe67a435547bed7709cb7abdac5cc78358ce1a60bbe1753502",
           "text_digest_sha256": "24afb3781a336ffe67a435547bed7709cb7abdac5cc78358ce1a60bbe1753502"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "7c5b8a1e-c788-598b-95c5-a64b6710e790",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "24afb3781a336ffe67a435547bed7709cb7abdac5cc78358ce1a60bbe1753502",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -1311,7 +1396,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "14167",
         "street": "Goerzallee",
@@ -1651,6 +1736,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -1716,6 +1806,18 @@
           "sequence": 5,
           "source_evidence_digest_sha256": "d9f4fcd502b28306b16874521606d76f9b6118413df4664efec42c79b3e6ef1c",
           "text_digest_sha256": "8efa5fcbccebfd1d74ccb04800bcd6256bab5b5b3ffc218b43d1f567bf3014fe"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "bea476f7-b036-515c-8efe-d2013826015e",
+          "sequence": 6,
+          "source_evidence_digest_sha256": "f422fb5b211c8fce303c330e7be7d8ecbba070904370a58966d19e3a12f9cd2b",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -1740,7 +1842,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "13189",
         "street": "Neumannstraße",
@@ -1869,6 +1971,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -1922,6 +2029,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "058b3049a84856ae271f613a8cd6666545a810017bf30038cada0026e6e4598f"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "f9e156a7-5168-51c5-b8f6-671105b7f9f2",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "a3872db723103de98271871fb6f6c0a566479e63908f0e0f07dd2f73097e98d4",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -1960,7 +2079,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10437",
         "street": "Schliemannstr.",
@@ -2108,6 +2227,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -2149,6 +2273,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "59eb763a7b2c603a314971a9324fc0719f1a9ec17aace6cdb64397e5edd8d315",
           "text_digest_sha256": "59eb763a7b2c603a314971a9324fc0719f1a9ec17aace6cdb64397e5edd8d315"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "76b70a91-c40f-5b99-884f-270e4a6f978e",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "59eb763a7b2c603a314971a9324fc0719f1a9ec17aace6cdb64397e5edd8d315",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -2173,7 +2309,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10178",
         "street": "Mollstr.",
@@ -2321,6 +2457,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -2362,6 +2503,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "53151cab99a97c36945a611d86dab40ea4bd4e13014924d0818efa3f16ec8498",
           "text_digest_sha256": "53151cab99a97c36945a611d86dab40ea4bd4e13014924d0818efa3f16ec8498"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "0cf4391a-cc54-58da-9b73-fff69f6a71cb",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "53151cab99a97c36945a611d86dab40ea4bd4e13014924d0818efa3f16ec8498",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -2386,7 +2539,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "tempelhof-schoenberg",
         "postal_code": "12169",
         "street": "Plantagenstr.",
@@ -2534,6 +2687,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -2587,6 +2745,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "5ba35be98aaf5357271356a3bd200ae71fa46bf3b89fbeb71cd01e4e18129e81",
           "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "16dc73e8-6116-598a-9815-e5865fb11867",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "a63ce9133cadc8143d812bac9de503fe57236f0672867138621ebdd54b2c3f38",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -2611,7 +2781,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10245",
         "street": "Revaler Straße",
@@ -2759,6 +2929,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -2812,6 +2987,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "e622d8a02dc1e6d066e780256fc3b0fcdb4592198aa7084f4d1a23f5f6bc932f",
           "text_digest_sha256": "e622d8a02dc1e6d066e780256fc3b0fcdb4592198aa7084f4d1a23f5f6bc932f"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "fb713982-16d8-541e-b43f-c52a185130d0",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "e622d8a02dc1e6d066e780256fc3b0fcdb4592198aa7084f4d1a23f5f6bc932f",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -2836,7 +3023,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10963",
         "street": "Köthener Straße",
@@ -2984,6 +3171,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -3025,6 +3217,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "cc5b869670aaa9cb2466ea7e0e86e57b88d28dea618034afe1adcc30d0079f02",
           "text_digest_sha256": "cc5b869670aaa9cb2466ea7e0e86e57b88d28dea618034afe1adcc30d0079f02"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "e715c985-8ac0-5c85-8941-9f5b0a7e9da7",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "cc5b869670aaa9cb2466ea7e0e86e57b88d28dea618034afe1adcc30d0079f02",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -3049,7 +3253,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "10627",
         "street": "Kantstraße",
@@ -3273,6 +3477,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -3326,6 +3535,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "1aa104232bf927ee7ea1da8278efe298d92ade644fc6d6388010c57d97a470a6"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "f552de6f-e984-5044-b870-88645edadd5d",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "0d56bcb4c88061d82c889d6be252f7332397644f9e3915acdb1785df78f51032",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -3371,7 +3592,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "13125",
         "street": "Alt-Buch",
@@ -3600,6 +3821,11 @@
             "code": "evidence_digest_changed",
             "detail": "new digest for https://www.g7studio.de/ on service_claims",
             "severity": "review"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -3653,6 +3879,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "79aa58232848340ad2aa958ead3c62a384e605445eadbf934a457a2846463904"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "bcc5f343-7c26-53ba-b633-3534240c0f34",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "4900e0e8bf2c9e9f4215342010857de6a2898881b953190bc9681371b6dc7820",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -3698,7 +3936,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10435",
         "street": "Kastanienallee",
@@ -3846,6 +4084,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -3887,6 +4130,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "2ea15960c35eebbfd86b9361c212469c8fae07202df11e8547209c13273fdb32",
           "text_digest_sha256": "2ea15960c35eebbfd86b9361c212469c8fae07202df11e8547209c13273fdb32"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "7b5a3ab4-23a0-576e-947b-460843e55a4b",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "2ea15960c35eebbfd86b9361c212469c8fae07202df11e8547209c13273fdb32",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -3911,7 +4166,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "13125",
         "street": "Schwanebecker Chaussee",
@@ -4059,6 +4314,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -4112,6 +4372,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "349743f488b1918db8aab9cc077beafe7d8d97bc4dbd9c81cf6658923ffc91de",
           "text_digest_sha256": "349743f488b1918db8aab9cc077beafe7d8d97bc4dbd9c81cf6658923ffc91de"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "0100cc2e-dc31-5e99-9b05-0fc15ed91806",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "349743f488b1918db8aab9cc077beafe7d8d97bc4dbd9c81cf6658923ffc91de",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -4136,7 +4408,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "13086",
         "street": "Behaimstr.",
@@ -4265,6 +4537,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -4306,6 +4583,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "cfa2f02c20e1c08a0782ec02a0c2e668657c6c5406dc1db30fb4c1fb5318a4a5",
           "text_digest_sha256": "cfa2f02c20e1c08a0782ec02a0c2e668657c6c5406dc1db30fb4c1fb5318a4a5"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "aa72ea19-7513-54b2-b333-0404b67f133e",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "cfa2f02c20e1c08a0782ec02a0c2e668657c6c5406dc1db30fb4c1fb5318a4a5",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -4330,7 +4619,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10437",
         "street": "Dunckerstr.21",
@@ -4478,6 +4767,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -4531,6 +4825,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "d47b4219ee1edbd21ceba5925c6d6e03dea8ccaccededd9afb13fbd022d128fa",
           "text_digest_sha256": "d47b4219ee1edbd21ceba5925c6d6e03dea8ccaccededd9afb13fbd022d128fa"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "f823aca3-1965-5df6-b642-e42e981d6def",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "d47b4219ee1edbd21ceba5925c6d6e03dea8ccaccededd9afb13fbd022d128fa",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -4555,7 +4861,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10119",
         "street": "Max-Beer-Str.",
@@ -4703,6 +5009,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -4744,6 +5055,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "93750759053ee064cc1790f9a70ac91b182469c628f8139f4b56d367c70dc2db",
           "text_digest_sha256": "93750759053ee064cc1790f9a70ac91b182469c628f8139f4b56d367c70dc2db"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "032184eb-ab78-5ce7-9023-f92f49f1b040",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "93750759053ee064cc1790f9a70ac91b182469c628f8139f4b56d367c70dc2db",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -4768,7 +5091,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "10587",
         "street": "Salzufer",
@@ -4916,6 +5239,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -4957,6 +5285,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "f364679a142fcf51f45ea677594731653d21c52f7c151d71a02994ae33d643fd",
           "text_digest_sha256": "f364679a142fcf51f45ea677594731653d21c52f7c151d71a02994ae33d643fd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "8e19adf0-1648-56c4-8e93-30e89f21eb44",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "f364679a142fcf51f45ea677594731653d21c52f7c151d71a02994ae33d643fd",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -4981,7 +5321,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10997",
         "street": "Pfuelstraße",
@@ -5110,6 +5450,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -5163,6 +5508,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "60b406ed0c3cdb6cf7753509484c7f2ae846143d04bd21e2609ca5b1d3385e4b",
           "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "43ba9dd8-b5f6-586c-ab3e-9e45fdec9c32",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "6c8dc12054b30d16d8926bc342f45ecec620e09ca52d5cd5319a14d8845ebc26",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -5187,7 +5544,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10178",
         "street": "Weinmeisterstr.",
@@ -5335,6 +5692,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -5376,6 +5738,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "909b47bd3071db9cb35b09bd4808b6c5b37033c70f4c7e8780388fd886663118",
           "text_digest_sha256": "909b47bd3071db9cb35b09bd4808b6c5b37033c70f4c7e8780388fd886663118"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "63edd3cb-350e-5c1d-8116-b6e3217f77b4",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "909b47bd3071db9cb35b09bd4808b6c5b37033c70f4c7e8780388fd886663118",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -5400,7 +5774,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "lichtenberg",
         "postal_code": "10318",
         "street": "Treskowallee",
@@ -5548,6 +5922,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -5589,6 +5968,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "aeb804d4a07339e394d24b5ffde2fabd19704c0a3f35e26aa944145ac2e88f8a",
           "text_digest_sha256": "aeb804d4a07339e394d24b5ffde2fabd19704c0a3f35e26aa944145ac2e88f8a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "119b3a07-c027-5941-b34c-2117caa22b00",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "aeb804d4a07339e394d24b5ffde2fabd19704c0a3f35e26aa944145ac2e88f8a",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -5613,7 +6004,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "neukoelln",
         "postal_code": "12057",
         "street": "Sonnenallee",
@@ -5761,6 +6152,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -5802,6 +6198,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "dcd0d2b2df8756bafef5bcef424c6cebdb2936301123e2eefe55e3e80e85a07d",
           "text_digest_sha256": "dcd0d2b2df8756bafef5bcef424c6cebdb2936301123e2eefe55e3e80e85a07d"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "af77c85d-9583-5bf0-8cee-8169c3a4fa10",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "dcd0d2b2df8756bafef5bcef424c6cebdb2936301123e2eefe55e3e80e85a07d",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -5826,7 +6234,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "spandau",
         "postal_code": "13597",
         "street": "Am Schlangengraben",
@@ -5974,6 +6382,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -6027,6 +6440,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "c3a26a4b88a80a708274a9d7c5aa6c50d6ba3fbf99336abe8b093c5ce201fe24",
           "text_digest_sha256": "c3a26a4b88a80a708274a9d7c5aa6c50d6ba3fbf99336abe8b093c5ce201fe24"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "795590fb-68bc-55e8-9e75-b763eaad0582",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "c3a26a4b88a80a708274a9d7c5aa6c50d6ba3fbf99336abe8b093c5ce201fe24",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -6051,7 +6476,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12437",
         "street": "Ernststraße",
@@ -6256,6 +6681,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -6309,6 +6739,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "7f501df0aedd2474a3a80ac15a9018e7f4d10a473b028098992e99f14d33fc76"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "86933466-3b95-59e7-b9ed-a1fc7882995f",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "27bea1e9effb73dfe3f7dc067c53b1c7b1e56f32d9ef934c5296e1c8c5faa6c1",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -6340,7 +6782,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "tempelhof-schoenberg",
         "postal_code": "10827",
         "street": "Hauptstraße",
@@ -6488,6 +6930,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -6529,6 +6976,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "84276962e8502831dd58ee293bf9af48d08e46ce6faf710f98472a638b5964b1",
           "text_digest_sha256": "84276962e8502831dd58ee293bf9af48d08e46ce6faf710f98472a638b5964b1"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "d55b360c-08cf-519b-8c1c-c87f2a35100c",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "84276962e8502831dd58ee293bf9af48d08e46ce6faf710f98472a638b5964b1",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -6553,7 +7012,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10117",
         "street": "Oranienburger Straße",
@@ -6701,6 +7160,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -6742,6 +7206,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "c5f916a0d2a80e015897c610928fb0058b19eea6c54c4899f1b0c62461ade99c",
           "text_digest_sha256": "c5f916a0d2a80e015897c610928fb0058b19eea6c54c4899f1b0c62461ade99c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "d26021f6-d3c0-56ed-9999-da9423d6a9a4",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "c5f916a0d2a80e015897c610928fb0058b19eea6c54c4899f1b0c62461ade99c",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -6766,7 +7242,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10961",
         "street": "Solmsstrasse",
@@ -7010,6 +7486,11 @@
             "code": "evidence_digest_changed",
             "detail": "new digest for https://www.fonojet.com/ on service_claims",
             "severity": "review"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -7063,6 +7544,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "5d0c6ac8587edce19fe26cfca1b920af6280600f3510b9adb28cd1dc862299f1"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "8a03865c-4f05-55e5-9291-111bcd04234e",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "1cdcc999116a9bcd046df2cc7737dca8499ab87d1a125c1d222efba559200b36",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -7101,7 +7594,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "reinickendorf",
         "postal_code": "13509",
         "street": "Bonifaziusstraße",
@@ -7249,6 +7742,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -7302,6 +7800,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "c6a143055d99f725f80047acecefb4340a1bcca7b8e00afd28b10bea9ebcc646",
           "text_digest_sha256": "c6a143055d99f725f80047acecefb4340a1bcca7b8e00afd28b10bea9ebcc646"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "e950dc09-07ae-5a38-82fb-57bc2e66f4b2",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "c6a143055d99f725f80047acecefb4340a1bcca7b8e00afd28b10bea9ebcc646",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -7326,7 +7836,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "lichtenberg",
         "postal_code": "10317",
         "street": "Kaskelstr.",
@@ -7474,6 +7984,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -7515,6 +8030,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "087d59c48341725f1ad3185ad0a37fb2ada27775e59b22b3169c68b456ca633a",
           "text_digest_sha256": "087d59c48341725f1ad3185ad0a37fb2ada27775e59b22b3169c68b456ca633a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "4f907eb4-a813-563f-8ee8-95e9eaa2de96",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "087d59c48341725f1ad3185ad0a37fb2ada27775e59b22b3169c68b456ca633a",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -7539,7 +8066,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "14050",
         "street": "Haeselerstr.",
@@ -7668,6 +8195,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -7721,6 +8253,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "eb79416d61b1de75104f8da07c827acd5db4cc76f0b1550969818cb7e57de0cd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "0930ceca-91ae-5f4d-ae42-8414d1bb4674",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "c76a7b84f29660c6774babfd8ecd556b2e2b915e35b463a528fa96bc4dfa6a15",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -7752,7 +8296,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "14167",
         "street": "Hammerstr. 17 D",
@@ -7900,6 +8444,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -7953,6 +8502,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "a91b0ba84f2e6172a6770bda74571726e3e5d7dce54016dab45cde62dd409cd9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "12503c04-5d9d-5797-8651-276eb9c89679",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "d3749c952c6c86139f72d29a4297c63b0d5577d5019a6d53a3839fde6637a052",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -7977,7 +8538,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10439",
         "street": "Czarnikauer Straße",
@@ -8106,6 +8667,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -8159,6 +8725,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "41a8d9c0f1d2f30f4ddd02d32d89ec6a9c45ef6152ec78fbcb1c46052ef76b1a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "434a2ffb-86e4-5670-a019-cfe1369e0b19",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "5641b6372038b37ff5d6f1faca338ddda43937d65eaf9c2841d5a7f3d8649d6b",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -8183,7 +8761,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "lichtenberg",
         "postal_code": "10365",
         "street": "Herzbergstr.",
@@ -8331,6 +8909,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -8372,6 +8955,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "116d9ee4fa7588f7986b12ef33f1f9e31777ee3b99d3005620d2f533bff013d3",
           "text_digest_sha256": "116d9ee4fa7588f7986b12ef33f1f9e31777ee3b99d3005620d2f533bff013d3"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "62c51f4d-b779-562b-a312-78880c314a57",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "116d9ee4fa7588f7986b12ef33f1f9e31777ee3b99d3005620d2f533bff013d3",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -8396,7 +8991,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12587",
         "street": "Scharnweberstraße",
@@ -8525,6 +9120,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -8578,6 +9178,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "2a1d8d329f2d10e0f6e726bf118a29f094124a840aad3e1c91cd239503f1c361"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "4e8b6d28-139d-5eaa-a801-3f6464f43fad",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "1572a945217d56b8057dc7e43544010c60b7dc11ce8b557ad8a089e39cb42929",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -8609,7 +9221,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "12205",
         "street": "Finckensteinallee",
@@ -8738,6 +9350,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -8791,6 +9408,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "549ae51177947ed3ea281b476704ccf405cd4c05f591ee9bcb01373e6c68aa4e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "697865ef-8eb8-51b0-a31d-abe4e966ed16",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "6594bde98130ee779cd4ea8ad38b1c3fbc4af2d92e459cd4c0266b994c6ed3e5",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -8829,7 +9458,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "neukoelln",
         "postal_code": "12057",
         "street": "Sonnenallee",
@@ -8977,6 +9606,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -9018,6 +9652,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0",
           "text_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "57963ae0-55af-5e30-a1e2-801f98116efc",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -9049,7 +9695,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10439",
         "street": "Behmstraße",
@@ -9197,6 +9843,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -9238,6 +9889,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "be6e03f6c1ca14dc5113bb610572657053a2e4531af9e129f069b1ad0c7e255e",
           "text_digest_sha256": "be6e03f6c1ca14dc5113bb610572657053a2e4531af9e129f069b1ad0c7e255e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "2ffaaf2e-3f2f-534e-b9f2-d86f806ccf57",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "be6e03f6c1ca14dc5113bb610572657053a2e4531af9e129f069b1ad0c7e255e",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -9262,7 +9925,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "14052",
         "street": "Westendallee",
@@ -9391,6 +10054,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -9444,6 +10112,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "4deb1d0468dc046ac6915ef97537af8ab1d290456ce42af3a1d4a4d8546ca159"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "7df999b1-48a7-5e08-94e0-798a3635e9f5",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "51cb7e859ae568194ad4101b9a6dd57f109506133a5333f0f34eeb7ea7e3f14d",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -9468,7 +10148,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10247",
         "street": "Weidenweg",
@@ -9616,6 +10296,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -9669,6 +10354,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "a6ac1d64128a015a3b42044e28c9a93c1e96ec0d7ebb2c0668acca188016744c",
           "text_digest_sha256": "a6ac1d64128a015a3b42044e28c9a93c1e96ec0d7ebb2c0668acca188016744c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "b58805c0-6813-56e1-8480-e655cb71fd5a",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "a6ac1d64128a015a3b42044e28c9a93c1e96ec0d7ebb2c0668acca188016744c",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -9693,7 +10390,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12489",
         "street": "Ernst-Augustin-Str.",
@@ -9841,6 +10538,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -9894,6 +10596,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "4b4c7156aa0f4085b2b68e0fa6f9fccf2946906e80838f844fb563f9dde5f6b1",
           "text_digest_sha256": "4b4c7156aa0f4085b2b68e0fa6f9fccf2946906e80838f844fb563f9dde5f6b1"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "7e24ef4c-05a5-59df-a77c-21b4627ae423",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "4b4c7156aa0f4085b2b68e0fa6f9fccf2946906e80838f844fb563f9dde5f6b1",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -9918,7 +10632,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "reinickendorf",
         "postal_code": "13507",
         "street": "Am Borsigturm",
@@ -10066,6 +10780,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -10119,6 +10838,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "6e2e916235ec1039c15eb768c3c2626aba27fdff123bfc74381dd197c4ff9a9d",
           "text_digest_sha256": "6e2e916235ec1039c15eb768c3c2626aba27fdff123bfc74381dd197c4ff9a9d"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "3cc6d235-a156-52bd-bfb4-92ebb8b637bf",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "6e2e916235ec1039c15eb768c3c2626aba27fdff123bfc74381dd197c4ff9a9d",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -10143,7 +10874,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "13347",
         "street": "Gerichtstr.",
@@ -10293,6 +11024,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -10346,6 +11082,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "0e89935d3673199960e5adfaba5d6d6091806b7b1316f0ffe6e938b35d064806",
           "text_digest_sha256": "a20edf5c5c429c36eb22550b2cfaef942190a18b6da41a07f4a355832a3535eb"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "72cdc07e-dde8-5c53-84d8-c435ca51d095",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "e0cbee08d5f4b02c85484d6f235c9c67342d10dec6fa003d4b4412da7dd5a6a4",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -10370,7 +11118,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "spandau",
         "postal_code": "13585",
         "street": "Eiswerderstraße",
@@ -10518,6 +11266,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -10571,6 +11324,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "0b769d4b2ca74b8ebc142990e4045b2ce12a46bc9ea70f49bef16e9b5206c193"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "0784c136-f705-5500-83e2-08b8d3cdf05e",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "cefe7d13f28a92a0302de1df577a77a2e74d170beb01085413c249194a90961e",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -10595,7 +11360,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "14165",
         "street": "Claszeile",
@@ -10743,6 +11508,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -10796,6 +11566,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "d3d33b9a95acd131221baf2c145aabcda5bd1a8b4487f224b1c142f1e37b5fb8",
           "text_digest_sha256": "dbe2b5e1d6e9539d9cb87639b599544a8d7a2b86f30c11ab27c7d3feed34a85f"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "3125d610-27b2-59be-9359-22b4e24999ba",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -10820,7 +11602,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10967",
         "street": "Lachmannstr.",
@@ -11044,6 +11826,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -11097,6 +11884,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "d947fa61f204eb3206e092f6cb3f0058d8de9fb761016e6e61ce7986f9bceee7"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "db6f6617-c903-5825-88c3-58cbefb78fa4",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "4a2dce88913472e0fb91080b927e236dfacd22cc2176588bdaadea67eafce553",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -11142,7 +11941,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10435",
         "street": "Kastanienallee",
@@ -11271,6 +12070,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -11312,6 +12116,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "44c2fc62e58f7f26ca3ff0137eaf5eb4f79032bb7dce7821efe7fafad887ca01",
           "text_digest_sha256": "44c2fc62e58f7f26ca3ff0137eaf5eb4f79032bb7dce7821efe7fafad887ca01"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "bbbd1059-6a8b-5b7c-acdc-a092b241228a",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "44c2fc62e58f7f26ca3ff0137eaf5eb4f79032bb7dce7821efe7fafad887ca01",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -11336,7 +12152,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "14059",
         "street": "Danckelmannstraße",
@@ -11671,6 +12487,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -11736,6 +12557,18 @@
           "sequence": 5,
           "source_evidence_digest_sha256": "82c18bc63cbffd91e9dd7b9a5f5de3bc4f0dbfd5cbc27b783a21fd884993ce42",
           "text_digest_sha256": "82c18bc63cbffd91e9dd7b9a5f5de3bc4f0dbfd5cbc27b783a21fd884993ce42"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "fae5d7b9-035e-596f-90c7-1af87195188a",
+          "sequence": 6,
+          "source_evidence_digest_sha256": "ad21d6e995647bce0036557e6b1a2fc90786f72102c89c44ee384fa7c3380c9a",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -11775,7 +12608,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10437",
         "street": "Ystader Straße",
@@ -11904,6 +12737,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -11957,6 +12795,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "fcc9d4c616dc45a241dcbbd1244795c8c8dc573dc5667e4cc8159de4425feb24"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "9f4cfae9-b3a8-56b9-b2dd-39ed96603547",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "c11e730a88b275215b16263f013d73f72dd0f7811a03f6846fee3a9c6d6bd6d3",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -11981,7 +12831,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "lichtenberg",
         "postal_code": "10369",
         "street": "Franz-Jacob-Straße",
@@ -12110,6 +12960,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -12163,6 +13018,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "20c14a7c68e125bf96f835439b9eae6f8dd2c1613b9db66096bbcb971e6b3c85"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "19140327-cb15-5761-bd64-23b1df626dae",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "94ff20abdfd2b53a44f42aaaa5e8a76cb5a52de131e121172d6b53df9b9978d7",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -12187,7 +13054,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "13158",
         "street": "Lessingstraße",
@@ -12439,6 +13306,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -12480,6 +13352,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "98d7edc8cd78d16a7caf77256a95d0de33e94129619383e6f5ae827c8e6f2fac",
           "text_digest_sha256": "98d7edc8cd78d16a7caf77256a95d0de33e94129619383e6f5ae827c8e6f2fac"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "2b6b83a4-b697-5fbe-8372-244ae3b0f691",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "98d7edc8cd78d16a7caf77256a95d0de33e94129619383e6f5ae827c8e6f2fac",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -12518,7 +13402,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10965",
         "street": "Dudenstraße",
@@ -12666,6 +13550,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -12719,6 +13608,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "34d3dea44d86e0592d59312e6364e7b5056a15f3a6859b0986284db541453c05",
           "text_digest_sha256": "3d2274633e7f237d25198553ab27221fd6364a8e27c93428e03f4d17700f3d24"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "d398f540-54f1-5716-b8b0-134ff70611d4",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "97d93f14e7ccbd954bb5913bba2f6ac5716776049d167b29a1da0ad86b64e3aa",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -12743,7 +13644,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "14129",
         "street": "Matterhornstraße",
@@ -12872,6 +13773,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -12925,6 +13831,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "571977889597ce29dd67b18f9cba44390946642fab3085b0cd2a17d746ce4aed",
           "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "a23db624-0d9c-58cf-a418-691b0b1e0478",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "dec980dda4991a5af5b5cd2cf884c07a6a132b4297b72a1be4352e5ac609ad1d",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -12949,7 +13867,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10961",
         "street": "Bergmannstraße",
@@ -13078,6 +13996,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -13131,6 +14054,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "ead291284d728ae94e9b5396b52c081226e94e442ce03b4566b1f88a547df55a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "91042d23-faa5-53fb-adfc-8e7b9caee98e",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "6e0147d281d692b70ff275b5e9c80237c7b2b2cb9d5d80ae323fcf8e58c3ab1d",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -13169,7 +14104,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10969",
         "street": "Ritterstraße",
@@ -13298,6 +14233,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -13351,6 +14291,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "e39641cd292a2f2d4a8c938c1104ac2509f641c4f23f9596ddb8ca8240c97e35"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "ad45df31-f2f0-569d-b119-a4ffc6008634",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "1ac28b8546eab8d060a7ab4baec157945ae3850f06c2455f3d71db0f42f397ba",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -13389,7 +14341,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10961",
         "street": "Gneisenaustr.",
@@ -13537,6 +14489,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -13578,6 +14535,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "68322489f3d3c96583a08f3c69ec4454df12384a827f106af2156b046a3619ad",
           "text_digest_sha256": "68322489f3d3c96583a08f3c69ec4454df12384a827f106af2156b046a3619ad"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "50902cb9-68f4-548f-9d0b-3a781aed9bf8",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "68322489f3d3c96583a08f3c69ec4454df12384a827f106af2156b046a3619ad",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -13602,7 +14571,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "12163",
         "street": "Schloßstraße",
@@ -13802,6 +14771,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -13843,6 +14817,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "51ed31723870b0fae76ffecad8959c6f0d8cb9f98382a1156ad71247728b50e4",
           "text_digest_sha256": "51ed31723870b0fae76ffecad8959c6f0d8cb9f98382a1156ad71247728b50e4"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "910e487b-9cf0-5af3-b667-50271c015e11",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "51ed31723870b0fae76ffecad8959c6f0d8cb9f98382a1156ad71247728b50e4",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -13867,7 +14853,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "13088",
         "street": "Gürtelstr.",
@@ -14072,6 +15058,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -14137,6 +15128,18 @@
           "sequence": 5,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "f7203d599c5a943b85017f71c939dee5c0fe3764e5236b7f50a596c29de53baa"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "fdd72c08-b00f-5642-8eca-6928f0758165",
+          "sequence": 6,
+          "source_evidence_digest_sha256": "69211cc0ddbd3742ce80fa9764050bf60866b6e6eeb6326c6e868a02cf1b3913",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -14182,7 +15185,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "spandau",
         "postal_code": "13585",
         "street": "Eiswerderstraße",
@@ -14330,6 +15333,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -14383,6 +15391,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "4a810423db58d961688ea02f68cf1140c2d6922c20dd23f4c72852f743d3cd1e",
           "text_digest_sha256": "4a810423db58d961688ea02f68cf1140c2d6922c20dd23f4c72852f743d3cd1e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "e234192d-ef07-5fe0-a60e-261ccbba4060",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "4a810423db58d961688ea02f68cf1140c2d6922c20dd23f4c72852f743d3cd1e",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -14407,7 +15427,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10997",
         "street": "Pfuelstrasse",
@@ -14555,6 +15575,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -14596,6 +15621,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "b7bd6922cac71cc71a1f37cd041a0128289334475225ec58718633de31f94b97",
           "text_digest_sha256": "b7bd6922cac71cc71a1f37cd041a0128289334475225ec58718633de31f94b97"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "1d146afc-371f-52a5-a47a-6d78fa5e88a1",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "b7bd6922cac71cc71a1f37cd041a0128289334475225ec58718633de31f94b97",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -14620,7 +15657,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10115",
         "street": "Invalidenstraße",
@@ -14749,6 +15786,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -14802,6 +15844,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "d552db1452345acfddea5434566a8767ef44b0f7ecf0ea1efff27844832879a8"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "2c526a29-73e7-5c10-a90c-09f051dfa57d",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "dd24848fc668d0e2e3d2d765601bb96f1e1a255f6a87b84f886958a16b93caa4",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -14826,7 +15880,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10961",
         "street": "Urbanstr.",
@@ -14974,6 +16028,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -15015,6 +16074,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "2f0e067223eb3c0ab38f988fe90e3ce73e9c4aca3a5d5770b74cab5b1014a05c",
           "text_digest_sha256": "2f0e067223eb3c0ab38f988fe90e3ce73e9c4aca3a5d5770b74cab5b1014a05c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "15fe9b36-4d12-5fc1-826f-89101d0b7c53",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "2f0e067223eb3c0ab38f988fe90e3ce73e9c4aca3a5d5770b74cab5b1014a05c",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -15039,7 +16110,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "13357",
         "street": "Wiesenstr.",
@@ -15187,6 +16258,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -15228,6 +16304,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68",
           "text_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "010bdeba-2956-5ed9-84f9-24949b60d5f6",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -15252,7 +16340,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10407",
         "street": "Am Schweizer Garten",
@@ -15476,6 +16564,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -15529,6 +16622,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "1c3631da10088fb811713d4d7f9f770f34c30391beca2ca9c549ecd2181f219c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "0e9ad26b-bfd0-5cf3-be5a-9637514db8be",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "626013b997c451f6e5c360715918928e56c72fd02aae9e1c43d511548fa96618",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -15567,7 +16672,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Reichenberger Str.",
@@ -15715,6 +16820,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -15756,6 +16866,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "dbb6ae5c2ebd5161726ec4960cff1fc06220b914e78c7d7ed3a70bbf07252c06",
           "text_digest_sha256": "dbb6ae5c2ebd5161726ec4960cff1fc06220b914e78c7d7ed3a70bbf07252c06"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "503e326e-4e84-5951-abab-d6ac055997f2",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "dbb6ae5c2ebd5161726ec4960cff1fc06220b914e78c7d7ed3a70bbf07252c06",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -15780,7 +16902,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "13627",
         "street": "Halemweg",
@@ -15928,6 +17050,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -15981,6 +17108,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "aecfa2cd1e88e101d89c40b9acea2cee6e1354d119516ee418c11a050d15b6f6"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "a51ed346-552d-5708-91dc-9f297b84afc0",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "bed66bcf2a6f433db66149b578ccfde19e2c302bb52319f5285dac851030d21a",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -16005,7 +17144,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Reichenberger Straße",
@@ -16153,6 +17292,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -16206,6 +17350,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "be7cc7baf57cf4e6161da66cdac40552d903c813f09f38fc628513c143d8dd50",
           "text_digest_sha256": "be7cc7baf57cf4e6161da66cdac40552d903c813f09f38fc628513c143d8dd50"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "e57a3d8d-19d5-5a9c-8bb7-360ee573af96",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "be7cc7baf57cf4e6161da66cdac40552d903c813f09f38fc628513c143d8dd50",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -16230,7 +17386,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10115",
         "street": "Chausseestraße",
@@ -16378,6 +17534,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -16431,6 +17592,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "b06277235304ae0ea7568478af61ee3f66447ab95f032c3d35d22e792340ef3d",
           "text_digest_sha256": "fdca77256da088129439a9211eb2db82b32c09780f07dfcc734bf0b963f55450"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "03540960-5101-55b1-8325-146249e6c76d",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "509cb2aa9ee9b4bfefe63d0a7d820a1fdfb163df353ed1100fa6ef3f354b42ca",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -16455,7 +17628,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10961",
         "street": "Solmsstr.",
@@ -16603,6 +17776,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -16656,6 +17834,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "412ec428afbf534ff740e78fdf471f41f4302b8bd0ebf301c27f8a98f1bfc890",
           "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "bb3e98c9-8a94-5992-9b43-0653948a9368",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "58eeb1dd62985bd275b1f819ce5e58fc0aba50bfd9da0962e27026b635cffbc5",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -16680,7 +17870,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "14167",
         "street": "Hammerstr. 17 D",
@@ -16828,6 +18018,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -16869,6 +18064,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b",
           "text_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "08277f89-5718-5824-8d47-d3d2fbb44743",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "2f46f22bb36d6319fbef6e805ec7520c6b5824af81076ec8f217d00aba2bff4b",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -16893,7 +18100,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12435",
         "street": "Bouchéstr.",
@@ -17041,6 +18248,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -17082,6 +18294,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "874a01495336573d249e03342e595dea0492033e23c564ba4c02ef98448edc9e",
           "text_digest_sha256": "874a01495336573d249e03342e595dea0492033e23c564ba4c02ef98448edc9e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "f095ce77-6dc6-5b3f-a53e-d9f47402dcd2",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "874a01495336573d249e03342e595dea0492033e23c564ba4c02ef98448edc9e",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -17106,7 +18330,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "14057",
         "street": "Kaiserdamm",
@@ -17254,6 +18478,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -17295,6 +18524,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "b7952385d6797b965d8c517a04fb21c2e960e5c3e11f8e6961e31e52777a9ead",
           "text_digest_sha256": "b7952385d6797b965d8c517a04fb21c2e960e5c3e11f8e6961e31e52777a9ead"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "90690ed7-d1fd-5dc4-8e20-2c9cdd5ad6a1",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "b7952385d6797b965d8c517a04fb21c2e960e5c3e11f8e6961e31e52777a9ead",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -17319,7 +18560,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10405",
         "street": "Saarbrücker Straße",
@@ -17467,6 +18708,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -17508,6 +18754,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd",
           "text_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "08fc3d5b-f8ed-5ca9-b1bb-8e5e2578872e",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -17532,7 +18790,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10243",
         "street": "Holzmarktstraße",
@@ -17680,6 +18938,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -17721,6 +18984,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "47dbcd623881d6c80c5688dd9af2cc73033c2a490d958f3624ffb7a6b97731e9",
           "text_digest_sha256": "47dbcd623881d6c80c5688dd9af2cc73033c2a490d958f3624ffb7a6b97731e9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "0db0cb04-e625-555b-9a1f-1e453ce0b69b",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "47dbcd623881d6c80c5688dd9af2cc73033c2a490d958f3624ffb7a6b97731e9",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -17745,7 +19020,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10119",
         "street": "Alte Schönhauser Straße",
@@ -17874,6 +19149,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -17927,6 +19207,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "07c01f7a348ad893b76e33e34651c02b4f25a0e0ab833fd2593ede4e9db69b6b"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "a16c4280-81d9-57d7-83aa-b092f67764bc",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "80ec5dfb865cea585d90a7b7805c2583ca2bcfdfc5255a873ae0c53655671508",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -17951,7 +19243,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "14165",
         "street": "Berlepschstr.",
@@ -18099,6 +19391,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -18152,6 +19449,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "9660073aefa3f0fcfa7d91329e8e7c9c8f20a1dcd84753573885d2b4d41ea82f",
           "text_digest_sha256": "6147118837b60e1b664d0ff374fb66d75f7c6bc8a0d5fb382b47516d55fedcb9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "2c4ec2d9-bbca-52cd-a75f-180f7be12fe6",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "f42639c6af957b2c3b34cb9bfb1c1886c536b83406d8e234cd2a287f340a677a",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -18176,7 +19485,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "steglitz-zehlendorf",
         "postal_code": "12205",
         "street": "Finckensteinallee",
@@ -18505,6 +19814,11 @@
             "code": "evidence_digest_changed",
             "detail": "new digest for https://teldexstudio.de/ on service_claims",
             "severity": "review"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -18558,6 +19872,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "302652c542e4b5ed3b9f7b36c53fab21bfc3cea3ac88a4bac6ee777d2280458e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "582c90a2-a53c-5b4f-bffd-a7d6c1fd2b4e",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "97c5d24b9a2375f0095bc464732f2661a234324a4da75ac81b50cd472902db33",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -18596,7 +19922,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "tempelhof-schoenberg",
         "postal_code": "10829",
         "street": "Monumentenstr.",
@@ -18744,6 +20070,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -18797,6 +20128,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "487c93de1aa9cf524c1cc69135d41b369fcf4f908e89d719484bb6c27111847a",
           "text_digest_sha256": "c1f53c368a31b68d9f7636fa6d52af4e11fbb77a3b43dad00bfe77e84729c6b9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "367adf2a-4dfa-5f47-be63-e6e0d735041d",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "2e692cc1f5ef667d10bbae7546ce232b54745b1d614b00570aa436f8ddc30e20",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -18821,7 +20164,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10963",
         "street": "Stresemannstraße",
@@ -18969,6 +20312,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -19022,6 +20370,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "28faab751add93df134011a4564cc87180cd57e5facf2e20b4e93b3f6d73e3b4",
           "text_digest_sha256": "28faab751add93df134011a4564cc87180cd57e5facf2e20b4e93b3f6d73e3b4"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "c1911530-5884-5172-b939-db34b09e5a74",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "28faab751add93df134011a4564cc87180cd57e5facf2e20b4e93b3f6d73e3b4",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -19046,7 +20406,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12489",
         "street": "Moriz Seeler Str.",
@@ -19194,6 +20554,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -19247,6 +20612,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "39201ddd02d42396d32216d49ba4fe53c44d3537e76a376f44bd99fb6d7b2931",
           "text_digest_sha256": "39201ddd02d42396d32216d49ba4fe53c44d3537e76a376f44bd99fb6d7b2931"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "49a95766-7b79-5c90-a6df-096343f0fc18",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "39201ddd02d42396d32216d49ba4fe53c44d3537e76a376f44bd99fb6d7b2931",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -19278,7 +20655,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12459",
         "street": "Tabbertstraße",
@@ -19426,6 +20803,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -19479,6 +20861,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "2ba5fd9a0f89bc2018a864db2295333f2147bb7e58d443f93acf5659a46acfcf",
           "text_digest_sha256": "2ba5fd9a0f89bc2018a864db2295333f2147bb7e58d443f93acf5659a46acfcf"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "0f4e26a5-10e8-5c70-a9cf-10af46e29ee9",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "2ba5fd9a0f89bc2018a864db2295333f2147bb7e58d443f93acf5659a46acfcf",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -19503,7 +20897,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10997",
         "street": "Schlesische Straße",
@@ -19651,6 +21045,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -19692,6 +21091,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "694875b1e1a04a3916f0d6f36ecde76eacbff7dd58ca061196c302a4ca85c7ea",
           "text_digest_sha256": "694875b1e1a04a3916f0d6f36ecde76eacbff7dd58ca061196c302a4ca85c7ea"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "59d03796-8945-54ee-994d-03795d488f01",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "694875b1e1a04a3916f0d6f36ecde76eacbff7dd58ca061196c302a4ca85c7ea",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -19716,7 +21127,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10961",
         "street": "Gneisenaustr.",
@@ -19864,6 +21275,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -19905,6 +21321,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c",
           "text_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "345ad63e-c35f-5728-be3a-4cec78ca9489",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "b47a1473b3020df777327c789673bc99d05e5a70a91e17d9ac5f4b35e5f22f1c",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -19929,7 +21357,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10178",
         "street": "Oranienburgerstr.",
@@ -20077,6 +21505,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -20118,6 +21551,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "d59f2aa8cc2d85e888ec9d68e6dc6b126c1bade7ac565c3562ceb252a1589388",
           "text_digest_sha256": "d59f2aa8cc2d85e888ec9d68e6dc6b126c1bade7ac565c3562ceb252a1589388"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "42dcf611-e1d4-5b0c-8d47-455fd8c41005",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "d59f2aa8cc2d85e888ec9d68e6dc6b126c1bade7ac565c3562ceb252a1589388",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -20142,7 +21587,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10117",
         "street": "Albrechtstraße",
@@ -20290,6 +21735,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -20331,6 +21781,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "57c5db4c110217fcf2a6e647b2e640a3feed57b3058b9b8dae540c4651883bef",
           "text_digest_sha256": "57c5db4c110217fcf2a6e647b2e640a3feed57b3058b9b8dae540c4651883bef"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "3447c2bb-cd95-5b17-b636-68364c3cdb42",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "57c5db4c110217fcf2a6e647b2e640a3feed57b3058b9b8dae540c4651883bef",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -20355,7 +21817,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Skalitzerstr.",
@@ -20503,6 +21965,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -20556,6 +22023,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "b756798d97f3c720f76a09b2289c9dbd41774a68f1615714374fa1e7480b0175",
           "text_digest_sha256": "b756798d97f3c720f76a09b2289c9dbd41774a68f1615714374fa1e7480b0175"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "24729090-f0d8-5a21-b8ef-e170ebb72994",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "b756798d97f3c720f76a09b2289c9dbd41774a68f1615714374fa1e7480b0175",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -20580,7 +22059,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10967",
         "street": "Boppstr.",
@@ -20728,6 +22207,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -20781,6 +22265,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "f3f46e4e17260cbea3423df7b80c1c75f73759a000c9c33a2dd8d465fec773c9",
           "text_digest_sha256": "163d8ba505a30fc89a5471b38bb538b54494cc5d5493f3a8c6c0da8bad8f9873"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "30530d5e-cb31-5489-9306-4deda051ec4e",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "6cef5a217bceb2444c299f139484536b654dae513b072098bdc0e91817452472",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -20805,7 +22301,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "pankow",
         "postal_code": "10405",
         "street": "Winsstr.",
@@ -21049,6 +22545,11 @@
             "code": "evidence_digest_changed",
             "detail": "new digest for https://www.mixwerk.com/ on service_claims",
             "severity": "review"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -21102,6 +22603,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "918facc4728bf3b7f06da7382dd0a12eacf8483ab0bf94e6ba67dc51a9b7934f"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "528d78a2-e712-5d0d-8386-c36446925514",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "447c090a52346a8e793b3bca71319796b46fc04505fb81f4567e941d4753d0e1",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -21140,7 +22653,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "mitte",
         "postal_code": "10119",
         "street": "Brunnenstraße",
@@ -21288,6 +22801,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -21329,6 +22847,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "f69c68a82226d0ad23924cee45b6841d5128925ab4142416d7f79418a057c6a9",
           "text_digest_sha256": "f69c68a82226d0ad23924cee45b6841d5128925ab4142416d7f79418a057c6a9"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "07ea09ec-d20d-5a5b-8b7c-e458c4e883b4",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "f69c68a82226d0ad23924cee45b6841d5128925ab4142416d7f79418a057c6a9",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -21353,7 +22883,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12459",
         "street": "Rummelsburger Landstraße",
@@ -21501,6 +23031,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -21554,6 +23089,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "bc4233223089d1451eb02989905dda3305ed1a0ea6cbd422ef39f7f729cafe30",
           "text_digest_sha256": "bc4233223089d1451eb02989905dda3305ed1a0ea6cbd422ef39f7f729cafe30"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "d0ffbbaf-1abd-53fb-a25c-a8e8d4a181a3",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "bc4233223089d1451eb02989905dda3305ed1a0ea6cbd422ef39f7f729cafe30",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -21578,7 +23125,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "tempelhof-schoenberg",
         "postal_code": "10829",
         "street": "Gotenstr.",
@@ -21707,6 +23254,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -21748,6 +23300,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220",
           "text_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "ef3af561-8f7a-5c9a-a4e8-f00177cfd7c0",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "6cf3c5c9889e377ca3e0b8de05d101fbe0f2716f1d61c980affcc551ecdd3220",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -21772,7 +23336,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "charlottenburg-wilmersdorf",
         "postal_code": "10717",
         "street": "Bundesallee",
@@ -21920,6 +23484,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -21961,6 +23530,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef",
           "text_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "ea6cc929-6580-5ec1-a286-5f474541ef3d",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -21985,7 +23566,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "reinickendorf",
         "postal_code": "13509",
         "street": "Breitenbachstraße",
@@ -22133,6 +23714,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -22186,6 +23772,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "f3fe882782ac7ece4337a53885bf14b1d304ad43bffdb451482fd9ac12c098c3",
           "text_digest_sha256": "f3fe882782ac7ece4337a53885bf14b1d304ad43bffdb451482fd9ac12c098c3"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "6b6382a4-451e-5862-9deb-2a2a89e53c3e",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "f3fe882782ac7ece4337a53885bf14b1d304ad43bffdb451482fd9ac12c098c3",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -22210,7 +23808,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "treptow-koepenick",
         "postal_code": "12439",
         "street": "Schnellerstraße",
@@ -22358,6 +23956,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -22411,6 +24014,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "df9d6d1b1f6ebfd87c8b5b9d88813d4b17fa425f2b24aae49f16e5de1ffbd485"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "7eeb1ea5-c802-5684-9bdb-2a5833804c22",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "ccf6cc1f7dd6175088b7e011a35245d7668a0492869156c32595ac391c33c6cd",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -22435,7 +24050,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Ohlauer Str.",
@@ -22564,6 +24179,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -22617,6 +24237,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "46333c73a82551d52f5c912549e4c018665552bb3d5dea54147f27aad5a3d0af"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "ef4a9b89-37d9-5cad-b314-e617a0e82489",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "38d2897e84403f7778f38b2e97474833053ba0ff8a19e52a8d24de7680e3d07e",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -22648,7 +24280,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10245",
         "street": "Modersohnstraße",
@@ -22796,6 +24428,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -22837,6 +24474,18 @@
           "sequence": 3,
           "source_evidence_digest_sha256": "9baac547ad3dcdf14e5bf90b3dbf6aefa866730cbcd9397087b4dbe90eada07c",
           "text_digest_sha256": "9baac547ad3dcdf14e5bf90b3dbf6aefa866730cbcd9397087b4dbe90eada07c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "67224250-3a32-5d74-9f50-c4ed3ecc4b7a",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "9baac547ad3dcdf14e5bf90b3dbf6aefa866730cbcd9397087b4dbe90eada07c",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -22861,7 +24510,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10963",
         "street": "Stresemannstr.",
@@ -23085,6 +24734,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -23138,6 +24792,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "bbda1e0c4796cc126416b385ac7bc699d68e4e77164d762a92833805a332b1e5"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "c5c79051-5c91-5e8c-98ee-3b8fdc7cc312",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "76843bf2f4ffc40026dbb7413da1698f3fba491a2aaa63b11a56f4c9cc4fbb34",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
@@ -23190,7 +24856,7 @@
         "city": "Berlin",
         "coordinate": null,
         "country_code": "DE",
-        "district_basis": "operator_reviewed",
+        "district_basis": "postal_code",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10999",
         "street": "Forsterstrasse",
@@ -23414,6 +25080,11 @@
             "code": "media_rights_unclear",
             "detail": "no media candidate was imported; site terms forbid reuse without written consent",
             "severity": "info"
+          },
+          {
+            "code": "district_derivation_unconfirmed",
+            "detail": "district_key is derived from the postal code and needs operator confirmation",
+            "severity": "review"
           }
         ],
         "missing": [],
@@ -23467,6 +25138,18 @@
           "sequence": 4,
           "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
           "text_digest_sha256": "a6f3ef71d8fba2c4b228c460df57a518febcdc2660e5701479e2321eab66206a"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "babde85d-58c1-55d6-bb3a-a4877d5c4601",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "e7fe4acd09a1da0f83cae2b480cf75153e6787c9c93de45ae8aae2895f880711",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
         }
       ],
       "service_claims": [
