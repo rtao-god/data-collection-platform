@@ -12,6 +12,7 @@ from collection_application import (
     OwnedArtifactPublishConflict,
     PublishOwnedArtifact,
     RetryPolicy,
+    StageRunState,
     WorkCapability,
     WorkInputArtifact,
     WorkStage,
@@ -111,6 +112,13 @@ class PostgresWebsiteRouteApplier:
                 message="The website route plan contains duplicate downstream work identities.",
                 context={"sourceWorkUnitId": str(source.source_work_unit_id)},
                 required_action="Correct the route planner before retrying advancement.",
+            )
+
+        if plan.website_actions:
+            self._start_acquisition_stage(
+                connection,
+                stage_run_id,
+                correlation_id=correlation_id,
             )
 
         for action in plan.website_actions:
@@ -255,6 +263,58 @@ class PostgresWebsiteRouteApplier:
                 ) from exc
 
         return website_route_result_digest(plan)
+
+    def _start_acquisition_stage(
+        self,
+        connection: Connection,
+        stage_run_id: UUID,
+        *,
+        correlation_id: str,
+    ) -> None:
+        """Make the stage that receives HTTP work operational.
+
+        Bootstrap starts only DISCOVERY, so scheduling acquisition work into a pending
+        stage would leave units no worker can lease. A running stage is left untouched and
+        a finished or blocked stage is refused instead of being reopened by a scheduler.
+        """
+
+        state = connection.execute(
+            sa.select(stage_runs.c.state).where(stage_runs.c.stage_run_id == stage_run_id)
+        ).scalar_one_or_none()
+        if state is None:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_WEBSITE_ROUTE_STAGE_OWNER_INVALID",
+                message="The scheduled acquisition stage no longer exists.",
+                context={"stageRunId": str(stage_run_id)},
+                required_action="Repair the run's stage ownership before routing HTTP work.",
+            )
+        if state == StageRunState.RUNNING.value:
+            return
+        if state != StageRunState.PENDING.value:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_WEBSITE_ROUTE_STAGE_NOT_STARTABLE",
+                message=(
+                    "The scheduled acquisition stage is not pending, so HTTP work cannot "
+                    "start it."
+                ),
+                context={"stageRunId": str(stage_run_id), "stageState": str(state)},
+                required_action=(
+                    "Resolve the acquisition stage's own state before routing HTTP work into it."
+                ),
+            )
+        connection.execute(
+            sa.update(stage_runs)
+            .where(
+                stage_runs.c.stage_run_id == stage_run_id,
+                stage_runs.c.state == StageRunState.PENDING.value,
+            )
+            .values(
+                state=StageRunState.RUNNING.value,
+                revision=stage_runs.c.revision + 1,
+                updated_at_utc=self._now_utc(),
+                correlation_id=correlation_id,
+            )
+        )
 
     def _publish_artifact(
         self,
