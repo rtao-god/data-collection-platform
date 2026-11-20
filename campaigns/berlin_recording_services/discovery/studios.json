@@ -7868,6 +7868,432 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "operator_reviewed",
+        "district_key": "mitte",
+        "postal_code": "13347",
+        "street": "Gerichtstr.",
+        "street_number": "36"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Studio Brod",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch8-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-f6828f591e6cf4ec",
+          "excerpt": "kte kontakt impressum ​Diese Webseite wird betrieben von:   Oliver Brod Gerichtstr. 36 13347 Berlin Deutschland   Telefon: +49 30.39207915 E-mail: post{",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c28e23c4cf7168c1af9ec7dfd35fbbda5b5455d1d842fc66205e15ad6ac77848",
+          "source_kind": "official_site",
+          "source_url": "https://www.studiobrod.com/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-b4948d924c5e3fdd",
+          "excerpt": "kte kontakt impressum ​Diese Webseite wird betrieben von:   Oliver Brod Gerichtstr. 36 13347 Berlin Deutschland   Telefon: +49 30.39207915 E-mail: post{",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c28e23c4cf7168c1af9ec7dfd35fbbda5b5455d1d842fc66205e15ad6ac77848",
+          "source_kind": "official_site",
+          "source_url": "https://www.studiobrod.com/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-affe7242b365a277",
+          "excerpt": "kte kontakt impressum ​Diese Webseite wird betrieben von:   Oliver Brod Gerichtstr. 36 13347 Berlin Deutschland   Telefon: +49 30.39207915 E-mail: post{",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c28e23c4cf7168c1af9ec7dfd35fbbda5b5455d1d842fc66205e15ad6ac77848",
+          "source_kind": "official_site",
+          "source_url": "https://www.studiobrod.com/impressum/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-6e7604746d1071bf",
+          "excerpt": " studio brod - startseite - studio brod studio brod & co. projekte kontakt kreative audioproduktionen. feine sprachaufnahmen. berlin. Mit einem ausgeprägten Gesp",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ab36aa2d74700e75689677e728e5dfe125d18cb9ab10dc9b0ce39ac11b946a64",
+          "source_kind": "official_site",
+          "source_url": "https://www.studiobrod.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-1da2b650ee0c0479",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "ebc2c262d82ea4f7728fb8b450f500951d16fbd2a07f94970a519d6a99fd9715",
+          "source_kind": "official_site",
+          "source_url": "https://www.studiobrod.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "www.studiobrod.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "www.studiobrod.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "7c25edd4-7479-5494-8df2-cee4a276b3f0",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "35cff847-e064-5573-89c3-63eede3c3ba3",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "19b772b454c595fdbac1e4530f936cfd8b31c3fa45cde22971b8657552f4a01e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "3f47f5a0-d6d7-5d0f-93ae-3782078401d5",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "19b772b454c595fdbac1e4530f936cfd8b31c3fa45cde22971b8657552f4a01e",
+          "text_digest_sha256": "19b772b454c595fdbac1e4530f936cfd8b31c3fa45cde22971b8657552f4a01e"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "86e71122-1c8d-5d95-90b3-74039971afed",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "19b772b454c595fdbac1e4530f936cfd8b31c3fa45cde22971b8657552f4a01e",
+          "text_digest_sha256": "19b772b454c595fdbac1e4530f936cfd8b31c3fa45cde22971b8657552f4a01e"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-6e7604746d1071bf"
+          ],
+          "source_text": " studio brod - startseite - studio brod studio brod & co. projekte kontakt kreative audioproduktionen. feine sprachaufnahmen. berlin. Mit einem ausgeprägten Gesp"
+        }
+      ],
+      "source_original_name": "Studio Brod",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
+        "district_key": "steglitz-zehlendorf",
+        "postal_code": "14165",
+        "street": "Claszeile",
+        "street_number": "41"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Klangatelier Berlin",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch8-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-b52d0a31e330a89d",
+          "excerpt": "ier-Berlin ist umgezogen !!! Wir sind umgezogen nach Berlin Zehlendorf in die Claszeile 41 in 14165 Berlin. Was ändert sich mit dem neuen Standort. Beratung un",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "2646ee1b8312dfed3c0726330d3d10f4bbd629877a6b404cae71075c5c0ded9f",
+          "source_kind": "official_site",
+          "source_url": "https://www.klangatelier-berlin.de/home",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f2094c3f28b7dd8d",
+          "excerpt": "ier-Berlin ist umgezogen !!! Wir sind umgezogen nach Berlin Zehlendorf in die Claszeile 41 in 14165 Berlin. Was ändert sich mit dem neuen Standort. Beratung un",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "2646ee1b8312dfed3c0726330d3d10f4bbd629877a6b404cae71075c5c0ded9f",
+          "source_kind": "official_site",
+          "source_url": "https://www.klangatelier-berlin.de/home",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-60e8f35d486d9d37",
+          "excerpt": "ier-Berlin ist umgezogen !!! Wir sind umgezogen nach Berlin Zehlendorf in die Claszeile 41 in 14165 Berlin. Was ändert sich mit dem neuen Standort. Beratung un",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "2646ee1b8312dfed3c0726330d3d10f4bbd629877a6b404cae71075c5c0ded9f",
+          "source_kind": "official_site",
+          "source_url": "https://www.klangatelier-berlin.de/home",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-27223b2f0116fa0e",
+          "excerpt": "lichsten Produkten von VORTEX HIFI Anfang 2021 Anschrift Klangatelier Berlin Tonstudio Tempelhof GmbH Claszeile 41 14165 Berlin Kontakt Fon: 030-7521384 Fax: 030-7517377 E-Mail: mail(at)klangatelier-berlin.de Kontaktformular Öffnungszeiten ",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "2646ee1b8312dfed3c0726330d3d10f4bbd629877a6b404cae71075c5c0ded9f",
+          "source_kind": "official_site",
+          "source_url": "https://www.klangatelier-berlin.de/home",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-69dc576b911ee874",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c2caadb7a66bd25dfda4317ace46990a008823ef984820bebc658d49a603354f",
+          "source_kind": "official_site",
+          "source_url": "https://www.klangatelier-berlin.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "www.klangatelier-berlin.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "www.klangatelier-berlin.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "86b9ac88-8648-57fc-9291-766ad4b9fe76",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "e3b260c3-c50d-547c-b5e9-6488a75965b3",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "d419c20e-60c6-5fe8-805e-b056f8227a53",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b",
+          "text_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "ceccba42-7b67-5c53-91d1-86fb9620de65",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b",
+          "text_digest_sha256": "3aae0b9a6244b4550a8b62270705d053c9f91c42154609ebf3558740c65cce3b"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-27223b2f0116fa0e"
+          ],
+          "source_text": "lichsten Produkten von VORTEX HIFI Anfang 2021 Anschrift Klangatelier Berlin Tonstudio Tempelhof GmbH Claszeile 41 14165 Berlin Kontakt Fon: 030-7521384 Fax: 030-7517377 E-Mail: mail(at)klangatelier-berlin.de Kontaktformular Öffnungszeiten "
+        }
+      ],
+      "source_original_name": "Klangatelier Berlin",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10967",
         "street": "Lachmannstr.",
@@ -10496,6 +10922,219 @@
         }
       ],
       "source_original_name": "CandyBomber Studio",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
+        "district_key": "mitte",
+        "postal_code": "13357",
+        "street": "Wiesenstr.",
+        "street_number": "55"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Studio X Berlin",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch8-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-ddd9ec7ddcb54554",
+          "excerpt": "OM FILE UPLOAD TO STUDIOXBERLIN.WETRANSFER.COM FIND US HERE Studio X Berlin Wiesenstr. 55 13357 Berlin - Wedding GET DIRECTIONS PLACES NEXT TO US WE RECOMM",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "6ab4049170b75f8a113075b3b99a878cceb5a26e69b3114680c8de6032f303ab",
+          "source_kind": "official_site",
+          "source_url": "https://studioxberlin.de/contact/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-a69d53621626be11",
+          "excerpt": "OM FILE UPLOAD TO STUDIOXBERLIN.WETRANSFER.COM FIND US HERE Studio X Berlin Wiesenstr. 55 13357 Berlin - Wedding GET DIRECTIONS PLACES NEXT TO US WE RECOMM",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "6ab4049170b75f8a113075b3b99a878cceb5a26e69b3114680c8de6032f303ab",
+          "source_kind": "official_site",
+          "source_url": "https://studioxberlin.de/contact/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f53356676926c906",
+          "excerpt": "OM FILE UPLOAD TO STUDIOXBERLIN.WETRANSFER.COM FIND US HERE Studio X Berlin Wiesenstr. 55 13357 Berlin - Wedding GET DIRECTIONS PLACES NEXT TO US WE RECOMM",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "6ab4049170b75f8a113075b3b99a878cceb5a26e69b3114680c8de6032f303ab",
+          "source_kind": "official_site",
+          "source_url": "https://studioxberlin.de/contact/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-cd3ae8e458a830f8",
+          "excerpt": " HOME STUDIO X BERLIN - studioxberlin Skip to main content Menu instagram phone email Menu Press enter to begin your search Search Close Search MU S IC PRODUCTION REC",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "7a144a63b35161f96e610c59732cbe7881ba2aadb809a9b0a1e1b118d8d86bf2",
+          "source_kind": "official_site",
+          "source_url": "https://studioxberlin.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0751c754c6dd9630",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T13:30:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "f23bce94164bb04f2d1518b38ff705afed5e96eb9243c99c0d2dc8b4f0bce787",
+          "source_kind": "official_site",
+          "source_url": "https://studioxberlin.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "studioxberlin.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "studioxberlin.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "a6ad891a-29a2-5971-8998-620ad58ec989",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "0e6cf97f-97fe-518b-9ff5-0c8bf2d4c49e",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "5f2139df-f52b-5321-b18a-e1fac8ffceba",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68",
+          "text_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T13:30:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "6e6c750e-25a5-5c6a-8a4f-977373aec06f",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68",
+          "text_digest_sha256": "cb18a1880d1eea9dba68df94f82d8aaccd67f2e02ae48286529cc6e7eedd0f68"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-cd3ae8e458a830f8"
+          ],
+          "source_text": " HOME STUDIO X BERLIN - studioxberlin Skip to main content Menu instagram phone email Menu Press enter to begin your search Search Close Search MU S IC PRODUCTION REC"
+        }
+      ],
+      "source_original_name": "Studio X Berlin",
       "subject_match": {
         "decision": "create_new_pending_review",
         "listing_id": null,
