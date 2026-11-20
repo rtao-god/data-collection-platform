@@ -661,7 +661,7 @@ def _district_evidence_file(tmp_path: Path, registry_id: str, bezirk: str = "Fri
                         "source_url": "https://www.berlin.de/ba-friedrichshain-kreuzberg/",
                         "sha256": "c" * 64,
                         "observed_at_utc": "2026-11-20T20:00:00Z",
-                        "method": "official_address_source",
+                        "method": "official_boundary_source",
                         "boundary_contract": "campaign-geography-provenance-v1",
                         "boundary_digest": "sha256:" + "d" * 64,
                         "excerpt": "Example Str. 3, 10963 Berlin, Bezirk Friedrichshain-Kreuzberg",
@@ -717,8 +717,8 @@ def test_district_evidence_verifies_the_bezirk_and_records_its_provenance(tmp_pa
     stored = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
     assert stored["address"]["district_basis"] == "address_source_verified"
     review = [entry for entry in stored["reviews"] if entry["kind"] == "fact"][-1]
-    assert "official_address_source" in review["note"]
-    assert "sha256:" + "d" * 64 in review["note"]
+    assert "official_boundary_source" in review["note"]
+    assert "boundary=campaign-geography-provenance-v1@" in review["note"]
     assert review["source_evidence_digest_sha256"] == "c" * 64
     assert any(
         entry["field_path"] == "address.district_key" and entry["source_url"].endswith("/ba-friedrichshain-kreuzberg/")
@@ -754,3 +754,87 @@ def test_district_evidence_for_another_bezirk_is_refused(tmp_path: Path) -> None
         entry["code"] == "district_derivation_unconfirmed"
         for entry in stored["restrictions"].get("conflicting", [])
     )
+
+
+def test_official_address_record_certifies_a_bezirk_without_a_boundary_digest(tmp_path: Path) -> None:
+    """An official address record names the Bezirk itself, so no boundary geometry is claimed."""
+    registry = _registry_with_postal_code_district(tmp_path)
+    record = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    path = tmp_path / "address-evidence.json"
+    path.write_text(
+        json.dumps(
+            {
+                "records": {
+                    record["registry_id"]: {
+                        "bezirk": "friedrichshain-kreuzberg",
+                        "source_url": "https://gdi.berlin.de/services/wfs/adressen_berlin?CQL_FILTER=...",
+                        "sha256": "b" * 64,
+                        "observed_at_utc": "2026-11-20T23:30:00Z",
+                        "method": "official_address_source",
+                        "dataset_identifier": "634ab8ba-7694-333b-b95d-474d2aed0f7b",
+                        "dataset_version": "Adressen Berlin WFS revision 2026-06-30",
+                        "address_record_id": "203298",
+                        "excerpt": "Kantstrasse 63A, 10627, Bezirk Charlottenburg-Wilmersdorf",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = sr.decide(
+        registry,
+        policy_path=None,
+        reviewer="tester",
+        decided_at_utc="2026-11-20T23:35:00Z",
+        confirm_district=True,
+        confirm_market=False,
+        identity_decision=None,
+        registry_ids=None,
+        dry_run=False,
+        district_evidence_path=path,
+    )
+    assert result == 0
+    stored = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    assert stored["address"]["district_basis"] == "address_source_verified"
+    review = [entry for entry in stored["reviews"] if entry["kind"] == "fact"][-1]
+    assert "dataset=634ab8ba" in review["note"]
+    assert "address_record=203298" in review["note"]
+
+
+def test_address_evidence_needs_the_official_record_identifier(tmp_path: Path) -> None:
+    registry = _registry_with_postal_code_district(tmp_path)
+    record = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    path = tmp_path / "address-evidence.json"
+    path.write_text(
+        json.dumps(
+            {
+                "records": {
+                    record["registry_id"]: {
+                        "bezirk": "friedrichshain-kreuzberg",
+                        "source_url": "https://example.org/address",
+                        "sha256": "b" * 64,
+                        "observed_at_utc": "2026-11-20T23:30:00Z",
+                        "method": "official_address_source",
+                        "dataset_identifier": "634ab8ba-7694-333b-b95d-474d2aed0f7b",
+                        "excerpt": "Example",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = sr.decide(
+        registry,
+        policy_path=None,
+        reviewer="tester",
+        decided_at_utc="2026-11-20T23:35:00Z",
+        confirm_district=True,
+        confirm_market=False,
+        identity_decision=None,
+        registry_ids=None,
+        dry_run=False,
+        district_evidence_path=path,
+    )
+    assert result == 0
+    stored = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
+    assert stored["address"]["district_basis"] == "postal_code"

@@ -2201,14 +2201,38 @@ def _normalize_bezirk(value: Any) -> str:
     return re.sub(r"[\s_]+", "-", text)
 
 
+def _district_verification_note(evidence: Mapping[str, Any]) -> str:
+    if evidence["method"] == "official_address_source":
+        return (
+            "district_key verified against the official address register: "
+            f"{evidence['source_url']} method={evidence['method']} "
+            f"dataset={evidence['dataset_identifier']} "
+            f"version={evidence.get('dataset_version', 'unstated')} "
+            f"address_record={evidence['address_record_id']} "
+            f"bezirk={evidence['bezirk']}"
+        )
+    return (
+        "district_key verified against an address source: "
+        f"{evidence['source_url']} method={evidence['method']} "
+        f"boundary={evidence['boundary_contract']}@{evidence['boundary_digest']}"
+    )
+
+
 def _district_evidence_matches(
     address: Mapping[str, Any], evidence: Mapping[str, Any] | None
 ) -> bool:
     """A district confirmation needs evidence that names the same Bezirk it would certify."""
     if not isinstance(evidence, Mapping):
         return False
-    required = ("source_url", "sha256", "observed_at_utc", "method", "boundary_contract", "boundary_digest", "bezirk", "excerpt")
+    required = ("source_url", "sha256", "observed_at_utc", "method", "bezirk", "excerpt")
     if any(not evidence.get(field) for field in required):
+        return False
+    if evidence["method"] == "official_address_source":
+        # The Bezirk comes straight from the official address record, so no boundary
+        # geometry is proven here; the address record identifier is the evidence instead.
+        if not evidence.get("dataset_identifier") or not evidence.get("address_record_id"):
+            return False
+    elif not evidence.get("boundary_contract") or not evidence.get("boundary_digest"):
         return False
     if not is_http_url(str(evidence["source_url"])):
         return False
@@ -2313,11 +2337,7 @@ def apply_decisions(
                         canonical_json(evidence).encode("utf-8")
                     ).hexdigest(),
                     source_digest=evidence["sha256"],
-                    note=(
-                        "district_key verified against an address source: "
-                        f"{evidence['source_url']} method={evidence['method']} "
-                        f"boundary={evidence['boundary_contract']}@{evidence['boundary_digest']}"
-                    ),
+                    note=_district_verification_note(evidence),
                 )
                 counts["district"] += 1
 
