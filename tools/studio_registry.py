@@ -200,7 +200,15 @@ class Problem:
 
 
 def registry_identity_key(kind: str, value: str) -> str:
-    return f"{kind}:{value.strip().lower()}"
+    """Identity keys are case-insensitive and treat www./non-www as the same host.
+
+    A host is one studio, so the two spellings must not produce two records; the stored
+    domain keeps the spelling it was observed with.
+    """
+    normalized = value.strip().lower()
+    if kind == "official_domain":
+        normalized = re.sub(r"^www\.", "", normalized)
+    return f"{kind}:{normalized}"
 
 
 def derive_registry_id(kind: str, value: str) -> str:

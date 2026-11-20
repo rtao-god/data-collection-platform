@@ -617,3 +617,22 @@ def test_two_records_citing_one_page_get_distinct_evidence_ids() -> None:
         "records": [first, second],
     }
     assert sr.validate_registry(document) == []
+
+
+def test_www_and_bare_host_share_one_identity_and_one_record(tmp_path: Path) -> None:
+    """A www-prefixed spelling must merge into the bare-host record, not create a second one."""
+    registry = tmp_path / "studios.json"
+    plain = _shared_page_lead("shared-host.de")
+    prefixed = _shared_page_lead("www.shared-host.de")
+    registry.write_text(
+        json.dumps(
+            {"schema_revision": sr.SCHEMA_REVISION, "campaign_key": sr.CAMPAIGN_KEY, "records": []}
+        ),
+        encoding="utf-8",
+    )
+    sr.import_leads(registry, [plain], "tests", dry_run=False)
+    sr.import_leads(registry, [prefixed], "tests", dry_run=False)
+    document = json.loads(registry.read_text(encoding="utf-8"))
+    assert len(document["records"]) == 1
+    stored = document["records"][0]["official_domains"]["primary"]
+    assert stored == plain["domain"]
