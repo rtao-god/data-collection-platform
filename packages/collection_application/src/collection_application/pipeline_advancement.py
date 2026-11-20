@@ -2604,10 +2604,14 @@ def _read_normalization_evidence(
     request_artifacts = tuple(
         item for item in source.input_artifacts if item.role == "extraction_request"
     )
+    lineage_artifacts = tuple(
+        item for item in source.input_artifacts if item.role == "manual_record_lineage"
+    )
     if (
-        len(source.input_artifacts) != 2
-        or len(raw_artifacts) != 1
+        len(raw_artifacts) != 1
         or len(request_artifacts) != 1
+        or len(lineage_artifacts) > 1
+        or len(source.input_artifacts) != 2 + len(lineage_artifacts)
         or _digest_bytes(source.extraction_request_content) != request_artifacts[0].content_digest
         or _canonical_json_bytes(request.model_dump(mode="json", by_alias=True))
         != source.extraction_request_content
