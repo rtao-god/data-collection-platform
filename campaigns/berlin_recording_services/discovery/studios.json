@@ -6760,6 +6760,226 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "operator_reviewed",
+        "district_key": "neukoelln",
+        "postal_code": "12057",
+        "street": "Sonnenallee",
+        "street_number": "262"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Studio Hamburg Synchron Berlin",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch7-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-d350d06747cde1fe",
+          "excerpt": "Allee 80, 22045 Hamburg Hauptsitz Studio Hamburg Synchron – Berlin Sonnenallee 262, 12057 Berlin Studio Service Kontakt Datenschutzerklärung Impressu",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "24fdd18501c08a74b48cfc8b0e1155dfbf43169c297f7ec606976fd72c370ea7",
+          "source_kind": "official_site",
+          "source_url": "https://synchron.tv/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-6248bd5b2639e791",
+          "excerpt": "Allee 80, 22045 Hamburg Hauptsitz Studio Hamburg Synchron – Berlin Sonnenallee 262, 12057 Berlin Studio Service Kontakt Datenschutzerklärung Impressu",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "24fdd18501c08a74b48cfc8b0e1155dfbf43169c297f7ec606976fd72c370ea7",
+          "source_kind": "official_site",
+          "source_url": "https://synchron.tv/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-a3f16eea38f7d54d",
+          "excerpt": "Allee 80, 22045 Hamburg Hauptsitz Studio Hamburg Synchron – Berlin Sonnenallee 262, 12057 Berlin Studio Service Kontakt Datenschutzerklärung Impressu",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "24fdd18501c08a74b48cfc8b0e1155dfbf43169c297f7ec606976fd72c370ea7",
+          "source_kind": "official_site",
+          "source_url": "https://synchron.tv/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-61cc4018279cded3",
+          "excerpt": " Startseite - Studio Hamburg Synchron Zum Inhalt Team Aktuelles Portfolio Ausstattung Jobs Kontakt Deutsch Englisch Team Aktuelles Portfolio Ausstattung Jobs Kontakt Deutsch Englisch Studio",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "24fdd18501c08a74b48cfc8b0e1155dfbf43169c297f7ec606976fd72c370ea7",
+          "source_kind": "official_site",
+          "source_url": "https://synchron.tv/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-79a31462d5c5c7fa",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "02532058664a89682945c8c99e92b856520461c29b1f634acd69c8db7e915517",
+          "source_kind": "official_site",
+          "source_url": "https://synchron.tv/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "synchron.tv"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "synchron.tv"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "6bb4159e-b5c9-5c70-85d4-f207515b87bc",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "30b79a8e-6782-59bb-a10b-d646bf49c9c0",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "4c6b71d8-3b4d-5040-9804-ca929da6ddbe",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0",
+          "text_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "e3250bc1-3df4-5c1c-a319-bea7afa485b7",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0",
+          "text_digest_sha256": "b2de568f4b30c8be213a8e177507fa5b8ebcba461378aa465ec1b0c5337282a0"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-61cc4018279cded3"
+          ],
+          "source_text": " Startseite - Studio Hamburg Synchron Zum Inhalt Team Aktuelles Portfolio Ausstattung Jobs Kontakt Deutsch Englisch Team Aktuelles Portfolio Ausstattung Jobs Kontakt Deutsch Englisch Studio"
+        },
+        {
+          "catalog_category_key": "voice-over-adr-studio",
+          "evidence_refs": [
+            "ev-61cc4018279cded3"
+          ],
+          "source_text": " Startseite - Studio Hamburg Synchron Zum Inhalt Team Aktuelles Portfolio Ausstattung Jobs Kontakt Deutsch Englisch Team Aktuelles Portfolio Ausstattung Jobs Kontakt Deutsch Englisch Studio"
+        }
+      ],
+      "source_original_name": "Studio Hamburg Synchron Berlin",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
         "district_key": "pankow",
         "postal_code": "10439",
         "street": "Behmstraße",
@@ -12017,6 +12237,219 @@
         "coordinate": null,
         "country_code": "DE",
         "district_basis": "operator_reviewed",
+        "district_key": "pankow",
+        "postal_code": "10405",
+        "street": "Saarbrücker Straße",
+        "street_number": "19"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "sonofaktur",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch7-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-95a5108297f76f2c",
+          "excerpt": "chutz: Wieviel ist … ? Senden → Impressum Angaben gemäß § 5 DDG Sascha Fernsel Parsevalstrasse 3 12459 Berlin Deutschland Kontakt E-Mail: Verantwortlich für den I",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "02b4e426e8cd39a6a9c8b9235c88d3b8815e6ea261460a4a3e710ee8d89f9c8b",
+          "source_kind": "official_site",
+          "source_url": "https://sonofaktur.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-e28bfba7a565cec9",
+          "excerpt": "chutz: Wieviel ist … ? Senden → Impressum Angaben gemäß § 5 DDG Sascha Fernsel Parsevalstrasse 3 12459 Berlin Deutschland Kontakt E-Mail: Verantwortlich für den I",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "02b4e426e8cd39a6a9c8b9235c88d3b8815e6ea261460a4a3e710ee8d89f9c8b",
+          "source_kind": "official_site",
+          "source_url": "https://sonofaktur.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c042ed0c58b236a2",
+          "excerpt": "chutz: Wieviel ist … ? Senden → Impressum Angaben gemäß § 5 DDG Sascha Fernsel Parsevalstrasse 3 12459 Berlin Deutschland Kontakt E-Mail: Verantwortlich für den I",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "02b4e426e8cd39a6a9c8b9235c88d3b8815e6ea261460a4a3e710ee8d89f9c8b",
+          "source_kind": "official_site",
+          "source_url": "https://sonofaktur.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-d2bdc22174661563",
+          "excerpt": "ir direkt oder nutzen Sie das Formular — ich melde mich zeitnah zurück. E-Mail: Studio Saarbrücker Straße 19 · Sudhaus, 1. OG 10405 Berlin Spamschutz: Wieviel ist … ? Senden → Impressum Angaben gemäß § 5 DDG Sascha Fernsel Parsevalstrasse 3",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "02b4e426e8cd39a6a9c8b9235c88d3b8815e6ea261460a4a3e710ee8d89f9c8b",
+          "source_kind": "official_site",
+          "source_url": "https://sonofaktur.de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-f4ab2e3d1925e516",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "8ec9c59e45cd41c9b079759597942cd509a1e4127e3d7c1a3bee22d3bf0e38d6",
+          "source_kind": "official_site",
+          "source_url": "https://sonofaktur.de/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "sonofaktur.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "sonofaktur.de"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "b7225892-ace4-5b43-ac36-edc9869c17e3",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "05572f39-999d-5154-b266-bb5b1def47f5",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "3234d5a9-4b52-5e1a-b687-e935e51fb4f3",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd",
+          "text_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "69d4378b-9f41-5269-a79d-a7533d105a67",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd",
+          "text_digest_sha256": "22e8c72918c3552d109a7e09adc7b14b11e9278b752bcbeb973793b83ce064fd"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-d2bdc22174661563"
+          ],
+          "source_text": "ir direkt oder nutzen Sie das Formular — ich melde mich zeitnah zurück. E-Mail: Studio Saarbrücker Straße 19 · Sudhaus, 1. OG 10405 Berlin Spamschutz: Wieviel ist … ? Senden → Impressum Angaben gemäß § 5 DDG Sascha Fernsel Parsevalstrasse 3"
+        }
+      ],
+      "source_original_name": "sonofaktur",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
         "district_key": "friedrichshain-kreuzberg",
         "postal_code": "10243",
         "street": "Holzmarktstraße",
@@ -15362,6 +15795,219 @@
         "decision": "create_new_pending_review",
         "listing_id": null,
         "reason": "operator reviewed the candidate: official domain and street address identify one Berlin studio with no existing Catalog listing",
+        "subject_id": null
+      }
+    },
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "operator_reviewed",
+        "district_key": "charlottenburg-wilmersdorf",
+        "postal_code": "10717",
+        "street": "Bundesallee",
+        "street_number": "186"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "Südstern Studios",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "batch7-berlin-verified",
+        "revisions": []
+      },
+      "contacts": [],
+      "descriptions": {},
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-0f436df2492c500b",
+          "excerpt": "ntact Contact MEET WITH US Adresse Südstern Studios c/o 186 Studio Bundesallee 186 10717 Berlin Germany Email contact(at)sudsternstudios.com Phone (",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "48bec516cfb9167fd8046e9538c72bc2caade3ae2be97de0c6851da491549461",
+          "source_kind": "official_site",
+          "source_url": "https://sudsternstudios.com/contact",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-626990989622b87c",
+          "excerpt": "ntact Contact MEET WITH US Adresse Südstern Studios c/o 186 Studio Bundesallee 186 10717 Berlin Germany Email contact(at)sudsternstudios.com Phone (",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "48bec516cfb9167fd8046e9538c72bc2caade3ae2be97de0c6851da491549461",
+          "source_kind": "official_site",
+          "source_url": "https://sudsternstudios.com/contact",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-732284fdbc5bc6c0",
+          "excerpt": "ntact Contact MEET WITH US Adresse Südstern Studios c/o 186 Studio Bundesallee 186 10717 Berlin Germany Email contact(at)sudsternstudios.com Phone (",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "48bec516cfb9167fd8046e9538c72bc2caade3ae2be97de0c6851da491549461",
+          "source_kind": "official_site",
+          "source_url": "https://sudsternstudios.com/contact",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3e92f83b38ff4697",
+          "excerpt": " Südstern Studios | Tonstudio in Berlin Schöneberg | Recording | Mixing | Mastering Südstern Studios | Surround Tonstudio in Berlin‎ | Home Service Work Equipment About C",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "86d134e18b5e40358685cb668a288e9be394f3dd628b34baf973544cad6f79b2",
+          "source_kind": "official_site",
+          "source_url": "https://sudsternstudios.com/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-b61f7c1a5114587a",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T12:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "e52331b2d19d4be05f29985e4dce21273c287e6897798ecb929336cbfeb1a3a4",
+          "source_kind": "official_site",
+          "source_url": "https://sudsternstudios.com/robots.txt",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "sudsternstudios.com"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-20T00:00:00Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "sudsternstudios.com"
+      },
+      "photo_candidates": [],
+      "possible_duplicate_of": [],
+      "registry_id": "efb6485e-252c-5d7e-9570-0d6981db7c82",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "967031ec-94d6-580b-852a-41c3c769cc0a",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "eb3b2ede-a836-5980-90b6-4d0082b788a0",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef",
+          "text_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T12:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "ae41f5df-fab1-5fad-bcf0-73c7ab425661",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef",
+          "text_digest_sha256": "d6fd4ea51f08fc442100a99435bfd52d16faa5402e26441d6aeaf93f26227fef"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-3e92f83b38ff4697"
+          ],
+          "source_text": " Südstern Studios | Tonstudio in Berlin Schöneberg | Recording | Mixing | Mastering Südstern Studios | Surround Tonstudio in Berlin‎ | Home Service Work Equipment About C"
+        }
+      ],
+      "source_original_name": "Südstern Studios",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
         "subject_id": null
       }
     },
