@@ -19,6 +19,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from shutil import copytree
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -38,6 +39,7 @@ from collection_application import (
     CampaignSnapshotService,
     CreateCampaignRun,
     OwnedArtifactPublisherService,
+    WorkCapability,
     WorkEngineService,
 )
 from collection_application.manual_import_admission import (
@@ -52,6 +54,7 @@ from collection_application.pipeline_advancement import (
     PipelineTransitionDisposition,
     PipelineTransitionRegistry,
     manual_import_admission_result_digest,
+    website_route_result_digest,
 )
 from collection_infrastructure import (
     PostgresCampaignRunStore,
@@ -75,6 +78,9 @@ from collection_infrastructure.postgres.pipeline_advancement import (
 )
 from collection_infrastructure.postgres.succeeded_work_catalog import (
     PostgresSucceededWorkCatalog,
+)
+from collection_infrastructure.postgres.website_route_applier import (
+    website_route_transition_appliers,
 )
 from manual_import_worker.contracts import ManualWorkerSettings
 from manual_import_worker.gateway import SourceWorkerGatewayAdapter
@@ -156,7 +162,15 @@ def _publish_and_bootstrap(engine: Engine, store: object, campaigns_root: Path) 
     return run_id
 
 
-def _gateway(engine: Engine, store: object) -> TestClient:
+def _gateway(
+    engine: Engine,
+    store: object,
+    capability: str = "manual_import",
+) -> TestClient:
+    """A real Worker Gateway whose credential scope is exactly one capability."""
+
+    scoped = WorkCapability(capability)
+
     def readiness_probe() -> None:
         with engine.connect() as connection:
             assert connection.execute(sa.text("SELECT 1")).scalar_one() == 1
@@ -170,8 +184,8 @@ def _gateway(engine: Engine, store: object) -> TestClient:
             authenticator=WorkerAuthenticator.from_plaintext_credentials(
                 {
                     _TOKEN: WorkerPrincipal(
-                        worker_id=_WORKER,
-                        capabilities=frozenset({"manual_import"}),
+                        worker_id=f"{_WORKER}:{capability}",
+                        capabilities=frozenset({scoped}),
                     )
                 }
             ),
@@ -198,32 +212,29 @@ class _ObjectStoreHTTPX:
         return httpx.Client(*args, **kwargs)
 
 
-def _publish_plan(
+def _run_manual_capability(
     engine: Engine,
     store: object,
     client: FakeS3Client,
-    *,
-    campaigns_root: Path,
     monkeypatch: pytest.MonkeyPatch,
-) -> UUID:
-    """Bootstrap one run and let the real manual worker publish its canonical plan."""
+    capability: str,
+    *,
+    times: int = 1,
+) -> list[str]:
+    """Run the real manual worker for one capability and return the published work ids."""
 
-    run_id = _publish_and_bootstrap(engine, store, campaigns_root)
-    api = _gateway(engine, store)
-
-    def transport(client: TestClient) -> httpx.BaseTransport:
-        return _FastApiTransport(client)
-
+    api = _gateway(engine, store, capability)
     monkeypatch.setattr(
         manual_import_worker.gateway,
         "httpx",
         _ObjectStoreHTTPX(S3Transport(client)),
     )
+    published: list[str] = []
     with api:
         sdk = SourceWorkerGateway(
             base_url="http://worker-gateway.test",
             token=_TOKEN,
-            gateway_transport=transport(api),
+            gateway_transport=_FastApiTransport(api),
             object_transport=S3Transport(client),
         )
         worker = ManualWorker(
@@ -231,7 +242,7 @@ def _publish_plan(
             ManualWorkerSettings(
                 gateway_url="http://worker-gateway.test",
                 gateway_token=_TOKEN,
-                capability="manual_import",
+                capability=capability,
                 build_identity=_WORKER,
                 resource_profile="integration",
                 poll_interval_seconds=1.0,
@@ -243,9 +254,12 @@ def _publish_plan(
             ),
         )
         worker.register()
-        outcome = worker.run_once()
-    assert outcome.acquired is True, outcome
-    return run_id
+        for _ in range(times):
+            outcome = worker.run_once()
+            assert outcome.acquired is True, outcome
+            assert outcome.work_id is not None
+            published.append(outcome.work_id)
+    return published
 
 
 def _advancement(
@@ -344,13 +358,8 @@ def test_the_plan_transition_admits_child_manual_record_work(
         try:
             client = FakeS3Client()
             store = object_store(client)
-            run_id = _publish_plan(
-                engine,
-                store,
-                client,
-                monkeypatch=monkeypatch,
-                campaigns_root=_CAMPAIGN_ROOT,
-            )
+            run_id = _publish_and_bootstrap(engine, store, _CAMPAIGN_ROOT)
+            _run_manual_capability(engine, store, client, monkeypatch, "manual_import")
             advancement, appliers = _advancement(engine, store)
             assert set(appliers) == {_TRANSITION_KEY}
             catalog = PostgresSucceededWorkCatalog(engine, object_store=store)
@@ -409,13 +418,8 @@ def test_a_mismatched_completion_rolls_the_admission_back(
         try:
             client = FakeS3Client()
             store = object_store(client)
-            run_id = _publish_plan(
-                engine,
-                store,
-                client,
-                monkeypatch=monkeypatch,
-                campaigns_root=_CAMPAIGN_ROOT,
-            )
+            run_id = _publish_and_bootstrap(engine, store, _CAMPAIGN_ROOT)
+            _run_manual_capability(engine, store, client, monkeypatch, "manual_import")
             advancement, _ = _advancement(engine, store)
             catalog = PostgresSucceededWorkCatalog(engine, object_store=store)
             _, lease = _register_and_claim(advancement, catalog, engine, run_id)
@@ -448,13 +452,8 @@ def test_replaying_the_same_plan_never_creates_second_work(
         try:
             client = FakeS3Client()
             store = object_store(client)
-            run_id = _publish_plan(
-                engine,
-                store,
-                client,
-                monkeypatch=monkeypatch,
-                campaigns_root=_CAMPAIGN_ROOT,
-            )
+            run_id = _publish_and_bootstrap(engine, store, _CAMPAIGN_ROOT)
+            _run_manual_capability(engine, store, client, monkeypatch, "manual_import")
             advancement, appliers = _advancement(engine, store)
             catalog = PostgresSucceededWorkCatalog(engine, object_store=store)
             source, lease = _register_and_claim(advancement, catalog, engine, run_id)
@@ -488,13 +487,8 @@ def test_an_identity_change_is_refused_before_anything_is_written(
         try:
             client = FakeS3Client()
             store = object_store(client)
-            run_id = _publish_plan(
-                engine,
-                store,
-                client,
-                monkeypatch=monkeypatch,
-                campaigns_root=_CAMPAIGN_ROOT,
-            )
+            run_id = _publish_and_bootstrap(engine, store, _CAMPAIGN_ROOT)
+            _run_manual_capability(engine, store, client, monkeypatch, "manual_import")
             advancement, appliers = _advancement(engine, store)
             catalog = PostgresSucceededWorkCatalog(engine, object_store=store)
             source, _ = _register_and_claim(advancement, catalog, engine, run_id)
@@ -527,5 +521,175 @@ def test_an_identity_change_is_refused_before_anything_is_written(
             assert captured.value.code == "PIPELINE_MANUAL_IMPORT_ADMISSION_IDENTITY_CHANGED"
             assert _admission_rows(engine, run_id) == []
             assert _child_work(engine, run_id) == []
+        finally:
+            engine.dispose()
+
+
+def _acceptance_campaign(root: Path) -> Path:
+    """A campaign copy that routes one authored seed's own website to its official site.
+
+    The shipped campaign declares no seed routing, so an authored record cannot reach an
+    acquisition source there. The acceptance copy enables the approved official_site policy
+    for one studio only and declares the exact hosts the run may contact.
+    """
+
+    campaigns = root / "campaigns"
+    copytree(_CAMPAIGN_ROOT / _CAMPAIGN_KEY, campaigns / _CAMPAIGN_KEY)
+    campaign = campaigns / _CAMPAIGN_KEY
+    campaign_yaml = campaign / "campaign.yaml"
+    campaign_yaml.write_text(
+        campaign_yaml.read_text(encoding="utf-8").replace(
+            "- osm_overpass_berlin",
+            "- osm_overpass_berlin\n- official_site_berlin_studios",
+        ),
+        encoding="utf-8",
+    )
+    bindings = campaign / "source_bindings.yaml"
+    bindings.write_text(
+        bindings.read_text(encoding="utf-8").replace(
+            "seed_routing:\n  state: not_configured",
+            """  - key: official_site_berlin_studios
+    source_key: official_site
+    connector_key: official_http
+    source_policy_key: official_site_berlin_studios_policy
+    capability: http_fetch
+    seed_provider:
+      kind: not_applicable
+    crawl_budget:
+      state: defined
+      max_work_units: 24
+      max_total_bytes: 8388608
+    schedule_enabled: false
+    extraction_profile: official-website-extractor-v1
+seed_routing:
+  state: configured
+  routes:
+    - key: manual_seed_official_website
+      source_field: website
+      source_binding: manual_seed_import
+      target_binding: official_site_berlin_studios
+      route_kind: official_website_page
+      selection: exclusive
+      page_interests:
+        - key: services
+          tokens:
+            - recording
+            - studio
+          priority: 1
+        - key: address
+          tokens:
+            - impressum
+          priority: 2""",
+        ),
+        encoding="utf-8",
+    )
+    policy = campaign / "source_policies" / "official_site_berlin_studios_policy.yaml"
+    policy.write_text(
+        policy.read_text(encoding="utf-8")
+        .replace(
+            "  - coordinates\n",
+            "",
+        )
+        .replace(
+            "  allowed_host_patterns:\n    - official-site-domain-of-record",
+            "  allowed_host_patterns:\n    - www.trixx-studios.de",
+        )
+        .replace(
+            "  redirect_limit: 3",
+            "  user_agent:\n    state: configured\n    value: AggregatorAcceptance/1.0\n"
+            "  redirect_limit: 3",
+        ),
+        encoding="utf-8",
+    )
+    return campaigns
+
+
+def test_routing_starts_the_acquisition_stage_for_its_http_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not os.environ.get("COLLECTOR_DATABASE_URL", "").strip():
+        pytest.fail("COLLECTOR_DATABASE_URL is required for the website route transition.")
+
+    for url in disposable_database("manual record website routing"):
+        engine = sa.create_engine(url, poolclass=sa.NullPool)
+        try:
+            client = FakeS3Client()
+            store = object_store(client)
+            campaigns = _acceptance_campaign(tmp_path)
+            run_id = _publish_and_bootstrap(engine, store, campaigns)
+            _run_manual_capability(engine, store, client, monkeypatch, "manual_import")
+            advancement, _ = _advancement(engine, store)
+            catalog = PostgresSucceededWorkCatalog(engine, object_store=store)
+            source, lease = _register_and_claim(advancement, catalog, engine, run_id)
+            _apply(advancement, lease, manual_import_admission_result_digest(
+                PipelineTransitionRegistry().plan(source)
+            ))
+            _run_manual_capability(engine, store, client, monkeypatch, "manual_record", times=3)
+
+            # Only the studio whose host the acceptance policy allows gains acquisition work.
+            routing_appliers = website_route_transition_appliers(
+                PostgresWorkEngine(engine, clock=lambda: _NOW),
+                PostgresOwnedArtifactPublisher(engine, store, clock=lambda: _NOW),  # type: ignore[arg-type]
+                clock=lambda: _NOW,
+            )
+            advancement = PostgresPipelineAdvancementRepository(
+                engine,
+                source_reader=catalog,
+                transition_appliers=routing_appliers,
+                clock=lambda: _NOW,
+            )
+            routable: Any = None
+            for work in _rows(
+                engine,
+                "SELECT work_id FROM work.work_units WHERE run_id = :run_id "
+                "AND capability = 'manual_record' ORDER BY semantic_key",
+                run_id=run_id,
+            ):
+                with engine.connect() as connection:
+                    record_source = catalog.read(connection, UUID(str(work["work_id"])))
+                plan = PipelineTransitionRegistry().plan(record_source)
+                advancement.register(
+                    record_source,
+                    plan,
+                    correlation_id="manual-record-website-routing",
+                )
+                if plan.disposition is PipelineTransitionDisposition.APPLY:
+                    assert routable is None
+                    routable = plan
+            assert routable is not None
+
+            lease = advancement.claim(
+                ClaimPipelineAdvancement(
+                    worker_id="pipeline-supervisor",
+                    dagster_execution_id="dagster-run",
+                    dagster_build_id="dagster-build",
+                    lease_duration=timedelta(minutes=5),
+                    correlation_id="manual-record-website-routing",
+                )
+            )
+            assert lease is not None
+            status = _apply(advancement, lease, website_route_result_digest(routable))
+            assert status.state.value == "applied"
+
+            acquisition = _row(
+                engine,
+                "SELECT stage_run_id, state FROM runs.stage_runs "
+                "WHERE run_id = :run_id AND stage = 'acquisition'",
+                run_id=run_id,
+            )
+            # Scheduling work into a still-pending stage would produce units no worker can
+            # lease, so the routing transition must make the stage operational itself.
+            assert acquisition["state"] == "running"
+            http_work = _rows(
+                engine,
+                "SELECT stage_run_id, state, expected_output_contract, source_binding_key "
+                "FROM work.work_units WHERE run_id = :run_id AND capability = 'http_fetch'",
+                run_id=run_id,
+            )
+            assert len(http_work) == 1
+            assert str(http_work[0]["stage_run_id"]) == str(acquisition["stage_run_id"])
+            assert http_work[0]["state"] == "pending"
+            assert http_work[0]["expected_output_contract"] == "official-http-acquisition@1"
+            assert http_work[0]["source_binding_key"] == "official_site_berlin_studios"
         finally:
             engine.dispose()

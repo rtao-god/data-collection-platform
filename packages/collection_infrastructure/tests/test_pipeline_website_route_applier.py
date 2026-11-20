@@ -371,6 +371,11 @@ class FakeResult:
     def one_or_none(self) -> dict[str, object] | None:
         return None if self._one is None else dict(self._one)
 
+    def scalar_one_or_none(self) -> object | None:
+        if self._scalar_values:
+            return self._scalar_values[0]
+        return self._one
+
     def all(self) -> list[object]:
         return (
             list(self._scalar_values) if self._scalar_values else [dict(row) for row in self._rows]
@@ -399,6 +404,9 @@ class FakeConnection:
         assert isinstance(statement, sa.sql.selectable.Select)
         sql = str(statement.compile(dialect=postgresql.dialect()))
         if "FROM runs.stage_runs" in sql:
+            if "runs.stage_runs.state" in sql:
+                # The stage-start guard reads the current state before scheduling work.
+                return FakeResult(scalar_values=["pending"])
             stage = _stage_run_filter(statement)
             return FakeResult(
                 scalar_values=[
