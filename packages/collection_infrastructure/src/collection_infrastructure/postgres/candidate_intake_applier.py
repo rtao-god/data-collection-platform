@@ -984,7 +984,13 @@ def _observation_artifact_ids(
     rather than a value to guess.
     """
 
-    digests = sorted({item.evidence.raw_artifact_digest for item in observations})
+    digests = sorted(
+        {
+            item.evidence.raw_artifact_digest
+            for item in observations
+            if item.evidence is not None and item.evidence.raw_artifact_digest
+        }
+    )
     rows = connection.execute(
         sa.text(
             """
