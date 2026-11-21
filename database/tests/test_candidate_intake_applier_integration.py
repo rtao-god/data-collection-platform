@@ -62,6 +62,40 @@ def _artifact(artifact_id: UUID, role: str, digest: str) -> ArtifactIdentity:
     )
 
 
+def _seed_acquired_document(connection: sa.Connection, digest: str) -> None:
+    """Record the acquired document an extracted observation proves itself against.
+
+    A page-derived observation seals the content digest of the document it was read from, and
+    the candidate revision must carry the matching artifact identity, so the intake needs the
+    artifact the extraction actually consumed.
+    """
+
+    object_id = uuid4()
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO sources.artifact_objects
+                (object_id, artifact_kind, content_digest, size_bytes, storage_reference,
+                 verified_at_utc, recorded_at_utc, correlation_id)
+            VALUES (:object_id, 'raw_artifact', :digest, 1, :storage_reference,
+                    :now, :now, 'candidate-intake-applier')
+            ON CONFLICT (artifact_kind, content_digest) DO NOTHING
+            """
+        ),
+        {
+            "object_id": object_id,
+            "digest": digest,
+            "storage_reference": f"artifacts/{object_id}.html",
+            "now": _NOW,
+        },
+    )
+
+
+def _raw_digest(source: SucceededWorkOutput) -> str:
+    assert source.output_content is not None
+    return decode_observation_batch(source.output_content).raw_artifact_digest
+
+
 def _batch_bytes(record_digest: str) -> bytes:
     observation = seal_field_observation(
         FieldObservationPayload(
@@ -292,6 +326,7 @@ def test_candidate_intake_persists_candidate_revision_and_review(engine: sa.Engi
     candidate_id = plan.candidate_intake_actions[0].candidate_id
 
     with engine.begin() as connection:
+        _seed_acquired_document(connection, _raw_digest(source))
         result_digest = applier(connection, source, plan, correlation_id="intake-test")
 
     assert result_digest.startswith("sha256:")
@@ -348,6 +383,7 @@ def test_exact_replay_does_not_duplicate_or_alter_candidate(engine: sa.Engine) -
     candidate_id = plan.candidate_intake_actions[0].candidate_id
 
     with engine.begin() as connection:
+        _seed_acquired_document(connection, _raw_digest(source))
         first = applier(connection, source, plan, correlation_id="replay-1")
     with engine.begin() as connection:
         second = applier(connection, source, plan, correlation_id="replay-2")
@@ -381,6 +417,7 @@ def test_writer_failure_leaves_no_partial_candidate(engine: sa.Engine) -> None:
     applier = PostgresCandidateIntakeApplier(clock=lambda: _NOW)
 
     with pytest.raises(RuntimeError), engine.begin() as connection:
+        _seed_acquired_document(connection, _raw_digest(source))
         applier(connection, source, plan, correlation_id="rollback-test")
         raise RuntimeError("abort after intake writes")
 
@@ -416,6 +453,7 @@ def test_identity_conflict_is_typed_and_writes_nothing_new(engine: sa.Engine) ->
     applier = PostgresCandidateIntakeApplier(clock=lambda: _NOW)
 
     with engine.begin() as connection:
+        _seed_acquired_document(connection, _raw_digest(source))
         applier(connection, source, plan, correlation_id="conflict-seed")
 
     assert _candidate_rows(engine, candidate_id) == 1

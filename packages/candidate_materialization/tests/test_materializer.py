@@ -22,6 +22,7 @@ from collection_contracts import (
 from resolution_contracts import CandidateField, EntityKind, GeographyCoverage, GeographyReference
 
 _DIGEST = f"sha256:{'1' * 64}"
+_ARTIFACT_ID = UUID("00000000-0000-0000-0000-000000000002")
 _NOW = datetime(2026, 8, 21, tzinfo=UTC)
 
 
@@ -96,7 +97,8 @@ def _materialize(batch, *, geography: GeographyReference | None = None):
         candidate_id=UUID("00000000-0000-0000-0000-000000000001"),
         entity_kind=EntityKind.PLACE,
         source_key="official_site",
-        source_artifact_ids=(UUID("00000000-0000-0000-0000-000000000002"),),
+        source_artifact_ids=(_ARTIFACT_ID,),
+        observation_artifact_ids={_DIGEST: _ARTIFACT_ID},
         field_projection={
             "name": CandidateField.NAMES,
             "address": CandidateField.ADDRESSES,
@@ -204,3 +206,53 @@ def test_materialization_revalidates_unknown_geography_provenance_shape() -> Non
 
     with pytest.raises(ValidationError, match="unknown geography must not invent coordinates"):
         _materialize(_batch(), geography=forged)
+
+
+def test_every_sealed_observation_carries_the_source_artifact_identity() -> None:
+    revision, _ = _materialize(_batch())
+
+    identities = {
+        observation["evidence"]["rawArtifactId"]
+        for observation in revision.normalized_payload["fieldObservations"]
+    }
+    assert identities == {str(_ARTIFACT_ID)}
+    digests = {
+        observation["evidence"]["rawArtifactDigest"]
+        for observation in revision.normalized_payload["fieldObservations"]
+    }
+    assert digests == {_DIGEST}
+
+
+def test_observation_evidence_that_binds_no_artifact_is_refused() -> None:
+    batch = _batch()
+    foreign = EvidenceReference(
+        raw_artifact_digest=f"sha256:{'9' * 64}",
+        source_url="https://studio.example/",
+        locator_kind=EvidenceLocatorKind.JSON_POINTER,
+        locator_value="/name",
+        evidence_digest=f"sha256:{'2' * 64}",
+        observed_at_utc=_NOW,
+        extractor_revision="extractor@1",
+    )
+    forged = batch.observations[0].model_copy(update={"evidence": foreign})
+    changed = seal_observation_batch(
+        ObservationBatchPayload(
+            **{
+                **batch.model_dump(mode="python", exclude={"content_digest"}),
+                "observations": (
+                    seal_field_observation(
+                        FieldObservationPayload(
+                            **{
+                                **forged.model_dump(mode="python", exclude={"observation_id"}),
+                                "evidence": foreign,
+                            }
+                        )
+                    ),
+                    *batch.observations[1:],
+                ),
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="does not bind exactly one source artifact"):
+        _materialize(changed)

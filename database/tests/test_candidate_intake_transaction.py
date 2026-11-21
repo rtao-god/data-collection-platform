@@ -21,6 +21,12 @@ from test_candidate_intake_applier_integration import (
     _plan as _shared_plan,
 )
 from test_candidate_intake_applier_integration import (
+    _raw_digest as _shared_raw_digest,
+)
+from test_candidate_intake_applier_integration import (
+    _seed_acquired_document as _seed_shared_acquired_document,
+)
+from test_candidate_intake_applier_integration import (
     _sources as _shared_sources,
 )
 
@@ -213,6 +219,16 @@ def cleaned(engine: sa.Engine):
     """
 
     yield engine, []
+
+
+@pytest.fixture(autouse=True)
+def _acquired_document(cleaned: tuple[sa.Engine, list[UUID]]) -> None:
+    """Record the document the shared observation batch was extracted from."""
+
+    engine, _ = cleaned
+    source, _, _ = _shared_sources()
+    with engine.begin() as connection:
+        _seed_shared_acquired_document(connection, _shared_raw_digest(source))
 
 
 def test_failure_before_commit_rolls_back_candidate_and_review(
