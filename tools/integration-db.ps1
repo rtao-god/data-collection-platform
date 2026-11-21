@@ -76,14 +76,16 @@ function Wait-Healthy {
 }
 
 function Wait-DatabaseReady {
-    # `pg_isready` succeeds as soon as PostgreSQL accepts connections, which happens before
-    # the image's init scripts finish loading PostGIS and creating the application database.
-    # Migrating inside that window fails intermittently, so readiness is proven by an actual
-    # query against the real database instead of by the container's health report.
+    # `pg_isready` and a socket query both succeed as soon as PostgreSQL accepts connections, which
+    # happens before the image's init scripts finish loading PostGIS and creating the application
+    # database. The init phase runs its own temporary server with `listen_addresses = ''`, so a
+    # socket-only probe also passes against a server that is about to shut down - migrations then
+    # failed with an OperationalError mid-run. The final server is the one that listens on TCP, so
+    # readiness is proven by a TCP query against the real database instead.
     $deadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
     $lastError = 'no attempt was made'
     while ((Get-Date) -lt $deadline) {
-        $result = & docker exec $project-$container-1 psql --username $userValue --dbname $database --no-psqlrc --quiet --tuples-only --command 'SELECT 1' 2>&1
+        $result = & docker exec $project-$container-1 psql --host 127.0.0.1 --username $userValue --dbname $database --no-psqlrc --quiet --tuples-only --command 'SELECT 1' 2>&1
         if ($LASTEXITCODE -eq 0 -and "$result".Trim() -eq '1') {
             return
         }

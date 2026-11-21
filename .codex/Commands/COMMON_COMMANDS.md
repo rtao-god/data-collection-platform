@@ -85,6 +85,13 @@ Integration tests are repeatable against one migrated database: every fixture de
 identities, so rerunning the suite must not need a fresh database. CI runs the database contract twice
 against the same instance to keep that property enforced.
 
+The disposable integration database is started, migrated and removed by its own owner script:
+`pwsh -NoProfile -File tools/integration-db.ps1 up|test|down`. It keeps a separate Compose project,
+volume-less tmpfs data and its own migration run. `up` treats the database as ready only when the
+application database answers a TCP query: the image's init phase keeps a temporary server on the unix
+socket only, and a socket-only readiness query used to pass while that server was already shutting
+down, so migrations failed with an `OperationalError` instead of retrying.
+
 # Runtime
 
 Worker Gateway needs exact object-store configuration and mounted secret files:
