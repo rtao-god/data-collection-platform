@@ -256,3 +256,37 @@ def test_observation_evidence_that_binds_no_artifact_is_refused() -> None:
 
     with pytest.raises(ValueError, match="does not bind exactly one source artifact"):
         _materialize(changed)
+
+
+def test_an_observation_without_evidence_is_materialized_without_an_invented_identity() -> None:
+    batch = _batch()
+    without_evidence = seal_field_observation(
+        FieldObservationPayload(
+            **{
+                **batch.observations[0].model_dump(
+                    mode="python", exclude={"observation_id", "evidence", "value"}
+                ),
+                "evidence": None,
+                "value": None,
+                "state": ObservationState.NOT_OBSERVED,
+            }
+        )
+    )
+    resealed = seal_observation_batch(
+        ObservationBatchPayload(
+            **{
+                **batch.model_dump(mode="python", exclude={"content_digest"}),
+                "observations": (without_evidence, *batch.observations[1:]),
+            }
+        )
+    )
+
+    revision, _ = _materialize(resealed)
+
+    unobserved = [
+        item
+        for item in revision.normalized_payload["fieldObservations"]
+        if item["state"] == ObservationState.NOT_OBSERVED.value
+    ]
+    assert len(unobserved) == 1
+    assert unobserved[0]["evidence"] is None
