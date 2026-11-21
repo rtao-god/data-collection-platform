@@ -1335,6 +1335,16 @@ def _approved_policy(evidence: Mapping[str, Any], domain: str) -> bool:
     return domain.lower() in scope or "official_site" in scope
 
 
+def evidence_allows_publication(record: Mapping[str, Any], evidence: Mapping[str, Any]) -> bool:
+    """Whether one evidence artifact's recorded policy authorizes publishing the facts it proves.
+
+    The rule lives here, next to the review decisions it reads, so that a consumer cannot
+    invent a second, more permissive interpretation of the same evidence.
+    """
+    domain = normalize_domain((record.get("official_domains") or {}).get("primary") or "")
+    return _approved_policy(evidence, domain)
+
+
 def publication_blockers(record: Mapping[str, Any]) -> list[str]:
     """Basic-safe publication prerequisites that live outside this file's own state."""
     blockers = list(qualification(record)[1])
@@ -2240,9 +2250,7 @@ def _district_evidence_matches(
         return False
     if parse_utc(str(evidence["observed_at_utc"])) is None:
         return False
-    if _normalize_bezirk(evidence["bezirk"]) != _normalize_bezirk(address.get("district_key")):
-        return False
-    return True
+    return _normalize_bezirk(evidence["bezirk"]) == _normalize_bezirk(address.get("district_key"))
 
 
 def apply_decisions(
