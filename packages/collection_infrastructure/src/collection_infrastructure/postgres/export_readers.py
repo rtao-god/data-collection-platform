@@ -239,11 +239,20 @@ class PostgresExportCandidateReader:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
-    def read_rows(self) -> Sequence[ExportRow]:
+    def read_rows(
+        self,
+        *,
+        candidate_revisions: Sequence[tuple[UUID, int]] | None = None,
+    ) -> Sequence[ExportRow]:
+        wanted = None if candidate_revisions is None else set(candidate_revisions)
         with self._engine.connect() as connection:
             evidence = _read_evidence(connection)
             rows = []
             for row in _read_rows(connection):
+                if wanted is not None and (row.candidate_id, row.revision) not in wanted:
+                    # An explicitly requested revision set never depends on unrelated rows:
+                    # a legacy or foreign revision cannot block the exact requested export.
+                    continue
                 if int(row.authoritative_count or 0) > 1:
                     raise _owner_gap(
                         code="EXPORT_QUALITY_AUTHORITY_AMBIGUOUS",
@@ -393,7 +402,9 @@ class PostgresExportCandidatePort:
         if not candidate_revisions:
             return ()
         wanted = set(candidate_revisions)
-        rows = PostgresExportCandidateReader(self._engine).read_rows()
+        rows = PostgresExportCandidateReader(self._engine).read_rows(
+            candidate_revisions=tuple(wanted)
+        )
         sources: list[ExportCandidateSource] = []
         for row in rows:
             if (row.candidate_id, row.revision) not in wanted:
