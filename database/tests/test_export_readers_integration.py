@@ -926,3 +926,41 @@ def test_merged_sources_keep_their_restrictive_field_provenance(engine: sa.Engin
 
     assert error.value.code == "EXPORT_CANDIDATE_SOURCE_POLICY_NOT_EXPORTABLE"
     assert error.value.context["legalStatus"] == "research_only"
+
+
+def test_a_foreign_revision_cannot_block_an_explicitly_requested_export(
+    engine: sa.Engine,
+) -> None:
+    """An explicit revision set must not depend on unrelated candidate history.
+
+    The disposable database also holds revisions that other phases produced (for example a
+    baseline import without the exporter's sealed policy). Those rows are not part of the
+    requested export, so they must neither be validated nor reported.
+    """
+
+    created: list[UUID] = []
+    foreign = _seed_candidate(engine, payload=_normalized_payload(include_policy=False))
+    requested = _seed_candidate(engine)
+    created.extend((foreign, requested))
+
+    sources = PostgresExportCandidatePort(engine).read_candidates(
+        candidate_revisions=[(requested, 0)]
+    )
+
+    assert [(source.candidate_id, source.candidate_revision) for source in sources] == [
+        (requested, 0)
+    ]
+
+
+def test_an_explicitly_requested_revision_without_policy_still_fails(
+    engine: sa.Engine,
+) -> None:
+    created: list[UUID] = []
+    candidate_id = _seed_candidate(engine, payload=_normalized_payload(include_policy=False))
+    created.append(candidate_id)
+
+    with pytest.raises(ExportServiceError) as error:
+        PostgresExportCandidatePort(engine).read_candidates(candidate_revisions=[(candidate_id, 0)])
+
+    assert error.value.code == "EXPORT_CANDIDATE_POLICY_MISSING"
+    assert error.value.owner == "CandidateMaterialization"
