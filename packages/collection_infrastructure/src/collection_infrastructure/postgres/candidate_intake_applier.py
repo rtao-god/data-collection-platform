@@ -29,6 +29,7 @@ from collection_contracts import (
     CandidateRevision,
     EvidenceLocatorKind,
     EvidenceReference,
+    FieldObservation,
     FieldObservationPayload,
     NormalizationProfile,
     ObservationBatch,
@@ -247,6 +248,9 @@ class PostgresCandidateIntakeApplier:
                 entity_kind=entity_kind,
                 source_key=source.source_binding_key,
                 source_artifact_ids=action.source_artifact_ids,
+                observation_artifact_ids=_observation_artifact_ids(
+                    connection, observations=batch.observations
+                ),
                 field_projection=field_projection,
                 geography=self._candidate_geography(
                     source=source,
@@ -394,6 +398,7 @@ class PostgresCandidateIntakeApplier:
                 entity_kind=entity_kind,
                 source_key=batch.source_key,
                 source_artifact_ids=_source_record_artifact_ids(action, batch),
+                observation_artifact_ids=_source_record_observation_artifact_ids(batch),
                 field_projection=field_projection,
                 geography=self._candidate_geography(
                     source=source,
@@ -909,6 +914,30 @@ def _source_record_as_observations(
     return seal_observation_batch(payload)
 
 
+def _source_record_observation_artifact_ids(
+    batch: SourceRecordObservationBatch,
+) -> Mapping[str, UUID]:
+    """The artifact identity each source-native observation already carries."""
+
+    resolved: dict[str, UUID] = {}
+    for item in batch.observations:
+        evidence = item.evidence
+        if evidence is None:
+            continue
+        recorded = resolved.setdefault(evidence.raw_artifact_digest, evidence.raw_artifact_id)
+        if recorded != evidence.raw_artifact_id:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_CANDIDATE_ARTIFACT_IDENTITY_AMBIGUOUS",
+                message=(
+                    "Two source-native observations claim one content digest for different "
+                    "artifacts."
+                ),
+                context={"observationCount": len(batch.observations)},
+                required_action="Repair the source-record mapping evidence at its owner.",
+            )
+    return resolved
+
+
 def _geo_point_value(document: Mapping[str, object]) -> str | None:
     """Render one observed coordinate as a canonical numeric pair, or fail closed."""
 
@@ -940,6 +969,52 @@ def _source_record_artifact_ids(
     batch: SourceRecordObservationBatch,
 ) -> tuple[UUID, ...]:
     return tuple(sorted({*action.source_artifact_ids, batch.source_record_artifact_id}))
+
+
+def _observation_artifact_ids(
+    connection: Connection,
+    *,
+    observations: Sequence[FieldObservation],
+) -> Mapping[str, UUID]:
+    """Resolve the exact acquired document each observation was read from.
+
+    A field observation seals the content digest of the document it was extracted from, and
+    the artifact store guarantees one object per kind and digest. The identity is therefore
+    looked up by digest alone; a digest with no artifact, or with more than one, is a defect
+    rather than a value to guess.
+    """
+
+    digests = sorted({item.evidence.raw_artifact_digest for item in observations})
+    rows = connection.execute(
+        sa.text(
+            """
+            SELECT object_id, content_digest
+            FROM sources.artifact_objects
+            WHERE artifact_kind = 'raw_artifact'
+              AND content_digest = ANY(:digests)
+            """
+        ),
+        {"digests": digests},
+    ).all()
+    grouped: dict[str, set[UUID]] = {}
+    for object_id, digest in rows:
+        grouped.setdefault(digest, set()).add(object_id)
+    resolved: dict[str, UUID] = {}
+    for digest, object_ids in grouped.items():
+        if len(object_ids) != 1:
+            raise PipelineAdvancementConflict(
+                code="PIPELINE_CANDIDATE_ARTIFACT_IDENTITY_AMBIGUOUS",
+                message=(
+                    "More than one acquired artifact carries the same content digest, so an "
+                    "observation cannot be bound to exactly one artifact."
+                ),
+                context={"matchingArtifactCount": len(object_ids)},
+                required_action=(
+                    "Repair the acquisition provenance so each observation binds one artifact."
+                ),
+            )
+        resolved[digest] = next(iter(object_ids))
+    return resolved
 
 
 _SOURCE_RECORD_TARGET_FIELDS = {

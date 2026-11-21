@@ -9,6 +9,7 @@ from collection_contracts import (
     CandidateEvidence,
     CandidateRevision,
     EmailObservationValue,
+    FieldObservation,
     ObservationBatch,
     ObservationState,
     PhoneObservationValue,
@@ -39,6 +40,7 @@ def materialize_candidate(
     entity_kind: EntityKind,
     source_key: str,
     source_artifact_ids: tuple[UUID, ...],
+    observation_artifact_ids: Mapping[str, UUID],
     field_projection: Mapping[str, CandidateField],
     geography: GeographyReference,
     recorded_at_utc: datetime,
@@ -126,7 +128,7 @@ def materialize_candidate(
 
     normalized_payload: dict[str, object] = {
         "fieldObservations": [
-            item.model_dump(mode="json", by_alias=True)
+            _bound_observation_evidence(item, observation_artifact_ids)
             for item in sorted(batch.observations, key=lambda item: item.observation_id)
         ],
         "projection": {key: value.value for key, value in sorted(field_projection.items())},
@@ -191,3 +193,36 @@ def _normalize_candidate_text(value: str) -> str:
 
 def _observation_uuid(observation_id: str) -> UUID:
     return uuid5(_OBSERVATION_NAMESPACE, observation_id)
+
+
+def _bound_observation_evidence(
+    observation: FieldObservation,
+    observation_artifact_ids: Mapping[str, UUID],
+) -> dict[str, object]:
+    """Seal the observation with the exact artifact identity its evidence was read from.
+
+    The field-observation contract identifies its source by content digest only, while every
+    downstream owner (resolution provenance, quality, sealed export) proves a field against
+    the artifact identity. An observation that already carries that identity keeps it; one
+    that carries only the digest receives the identity its caller resolved for this exact
+    run, and an unbound digest stays a defect instead of a guessed value.
+    """
+
+    payload = observation.model_dump(mode="json", by_alias=True)
+    evidence = payload.get("evidence")
+    if not isinstance(evidence, dict):
+        # A source-native observation may legitimately record no evidence at all; the export
+        # then proves no field against it instead of being handed an invented identity.
+        return payload
+    recorded = evidence.get("rawArtifactId")
+    if isinstance(recorded, str) and recorded:
+        return payload
+    digest = evidence.get("rawArtifactDigest")
+    artifact_id = observation_artifact_ids.get(digest) if isinstance(digest, str) else None
+    if artifact_id is None:
+        raise ValueError(
+            "observation evidence does not bind exactly one source artifact: "
+            f"observationId={observation.observation_id} rawArtifactDigest={digest}"
+        )
+    evidence["rawArtifactId"] = str(artifact_id)
+    return payload
