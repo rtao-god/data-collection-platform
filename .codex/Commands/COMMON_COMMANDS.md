@@ -1,5 +1,8 @@
 # Common commands
 
+Docker runtime, the minimal service set, and the disposable integration database are owned by
+`.codex/docker.md`. `verify`, `tests` and every lint/type/architecture command do not need Docker.
+
 Read before choosing repository proof commands. Generic test-execution rules are owned by the shared
 agent rules; this file holds project-specific entrypoints and exceptional commands only.
 
@@ -58,9 +61,153 @@ uv run collector ingestion submit --export-path <sealed package path> --campaign
 (Ingestion → Catalog), replay и утверждения по сохранённым строкам Catalog:
 `D:\Aggregator\aggregator-backend\docs\runbooks\ingestion-catalog-acceptance.md`.
 
+# Registry → Catalog import
+
+Активный путь публикации студий: реестр кампании → версионированный манифест → Catalog
+registry-imports → редакционное одобрение → публикация.
+
+```powershell
+uv run python tools/registry_catalog_manifest.py --registry <studios.json> `
+  --mapping campaigns/berlin_recording_services/catalog_mapping.yaml plan `
+  --wfs-cache <dir> --out <manifest.json>
+uv run python tools/registry_catalog_apply.py apply --manifest <manifest.json> `
+  --base-url <catalog-api> --token-file <file> --checkpoint <file>
+```
+
+Контракт границы:
+
+- `recordedAtUtc` — момент записи манифеста, и Catalog отвергает place revision, который
+  старше несущего его evidence. Адресная точка наблюдается во время сборки манифеста, поэтому
+  время записи вычисляется **после** записей: без `--recorded-at-utc` берётся не раньше самого
+  позднего наблюдения, а явно заданное более раннее значение отвергается на месте (не поднимается
+  молча). `recordedAtUtc` не входит в `manifestDigest`.
+- `--wfs-cache` — каталог неизменяемых ответов адресного регистра: попадание в кэш даёт ту же
+  точку и то же наблюдение, промах делает реальный запрос и записывает ответ.
+- `429` от Catalog означает исчерпанный бюджет caller/operation-group и отказ **до** записи,
+  поэтому тот же `Idempotency-Key` повторяется ограниченно (Retry-After либо 2/4/8/16/30 s, не
+  более 6 попыток). Исчерпание повторов — явная ошибка с кодом и detail, а не пропуск записи.
+- Повторный `apply` на неизменённом манифесте обязан давать `unchanged` по всем отправленным
+  записям и не создавать новых `catalog.listing_revision`.
+
 Экспорт читает **все** сохранённые строки кандидатов, поэтому приёмку запускают на
 отдельной мигрированной базе: остатки интеграционных прогонов блокируют экспорт, а не
 пропускаются.
+
+## Approved rich fields → Catalog listing revision
+
+Манифест несёт только name/address/categories/geography. Описания и контакты едут другим
+путём — редакционной ревизией листинга, и только в состоянии, которое разрешил человек:
+
+```powershell
+uv run python tools/registry_catalog_enrich.py --registry <studios.json> `
+  --base-url <catalog-api> --token-file <file> --recorded-at-utc <ts> `
+  --out <plan.json> [--apply] [--only <registry-id> ...]
+```
+
+- Уезжает только `descriptions[locale].state == approved` с действующим решением ревью на
+  точный `text_digest_sha256` и `source_evidence_digest_sha256`, и только контакт с
+  `validation_state == validated`. `draft`, `pending_human` и `unvalidated` остаются в реестре:
+  инструмент не повышает состояние и не записывает description review.
+- Catalog публикует набор описаний целиком или никак, поэтому частичный набор локалей не
+  отправляется (`description_locales_incomplete`).
+- Контакт хранится в Catalog как абсолютный URI: `email` → `mailto:`, `phone` → `tel:`, `website`
+  требует схему. Виды без записанной URI-формы (`whatsapp`, `booking_reference`,
+  `map_reference`, `instagram`) отвергаются явно, а не подменяются другим видом.
+- Слияние идёт поверх фактического содержимого ревизии (`GET listings/{id}/revisions/{revisionId}`),
+  поэтому ручная правка в Catalog сохраняется. Отличающееся значение уже существующего поля —
+  `conflict`, а не перезапись; повторный прогон на том же реестре даёт `unchanged` без записи.
+- Никакого одобрения и публикации здесь нет: созданная ревизия ждёт `catalog.review`, а
+  описания — отдельного approved-ревью на точный текст.
+- `--only` принимает полный registry id: префикс выбирает 0 записей и печатает `records: 0`.
+- Токену нужны три scope одновременно: `catalog.read-subjects` (binding), `catalog.import-registry`,
+  `catalog.edit-listing` (чтение ревизии и запись новой).
+- `binding.contentDigest` — это digest исходной записи, который сохранил
+  `CatalogRegistryImportService`; это не digest ревизии Catalog, и они не могут совпасть. Проверка
+  привязки — идентичность листинга (`binding.listingId == listing.id`), а не равенство digest.
+- Часть сайтов отдаёт разные байты на каждый запрос (`hansastudios.de`, `studio1058.de`). Описание
+  привязывается к digest того артефакта, который записан в том же прогоне capture, иначе ревизия
+  будет ссылаться на digest, которого нет в реестре.
+
+Проверенный сквозной путь (TRIXX, 2026-11-22): ревизия 7 создана с `expectedVersion 28`, повторный
+прогон дал `unchanged` без новой ревизии; `catalog.review` требует `POST
+listings/{id}/description-reviews` по каждой локали **до** approval, иначе approval отвечает 409
+`has no current approved human review of the exact reviewed bytes`. Ревьюер в Catalog не может быть
+тем же actor, что создал ревизию (400 `The reviewer must be a different actor from the revision
+generator`) — токен ревьюера минтится с отдельным `actor_id`.
+
+Публичная выдача локализуется по **именам** листинга, а не по описаниям: локаль без
+`names[locale]` отдаёт карточку в fallback на default locale, даже если описание в этой локали
+утверждено и лежит в ревизии. У записей реестра есть только `canonical_name`, поэтому en-GB/ru-RU
+описания доходят до ревизии, но публичная карточка для них остаётся de-DE (`translationState:
+fallback`). Чтобы три локали реально отдавались, нужны локализованные имена листинга — это отдельное
+переводческое решение, а не следствие одобрения описания.
+
+## Fresh official-site evidence и человеческие решения в реестре
+
+Три команды владельца реестра, каждая пишет только своё и ничего не одобряет сама.
+
+```powershell
+# 1. Снять реальные страницы официального сайта (0.5 rps, robots проверяется, редирект не
+#    выполняется, отказ 401/403/429 останавливает запись). Пишется capture-манифест и сырые байты.
+uv run python tools/registry_evidence_capture.py --requests <requests.json> `
+  --cache <dir> --out <capture.json>
+```
+
+- Формат запроса: список объектов `{registryId, url, fieldPaths, mustContain}`. `mustContain` —
+  фразы, которые страница обязана содержать дословно. Любая отсутствующая фраза — отказ
+  `fact_not_stated`, а не укороченная цитата.
+- `excerpt` ограничен 400 символами: при длинном совпадении цитата сужается вокруг первой фразы,
+  но всегда сохраняет её дословно. Поле `factLiterals` не читается — литералы передаются в
+  `mustContain`.
+
+```powershell
+# 2. Приложить снятые артефакты к записям (одна запись = один артефакт на объявленный field path).
+#    Повторный прогон не дублирует: одинаковые url+digest+field_path не пишутся дважды.
+uv run python tools/studio_registry.py record-evidence --capture <capture.json> [--dry-run]
+
+# 3. Решение владельца о политике источника и о медиа.
+uv run python tools/studio_registry.py decide --policy-digest <уже одобренный digest> `
+  --reviewer <id> --decided-at-utc <ts>
+uv run python tools/studio_registry.py decide --omit-media "<причина>" `
+  --reviewer <id> --decided-at-utc <ts>
+```
+
+- `--policy-digest` принимает только digest, который в этом реестре уже зафиксирован как
+  одобренная политика: новая запись продолжает существующую идентичность политики, а не
+  изобретает её. Переданный вместе с `--policy-file` — отказ.
+- В реестре сосуществуют три записанных digest политики: `78ab20c8…`, `9a9f7979…` и
+  `221e668e…` (последний — sha256 текущего файла `official_site_berlin_studios_policy.yaml`).
+  Текущая версия политики уже одобрена здесь, поэтому новая съёмка не требует нового одобрения
+  политики, но каждый артефакт всё равно требует собственного решения: одобрение,
+  записанное для другого артефакта или для другого digest, не переносится.
+- `prohibited_fields: description_text` запрещает брать текст страницы как поле источника, а
+  комментарий политики — копировать или перефразировать его в описание. Поэтому редакционное
+  описание допустимо только как собственный текст, факты которого страница подтверждает
+  дословно; проверка оригинальности — самый длинный общий отрезок слов с этой страницей.
+- `enrich` пропускает описание/контакт только если артефакт его источника проходит
+  `evidence_allows_publication`, то есть несёт одобренное решение политики. Артефакт без
+  решения даёт `description_evidence_not_publishable:<locale>` /
+  `contact_evidence_not_publishable:<kind>`.
+- `--omit-media` записывает `photo_candidates` с `rights_state=omitted_rights_unclear` и
+  причиной: это закрывает `media_state_not_recorded` без выдуманной лицензии. Уже имеющиеся
+  кандидаты не перезаписываются (`media_refused`).
+
+```powershell
+# 4. Решение человека по черновику и контакту. Единственный путь к state=approved/validated.
+uv run python tools/studio_registry.py review --reviewer <id> --decided-at-utc <ts> `
+  --descriptions <decisions.json> [--contacts <decisions.json>] [--dry-run]
+```
+
+- `reviewer`, начинающийся с `research-`, отвергается: инструмент, который составил черновик или
+  снял страницу, не ревьюит сам себя.
+- Решение по описанию несёт `text_digest_sha256`; если текст изменился после чтения — отказ
+  (`text changed since the reviewer read it`), старое одобрение не наследуется.
+- Решение по контакту несёт `kind`+`target`; digest источника берётся из evidence этого контакта.
+  Указанный в решении digest обязан совпадать с digest одного из артефактов, на которые
+  ссылается сам контакт, иначе решение отклоняется: чужой digest не может стать provenance.
+- Любой отказ в файле решений отклоняет всю пачку и ничего не записывает (exit code 1):
+  недопустимо оставлять полу-применённое ревью.
+- Записи без решения остаются черновиками: `rich` в `report` остаётся 0, пока ревью не записано.
 
 # Campaign authoring
 

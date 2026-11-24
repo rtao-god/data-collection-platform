@@ -352,6 +352,54 @@ def test_generated_projection_is_byte_identical_and_detects_manual_edit(tmp_path
     )
 
 
+def test_split_street_address_normalizes_glued_number_and_postal_country_prefix() -> None:
+    # Official sites write the house number attached to the street (tonus arcus) and put the postal
+    # country prefix right after it (uniSono: "Hammerstr. 17 D- 14167"); both reached the registry
+    # as an unsplit street fragment, so the address had no house number at all.
+    assert sr.split_street_address("Dunckerstr.21", "10437") == ("Dunckerstr.", "21")
+    assert sr.split_street_address("Hammerstr. 17 D- 14167", "14167") == ("Hammerstr.", "17")
+    assert sr.split_street_address("Hammerstr. 17 D", "14167") == ("Hammerstr.", "17")
+    # Without the postal code there is no evidence that the letter belongs to the prefix, so it is
+    # not dropped and the fragment stays unsplit instead of inventing a house number.
+    assert sr.split_street_address("Hammerstr. 17 D") == ("Hammerstr. 17 D", None)
+    assert sr.split_street_address("Revaler Straße 99", "10245") == ("Revaler Straße", "99")
+    assert sr.split_street_address("Warschauer Str. 33a", "10243") == ("Warschauer Str.", "33a")
+
+
+def test_import_leads_splits_a_street_number_glued_to_the_street_name(tmp_path: Path) -> None:
+    registry_path = tmp_path / "studios.json"
+    leads = [
+        {
+            "name": "Glued Address Studio",
+            "domain": "glued-address-studio.de",
+            "street": "Dunckerstr.21",
+            "plz": "10437",
+            "bezirk": "pankow",
+            "bezirk_basis": "address_source_verified",
+            "identityAction": "CreateNewPendingReview",
+        }
+    ]
+    (tmp_path / "leads.json").write_text(json.dumps(leads), encoding="utf-8")
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "import-leads",
+                "--input",
+                str(tmp_path / "leads.json"),
+                "--batch",
+                "tests",
+            ]
+        )
+        == 0
+    )
+    address = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]["address"]
+    assert address["street"] == "Dunckerstr."
+    assert address["street_number"] == "21"
+    assert address["postal_code"] == "10437"
+
+
 def test_import_leads_is_deterministic_and_dry_run_does_not_write(tmp_path: Path) -> None:
     registry_path = tmp_path / "studios.json"
     leads = [
@@ -838,3 +886,529 @@ def test_address_evidence_needs_the_official_record_identifier(tmp_path: Path) -
     assert result == 0
     stored = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
     assert stored["address"]["district_basis"] == "postal_code"
+
+
+def _contact_patch(record: dict, *, target: str = "booking@example-studio.de") -> dict:
+    return {
+        "schema_revision": sr.PATCH_SCHEMA_REVISION,
+        "patches": [
+            {
+                "registry_id": record["registry_id"],
+                "field_path": "contacts",
+                "reviewer": "researcher",
+                "evidence_refs": [record["field_evidence"][0]["evidence_id"]],
+                "value": [
+                    {
+                        "kind": "email",
+                        "label": None,
+                        "target": target,
+                        "validation_state": "unvalidated",
+                        "evidence_refs": [record["field_evidence"][0]["evidence_id"]],
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def test_enrich_replay_writes_nothing_and_keeps_a_single_revision_entry(tmp_path: Path) -> None:
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry()), encoding="utf-8")
+    patch_path = tmp_path / "patch.json"
+    patch_path.write_text(json.dumps(_contact_patch(_record())), encoding="utf-8")
+
+    assert sr.main(["--registry", str(registry_path), "enrich", "--patch", str(patch_path)]) == 0
+    first = registry_path.read_bytes()
+    assert sr.main(["--registry", str(registry_path), "enrich", "--patch", str(patch_path)]) == 0
+
+    assert registry_path.read_bytes() == first
+    stored = json.loads(first)["records"][0]
+    assert len(stored["collector"]["revisions"]) == 1
+    assert stored["contacts"][0]["validation_state"] == "unvalidated"
+
+
+def test_enrich_refuses_to_replace_a_contact_the_record_already_carries(tmp_path: Path) -> None:
+    existing = [
+        {
+            "kind": "email",
+            "label": "booking",
+            "target": "verified@example-studio.de",
+            "validation_state": "validated",
+            "evidence_refs": ["ev-" + "a" * 16],
+        }
+    ]
+    record = _record(contacts=existing)
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry(record)), encoding="utf-8")
+    patch_path = tmp_path / "patch.json"
+    patch_path.write_text(json.dumps(_contact_patch(record)), encoding="utf-8")
+
+    assert (
+        sr.main(["--registry", str(registry_path), "enrich", "--patch", str(patch_path), "--dry-run"])
+        == 1
+    )
+    assert json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]["contacts"] == existing
+
+
+def _capture_manifest(record: dict, *, url: str = "https://example-studio.de/studios/") -> dict:
+    return {
+        "schemaRevision": "studio-evidence-capture-v1",
+        "sourceKey": "official_site",
+        "entries": [
+            {
+                "registryId": record["registry_id"],
+                "url": url,
+                "state": "captured",
+                "statusCode": 200,
+                "contentType": "text/html; charset=utf-8",
+                "responseDigestSha256": "d" * 64,
+                "observedAtUtc": "2026-11-21T09:00:00Z",
+                "encodedSizeBytes": 2048,
+                "decodedSizeBytes": 2048,
+                "fieldPaths": ["descriptions.de-DE", "source.page"],
+                "excerpt": "Studio Example: Recording, Mixing und Mastering im Studio.",
+            },
+            {
+                "registryId": "99999999-9999-5999-8999-999999999999",
+                "url": "https://unknown.example/",
+                "state": "captured",
+                "responseDigestSha256": "e" * 64,
+                "observedAtUtc": "2026-11-21T09:00:02Z",
+                "fieldPaths": ["source.page"],
+                "excerpt": "irrelevant",
+            },
+        ],
+    }
+
+
+def test_record_evidence_appends_one_artifact_per_declared_field_and_refuses_unknown_records(
+    tmp_path: Path,
+) -> None:
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry()), encoding="utf-8")
+    capture_path = tmp_path / "capture.json"
+    capture_path.write_text(json.dumps(_capture_manifest(_record())), encoding="utf-8")
+
+    assert sr.main(["--registry", str(registry_path), "record-evidence", "--capture", str(capture_path)]) == 0
+
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    added = [item for item in stored["field_evidence"] if item["response_digest_sha256"] == "d" * 64]
+    assert sorted(item["field_path"] for item in added) == ["descriptions.de-DE", "source.page"]
+    assert all(item["policy_decision"] is None for item in added)
+    assert not [item for item in stored["field_evidence"] if item["response_digest_sha256"] == "e" * 64]
+
+    before = registry_path.read_bytes()
+    assert sr.main(["--registry", str(registry_path), "record-evidence", "--capture", str(capture_path)]) == 0
+    assert registry_path.read_bytes() == before
+
+
+def test_policy_digest_reuse_needs_a_digest_this_registry_already_approved(tmp_path: Path) -> None:
+    recorded = _evidence(
+        url="https://example-studio.de/",
+        digest="f" * 64,
+        policy_decision={
+            "decision": "approved",
+            "reviewer": "owner",
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "scope": "official_site facts_only",
+            "policy_digest_sha256": "f" * 64,
+        }
+    )
+    pending = _evidence(
+        field_path="descriptions.de-DE",
+        url="https://example-studio.de/studios/",
+        digest="d" * 64,
+    )
+    base = _record()
+    record = _record(field_evidence=[*base["field_evidence"], recorded, pending])
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry(record)), encoding="utf-8")
+
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "decide",
+                "--reviewer",
+                "owner",
+                "--decided-at-utc",
+                "2026-11-22T00:00:00Z",
+                "--policy-digest",
+                "a" * 64,
+            ]
+        )
+        == 2
+    )
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "decide",
+                "--reviewer",
+                "owner",
+                "--decided-at-utc",
+                "2026-11-22T00:00:00Z",
+                "--policy-digest",
+                "f" * 64,
+            ]
+        )
+        == 0
+    )
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    decided = [item for item in stored["field_evidence"] if item["response_digest_sha256"] == "d" * 64]
+    assert decided[0]["policy_decision"]["policy_digest_sha256"] == "f" * 64
+
+
+def test_media_omission_is_recorded_once_and_never_overwrites_a_photo_candidate(
+    tmp_path: Path,
+) -> None:
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry()), encoding="utf-8")
+    reason = "No signed image-reuse decision exists; the policy prohibits source_photo."
+
+    arguments = [
+        "--registry",
+        str(registry_path),
+        "decide",
+        "--reviewer",
+        "owner",
+        "--decided-at-utc",
+        "2026-11-22T00:00:00Z",
+        "--omit-media",
+        reason,
+    ]
+    assert sr.main(arguments) == 0
+    assert sr.main(arguments) == 0
+
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    assert len(stored["photo_candidates"]) == 1
+    assert stored["photo_candidates"][0]["rights_state"] == "omitted_rights_unclear"
+    assert stored["photo_candidates"][0]["omission_reason"] == reason
+    assert "media_state_not_recorded" not in sr.rich_blockers(stored)
+
+    stored["photo_candidates"] = [
+        {
+            "candidate_id": "photo-1",
+            "source_url": "https://example-studio.de/photo.jpg",
+            "rights_holder": None,
+            "license_url": None,
+            "license_version": None,
+            "rights_state": "candidate_unreviewed",
+            "observed_at_utc": "2026-11-21T09:00:00Z",
+            "evidence_digest_sha256": None,
+            "omission_reason": None,
+        }
+    ]
+    registry_path.write_text(sr.canonical_json(_registry(stored)), encoding="utf-8")
+    assert sr.main(arguments) == 0
+    kept = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]["photo_candidates"]
+    assert [item["candidate_id"] for item in kept] == ["photo-1"]
+
+
+def _drafted_record() -> dict:
+    """A record whose description and contact exist but are still unapproved and unvalidated."""
+    base = _record()
+    text = "Faktenbasierte Beschreibung."
+    record = _record(
+        descriptions={
+            "de-DE": {
+                "state": "draft",
+                "text": text,
+                "text_digest_sha256": sr.sha256_hex(text),
+                "origin": "editorial",
+                "review_state": "pending_human",
+                "review_ref": None,
+                "reason": "draft",
+                "source_evidence_digest_sha256": base["field_evidence"][1]["response_digest_sha256"],
+            }
+        },
+        contacts=[
+            {
+                "kind": "email",
+                "label": None,
+                "target": "booking@example-studio.de",
+                "validation_state": "unvalidated",
+                "evidence_refs": [base["field_evidence"][1]["evidence_id"]],
+            }
+        ],
+    )
+    return record
+
+
+def test_review_approves_the_exact_text_and_then_clears_the_draft_blocker(tmp_path: Path) -> None:
+    record = _drafted_record()
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry(record)), encoding="utf-8")
+    digest = record["descriptions"]["de-DE"]["text_digest_sha256"]
+    decisions = tmp_path / "descriptions.json"
+    decisions.write_text(
+        json.dumps(
+            [
+                {
+                    "registry_id": record["registry_id"],
+                    "locale": "de-DE",
+                    "decision": "approved",
+                    "text_digest_sha256": digest,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "editor-1",
+                "--decided-at-utc",
+                "2026-11-22T10:00:00Z",
+                "--descriptions",
+                str(decisions),
+            ]
+        )
+        == 0
+    )
+
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    assert stored["descriptions"]["de-DE"]["state"] == "approved"
+    assert "description_draft:de-DE" not in sr.rich_blockers(stored)
+
+
+def test_review_refuses_a_research_identity_and_a_stale_text_digest(tmp_path: Path) -> None:
+    record = _drafted_record()
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry(record)), encoding="utf-8")
+    decisions = tmp_path / "descriptions.json"
+    decisions.write_text(
+        json.dumps(
+            [
+                {
+                    "registry_id": record["registry_id"],
+                    "locale": "de-DE",
+                    "decision": "approved",
+                    "text_digest_sha256": sr.sha256_hex("another text"),
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    before = registry_path.read_bytes()
+
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "research-capture-not-approved",
+                "--decided-at-utc",
+                "2026-11-22T10:00:00Z",
+                "--descriptions",
+                str(decisions),
+            ]
+        )
+        == 2
+    )
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "editor-1",
+                "--decided-at-utc",
+                "2026-11-22T10:00:00Z",
+                "--descriptions",
+                str(decisions),
+            ]
+        )
+        == 1
+    )
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    assert stored["descriptions"]["de-DE"]["state"] == "draft"
+    assert stored["reviews"] == []
+    assert registry_path.read_bytes() == before
+
+
+def test_review_validates_the_reviewed_contact_only(tmp_path: Path) -> None:
+    record = _drafted_record()
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry(record)), encoding="utf-8")
+    decisions = tmp_path / "contacts.json"
+    decisions.write_text(
+        json.dumps(
+            [
+                {
+                    "registry_id": record["registry_id"],
+                    "kind": "email",
+                    "target": "booking@example-studio.de",
+                    "validation_state": "validated",
+                },
+                {
+                    "registry_id": record["registry_id"],
+                    "kind": "phone",
+                    "target": "+49 30 000000",
+                    "validation_state": "validated",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    before = registry_path.read_bytes()
+
+    # one unknown target refuses the whole batch: a reviewer must not get a half-applied review file
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "editor-1",
+                "--decided-at-utc",
+                "2026-11-22T10:00:00Z",
+                "--contacts",
+                str(decisions),
+            ]
+        )
+        == 1
+    )
+    assert registry_path.read_bytes() == before
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    assert stored["contacts"][0]["validation_state"] == "unvalidated"
+
+    decisions.write_text(
+        json.dumps(
+            [
+                {
+                    "registry_id": record["registry_id"],
+                    "kind": "email",
+                    "target": "booking@example-studio.de",
+                    "validation_state": "validated",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "editor-1",
+                "--decided-at-utc",
+                "2026-11-22T10:00:00Z",
+                "--contacts",
+                str(decisions),
+            ]
+        )
+        == 0
+    )
+
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    assert stored["contacts"][0]["validation_state"] == "validated"
+    assert [review["kind"] for review in stored["reviews"]] == ["fact"]
+    assert "validated_contact_missing" not in sr.rich_blockers(stored)
+
+
+def test_a_contact_decision_cannot_cite_a_digest_of_some_other_artifact(tmp_path: Path) -> None:
+    record = _drafted_record()
+    citations = record["field_evidence"]
+    contact_evidenced = citations[1]["response_digest_sha256"]
+    unrelated = next(
+        item["response_digest_sha256"]
+        for item in citations
+        if item["response_digest_sha256"] != contact_evidenced
+    )
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry(record)), encoding="utf-8")
+    before = registry_path.read_bytes()
+    decisions = tmp_path / "contacts.json"
+    decisions.write_text(
+        json.dumps(
+            [
+                {
+                    "registry_id": record["registry_id"],
+                    "kind": "email",
+                    "target": "booking@example-studio.de",
+                    "validation_state": "validated",
+                    "source_evidence_digest_sha256": unrelated,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "editor-1",
+                "--decided-at-utc",
+                "2026-11-22T10:00:00Z",
+                "--contacts",
+                str(decisions),
+            ]
+        )
+        == 1
+    )
+
+    assert json.loads(registry_path.read_text(encoding="utf-8")) == json.loads(before)
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    assert stored["contacts"][0]["validation_state"] == "unvalidated"
+    assert stored["reviews"] == record["reviews"]
+
+
+def test_a_contact_decision_uses_the_digest_of_the_artifact_it_cites(tmp_path: Path) -> None:
+    record = _drafted_record()
+    evidenced = record["field_evidence"][1]["response_digest_sha256"]
+    registry_path = tmp_path / "studios.json"
+    registry_path.write_text(sr.canonical_json(_registry(record)), encoding="utf-8")
+    decisions = tmp_path / "contacts.json"
+    decisions.write_text(
+        json.dumps(
+            [
+                {
+                    "registry_id": record["registry_id"],
+                    "kind": "email",
+                    "target": "booking@example-studio.de",
+                    "validation_state": "validated",
+                    "source_evidence_digest_sha256": evidenced,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "editor-1",
+                "--decided-at-utc",
+                "2026-11-22T10:00:00Z",
+                "--contacts",
+                str(decisions),
+            ]
+        )
+        == 0
+    )
+
+    stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
+    assert stored["contacts"][0]["validation_state"] == "validated"
+    assert stored["reviews"][-1]["source_evidence_digest_sha256"] == evidenced

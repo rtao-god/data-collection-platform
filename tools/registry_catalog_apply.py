@@ -2,11 +2,12 @@
 """Send a sealed registry manifest to the Catalog import boundary, one record at a time.
 
 This tool owns no business state. It maps manifest records onto the published
-``registry-catalog-import-v1`` wire contract, sends them to Catalog's own command
-endpoint, and keeps a local checkpoint purely so an interrupted run can resume
-without re-sending what the owner already applied. Catalog's binding table stays
-the source of truth: ``verify`` re-sends every record and requires the owner to
-answer ``unchanged``.
+``registry-catalog-import-v1`` wire contract and sends them to Catalog's own command
+endpoint. Catalog's binding table is the only source of truth: every run, including a
+resumed one, re-sends each record and lets the owner answer ``unchanged``. The local
+checkpoint is diagnostic evidence (what was attempted, with which per-record fingerprints)
+and is never a reason to skip an apply, because a changed manifest, policy or configuration
+would otherwise stay invisible to Catalog.
 """
 
 from __future__ import annotations
@@ -16,13 +17,14 @@ import hashlib
 import json
 import pathlib
 import sys
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from typing import Any
 
 SCHEMA_REVISION = "registry-catalog-import-v1"
-CHECKPOINT_SCHEMA = "registry-catalog-apply-checkpoint-v1"
+CHECKPOINT_SCHEMA = "registry-catalog-apply-checkpoint-v2"
 
 # The wire enums are camelCase contracts; a mismatch is a producer defect, not a fallback.
 STATUS = {"eligible": "eligible", "review": "review", "blocked": "blocked"}
@@ -78,8 +80,15 @@ def build_request(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str,
                 "accuracyMeters": point["accuracyMeters"],
                 "source": point["source"],
                 "datasetIdentifier": point["datasetIdentifier"],
+                "datasetVersion": point["datasetVersion"],
                 "addressRecordId": point["addressRecordId"],
+                "addressRecordDate": point.get("addressRecordDate"),
                 "sourceReference": point["sourceReference"],
+                "sourceCrs": point["sourceCrs"],
+                "sourceX": point["sourceX"],
+                "sourceY": point["sourceY"],
+                "sourceDigest": point["sourceDigest"],
+                "sourceObservedAtUtc": point["sourceObservedAtUtc"],
                 "assertionId": point["assertionId"],
             }
 
@@ -106,7 +115,7 @@ def build_request(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str,
             "statusReasons": list(record["statusReasons"]),
             "identity": {
                 "decision": DECISION[decision],
-                "linkExistingListingId": record["identity"].get("linkExistingListingId"),
+                "linkExistingListingId": (record["identity"].get("linkExisting") or {}).get("listingId"),
                 "officialDomain": record["identity"].get("officialDomain"),
             },
             "business": wire_business,
@@ -132,32 +141,73 @@ def build_request(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str,
     }
 
 
-def http_transport(base_url: str, token: str, timeout: float = 60.0) -> Transport:
+RATE_LIMIT_STATUS = 429
+# Catalog answers 429 with its caller/operation-group budget exhausted; the request is refused
+# before anything is written, so the same idempotency key may be retried a bounded number of
+# times. A longer outage must fail with context instead of being masked by endless waiting.
+RATE_LIMIT_MAX_ATTEMPTS = 6
+RATE_LIMIT_MAX_DELAY_SECONDS = 30.0
+
+
+def _rate_limit_delay(attempt: int, headers: Any) -> float:
+    """Retry-After when Catalog states it, otherwise a bounded exponential pause."""
+    raw = None if headers is None else headers.get("Retry-After")
+    if raw is not None:
+        try:
+            stated = float(raw)
+        except ValueError:
+            stated = None
+        if stated is not None and 0 < stated <= RATE_LIMIT_MAX_DELAY_SECONDS:
+            return stated
+    return min(2.0**attempt, RATE_LIMIT_MAX_DELAY_SECONDS)
+
+
+def http_transport(
+    base_url: str,
+    token: str,
+    timeout: float = 60.0,
+    *,
+    max_rate_limit_attempts: int = RATE_LIMIT_MAX_ATTEMPTS,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Transport:
     def send(catalog_key: str, _token: str, body: dict[str, Any]) -> dict[str, Any]:
         base = base_url.rstrip("/")
         url = f"{base}/api/catalog-command/catalogs/{catalog_key}/registry-imports"
-        request = urllib.request.Request(  # noqa: S310
-            url,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {token}",
-                "Idempotency-Key": hashlib.sha256(
-                    json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")
-                ).hexdigest(),
-            },
-            method="POST",
+        registry_id = body["record"]["registryId"]
+        last_rate_limit_detail = ""
+        for attempt in range(1, max_rate_limit_attempts + 1):
+            request = urllib.request.Request(  # noqa: S310
+                url,
+                data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}",
+                    "Idempotency-Key": hashlib.sha256(
+                        json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")
+                    ).hexdigest(),
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as error:
+                detail = error.read().decode("utf-8", "replace")
+                if error.code == RATE_LIMIT_STATUS:
+                    last_rate_limit_detail = detail
+                    if attempt < max_rate_limit_attempts:
+                        sleep(_rate_limit_delay(attempt, error.headers))
+                        continue
+                    break
+                raise ApplyError(
+                    f"Catalog rejected {registry_id}: {error.code} {detail}"
+                ) from error
+            except urllib.error.URLError as error:
+                raise ApplyError(f"Catalog is unreachable at {base_url}: {error.reason}") from error
+        raise ApplyError(
+            f"Catalog rate limited {registry_id}: {RATE_LIMIT_STATUS} after {max_rate_limit_attempts} "
+            f"attempts: {last_rate_limit_detail}"
         )
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode("utf-8", "replace")
-            raise ApplyError(
-                f"Catalog rejected {body['record']['registryId']}: {error.code} {detail}"
-            ) from error
-        except urllib.error.URLError as error:
-            raise ApplyError(f"Catalog is unreachable at {base_url}: {error.reason}") from error
 
     return send
 
@@ -192,6 +242,25 @@ def select_records(
     return records[:limit] if limit is not None else records
 
 
+def record_fingerprint(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    """Every input that decides what Catalog would be asked to apply for one record."""
+    catalog = manifest["catalog"]
+    return {
+        "status": record["status"],
+        "identityDecision": record["identity"]["decision"],
+        "content": record["digests"]["content"],
+        "evidence": record["digests"]["evidence"],
+        "eligibility": record["digests"]["eligibility"],
+        "manifestDigest": manifest["manifestDigest"],
+        "mappingRevision": catalog["mappingRevision"],
+        "configurationRevisionId": catalog["configurationRevisionId"],
+    }
+
+
+def fingerprint_drift(previous: dict[str, Any], current: dict[str, Any]) -> list[str]:
+    return sorted(key for key, value in current.items() if previous.get(key) != value)
+
+
 def run(
     manifest: dict[str, Any],
     records: list[dict[str, Any]],
@@ -200,13 +269,21 @@ def run(
     checkpoint_path: pathlib.Path | None,
     require_unchanged: bool,
 ) -> dict[str, Any]:
-    """Apply records in manifest order and return the tallies this run actually observed."""
+    """Apply records in manifest order and return the tallies this run actually observed.
+
+    A checkpointed record is still sent: only Catalog can decide whether the record is
+    unchanged, and a locally cached verdict cannot see changed facts, evidence, policy or
+    editorial edits. The checkpoint records what was attempted and which fingerprint it had.
+    """
     catalog_key = manifest["catalog"]["catalogKey"]
     tally: dict[str, Any] = {
         "total": len(records),
+        "sent": 0,
         "actions": {},
         "resumed": 0,
-        "applied": 0,
+        "unchanged": 0,
+        "changed": 0,
+        "drift": [],
         "failed": [],
     }
     for record in records:
@@ -215,20 +292,32 @@ def run(
             # A blocked record is a producer verdict Catalog must refuse, so it is never sent.
             tally["actions"]["blockedNotSent"] = tally["actions"].get("blockedNotSent", 0) + 1
             continue
-        if checkpoint is not None and not require_unchanged:
-            previous = checkpoint["records"].get(registry_id)
-            if previous and previous.get("status") == "applied":
-                tally["resumed"] += 1
-                continue
+        request = build_request(manifest, record)
+        fingerprint = record_fingerprint(manifest, record)
+        previous = (checkpoint or {}).get("records", {}).get(registry_id)
+        if previous is not None and previous.get("status") == "applied":
+            tally["resumed"] += 1
+            changed_axes = fingerprint_drift(previous.get("fingerprint") or {}, fingerprint)
+            if changed_axes:
+                tally["drift"].append({"registryId": registry_id, "changed": changed_axes})
         try:
-            response = send(catalog_key, "", build_request(manifest, record))
+            response = send(catalog_key, "", request)
         except ApplyError as error:
             tally["failed"].append({"registryId": registry_id, "error": str(error)})
             if checkpoint is not None and checkpoint_path is not None:
-                checkpoint["records"][registry_id] = {"status": "failed", "error": str(error)}
+                checkpoint["records"][registry_id] = {
+                    "status": "failed",
+                    "error": str(error),
+                    "fingerprint": fingerprint,
+                }
                 write_checkpoint(checkpoint_path, checkpoint)
             continue
         action = response["lastAction"]
+        tally["sent"] += 1
+        if action == "unchanged":
+            tally["unchanged"] += 1
+        else:
+            tally["changed"] += 1
         if require_unchanged and action in ACTION_CHANGED:
             tally["failed"].append(
                 {
@@ -237,7 +326,6 @@ def run(
                 }
             )
         tally["actions"][action] = tally["actions"].get(action, 0) + 1
-        tally["applied"] += 1
         if checkpoint is not None and checkpoint_path is not None:
             checkpoint["records"][registry_id] = {
                 "status": "applied",
@@ -245,6 +333,7 @@ def run(
                 "placeId": response["placeId"],
                 "listingId": response.get("listingId"),
                 "contentDigest": response["contentDigest"],
+                "fingerprint": fingerprint,
             }
             write_checkpoint(checkpoint_path, checkpoint)
     return tally

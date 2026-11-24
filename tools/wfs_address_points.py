@@ -1,44 +1,87 @@
 """Official Berlin address points as publishable coordinates.
 
-The registry evidence proves *which* address record a studio matches (house number and postal
-code); the address dataset itself carries the point. This module turns one evidence request into
-a coordinate with an explicit CRS origin, never into a coordinate inferred from a text excerpt.
+The registry evidence proves *which* address a studio claims; the official address register
+supplies the point. This module turns one complete search identity (street + house number +
+suffix + postal code) into at most one coordinate with an explicit CRS origin, never into a
+coordinate inferred from a text excerpt or picked from the first result of a postal code.
 
-Two properties matter and are enforced here:
+Properties enforced here:
 
-* The point comes from the address dataset, not from an official studio website. A coordinate
-  that appears inside a website excerpt is never treated as an address point.
-* A record without a matching address point stays unresolved: no district centroid, no postal
-  code centroid, no rounding of an unrelated point.
+* The search identity is complete. A response feature matches only when its street name,
+  house number, house-number suffix and postal code all match the search. Two streets that
+  share a postal code and a house number stay distinct.
+* Exactly one feature may match. Zero matches, several matching records or a conflicting
+  address record id are unresolved verdicts, never a first-result selection.
+* The coordinate source is the official address dataset, addressed by its own request URL and
+  sealed by the SHA-256 digest of the raw response bytes. ``adr_datum`` is the address record
+  date, not a dataset release revision; the response snapshot identity is the digest.
+* The request and the response declare EPSG:25833, and the conversion to EPSG:4326 is an
+  explicit inverse UTM 33N with ``always_xy`` axis order. An unknown or mixed CRS is refused
+  instead of guessed from coordinate magnitude.
+* The converted point must lie inside the official Berlin boundary polygon. The bounding box
+  alone admits points that are not Berlin addresses.
 """
 
 from __future__ import annotations
 
 # ruff: noqa: S310 - every url is built by request_url() from one fixed https endpoint.
+import base64
+import functools
 import hashlib
 import json
 import math
 import pathlib
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 WFS_ENDPOINT = "https://gdi.berlin.de/services/wfs/adressen_berlin"
-DATASET_IDENTIFIER = "adressen_berlin"
+WFS_LAYER = "adressen_berlin"
+DATASET_IDENTIFIER = WFS_LAYER
 SOURCE_NAME = "official_berlin_address_register"
 
-# Berlin's extent. A point outside it is not a Berlin address, whatever the response claims.
-BERLIN_LATITUDE_RANGE = (52.30, 52.72)
-BERLIN_LONGITUDE_RANGE = (13.00, 13.85)
+# The dataset is requested in the CRS it publishes and converted to WGS84 exactly once.
+SOURCE_CRS = "EPSG:25833"
+OUTPUT_CRS = "EPSG:4326"
+SOURCE_EPSG = 25833
+
+CACHE_SCHEMA = "wfs-address-point-cache-v2"
 
 # The dataset publishes address points at metre level, so a claimed precision coarser than that
 # would understate the evidence and a finer one would overstate it.
 ADDRESS_POINT_ACCURACY_METERS = "1.0"
 
-# ETRS89 / UTM zone 33N, the CRS the WFS returns unless a client asks for something else.
+# Only the building-coordinate class is published at metre level; the coarser classes are
+# recorded as unresolved instead of claiming a precision the dataset does not state.
+ACCEPTED_QUALITY = "Qualitaet A"
+ACCEPTED_TYPE = "Adresse"
+
+_CAMPAIGN_GEOGRAPHY = (
+    pathlib.Path(__file__).resolve().parent.parent
+    / "campaigns"
+    / "berlin_recording_services"
+    / "geography"
+)
+BOUNDARY_PATH = _CAMPAIGN_GEOGRAPHY / "berlin-boundary.geojson"
+BOUNDARY_PROVENANCE_PATH = _CAMPAIGN_GEOGRAPHY / "berlin-boundary.provenance.json"
+
+# Unresolved verdicts. Each one names why the point cannot be claimed, so a reviewer acts on
+# the cause instead of re-running the lookup.
+REASON_ADDRESS_INCOMPLETE = "address_point_not_derivable_from_address"
+REASON_NOT_FOUND = "address_point_not_found_in_address_dataset"
+REASON_QUALITY_UNSUPPORTED = "address_point_quality_not_metre_level"
+REASON_AMBIGUOUS = "address_point_ambiguous_match"
+REASON_CONFLICTING_RECORD = "address_point_conflicting_address_record"
+REASON_OUTSIDE_BOUNDARY = "address_point_outside_berlin_boundary"
+REASON_CRS_UNSUPPORTED = "address_point_source_crs_unsupported"
+REASON_GEOMETRY_INVALID = "address_point_geometry_invalid"
+
+# ETRS89 / UTM zone 33N on GRS80.
 _UTM_SOUTH_HEMISPHERE = False
 _UTM_SCALE = 0.9996
 _GRS80_A = 6378137.0
@@ -48,7 +91,7 @@ _GRS80_EP2 = _GRS80_E2 / (1 - _GRS80_E2)
 
 
 class WfsError(RuntimeError):
-    """The dataset could not be read, so no coordinate may be claimed."""
+    """The dataset could not be read or its own contract was violated, so no point is claimed."""
 
 
 @dataclass(frozen=True)
@@ -57,10 +100,15 @@ class AddressPoint:
     longitude: str
     accuracy_meters: str
     address_record_id: str
+    address_record_date: str | None
     dataset_identifier: str
+    dataset_version: str
     source_crs: str
+    source_x: str
+    source_y: str
     source_reference: str
     source_digest: str
+    source_observed_at: str
 
     def as_manifest_block(self, assertion_id: str) -> dict[str, Any]:
         return {
@@ -69,11 +117,38 @@ class AddressPoint:
             "accuracyMeters": float(self.accuracy_meters),
             "source": SOURCE_NAME,
             "datasetIdentifier": self.dataset_identifier,
+            "datasetVersion": self.dataset_version,
             "addressRecordId": self.address_record_id,
+            "addressRecordDate": self.address_record_date,
             "sourceReference": self.source_reference,
             "sourceCrs": self.source_crs,
+            "sourceX": float(self.source_x),
+            "sourceY": float(self.source_y),
+            "sourceDigest": self.source_digest,
+            "sourceObservedAtUtc": self.source_observed_at,
+            "outputCrs": OUTPUT_CRS,
             "assertionId": assertion_id,
         }
+
+
+@dataclass(frozen=True)
+class AddressResolution:
+    """The exact outcome of one lookup: either one point or one named unresolved reason."""
+
+    point: AddressPoint | None
+    reason: str | None
+
+    @property
+    def resolved(self) -> bool:
+        return self.point is not None
+
+    @classmethod
+    def unresolved(cls, reason: str) -> AddressResolution:
+        return cls(None, reason)
+
+    @classmethod
+    def resolved_at(cls, point: AddressPoint) -> AddressResolution:
+        return cls(point, None)
 
 
 def _meridional_arc(latitude: float) -> float:
@@ -134,26 +209,8 @@ def utm33n_to_wgs84(easting: float, northing: float) -> tuple[float, float]:
     return math.degrees(latitude), math.degrees(longitude) + 15.0
 
 
-def _point_from_coordinates(x: float, y: float) -> tuple[float, float, str]:
-    """Detect the CRS from the magnitude, then return (lat, lon, source_crs)."""
-    if abs(x) <= 180 and abs(y) <= 90:
-        return y, x, "EPSG:4326"
-    latitude, longitude = utm33n_to_wgs84(x, y)
-    return latitude, longitude, "EPSG:25833"
-
-
-def _in_berlin(latitude: float, longitude: float) -> bool:
-    return (
-        BERLIN_LATITUDE_RANGE[0] <= latitude <= BERLIN_LATITUDE_RANGE[1]
-        and BERLIN_LONGITUDE_RANGE[0] <= longitude <= BERLIN_LONGITUDE_RANGE[1]
-    )
-
-
-ACCEPTED_QUALITY = "Qualitaet A"
-
-
 def split_house_number(street_number: str) -> tuple[int, str] | None:
-    """Split a registry house number into the dataset's numeric part and its letter suffix.
+    """Split a house number into the dataset's numeric part and its letter suffix.
 
     A house number range names two buildings, so it identifies no single address point.
     """
@@ -174,42 +231,162 @@ def split_house_number(street_number: str) -> tuple[int, str] | None:
     return int(digits), suffix
 
 
-def _cql_filter(house_number: int, suffix: str, postal_code: str) -> str:
-    clauses = [f"hnr={house_number}"]
-    clauses.append(f"hnr_zusatz='{suffix.upper()}'" if suffix else "hnr_zusatz IS NULL")
-    clauses.append(f"plz='{postal_code}'")
+def normalize_street_name(value: str) -> str:
+    """Normalized comparison key for a street name.
+
+    The register writes ``Prinzessinnenstraße`` where the registry records
+    ``Prinzessinnenstrasse``; case folding and the German sharp-s expansion make the two the
+    same street. The registry abbreviates the street suffix (``Mollstr.``, ``Behaimstr``), so
+    the final token is expanded to ``strasse``; anything else stays a literal comparison.
+    """
+    text = unicodedata.normalize("NFC", value).casefold().replace("ß", "ss")
+    text = text.replace(".", " ").replace("-", " ")
+    tokens = text.split()
+    if tokens and tokens[-1].endswith("str") and not tokens[-1].endswith("strasse"):
+        tokens[-1] = f"{tokens[-1]}asse"
+    if tokens and tokens[-1].endswith("strasse") and len(tokens[-1]) > len("strasse"):
+        # The register separates the suffix (``Skalitzer Straße``) where the registry writes one
+        # word (``Skalitzerstr.``). Both forms name the same street, so the suffix is always its
+        # own token; without this the exact-identity check rejects a genuinely present address.
+        tokens = [*tokens[:-1], tokens[-1][: -len("strasse")], "strasse"]
+    return " ".join(tokens)
+
+
+@dataclass(frozen=True)
+class AddressSearch:
+    street: str
+    street_number: str
+    postal_code: str
+    expected_address_record_id: str | None = None
+
+    @property
+    def number(self) -> int:
+        split = split_house_number(self.street_number)
+        if split is None:
+            raise WfsError(f"house number {self.street_number!r} names no single address")
+        return split[0]
+
+    @property
+    def suffix(self) -> str:
+        split = split_house_number(self.street_number)
+        if split is None:
+            raise WfsError(f"house number {self.street_number!r} names no single address")
+        return split[1].upper()
+
+    @property
+    def street_key(self) -> str:
+        return normalize_street_name(self.street)
+
+    def identity(self) -> dict[str, str | None]:
+        """The complete search identity a cache entry must be keyed by."""
+        return {
+            "endpoint": WFS_ENDPOINT,
+            "layer": WFS_LAYER,
+            "sourceCrs": SOURCE_CRS,
+            "street": self.street_key,
+            "houseNumber": str(self.number),
+            "houseNumberSuffix": self.suffix,
+            "postalCode": self.postal_code.strip(),
+            "expectedAddressRecordId": self.expected_address_record_id,
+        }
+
+    def cache_key(self) -> str:
+        return hashlib.sha256(
+            json.dumps(self.identity(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+
+def create_search(
+    street: str | None,
+    street_number: str | None,
+    postal_code: str | None,
+    expected_address_record_id: str | None = None,
+) -> AddressSearch | None:
+    """Build a search only from a complete identity; an incomplete address has no search."""
+    if not street or not street.strip() or not street_number or not street_number.strip():
+        return None
+    if not postal_code or not postal_code.strip():
+        return None
+    if split_house_number(street_number) is None:
+        return None
+    return AddressSearch(
+        street.strip(),
+        street_number.strip(),
+        postal_code.strip(),
+        expected_address_record_id.strip() if expected_address_record_id else None,
+    )
+
+
+def _cql_filter(search: AddressSearch) -> str:
+    """Coarse filter only: the exact identity is verified against the returned features."""
+    clauses = [f"hnr={search.number}", f"plz='{search.postal_code}'"]
     return " AND ".join(clauses)
 
 
-def request_url(street_number: str, postal_code: str) -> str:
-    split = split_house_number(street_number)
-    if split is None:
-        raise WfsError(f"house number {street_number!r} names no single address")
+def request_url(search: AddressSearch) -> str:
     query = urllib.parse.urlencode(
         {
             "service": "WFS",
             "version": "2.0.0",
             "request": "GetFeature",
-            "typeNames": "adressen_berlin",
+            "typeNames": WFS_LAYER,
             "outputFormat": "application/json",
-            "CQL_FILTER": _cql_filter(split[0], split[1], postal_code),
+            "srsName": SOURCE_CRS,
+            "CQL_FILTER": _cql_filter(search),
         }
     )
     return f"{WFS_ENDPOINT}?{query}"
 
 
-def _cache_path(cache_dir: pathlib.Path, street_number: str, postal_code: str) -> pathlib.Path:
-    key = f"{postal_code}|{street_number}"
-    return cache_dir / f"{hashlib.sha256(key.encode('utf-8')).hexdigest()[:32]}.json"
-
-
-def _read_cache(path: pathlib.Path) -> Mapping[str, Any] | None:
+def _read_cache(path: pathlib.Path, search: AddressSearch, reference: str) -> bytes | None:
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:  # pragma: no cover - corrupt cache is a hard failure
+        envelope = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
         raise WfsError(f"cached address response {path} is not readable JSON: {error}") from error
+    if not isinstance(envelope, Mapping) or envelope.get("schemaVersion") != CACHE_SCHEMA:
+        raise WfsError(
+            f"cached address response {path} uses schema {envelope!r}; the cache must be "
+            f"rebuilt for {CACHE_SCHEMA}"
+        )
+    if envelope.get("cacheKey") != search.cache_key():
+        raise WfsError(
+            f"cached address response {path} belongs to another search identity; it cannot be reused"
+        )
+    if envelope.get("requestUrl") != reference:
+        raise WfsError(f"cached address response {path} was fetched from a different request url")
+    try:
+        payload = base64.b64decode(str(envelope["responseBytesBase64"]), validate=True)
+    except (KeyError, ValueError) as error:
+        raise WfsError(f"cached address response {path} carries no decodable response bytes") from error
+    if hashlib.sha256(payload).hexdigest() != envelope.get("responseSha256"):
+        raise WfsError(
+            f"cached address response {path} does not match its recorded digest; the raw source "
+            "bytes changed and the snapshot cannot be trusted"
+        )
+    return payload
+
+
+def _write_cache(path: pathlib.Path, search: AddressSearch, reference: str, payload: bytes) -> None:
+    envelope = {
+        "schemaVersion": CACHE_SCHEMA,
+        "cacheKey": search.cache_key(),
+        "endpoint": WFS_ENDPOINT,
+        "layer": WFS_LAYER,
+        "sourceCrs": SOURCE_CRS,
+        "requestUrl": reference,
+        "responseSha256": hashlib.sha256(payload).hexdigest(),
+        "responseBytesBase64": base64.b64encode(payload).decode("ascii"),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(envelope, sort_keys=True), encoding="utf-8")
+    temporary.replace(path)
+
+
+def _cache_path(cache_dir: pathlib.Path, search: AddressSearch) -> pathlib.Path:
+    return cache_dir / f"{search.cache_key()[:32]}.json"
 
 
 def _fetch(url: str, timeout: float) -> bytes:
@@ -224,83 +401,252 @@ def _fetch(url: str, timeout: float) -> bytes:
         raise WfsError(f"address dataset request failed: {error}") from error
 
 
-def _dataset_identifier(properties: Mapping[str, Any]) -> str:
-    """The record's own dataset date, so an unchanged address keeps one stable identifier."""
-    recorded = str(properties.get("adr_datum") or "").strip()
-    return f"{DATASET_IDENTIFIER}@{recorded}" if recorded else DATASET_IDENTIFIER
-
-
-def parse_address_point(
-    payload: Mapping[str, Any], street_number: str, postal_code: str, reference: str
-) -> AddressPoint | None:
-    """Return the point of the exact house number, or None when the dataset does not provide one."""
-    split = split_house_number(street_number)
-    if split is None:
+def _normalized_crs(value: str) -> str | None:
+    """The EPSG code a CRS name declares, whatever URN/URI form it is written in."""
+    text = value.strip()
+    if not text:
         return None
-    expected_number, expected_suffix = split
+    digits = ""
+    for part in reversed(text.replace("#", "/").replace("::", ":").replace(":", "/").split("/")):
+        if part.isdigit():
+            digits = part
+            break
+    return f"EPSG:{digits}" if digits else None
 
-    coordinate_ref = None
+
+def _payload_crs(payload: Mapping[str, Any]) -> str | None:
+    crs = payload.get("crs")
+    if isinstance(crs, Mapping):
+        properties = crs.get("properties")
+        if isinstance(properties, Mapping):
+            name = properties.get("name")
+            if isinstance(name, str):
+                return _normalized_crs(name)
+    if isinstance(payload.get("crs"), str):
+        return _normalized_crs(str(payload["crs"]))
+    return None
+
+
+def _observed_second(payload: Mapping[str, Any]) -> str:
+    raw = payload.get("timeStamp")
+    if not isinstance(raw, str) or not raw.strip():
+        raise WfsError("address dataset response carries no response timestamp")
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise WfsError(f"address dataset response timestamp is unreadable: {raw!r}") from error
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@functools.lru_cache(maxsize=1)
+def berlin_boundary() -> tuple[str, tuple[tuple[tuple[float, float], ...], ...]]:
+    """The official Berlin boundary polygon, verified against its recorded provenance digest."""
+    try:
+        raw = BOUNDARY_PATH.read_bytes()
+        provenance = json.loads(BOUNDARY_PROVENANCE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise WfsError(f"official Berlin boundary is unreadable: {error}") from error
+    digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+    if provenance.get("boundary_digest") != digest:
+        raise WfsError(
+            f"official Berlin boundary {BOUNDARY_PATH} does not match its provenance digest "
+            f"{provenance.get('boundary_digest')!r}"
+        )
+    geometry = json.loads(raw.decode("utf-8"))
+    polygons = _geojson_polygons(geometry)
+    if not polygons:
+        raise WfsError("official Berlin boundary carries no polygon geometry")
+    return digest, polygons
+
+
+def _geojson_polygons(geometry: Mapping[str, Any]) -> tuple[tuple[tuple[float, float], ...], ...]:
+    kind = geometry.get("type")
+    coordinates = geometry.get("coordinates") or []
+    raw_polygons: list[Any]
+    if kind == "Polygon":
+        raw_polygons = [coordinates]
+    elif kind == "MultiPolygon":
+        raw_polygons = list(coordinates)
+    else:
+        return ()
+    polygons: list[tuple[tuple[float, float], ...]] = []
+    for polygon in raw_polygons:
+        rings = tuple(
+            tuple((float(point[0]), float(point[1])) for point in ring) for ring in polygon
+        )
+        if rings:
+            # GeoJSON rings are flat on the sphere enough for this containment test; the
+            # official boundary does not cross the antimeridian.
+            polygons.append(rings)
+    return tuple(polygons)
+
+
+def _ring_contains(ring: tuple[tuple[float, float], ...], x: float, y: float) -> bool:
+    inside = False
+    previous = ring[-1]
+    for current in ring:
+        x1, y1 = previous
+        x2, y2 = current
+        if (y1 > y) != (y2 > y):
+            crossing = (x2 - x1) * (y - y1) / (y2 - y1) + x1
+            if x < crossing:
+                inside = not inside
+        previous = current
+    return inside
+
+
+def _boundary_contains(
+    boundary: tuple[tuple[tuple[float, float], ...], ...], latitude: float, longitude: float
+) -> bool:
+    return any(
+        _ring_contains(polygon[0], longitude, latitude)
+        and not any(_ring_contains(hole, longitude, latitude) for hole in polygon[1:])
+        for polygon in boundary
+    )
+
+
+def _in_berlin(latitude: float, longitude: float) -> bool:
+    _, boundary = berlin_boundary()
+    return _boundary_contains(boundary, latitude, longitude)
+
+
+def _number(value: Any) -> int | None:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _text(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def _feature_crs(feature: Mapping[str, Any]) -> str | None:
+    crs = feature.get("crs")
+    if isinstance(crs, Mapping):
+        properties = crs.get("properties")
+        if isinstance(properties, Mapping) and isinstance(properties.get("name"), str):
+            return _normalized_crs(properties["name"])
+    if isinstance(crs, str):
+        return _normalized_crs(crs)
+    return None
+
+
+def _matches_identity(properties: Mapping[str, Any], search: AddressSearch) -> bool:
+    if _text(properties.get("typ")) != ACCEPTED_TYPE:
+        return False
+    if _text(properties.get("plz")) != search.postal_code:
+        return False
+    if _number(properties.get("hnr")) != search.number:
+        return False
+    if _text(properties.get("hnr_zusatz")).upper() != search.suffix:
+        return False
+    street = _text(properties.get("str_name"))
+    if not street or normalize_street_name(street) != search.street_key:
+        return False
+    return True
+
+
+def resolve_address_point(
+    payload: Mapping[str, Any],
+    search: AddressSearch,
+    reference: str,
+    *,
+    raw_bytes: bytes | None = None,
+) -> AddressResolution:
+    """Resolve exactly one address point for a complete search identity."""
+    if not isinstance(payload, Mapping):
+        raise WfsError("address dataset response is not a JSON object")
+    if _payload_crs(payload) != SOURCE_CRS:
+        return AddressResolution.unresolved(REASON_CRS_UNSUPPORTED)
+
+    observed_at = _observed_second(payload)
+    matches: list[tuple[Mapping[str, Any], float, float]] = []
+    record_ids: set[str] = set()
     for feature in payload.get("features") or []:
-        properties = feature.get("properties") or {}
-        try:
-            number = int(str(properties.get("hnr") or "").strip())
-        except ValueError:
+        if not isinstance(feature, Mapping):
             continue
-        if number != expected_number:
+        declared = _feature_crs(feature)
+        if declared is not None and declared != SOURCE_CRS:
+            return AddressResolution.unresolved(REASON_CRS_UNSUPPORTED)
+        properties = feature.get("properties")
+        if not isinstance(properties, Mapping):
             continue
-        suffix = str(properties.get("hnr_zusatz") or "").strip()
-        if suffix.upper() != expected_suffix.upper():
+        if not _matches_identity(properties, search):
             continue
-        if str(properties.get("plz") or "").strip() != postal_code:
-            continue
-        if str(properties.get("typ") or "").strip() != "Adresse":
-            continue
-        if str(properties.get("qualitaet") or "").strip() != ACCEPTED_QUALITY:
-            continue
-        geometry = feature.get("geometry") or {}
+        geometry = feature.get("geometry")
+        if not isinstance(geometry, Mapping) or geometry.get("type") != "Point":
+            return AddressResolution.unresolved(REASON_GEOMETRY_INVALID)
         coordinates = geometry.get("coordinates")
-        if not isinstance(coordinates, list) or len(coordinates) < 2:
-            continue
+        if not isinstance(coordinates, list) or len(coordinates) != 2:
+            return AddressResolution.unresolved(REASON_GEOMETRY_INVALID)
         try:
             x, y = float(coordinates[0]), float(coordinates[1])
         except (TypeError, ValueError):
-            continue
-        coordinate_ref = (x, y, properties)
-        break
+            return AddressResolution.unresolved(REASON_GEOMETRY_INVALID)
+        record_id = _text(properties.get("adressid"))
+        if not record_id:
+            raise WfsError(
+                f"address point for {search.postal_code}/{search.street_number} carries no address record id"
+            )
+        record_ids.add(record_id)
+        matches.append((properties, x, y))
 
-    if coordinate_ref is None:
-        return None
+    if not matches:
+        return AddressResolution.unresolved(REASON_NOT_FOUND)
+    if search.expected_address_record_id is not None and not any(
+        _text(properties.get("adressid")) == search.expected_address_record_id
+        for properties, _, _ in matches
+    ):
+        return AddressResolution.unresolved(REASON_CONFLICTING_RECORD)
+    if len(record_ids) != 1 or len(matches) != 1:
+        # Two features with the same record id are still an ambiguous source; the dataset
+        # must identify one address record, not two rows for one address.
+        return AddressResolution.unresolved(REASON_AMBIGUOUS)
 
-    x, y, properties = coordinate_ref
-    latitude, longitude, source_crs = _point_from_coordinates(x, y)
+    properties, x, y = matches[0]
+    quality = _text(properties.get("qualitaet"))
+    if quality != ACCEPTED_QUALITY:
+        return AddressResolution.unresolved(f"{REASON_QUALITY_UNSUPPORTED}:{quality or 'unknown'}")
+    try:
+        latitude, longitude = utm33n_to_wgs84(x, y)
+    except WfsError:
+        return AddressResolution.unresolved(REASON_GEOMETRY_INVALID)
     if not _in_berlin(latitude, longitude):
-        return None
+        return AddressResolution.unresolved(REASON_OUTSIDE_BOUNDARY)
 
-    address_record_id = str(properties.get("adressid") or "").strip()
-    if not address_record_id:
-        raise WfsError(
-            f"address point for {postal_code}/{street_number} carries no address record id"
+    return AddressResolution.resolved_at(
+        AddressPoint(
+            latitude=f"{latitude:.7f}",
+            longitude=f"{longitude:.7f}",
+            accuracy_meters=ADDRESS_POINT_ACCURACY_METERS,
+            address_record_id=_text(properties.get("adressid")),
+            address_record_date=_text(properties.get("adr_datum")) or None,
+            dataset_identifier=DATASET_IDENTIFIER,
+            dataset_version=f"{WFS_LAYER}@{observed_at}",
+            source_crs=SOURCE_CRS,
+            source_x=f"{x:.3f}",
+            source_y=f"{y:.3f}",
+            source_reference=reference,
+            source_digest=hashlib.sha256(
+                raw_bytes
+                if raw_bytes is not None
+                else json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+            source_observed_at=observed_at,
         )
-
-    return AddressPoint(
-        latitude=f"{latitude:.7f}",
-        longitude=f"{longitude:.7f}",
-        accuracy_meters=ADDRESS_POINT_ACCURACY_METERS,
-        address_record_id=address_record_id,
-        dataset_identifier=_dataset_identifier(properties),
-        source_crs=source_crs,
-        source_reference=reference,
-        source_digest=hashlib.sha256(
-            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest(),
     )
 
 
 class AddressPointLookup:
-    """Address point lookup with a response cache keyed by the address itself.
+    """Address point lookup over an immutable raw-response snapshot cache.
 
-    Re-running an unchanged import must not touch the network, so a cached response is reused
-    as-is; the cache key is the address, and the dataset revision travels inside the response.
+    The cache key is the complete normalized search identity plus the endpoint, layer and
+    source CRS, so a changed street, number, suffix, postal code or source cannot read another
+    address's response. Cached bytes are the exact response the coordinate was derived from;
+    the digest is verified on every read.
     """
 
     def __init__(self, cache_dir: pathlib.Path, *, timeout: float = 20.0) -> None:
@@ -309,29 +655,38 @@ class AddressPointLookup:
         self.requests_made = 0
         self.cache_hits = 0
 
-    def __call__(self, street_number: str, postal_code: str) -> AddressPoint | None:
-        if not street_number or not postal_code:
-            return None
-        if split_house_number(street_number) is None:
-            return None
-        path = _cache_path(self.cache_dir, street_number, postal_code)
-        cached = _read_cache(path)
-        reference = request_url(street_number, postal_code)
+    def __call__(
+        self,
+        street: str | None,
+        street_number: str | None,
+        postal_code: str | None,
+        expected_address_record_id: str | None = None,
+    ) -> AddressResolution:
+        search = create_search(street, street_number, postal_code, expected_address_record_id)
+        if search is None:
+            return AddressResolution.unresolved(REASON_ADDRESS_INCOMPLETE)
+        path = _cache_path(self.cache_dir, search)
+        reference = request_url(search)
+        cached = _read_cache(path, search, reference)
         if cached is None:
             payload_bytes = _fetch(reference, self.timeout)
             self.requests_made += 1
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(payload_bytes)
-            payload = json.loads(payload_bytes.decode("utf-8"))
+            _write_cache(path, search, reference, payload_bytes)
         else:
             self.cache_hits += 1
-            payload = cached
-        return parse_address_point(payload, street_number, postal_code, reference)
+            payload_bytes = cached
+        payload = json.loads(payload_bytes.decode("utf-8"))
+        return resolve_address_point(payload, search, reference, raw_bytes=payload_bytes)
 
 
-def lookup_without_cache(street_number: str, postal_code: str) -> AddressPoint | None:
+def lookup_without_cache(
+    street: str, street_number: str, postal_code: str, expected_address_record_id: str | None = None
+) -> AddressResolution:
     """One-off lookup used by fixtures and by manual verification."""
-    payload = json.loads(_fetch(request_url(street_number, postal_code), 20.0).decode("utf-8"))
-    return parse_address_point(
-        payload, street_number, postal_code, request_url(street_number, postal_code)
-    )
+    search = create_search(street, street_number, postal_code, expected_address_record_id)
+    if search is None:
+        return AddressResolution.unresolved(REASON_ADDRESS_INCOMPLETE)
+    reference = request_url(search)
+    payload_bytes = _fetch(reference, 20.0)
+    payload = json.loads(payload_bytes.decode("utf-8"))
+    return resolve_address_point(payload, search, reference, raw_bytes=payload_bytes)

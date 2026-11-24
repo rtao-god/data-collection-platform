@@ -165,9 +165,15 @@ POSTAL_CODE_RE = re.compile(r"^\d{5}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 PHONE_RE = re.compile(r"^\+?[0-9][0-9 ()/.-]{5,30}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+# The house number may be glued to the street name: official sources write both
+# "Hammerstr. 17" and "Dunckerstr.21".
 STREET_NUMBER_RE = re.compile(
-    r"^(?P<street>.+?)\s+(?P<number>\d+[A-Za-z]?(?:\s*[-/]\s*\d+[A-Za-z]?)?)$"
+    r"^(?P<street>.+?)\s*(?P<number>\d+[A-Za-z]?(?:\s*[-/]\s*\d+[A-Za-z]?)?)$"
 )
+# German addresses are written "... 17 D- 14167 Berlin": the postal country prefix can be
+# captured into the street fragment, leaving a detached letter after the house number.
+POSTAL_COUNTRY_PREFIX_RE = re.compile(r"\s*[Dd]\s*-\s*\d{0,5}$")
+DETACHED_COUNTRY_LETTER_RE = re.compile(r"^(?P<street>.+?\d+[A-Za-z]?)\s+[A-Za-z]$")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 RECORD_FIELDS = (
@@ -1476,12 +1482,27 @@ def write_text_atomic(path: Path, payload: str) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def split_street_address(value: str | None) -> tuple[str | None, str | None]:
+def split_street_address(
+    value: str | None, postal_code: str | None = None
+) -> tuple[str | None, str | None]:
+    """Split a captured address fragment into street name and house number.
+
+    The fragment comes from a source page, so it can carry the postal country prefix
+    ("Hammerstr. 17 D- 14167") or no space before the number ("Dunckerstr.21"). The detached
+    single letter is only dropped when the record also carries the postal code that the prefix
+    belonged to; without that context the letter can be a real site suffix and is kept.
+    """
     if not value:
         return (None, None)
-    match = STREET_NUMBER_RE.match(value.strip())
+    text = " ".join(value.split())
+    text = POSTAL_COUNTRY_PREFIX_RE.sub("", text)
+    if postal_code:
+        detached = DETACHED_COUNTRY_LETTER_RE.match(text)
+        if detached:
+            text = detached.group("street")
+    match = STREET_NUMBER_RE.match(text)
     if not match:
-        return (value.strip(), None)
+        return (text, None)
     return (match.group("street").strip(), match.group("number").strip())
 
 
@@ -1557,7 +1578,7 @@ def _lead_address(lead: Mapping[str, Any]) -> dict[str, Any] | None:
     street_value = lead.get("street")
     if not street_value and not postal_code:
         return None
-    street, number = split_street_address(street_value)
+    street, number = split_street_address(street_value, postal_code)
     return {
         "street": street,
         "street_number": number,
@@ -1973,13 +1994,45 @@ def _set_by_path(document: dict[str, Any], field_path: str, value: Any) -> None:
     current[parts[-1]] = value
 
 
-def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> list[Problem]:
-    problems: list[Problem] = []
+def _value_at_path(document: Mapping[str, Any], field_path: str) -> Any:
+    current: Any = document
+    for part in field_path.split("."):
+        if not isinstance(current, Mapping) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def _absent(value: Any) -> bool:
+    return value is None or value == {} or value == [] or value == ""
+
+
+class PatchOutcome:
+    """What one patch did to the registry: written, already equal, or refused."""
+
+    def __init__(self) -> None:
+        self.problems: list[Problem] = []
+        self.applied = 0
+        self.unchanged = 0
+
+    def extend(self, problems: list[Problem]) -> None:
+        self.problems.extend(problems)
+
+
+def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutcome:
+    """Apply an evidence-backed patch file record by record.
+
+    A patch is a proposal, so it may only add a fact the record does not carry yet. Re-applying
+    the same patch writes nothing, and a value that already differs on the record is a conflict
+    for the owner of that field instead of being overwritten by whoever ran the patch last.
+    """
+    outcome = PatchOutcome()
+    problems = outcome.problems
     if patch.get("schema_revision") != PATCH_SCHEMA_REVISION:
         problems.append(
             Problem("patch_schema", "$.schema_revision", f"expected {PATCH_SCHEMA_REVISION}")
         )
-        return problems
+        return outcome
 
     by_id = {record.get("registry_id"): record for record in document.get("records") or []}
     for index, entry in enumerate(patch.get("patches") or []):
@@ -2035,28 +2088,143 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> list[Prob
                 )
                 continue
 
-        _set_by_path(record, field_path, entry.get("value"))
-        if not problems:
-            record.setdefault("collector", {}).setdefault("revisions", []).append(
-                f"patch:{field_path}:{reviewer}"
+        incoming = entry.get("value")
+        current = _value_at_path(record, field_path)
+        if canonical_json(current) == canonical_json(incoming):
+            outcome.unchanged += 1
+            continue
+        if not _absent(current) and not entry.get("replace_existing"):
+            problems.append(
+                Problem(
+                    "patch_conflict",
+                    f"{path}.field_path",
+                    f"record already carries {field_path} "
+                    f"(digest {sha256_hex(canonical_json(current))[:12]}, "
+                    f"incoming {sha256_hex(canonical_json(incoming))[:12]}); "
+                    "replacing it needs the field owner",
+                )
             )
-    return problems
+            continue
+        _set_by_path(record, field_path, incoming)
+        record.setdefault("collector", {}).setdefault("revisions", []).append(
+            f"patch:{field_path}:{reviewer}"
+        )
+        outcome.applied += 1
+    return outcome
 
 
 def enrich(registry_path: Path, patch_path: Path, *, dry_run: bool) -> int:
     document = read_json(registry_path)
     patch = read_json(patch_path)
-    problems = apply_patch(document, patch)
-    problems.extend(validate_registry(document))
+    outcome = apply_patch(document, patch)
+    outcome.extend(validate_registry(document))
+    for problem in outcome.problems:
+        print(problem.render(), file=sys.stderr)
+    if outcome.problems:
+        return 1
+    if dry_run:
+        print(
+            f"dry run: {outcome.applied} field(s) would change, "
+            f"{outcome.unchanged} already equal, {len(document['records'])} record(s)"
+        )
+        return 0
+    if outcome.applied == 0:
+        print(
+            f"nothing to write: {outcome.unchanged} field(s) already carry the patched value"
+        )
+        return 0
+    write_text_atomic(registry_path, canonical_json(document))
+    print(
+        f"applied {outcome.applied} field(s) to {len(document['records'])} record(s), "
+        f"{outcome.unchanged} already equal"
+    )
+    return 0
+
+
+def evidence_id_for(owner_id: str, source_url: str, digest: str, field_path: str) -> str:
+    """Stable identity of one record's observed artifact for one field.
+
+    The record is part of the seed: two records may cite the same page, and each of them owns its
+    own observation of it.
+    """
+    seed = f"{owner_id}\n{source_url}\n{digest}\n{field_path}".encode()
+    return f"ev-{hashlib.sha256(seed).hexdigest()[:16]}"
+
+
+def record_evidence(registry_path: Path, capture_path: Path, *, dry_run: bool) -> int:
+    """Append captured official-site artifacts to the records they were captured for.
+
+    A capture entry becomes one artifact per declared field path. Nothing is decided here: the
+    artifact carries no policy decision until an operator records one, and no description state or
+    contact validation state changes. Re-recording the same URL and digest is a no-op.
+    """
+    document = read_json(registry_path)
+    capture = read_json(capture_path)
+    entries = capture.get("entries") if isinstance(capture, Mapping) else None
+    if not isinstance(entries, list) or not entries:
+        print("capture manifest carries no entries", file=sys.stderr)
+        return 2
+    by_id = {record["registry_id"]: record for record in document.get("records") or []}
+    appended = 0
+    already = 0
+    refused: list[str] = []
+    for entry in entries:
+        if entry.get("state") != "captured":
+            refused.append(f"{entry.get('registryId')} {entry.get('url')}: {entry.get('code')}")
+            continue
+        record = by_id.get(entry.get("registryId"))
+        if record is None:
+            refused.append(f"unknown registry id {entry.get('registryId')}")
+            continue
+        source_url = str(entry["url"])
+        digest = str(entry["responseDigestSha256"])
+        observed_at = str(entry["observedAtUtc"])
+        excerpt = str(entry["excerpt"])
+        field_paths = [str(item) for item in entry.get("fieldPaths") or []] or ["source.page"]
+        artifacts = record.setdefault("field_evidence", [])
+        for field_path in field_paths:
+            evidence_id = evidence_id_for(
+                str(record["registry_id"]), source_url, digest, field_path
+            )
+            if any(
+                item.get("source_url") == source_url
+                and item.get("response_digest_sha256") == digest
+                and item.get("field_path") == field_path
+                for item in artifacts
+            ):
+                already += 1
+                continue
+            artifacts.append(
+                {
+                    "attribution": None,
+                    "evidence_id": evidence_id,
+                    "excerpt": excerpt,
+                    "external_id": None,
+                    "field_path": field_path,
+                    "observed_at_utc": observed_at,
+                    "policy_decision": None,
+                    "response_digest_sha256": digest,
+                    "source_kind": str(capture.get("sourceKey") or "official_site"),
+                    "source_url": source_url,
+                    "usage_policy": "facts_only",
+                }
+            )
+            appended += 1
+    problems = validate_registry(document)
     for problem in problems:
         print(problem.render(), file=sys.stderr)
+    for message in refused:
+        print(f"refused {message}", file=sys.stderr)
     if problems:
         return 1
     if dry_run:
-        print(f"dry run: patch applies cleanly to {len(document['records'])} record(s)")
+        print(f"dry run: would append {appended} artifact(s), {already} already present")
+        return 0
+    if appended == 0:
+        print(f"nothing to write: {already} artifact(s) already present")
         return 0
     write_text_atomic(registry_path, canonical_json(document))
-    print(f"applied patch to {len(document['records'])} record(s)")
+    print(f"appended {appended} artifact(s), {already} already present, {len(refused)} refused")
     return 0
 
 
@@ -2156,17 +2324,19 @@ def _append_review(
     text_digest: str,
     source_digest: str,
     note: str,
-) -> None:
+    locale: str | None = None,
+) -> str:
     reviews = record.setdefault("reviews", [])
     sequence = _next_review_sequence(record)
+    review_id = str(
+        uuid.uuid5(
+            REGISTRY_ID_NAMESPACE,
+            f"{record.get('registry_id')}:{kind}:{sequence}:{source_digest}",
+        )
+    )
     reviews.append(
         {
-            "review_id": str(
-                uuid.uuid5(
-                    REGISTRY_ID_NAMESPACE,
-                    f"{record.get('registry_id')}:{kind}:{sequence}:{source_digest}",
-                )
-            ),
+            "review_id": review_id,
             "kind": kind,
             "decision": decision,
             "actor_id": actor_id,
@@ -2174,10 +2344,11 @@ def _append_review(
             "decided_at_utc": decided_at_utc,
             "text_digest_sha256": text_digest,
             "source_evidence_digest_sha256": source_digest,
-            "locale": None,
+            "locale": locale,
             "note": note,
         }
     )
+    return review_id
 
 
 def _clear_review_restriction(record: dict[str, Any], code: str) -> None:
@@ -2265,6 +2436,7 @@ def apply_decisions(
     registry_ids: Sequence[str] | None = None,
     district_evidence: Mapping[str, Mapping[str, Any]] | None = None,
     district_policy_digest: str | None = None,
+    media_omission_reason: str | None = None,
 ) -> dict[str, int]:
     """Record operator decisions on already reviewed records.
 
@@ -2275,7 +2447,15 @@ def apply_decisions(
     if identity_decision is not None and identity_decision not in DECIDED_IDENTITY_ACTIONS:
         raise ValueError(f"unsupported identity decision: {identity_decision}")
     wanted = set(registry_ids) if registry_ids else None
-    counts = {"policy": 0, "district": 0, "district_refused": 0, "market": 0, "identity": 0}
+    counts = {
+        "policy": 0,
+        "district": 0,
+        "district_refused": 0,
+        "market": 0,
+        "identity": 0,
+        "media": 0,
+        "media_refused": 0,
+    }
     for record in document.get("records") or []:
         if wanted is not None and record.get("registry_id") not in wanted:
             continue
@@ -2386,7 +2566,216 @@ def apply_decisions(
             )
             record["subject_match"] = subject_match
             counts["identity"] += 1
+
+        if media_omission_reason:
+            if record.get("photo_candidates"):
+                counts["media_refused"] += 1
+            else:
+                record["photo_candidates"] = [
+                    {
+                        "candidate_id": f"photo-omit-{record['registry_id'][:8]}",
+                        "source_url": None,
+                        "rights_holder": None,
+                        "license_url": None,
+                        "license_version": None,
+                        "rights_state": "omitted_rights_unclear",
+                        "observed_at_utc": decided_at_utc,
+                        "evidence_digest_sha256": None,
+                        "omission_reason": media_omission_reason,
+                    }
+                ]
+                _append_review(
+                    record,
+                    kind="media_rights",
+                    decision="approved",
+                    actor_id=reviewer,
+                    decided_at_utc=decided_at_utc,
+                    text_digest=digest,
+                    source_digest=policy_digest or digest,
+                    note=media_omission_reason,
+                )
+                counts["media"] += 1
     return counts
+
+
+RESEARCH_REVIEWER_PREFIX = "research-"
+
+
+def record_review(
+    registry_path: Path,
+    *,
+    reviewer: str,
+    decided_at_utc: str,
+    description_decisions: Sequence[Mapping[str, Any]],
+    contact_decisions: Sequence[Mapping[str, Any]],
+    dry_run: bool,
+) -> int:
+    """Record a human decision on a draft text or a contact.
+
+    This is the only path that turns a description into ``approved`` or a contact into
+    ``validated``. A research identity is refused: the tooling that drafted or captured a value
+    cannot review it. A description decision names the record, the locale and the exact text digest
+    the reviewer read, so a later edit cannot inherit an old approval.
+    """
+    if parse_utc(decided_at_utc) is None:
+        print("decided_at_utc must use YYYY-MM-DDTHH:MM:SSZ", file=sys.stderr)
+        return 2
+    if not non_empty(reviewer) or reviewer.startswith(RESEARCH_REVIEWER_PREFIX):
+        print(
+            "refused: a research identity cannot review its own draft or capture",
+            file=sys.stderr,
+        )
+        return 2
+
+    document = read_json(registry_path)
+    by_id = {record.get("registry_id"): record for record in document.get("records") or []}
+    approved = 0
+    rejected = 0
+    validated = 0
+    invalidated = 0
+    refusals: list[str] = []
+
+    for decision in description_decisions:
+        record = by_id.get(decision.get("registry_id"))
+        locale = decision.get("locale")
+        outcome = decision.get("decision")
+        if record is None:
+            refusals.append(f"unknown registry id {decision.get('registry_id')}")
+            continue
+        description = (record.get("descriptions") or {}).get(locale)
+        if description is None:
+            refusals.append(f"{record['canonical_name']}: no {locale} description")
+            continue
+        if outcome not in REVIEW_DECISIONS:
+            refusals.append(f"{record['canonical_name']} {locale}: decision {outcome}")
+            continue
+        if description.get("text_digest_sha256") != decision.get("text_digest_sha256"):
+            refusals.append(
+                f"{record['canonical_name']} {locale}: text changed since the reviewer read it"
+            )
+            continue
+        review_id = _append_review(
+            record,
+            kind="translation",
+            decision=outcome,
+            actor_id=reviewer,
+            decided_at_utc=decided_at_utc,
+            text_digest=description["text_digest_sha256"],
+            source_digest=str(description.get("source_evidence_digest_sha256") or ""),
+            note=str(decision.get("note") or "human review of the exact draft text"),
+            locale=locale,
+        )
+        if outcome == "approved":
+            description["state"] = "approved"
+            description["review_state"] = "approved"
+            description["review_ref"] = review_id
+            approved += 1
+        else:
+            description["state"] = "draft"
+            description["review_state"] = "rejected"
+            description["review_ref"] = review_id
+            rejected += 1
+
+    for decision in contact_decisions:
+        record = by_id.get(decision.get("registry_id"))
+        if record is None:
+            refusals.append(f"unknown registry id {decision.get('registry_id')}")
+            continue
+        state = decision.get("validation_state")
+        if state not in ("validated", "invalid"):
+            refusals.append(f"{record['canonical_name']}: validation state {state}")
+            continue
+        match = [
+            contact
+            for contact in record.get("contacts") or []
+            if contact.get("kind") == decision.get("kind")
+            and contact.get("target") == decision.get("target")
+        ]
+        if not match:
+            refusals.append(
+                f"{record['canonical_name']}: no {decision.get('kind')} contact "
+                f"{decision.get('target')}"
+            )
+            continue
+        for contact in match:
+            contact["validation_state"] = state
+        contact = match[0]
+        evidence_by_id = {
+            item.get("evidence_id"): item for item in record.get("field_evidence") or []
+        }
+        evidenced = [
+            evidence_by_id.get(ref)
+            for ref in contact.get("evidence_refs") or []
+            if evidence_by_id.get(ref) is not None
+        ]
+        supplied_digest = decision.get("source_evidence_digest_sha256")
+        if supplied_digest is not None and supplied_digest not in {
+            item["response_digest_sha256"] for item in evidenced
+        }:
+            refusals.append(
+                f"{record['canonical_name']}: contact decision cites a digest that is not "
+                "this contact's evidence"
+            )
+            continue
+        source_digest = supplied_digest or (
+            evidenced[0]["response_digest_sha256"] if evidenced else None
+        )
+        if not isinstance(source_digest, str) or not HEX64_RE.match(source_digest):
+            refusals.append(
+                f"{record['canonical_name']}: contact decision carries no evidenced digest"
+            )
+            continue
+        _append_review(
+            record,
+            kind="fact",
+            decision="approved" if state == "validated" else "rejected",
+            actor_id=reviewer,
+            decided_at_utc=decided_at_utc,
+            text_digest=sha256_hex(canonical_json([contact.get("kind"), contact.get("target")])),
+            source_digest=source_digest,
+            note=str(decision.get("note") or f"human review of the contact: {state}"),
+        )
+        if state == "validated":
+            validated += len(match)
+        else:
+            invalidated += len(match)
+
+    problems = validate_registry(document)
+    for problem in problems:
+        print(problem.render(), file=sys.stderr)
+    for message in refusals:
+        print(f"refused {message}", file=sys.stderr)
+    if problems:
+        return 1
+    print(
+        f"reviews approved={approved} rejected={rejected} "
+        f"contacts_validated={validated} contacts_invalid={invalidated} "
+        f"refused={len(refusals)}"
+    )
+    if dry_run:
+        print("dry run: registry was not written")
+        return 1 if refusals else 0
+    if refusals:
+        print(
+            "refused: at least one decision was refused, so the registry was not written",
+            file=sys.stderr,
+        )
+        return 1
+    write_text_atomic(registry_path, canonical_json(document))
+    print(f"wrote {registry_path}")
+    return 0
+
+
+def _recorded_policy_digests(document: Mapping[str, Any]) -> set[str]:
+    """Policy digests an operator already approved somewhere in this registry."""
+    digests: set[str] = set()
+    for record in document.get("records") or []:
+        for entry in record.get("field_evidence") or []:
+            decision = entry.get("policy_decision") or {}
+            digest = decision.get("policy_digest_sha256")
+            if isinstance(digest, str) and HEX64_RE.match(digest):
+                digests.add(digest)
+    return digests
 
 
 def decide(
@@ -2401,6 +2790,8 @@ def decide(
     registry_ids: Sequence[str] | None,
     dry_run: bool,
     district_evidence_path: Path | None = None,
+    policy_digest_override: str | None = None,
+    media_omission_reason: str | None = None,
 ) -> int:
     if parse_utc(decided_at_utc) is None:
         print("decided_at_utc must use YYYY-MM-DDTHH:MM:SSZ", file=sys.stderr)
@@ -2411,8 +2802,25 @@ def decide(
     policy_digest = None
     if policy_path is not None:
         policy_digest = hashlib.sha256(policy_path.read_bytes()).hexdigest()
-
     document = read_json(registry_path)
+    if policy_digest_override is not None:
+        if policy_path is not None:
+            print(
+                "refused: pass either --policy or --policy-digest, not both", file=sys.stderr
+            )
+            return 2
+        if not HEX64_RE.match(policy_digest_override):
+            print("policy digest must be a sha256 hex value", file=sys.stderr)
+            return 2
+        recorded = _recorded_policy_digests(document)
+        if policy_digest_override not in recorded:
+            # Continuity only: a new decision reuses an approved policy identity or reads the file.
+            print(
+                "refused: policy digest is not an approved policy already recorded here",
+                file=sys.stderr,
+            )
+            return 2
+        policy_digest = policy_digest_override
     district_evidence = None
     district_policy_digest = None
     if district_evidence_path is not None:
@@ -2443,6 +2851,7 @@ def decide(
         registry_ids=registry_ids,
         district_evidence=district_evidence,
         district_policy_digest=district_policy_digest,
+        media_omission_reason=media_omission_reason,
     )
     problems = validate_registry(document)
     if problems:
@@ -2451,7 +2860,7 @@ def decide(
         return 1
     print(
         "decisions policy={policy} district={district} district_refused={district_refused} "
-        "market={market} identity={identity}".format(
+        "market={market} identity={identity} media={media} media_refused={media_refused}".format(
             **counts
         )
     )
@@ -2502,6 +2911,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     decide_parser.add_argument("--identity", choices=DECIDED_IDENTITY_ACTIONS)
     decide_parser.add_argument("--registry-id", action="append")
     decide_parser.add_argument("--dry-run", action="store_true")
+    decide_parser.add_argument(
+        "--policy-digest",
+        dest="policy_digest",
+        default=None,
+        help="reuse an approved policy digest already recorded in this registry",
+    )
+    decide_parser.add_argument(
+        "--omit-media",
+        dest="omit_media",
+        default=None,
+        help="record that no photo is published, with the reason",
+    )
+
+    review_parser = subparsers.add_parser(
+        "review", help="record a human decision on a description or a contact"
+    )
+    review_parser.add_argument("--reviewer", required=True)
+    review_parser.add_argument("--decided-at-utc", required=True)
+    review_parser.add_argument("--descriptions", type=Path, default=None)
+    review_parser.add_argument("--contacts", type=Path, default=None)
+    review_parser.add_argument("--dry-run", action="store_true")
+
+    evidence_parser = subparsers.add_parser(
+        "record-evidence", help="append captured official-site artifacts to their records"
+    )
+    evidence_parser.add_argument("--capture", type=Path, required=True)
+    evidence_parser.add_argument("--dry-run", action="store_true")
 
     diff_parser = subparsers.add_parser("diff", help="diff the registry against another document")
     diff_parser.add_argument("--other", type=Path, required=True)
@@ -2524,10 +2960,35 @@ def main(argv: Sequence[str] | None = None) -> int:
             identity_decision=args.identity,
             registry_ids=args.registry_id,
             dry_run=args.dry_run,
+            policy_digest_override=args.policy_digest,
+            media_omission_reason=args.omit_media,
         )
 
     if args.command == "enrich":
         return enrich(args.registry, args.patch, dry_run=args.dry_run)
+
+    if args.command == "review":
+        description_decisions = (
+            json.loads(args.descriptions.read_text(encoding="utf-8"))
+            if args.descriptions is not None
+            else []
+        )
+        contact_decisions = (
+            json.loads(args.contacts.read_text(encoding="utf-8"))
+            if args.contacts is not None
+            else []
+        )
+        return record_review(
+            args.registry,
+            reviewer=args.reviewer,
+            decided_at_utc=args.decided_at_utc,
+            description_decisions=description_decisions,
+            contact_decisions=contact_decisions,
+            dry_run=args.dry_run,
+        )
+
+    if args.command == "record-evidence":
+        return record_evidence(args.registry, args.capture, dry_run=args.dry_run)
 
     if args.command == "diff":
         current = read_json(args.registry)

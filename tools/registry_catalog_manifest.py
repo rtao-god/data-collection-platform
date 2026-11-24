@@ -31,9 +31,11 @@ from typing import Any
 
 try:  # imported as a package by tests and by `python -m tools.registry_catalog_manifest`
     from tools import studio_registry as registry
+    from tools import wfs_address_points as wfs
 except ImportError:  # direct script execution
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
     from tools import studio_registry as registry
+    from tools import wfs_address_points as wfs
 
 
 SCHEMA_REVISION = "registry-catalog-import-v1"
@@ -298,43 +300,55 @@ def _assertions(record: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 def _address_point(
     record: Mapping[str, Any],
-    assertions: Sequence[Mapping[str, Any]],
-    lookup: Callable[[str, str], Any] | None,
-) -> tuple[dict[str, Any] | None, str | None]:
+    lookup: Callable[[str, str, str, str | None], Any] | None,
+) -> tuple[dict[str, Any] | None, str | None, dict[str, Any] | None]:
     """Resolve the address point of this record, or report why it stays unresolved.
 
-    The point belongs to the address dataset assertion, so it is only claimed when that
-    assertion is the one the address facts already rest on.
+The point is derived from the official address register response itself, so it carries its
+    own provenance assertion: the exact request url, the raw response digest, the address
+    record id and the response timestamp. It never borrows an assertion of an older excerpt.
     """
     address = record.get("address") or {}
+    street = _text_or_none(address.get("street"))
     street_number = _text_or_none(address.get("street_number"))
     postal_code = _text_or_none(address.get("postal_code"))
+    expected_record_id = _text_or_none(address.get("address_record_id"))
     if lookup is None:
-        return None, "address_point_lookup_disabled"
-    if street_number is None or postal_code is None:
-        return None, "address_point_not_derivable_from_address"
-    dataset_assertions = [
-        item
-        for item in assertions
-        if ADDRESS_DATASET_LAYER in str(item.get("sourceReference") or "")
-    ]
-    if not dataset_assertions:
-        return None, "address_point_without_address_dataset_evidence"
+        return None, "address_point_lookup_disabled", None
+    if street is None or street_number is None or postal_code is None:
+        return None, wfs.REASON_ADDRESS_INCOMPLETE, None
     try:
-        point = lookup(street_number, postal_code)
-    except Exception:
-        return None, "address_point_lookup_failed"
-    if point is None:
-        return None, "address_point_not_found_in_address_dataset"
-    assertion = dataset_assertions[0]
-    return point.as_manifest_block(str(assertion["assertionId"])), None
+        resolution = lookup(street, street_number, postal_code, expected_record_id)
+    except wfs.WfsError:
+        return None, "address_point_lookup_failed", None
+    if not resolution.resolved:
+        return None, resolution.reason, None
+
+    point = resolution.point
+    source_kind, basis = classify_source({"source_url": point.source_reference})
+    assertion_id = derive_assertion_id(
+        record["registry_id"], point.source_reference, point.source_digest, point.source_observed_at
+    )
+    assertion = {
+        "assertionId": assertion_id,
+        "sourceKind": source_kind,
+        "sourceReference": point.source_reference,
+        "sourceExternalId": point.address_record_id,
+        "observedAtUtc": point.source_observed_at,
+        "usagePolicy": USAGE_POLICY_PUBLIC_ALLOWED,
+        "evidenceDigest": point.source_digest,
+        "fieldPaths": ["address.coordinate"],
+        "declaredSourceKind": None,
+        "classificationBasis": basis,
+    }
+    return point.as_manifest_block(assertion_id), None, assertion
 
 
 def _business(
     record: Mapping[str, Any],
     mapping: CatalogMapping,
-    assertions: Sequence[Mapping[str, Any]],
-    address_point_lookup: Callable[[str, str], Any] | None = None,
+    assertions: list[dict[str, Any]],
+    address_point_lookup: Callable[[str, str, str, str | None], Any] | None = None,
 ) -> dict[str, Any]:
     address = record.get("address") or {}
     district_basis = str(address.get("district_basis") or "")
@@ -378,7 +392,11 @@ def _business(
 
     name_assertion = address_assertion
 
-    coordinate, coordinate_reason = _address_point(record, assertions, address_point_lookup)
+    coordinate, coordinate_reason, coordinate_assertion = _address_point(
+        record, address_point_lookup
+    )
+    if coordinate_assertion is not None:
+        assertions.append(coordinate_assertion)
 
     return {
         "name": str(record.get("canonical_name") or "").strip() or None,
@@ -461,8 +479,21 @@ def build_record(
         assertions = _assertions(record)
         if not assertions:
             raise ManifestError(f"record {registry_id} has no exportable evidence")
-        entry["assertions"] = assertions
         entry["business"] = _business(record, mapping, assertions, address_point_lookup)
+        entry["assertions"] = sorted(
+            assertions, key=lambda item: (item["assertionId"], item["sourceReference"])
+        )
+        # A record whose official address point stays unresolved cannot become a publishable
+        # listing, so its verdict must say so here instead of surfacing later as an unpublishable
+        # draft. An offline plan (lookup disabled) keeps the registry verdict and its reason.
+        coordinate_reason = entry["business"]["coordinateReason"]
+        if (
+            entry["status"] is STATUS_ELIGIBLE
+            and address_point_lookup is not None
+            and coordinate_reason is not None
+        ):
+            entry["status"] = STATUS_REVIEW
+            entry["statusReasons"] = [f"address_coordinate_unresolved:{coordinate_reason}"]
 
     entry["digests"] = _digests(entry, mapping)
     return entry
@@ -543,10 +574,17 @@ def build_manifest(
     registry_bytes: bytes,
     mapping: CatalogMapping,
     *,
-    recorded_at_utc: str,
+    recorded_at_utc: str | None,
     address_point_lookup: Callable[[str, str], Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the whole manifest. Records are ordered by registry id for reproducible bytes."""
+    """Build the whole manifest. Records are ordered by registry id for reproducible bytes.
+
+    ``recorded_at_utc`` is the moment the manifest is recorded, and Catalog refuses a place
+    revision that precedes the evidence it carries. An address point is observed while this
+    build runs, so the recording time is decided after the records exist: omitted (``None``)
+    means "no earlier than the latest observation", and an explicit value that precedes an
+    observation is refused here instead of being silently raised to pass the Catalog check.
+    """
     records = list(document.get("records") or [])
     seen: set[str] = set()
     projected = []
@@ -561,6 +599,7 @@ def build_manifest(
     for entry in projected:
         digests.append({"registryId": entry["registryId"], **entry["digests"]})
 
+    recorded_at_utc = _recording_time(projected, recorded_at_utc)
     manifest = {
         "schemaRevision": SCHEMA_REVISION,
         "sourceSystem": SOURCE_SYSTEM,
@@ -621,7 +660,7 @@ def plan_lines(manifest: Mapping[str, Any]) -> Iterable[str]:
     catalog = manifest["catalog"]
     yield (
         f"catalog {catalog['catalogKey']} configuration {catalog['configurationRevisionId']} "
-        f"mapping {catalog['mappingRevision']}"
+        f"mapping {catalog['mappingRevision']} recorded at {manifest['recordedAtUtc']}"
     )
     yield (
         f"records {summary['records']}: eligible {summary[STATUS_ELIGIBLE]} "
@@ -657,14 +696,33 @@ def diff_lines(previous: Mapping[str, Any], current: Mapping[str, Any]) -> Itera
         yield f"removed {registry_id}"
 
 
-def _recorded_at(value: str | None) -> str:
+def _recorded_at(value: str | None) -> str | None:
     if value is None:
-        from datetime import UTC, datetime
-
-        return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return None
     if registry.parse_utc(value) is None:
         raise ManifestError("--recorded-at-utc must be an exact UTC second (YYYY-MM-DDTHH:MM:SSZ)")
     return value
+
+
+def _recording_time(records: list[dict[str, Any]], requested: str | None) -> str:
+    """The manifest's recording time, never earlier than the evidence it carries."""
+    from datetime import UTC, datetime
+
+    observed = [
+        str(assertion["observedAtUtc"])
+        for record in records
+        for assertion in (record.get("assertions") or [])
+    ]
+    latest = max(observed) if observed else None
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if requested is None:
+        return max(candidate for candidate in (latest, now) if candidate is not None)
+    if latest is not None and requested < latest:
+        raise ManifestError(
+            f"recordedAtUtc {requested} precedes the evidence this manifest carries ({latest}); "
+            "Catalog refuses a place revision older than its evidence"
+        )
+    return requested
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -702,9 +760,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         mapping = load_mapping(args.mapping)
         lookup = None
         if getattr(args, "wfs_cache", None) is not None:
-            from tools import wfs_address_points
-
-            lookup = wfs_address_points.AddressPointLookup(args.wfs_cache)
+            lookup = wfs.AddressPointLookup(args.wfs_cache)
         manifest = build_manifest(
             document,
             args.registry.read_bytes(),

@@ -6,9 +6,12 @@ not that Catalog accepts them.
 
 from __future__ import annotations
 
+import email.message
+import io
 import json
 import pathlib
 import sys
+import urllib.error
 
 import pytest
 
@@ -36,7 +39,7 @@ def record(registry_id: str = "027a1f22-6b8e-5dc7-bbaf-f73c30fddabf", **override
         "statusReasons": [],
         "identity": {
             "decision": "create_new",
-            "linkExistingListingId": None,
+            "linkExisting": None,
             "officialDomain": "trixx-studios.de",
         },
         "business": {
@@ -126,7 +129,7 @@ def test_link_existing_record_carries_the_named_listing():
         record(
             identity={
                 "decision": "link_existing",
-                "linkExistingListingId": "01a1efea-372c-7100-a7c0-e59d540707a5",
+                "linkExisting": {"listingId": "01a1efea-372c-7100-a7c0-e59d540707a5", "placeId": None},
                 "officialDomain": "hansastudios.de",
             }
         ),
@@ -178,33 +181,182 @@ def test_blocked_records_are_never_sent_to_catalog():
     assert tally["actions"] == {"blockedNotSent": 1}
 
 
-def test_resume_skips_records_the_checkpoint_already_applied():
+def test_resume_resends_every_record_and_lets_catalog_report_unchanged():
     records = [
         record("00000000-0000-5000-8000-000000000001"),
         record("00000000-0000-5000-8000-000000000002"),
     ]
     sent = []
+    manifest_value = manifest(*records)
     checkpoint = {
         "schemaVersion": apply.CHECKPOINT_SCHEMA,
         "records": {
-            "00000000-0000-5000-8000-000000000001": {"status": "applied", "lastAction": "created"}
+            item["registryId"]: {
+                "status": "applied",
+                "lastAction": "created",
+                "fingerprint": apply.record_fingerprint(manifest_value, item),
+            }
+            for item in records
         },
     }
 
     tally = apply.run(
-        manifest(*records),
+        manifest_value,
         records,
         lambda key, token, body: (
-            sent.append(body["record"]["registryId"]) or {"lastAction": "created", "placeId": "p"}
+            sent.append(body["record"]["registryId"])
+            or {"lastAction": "unchanged", "placeId": "p", "contentDigest": digest("content")}
         ),
         checkpoint,
         None,
         require_unchanged=False,
     )
 
-    assert sent == ["00000000-0000-5000-8000-000000000002"]
-    assert tally["resumed"] == 1
-    assert tally["applied"] == 1
+    # The local checkpoint is diagnostic only: Catalog decides whether a record is unchanged.
+    assert sent == [item["registryId"] for item in records]
+    assert tally["resumed"] == 2
+    assert tally["unchanged"] == 2
+    assert tally["changed"] == 0
+    assert tally["drift"] == []
+
+
+def test_changed_content_after_a_checkpoint_still_reaches_catalog():
+    registry_id = "00000000-0000-5000-8000-000000000001"
+    old = record(registry_id)
+    changed = record(registry_id, digests={"content": digest("new-content"), "evidence": digest("ev"), "eligibility": digest("el")})
+    manifest_value = manifest(changed)
+    checkpoint = {
+        "schemaVersion": apply.CHECKPOINT_SCHEMA,
+        "records": {
+            registry_id: {
+                "status": "applied",
+                "lastAction": "created",
+                "fingerprint": apply.record_fingerprint(manifest_value, old),
+            }
+        },
+    }
+    sent = []
+
+    tally = apply.run(
+        manifest_value,
+        [changed],
+        lambda key, token, body: (
+            sent.append(body["record"])
+            or {"lastAction": "updated", "placeId": "p", "contentDigest": digest("new-content")}
+        ),
+        checkpoint,
+        None,
+        require_unchanged=False,
+    )
+
+    assert sent[0]["contentDigest"] == digest("new-content")
+    assert tally["drift"] == [{"registryId": registry_id, "changed": ["content"]}]
+    assert tally["changed"] == 1
+
+
+def test_changed_mapping_configuration_or_manifest_reaches_catalog():
+    registry_id = "00000000-0000-5000-8000-000000000001"
+    item = record(registry_id)
+    old_manifest = manifest(item)
+    new_catalog = dict(CATALOG, configurationRevisionId="00000000-0000-4000-8000-000000000009",
+                       mappingRevision=digest("new-mapping"))
+    new_manifest = dict(manifest(item, catalog=new_catalog), manifestDigest=digest("new-manifest"))
+    checkpoint = {
+        "schemaVersion": apply.CHECKPOINT_SCHEMA,
+        "records": {
+            registry_id: {
+                "status": "applied",
+                "lastAction": "created",
+                "fingerprint": apply.record_fingerprint(old_manifest, item),
+            }
+        },
+    }
+    sent = []
+
+    tally = apply.run(
+        new_manifest,
+        [item],
+        lambda key, token, body: (
+            sent.append(body["record"])
+            or {"lastAction": "updated", "placeId": "p", "contentDigest": digest("content")}
+        ),
+        checkpoint,
+        None,
+        require_unchanged=False,
+    )
+
+    assert sent[0]["configurationRevisionId"] == new_catalog["configurationRevisionId"]
+    assert tally["drift"] == [
+        {
+            "registryId": registry_id,
+            "changed": ["configurationRevisionId", "manifestDigest", "mappingRevision"],
+        }
+    ]
+
+
+def test_interrupted_apply_is_retried_on_the_next_run():
+    registry_id = "00000000-0000-5000-8000-000000000001"
+    item = record(registry_id)
+    manifest_value = manifest(item)
+    checkpoint = {
+        "schemaVersion": apply.CHECKPOINT_SCHEMA,
+        "records": {registry_id: {"status": "failed", "error": "connection reset"}},
+    }
+    sent = []
+
+    tally = apply.run(
+        manifest_value,
+        [item],
+        lambda key, token, body: (
+            sent.append(body["record"]["registryId"])
+            or {"lastAction": "created", "placeId": "p", "contentDigest": digest("content")}
+        ),
+        checkpoint,
+        None,
+        require_unchanged=False,
+    )
+
+    assert sent == [registry_id]
+    assert tally["failed"] == []
+    assert tally["changed"] == 1
+
+
+def test_repeated_identical_apply_writes_nothing_new_at_the_owner():
+    registry_id = "00000000-0000-5000-8000-000000000001"
+    item = record(registry_id)
+    manifest_value = manifest(item)
+
+    tally = apply.run(
+        manifest_value,
+        [item],
+        lambda key, token, body: {"lastAction": "unchanged", "placeId": "p", "contentDigest": digest("content")},
+        None,
+        None,
+        require_unchanged=True,
+    )
+
+    assert tally["failed"] == []
+    assert tally["unchanged"] == 1
+    assert tally["changed"] == 0
+
+
+def test_manual_catalog_edit_is_reported_as_review_not_as_a_write():
+    registry_id = "00000000-0000-5000-8000-000000000001"
+    item = record(registry_id)
+    path = None
+
+    tally = apply.run(
+        manifest(item),
+        [item],
+        lambda key, token, body: {"lastAction": "reviewRequired", "placeId": "p", "contentDigest": digest("content")},
+        None,
+        path,
+        require_unchanged=False,
+    )
+
+    assert tally["failed"] == []
+    assert tally["actions"] == {"reviewRequired": 1}
+    assert tally["changed"] == 1
 
 
 def test_verify_requires_the_owner_to_report_unchanged():
@@ -246,9 +398,119 @@ def test_rejection_is_recorded_and_the_run_continues(tmp_path):
     stored = json.loads(path.read_text(encoding="utf-8"))
     assert stored["records"][bad["registryId"]]["status"] == "failed"
     assert stored["records"][good["registryId"]]["status"] == "applied"
-    assert tally["applied"] == 1
+    assert tally["changed"] == 1
 
 
 def test_select_records_rejects_unknown_ids():
     with pytest.raises(apply.ApplyError, match="manifest has no record"):
         apply.select_records(manifest(record()), ["00000000-0000-5000-8000-0000000000ff"], None)
+
+
+def test_coordinate_maps_onto_the_catalog_coordinate_wire_contract():
+    coordinate = {
+        "latitude": 52.5028179,
+        "longitude": 13.4115532,
+        "accuracyMeters": 1.0,
+        "source": "official_berlin_address_register",
+        "datasetIdentifier": "adressen_berlin",
+        "datasetVersion": "adressen_berlin@2026-11-21T06:51:28Z",
+        "addressRecordId": "187448",
+        "addressRecordDate": "2008-01-28",
+        "sourceReference": "https://gdi.berlin.de/services/wfs/adressen_berlin?request=GetFeature",
+        "sourceCrs": "EPSG:25833",
+        "sourceX": "392181.815",
+        "sourceY": "5818151.337",
+        "sourceDigest": digest("raw"),
+        "sourceObservedAtUtc": "2026-11-21T06:51:28Z",
+        "assertionId": "77d3234d-3335-5741-8f47-ed75468d9f02",
+    }
+    value = record()
+    value["business"]["address"]["coordinate"] = coordinate
+
+    wire = apply.build_request(manifest(), value)["record"]["business"]["address"]["coordinate"]
+
+    # Exactly the Catalog-owned JSON members, so a producer-side rename cannot slip through.
+    assert set(wire) == {
+        "latitude",
+        "longitude",
+        "accuracyMeters",
+        "source",
+        "datasetIdentifier",
+        "datasetVersion",
+        "addressRecordId",
+        "addressRecordDate",
+        "sourceReference",
+        "sourceCrs",
+        "sourceX",
+        "sourceY",
+        "sourceDigest",
+        "sourceObservedAtUtc",
+        "assertionId",
+    }
+    assert wire["sourceObservedAtUtc"] == "2026-11-21T06:51:28Z"
+    assert wire["sourceDigest"] == coordinate["sourceDigest"]
+
+
+class _FakeResponse:
+    def __init__(self, payload: dict) -> None:
+        self._payload = json.dumps(payload).encode("utf-8")
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *_exc: object) -> bool:
+        return False
+
+
+def _rate_limited(detail: str, retry_after: str | None = None) -> urllib.error.HTTPError:
+    headers = email.message.Message()
+    if retry_after is not None:
+        headers["Retry-After"] = retry_after
+    return urllib.error.HTTPError(
+        "http://catalog/api", 429, "Too Many Requests", headers, io.BytesIO(detail.encode())
+    )
+
+
+def test_rate_limited_record_is_retried_with_the_stated_pause(monkeypatch):
+    body = apply.build_request(manifest(record()), record())
+    answers = [_rate_limited("budget exhausted", retry_after="7"), _FakeResponse({"lastAction": "unchanged"})]
+    calls = []
+
+    def urlopen(_request, timeout=None):
+        calls.append(1)
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(apply.urllib.request, "urlopen", urlopen)
+    pauses = []
+    send = apply.http_transport("http://catalog", "token", sleep=pauses.append)
+
+    assert send("berlin-recording-services", "", body) == {"lastAction": "unchanged"}
+    assert len(calls) == 2
+    assert pauses == [7.0]
+
+
+def test_rate_limit_retries_are_bounded_and_report_the_status(monkeypatch):
+    body = apply.build_request(manifest(record()), record())
+
+    def urlopen(_request, timeout=None):
+        raise _rate_limited("budget exhausted")
+
+    monkeypatch.setattr(apply.urllib.request, "urlopen", urlopen)
+    pauses = []
+    send = apply.http_transport(
+        "http://catalog", "token", max_rate_limit_attempts=3, sleep=pauses.append
+    )
+
+    with pytest.raises(apply.ApplyError) as refusal:
+        send("berlin-recording-services", "", body)
+
+    assert "429 after 3 attempts" in str(refusal.value)
+    assert "budget exhausted" in str(refusal.value)
+    assert len(pauses) == 2
+    assert pauses == [2.0, 4.0]

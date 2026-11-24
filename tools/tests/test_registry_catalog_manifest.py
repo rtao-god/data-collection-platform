@@ -420,3 +420,237 @@ def test_plan_and_diff_report_only_real_changes(tmp_path: Path) -> None:
     assert len([line for line in lines if line.startswith("added ")]) == 1
     summary = producer.counts(after)
     assert summary["records"] == 2
+
+
+# --- address points -----------------------------------------------------------------------
+
+ADDRESS_EASTING = 392181.815
+ADDRESS_NORTHING = 5818151.337
+
+
+def _address_payload(*features: dict) -> dict:
+    return {
+        "type": "FeatureCollection",
+        "timeStamp": "2026-11-21T05:55:25.985Z",
+        "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::25833"}},
+        "features": list(features)
+        or [
+            {
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [ADDRESS_EASTING, ADDRESS_NORTHING],
+                },
+                "properties": {
+                    "adressid": "187448",
+                    "hnr": 1,
+                    "hnr_zusatz": None,
+                    "str_name": "Example Str.",
+                    "str_nr": "99999",
+                    "plz": "10963",
+                    "typ": "Adresse",
+                    "qualitaet": "Qualitaet A",
+                    "adr_datum": "2008-01-28",
+                },
+            }
+        ],
+    }
+
+
+class _Resolver:
+    """A lookup that answers from one fixed raw response, like the cached snapshot does."""
+
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+        self.raw = json.dumps(payload, sort_keys=True).encode("utf-8")
+
+    def __call__(self, street, street_number, postal_code, expected_address_record_id=None):
+        from tools import wfs_address_points as wfs
+
+        search = wfs.create_search(street, street_number, postal_code, expected_address_record_id)
+        assert search is not None
+        return wfs.resolve_address_point(
+            self.payload, search, wfs.request_url(search), raw_bytes=self.raw
+        )
+
+
+def test_address_point_carries_its_own_response_provenance(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    payload = _address_payload()
+    record = _record()
+
+    entry = producer.build_manifest(
+        _document(record),
+        json.dumps(_document(record), sort_keys=True).encode("utf-8"),
+        mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z",
+        address_point_lookup=_Resolver(payload),
+    )["records"][0]
+
+    coordinate = entry["business"]["coordinates"]
+    assert coordinate["addressRecordId"] == "187448"
+    assert coordinate["latitude"] == pytest.approx(52.5028179)
+    assert coordinate["sourceCrs"] == "EPSG:25833"
+    assert coordinate["sourceX"] == pytest.approx(ADDRESS_EASTING)
+    assertion = [item for item in entry["assertions"] if item["assertionId"] == coordinate["assertionId"]]
+    assert len(assertion) == 1
+    assert assertion[0]["sourceKind"] == producer.SOURCE_KIND_LICENSED_DATASET
+    assert assertion[0]["sourceExternalId"] == "187448"
+    assert assertion[0]["observedAtUtc"] == "2026-11-21T05:55:25Z"
+    assert assertion[0]["evidenceDigest"] == coordinate["sourceDigest"]
+    assert assertion[0]["sourceReference"] == coordinate["sourceReference"]
+    assert "adressen_berlin" in assertion[0]["sourceReference"]
+
+
+def test_two_streets_with_the_same_house_number_resolve_to_different_points(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    payload = _address_payload(
+        _address_payload()["features"][0],
+        {
+            "geometry": {"type": "Point", "coordinates": [391096.583, 5818583.769]},
+            "properties": {
+                "adressid": "246505",
+                "hnr": 1,
+                "hnr_zusatz": None,
+                "str_name": "Other Str.",
+                "str_nr": "99998",
+                "plz": "10963",
+                "typ": "Adresse",
+                "qualitaet": "Qualitaet A",
+                "adr_datum": "2008-01-28",
+            },
+        },
+    )
+    record = _record()
+    record["address"] = dict(record["address"], street="Other Str.")
+    resolver = _Resolver(payload)
+
+    entry = producer.build_manifest(
+        _document(record),
+        json.dumps(_document(record), sort_keys=True).encode("utf-8"),
+        mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z",
+        address_point_lookup=resolver,
+    )["records"][0]
+
+    coordinate = entry["business"]["coordinates"]
+    assert coordinate["addressRecordId"] == "246505"
+
+
+def test_ambiguous_or_out_of_boundary_point_stays_unresolved_with_the_reason(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    duplicate = _address_payload()
+    duplicate["features"] = [
+        duplicate["features"][0],
+        dict(duplicate["features"][0], properties=dict(duplicate["features"][0]["properties"], adressid="187449")),
+    ]
+    outside = _address_payload()
+    outside["features"][0]["geometry"]["coordinates"] = [383000.0, 5806000.0]
+    record = _record()
+    registry_bytes = json.dumps(_document(record), sort_keys=True).encode("utf-8")
+
+    for payload, reason in (
+        (duplicate, "address_point_ambiguous_match"),
+        (outside, "address_point_outside_berlin_boundary"),
+    ):
+        entry = producer.build_manifest(
+            _document(record), registry_bytes, mapping,
+            recorded_at_utc="2026-11-21T00:00:00Z",
+            address_point_lookup=_Resolver(payload),
+        )["records"][0]
+        assert entry["business"]["coordinates"] is None
+        assert entry["business"]["coordinateReason"] == reason
+        assert entry["business"]["address"]["coordinate"] is None
+        # Unresolvable geography must not carry an eligible verdict into Catalog.
+        assert entry["status"] == producer.STATUS_REVIEW
+        assert entry["statusReasons"] == [f"address_coordinate_unresolved:{reason}"]
+
+
+def test_resolved_address_point_keeps_the_eligible_verdict(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+    entry = producer.build_manifest(
+        _document(record),
+        json.dumps(_document(record), sort_keys=True).encode("utf-8"),
+        mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z",
+        address_point_lookup=_Resolver(_address_payload()),
+    )["records"][0]
+
+    assert entry["status"] == producer.STATUS_ELIGIBLE
+    assert entry["statusReasons"] == []
+
+
+def test_recording_time_cannot_precede_the_evidence_the_manifest_carries(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+
+    with pytest.raises(producer.ManifestError) as refusal:
+        producer.build_manifest(
+            _document(record),
+            json.dumps(_document(record), sort_keys=True).encode("utf-8"),
+            mapping,
+            recorded_at_utc="2026-11-21T05:55:24Z",
+            address_point_lookup=_Resolver(_address_payload()),
+        )
+
+    assert "2026-11-21T05:55:25Z" in str(refusal.value)
+
+
+def test_recording_time_defaults_after_the_address_point_it_observed(tmp_path: Path) -> None:
+    """An address point is observed while the manifest is built, so an unset recording time is
+    taken from the evidence, and it stays outside the manifest identity."""
+    mapping = _mapping(tmp_path)
+    record = _record()
+    registry_bytes = json.dumps(_document(record), sort_keys=True).encode("utf-8")
+
+    default = producer.build_manifest(
+        _document(record), registry_bytes, mapping,
+        recorded_at_utc=None, address_point_lookup=_Resolver(_address_payload()),
+    )
+    observed = max(
+        assertion["observedAtUtc"]
+        for entry in default["records"]
+        for assertion in entry["assertions"]
+    )
+    explicit = producer.build_manifest(
+        _document(record), registry_bytes, mapping,
+        recorded_at_utc=observed, address_point_lookup=_Resolver(_address_payload()),
+    )
+
+    assert observed == "2026-11-21T05:55:25Z"
+    assert default["recordedAtUtc"] >= observed
+    assert default["manifestDigest"] == explicit["manifestDigest"]
+    assert default["records"] == explicit["records"]
+
+
+def test_offline_plan_without_address_lookup_keeps_the_registry_verdict(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+    entry = producer.build_manifest(
+        _document(record),
+        json.dumps(_document(record), sort_keys=True).encode("utf-8"),
+        mapping,
+        recorded_at_utc="2026-11-21T00:00:00Z",
+    )["records"][0]
+
+    assert entry["status"] == producer.STATUS_ELIGIBLE
+    assert entry["business"]["coordinateReason"] == "address_point_lookup_disabled"
+
+
+def test_changed_address_response_changes_evidence_not_content(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+    registry_bytes = json.dumps(_document(record), sort_keys=True).encode("utf-8")
+    first = producer.build_manifest(
+        _document(record), registry_bytes, mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z", address_point_lookup=_Resolver(_address_payload()),
+    )["records"][0]
+    changed = _address_payload()
+    changed["timeStamp"] = "2026-11-21T06:00:00.000Z"
+    second = producer.build_manifest(
+        _document(record), registry_bytes, mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z", address_point_lookup=_Resolver(changed),
+    )["records"][0]
+
+    assert first["digests"]["content"] == second["digests"]["content"]
+    assert first["digests"]["evidence"] != second["digests"]["evidence"]
