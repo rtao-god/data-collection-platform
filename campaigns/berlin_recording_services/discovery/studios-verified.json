@@ -1,7 +1,674 @@
 {
   "campaign_key": "berlin_recording_services",
   "policy": "rich-verified-v1",
-  "records": [],
+  "records": [
+    {
+      "address": {
+        "city": "Berlin",
+        "coordinate": null,
+        "country_code": "DE",
+        "district_basis": "address_source_verified",
+        "district_key": "friedrichshain-kreuzberg",
+        "postal_code": "10969",
+        "street": "Prinzessinnenstrasse",
+        "street_number": "16"
+      },
+      "aliases": [],
+      "attributes": [],
+      "canonical_name": "TRIXX Studios",
+      "collector": {
+        "candidate_ids": [],
+        "import_batch": "baseline-30-dossier",
+        "revisions": [
+          "patch:contacts:research-draft-not-approved",
+          "patch:descriptions.de-DE:research-draft-not-approved",
+          "patch:descriptions.en-GB:research-draft-not-approved",
+          "patch:descriptions.ru-RU:research-draft-not-approved",
+          "patch:descriptions.de-DE:research-capture-not-approved",
+          "patch:descriptions.en-GB:research-capture-not-approved",
+          "patch:descriptions.ru-RU:research-capture-not-approved",
+          "patch:descriptions.de-DE:research-final-texts-not-approved",
+          "patch:descriptions.en-GB:research-final-texts-not-approved",
+          "patch:descriptions.ru-RU:research-final-texts-not-approved",
+          "patch:descriptions.de-DE:research-trixx-editorial-not-approved",
+          "patch:descriptions.en-GB:research-trixx-editorial-not-approved",
+          "patch:descriptions.ru-RU:research-trixx-editorial-not-approved",
+          "patch:contacts:research-trixx-contact-evidence"
+        ]
+      },
+      "contacts": [
+        {
+          "evidence_refs": [
+            "ev-dd0fcc13f6586cf8",
+            "ev-8a89ce4d8421b049"
+          ],
+          "kind": "email",
+          "label": null,
+          "target": "trixx@trixx-studios.de",
+          "validation_state": "validated"
+        },
+        {
+          "evidence_refs": [
+            "ev-0946f919b5f6fa04",
+            "ev-8a89ce4d8421b049"
+          ],
+          "kind": "phone",
+          "label": null,
+          "target": "+49 30 6142059",
+          "validation_state": "validated"
+        }
+      ],
+      "descriptions": {
+        "de-DE": {
+          "origin": "editorial",
+          "reason": null,
+          "review_ref": "e22c66d4-897c-5327-9a05-a66c2aa4dee1",
+          "review_state": "approved",
+          "source_evidence_digest_sha256": "efe191d999f72fefe06b8d6a9ba8f59a4bc2dd06ec40775e2d06bda05683deb8",
+          "state": "approved",
+          "text": "TRIXX Studios ist ein Tonstudio in Berlin. Es bietet Musikproduktion, Aufnahmen, Mixing und Mastering an. Für einzelne Projekte kann das Team Produzenten, Songwriter und Musiker aus seinem Netzwerk einbeziehen.",
+          "text_digest_sha256": "bae662a1f178eb041b351d406cd2b840b174491fb9454224977e528219158712"
+        },
+        "en-GB": {
+          "origin": "editorial",
+          "reason": null,
+          "review_ref": "2b2e55ab-3219-59c4-a814-404b5edf898f",
+          "review_state": "approved",
+          "source_evidence_digest_sha256": "f97878c936463227e75295da4270ae7a74aaef60ed4f693badcef989606828bf",
+          "state": "approved",
+          "text": "TRIXX Studios is a Berlin recording facility offering music production, recording, mixing and mastering. Projects can also draw on the studio’s network of producers, songwriters and musicians.",
+          "text_digest_sha256": "bafbf45e64229345275787dbdd88e30462182c21c853a38ac8736b5659cf45a5"
+        },
+        "ru-RU": {
+          "origin": "editorial",
+          "reason": null,
+          "review_ref": "564c10fc-f527-5a1a-ab6a-ae6ee4e1d65e",
+          "review_state": "approved",
+          "source_evidence_digest_sha256": "efe191d999f72fefe06b8d6a9ba8f59a4bc2dd06ec40775e2d06bda05683deb8",
+          "state": "approved",
+          "text": "TRIXX Studios — студия звукозаписи в Берлине, предлагающая музыкальное продюсирование, запись, сведение и мастеринг. При необходимости к проектам привлекают продюсеров, авторов песен и музыкантов из профессиональной сети студии.",
+          "text_digest_sha256": "42879aa7bccdc2a52c425baf6521f5cec14dc22c8a3d11bae361016c1ec7542d"
+        }
+      },
+      "entity_kind": "place",
+      "field_evidence": [
+        {
+          "attribution": null,
+          "evidence_id": "ev-fb535fce0257e51f",
+          "excerpt": "ground-color:#1d231c;} TRIXX Studios Klaus Knapp Location: Prinzessinnenstrasse 16 10969 Berlin Contact: Tel: +49-30-614 2059 trixx@trixx-studios.de I",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-19T18:01:11Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9bbe08c0de8aff7170799ba46122394ec9913e76ddc07c8577fe45b3a58d9f2f",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/en/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3ea8bd695b58c59a",
+          "excerpt": "ground-color:#1d231c;} TRIXX Studios Klaus Knapp Location: Prinzessinnenstrasse 16 10969 Berlin Contact: Tel: +49-30-614 2059 trixx@trixx-studios.de I",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-19T18:01:11Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9bbe08c0de8aff7170799ba46122394ec9913e76ddc07c8577fe45b3a58d9f2f",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/en/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-5dcb1f952c5c4cb2",
+          "excerpt": "ground-color:#1d231c;} TRIXX Studios Klaus Knapp Location: Prinzessinnenstrasse 16 10969 Berlin Contact: Tel: +49-30-614 2059 trixx@trixx-studios.de I",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-19T18:01:11Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9bbe08c0de8aff7170799ba46122394ec9913e76ddc07c8577fe45b3a58d9f2f",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/en/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-e429a48e87e6bae1",
+          "excerpt": "\"LI\",\"LT\",\"LU\",\"LV\",\"MT\",\"NL\",\"NO\",\"PL\",\"PT\",\"RO\",\"SE\",\"SI\",\"SK\"],\"wait_for_update\":500}; Recording Studio in Berlin | TRIXX Studios {\"@context\":\"https:\\/\\/schema.org\",\"@graph\":[{\"@type\":\"WebPage\",\"@id\":\"https:\\/\\/www.trixx-studios.de\\/en\\/",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-19T18:01:11Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "9bbe08c0de8aff7170799ba46122394ec9913e76ddc07c8577fe45b3a58d9f2f",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/en/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-3f58b44bd66a5529",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-19T18:01:11Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "f47a6ed8dcb68c93f55c5e4d1995e2d77b7f3198df2a7e4a50aa940b48b635ff",
+          "source_kind": "official_site",
+          "source_url": "https://trixx-studios.de/robots.txt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-80aeddf03b6ba2dd",
+          "excerpt": "call: +49-30-614 2059 mail: trixx@trixx-studios.de BOOK NOW TRIXX Studios Klaus Knapp Standort: Prinzessinnenstrasse 16 10969 Berlin Kontakt: Tel: +49-30-614 20",
+          "external_id": null,
+          "field_path": "address.street",
+          "observed_at_utc": "2026-11-20T20:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T20:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "bd2b1afb7625882d2ef87592bc295e1aa1a98cf2a762c00d9c17f61f2f394f42",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-33be4c7fa3df3e43",
+          "excerpt": "call: +49-30-614 2059 mail: trixx@trixx-studios.de BOOK NOW TRIXX Studios Klaus Knapp Standort: Prinzessinnenstrasse 16 10969 Berlin Kontakt: Tel: +49-30-614 20",
+          "external_id": null,
+          "field_path": "address.postal_code",
+          "observed_at_utc": "2026-11-20T20:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T20:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "bd2b1afb7625882d2ef87592bc295e1aa1a98cf2a762c00d9c17f61f2f394f42",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-8a89ce4d8421b049",
+          "excerpt": "call: +49-30-614 2059 mail: trixx@trixx-studios.de BOOK NOW TRIXX Studios Klaus Knapp Standort: Prinzessinnenstrasse 16 10969 Berlin Kontakt: Tel: +49-30-614 20",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T20:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T20:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "bd2b1afb7625882d2ef87592bc295e1aa1a98cf2a762c00d9c17f61f2f394f42",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-ace039c3170d2d4b",
+          "excerpt": "Tonstudio Berlin - Recording, Mixing, Mastering | TRIXX Studios STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLIENTS BUCHEN DEUTSCH ENGLISH STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLIENTS BUCHEN DEUTSCH ENGLISH Willkommen im TRIXX Tonstudio Berlin Seit 1985 gehört unser Tonstudio zu den besten in Berlin.",
+          "external_id": null,
+          "field_path": "service_claims",
+          "observed_at_utc": "2026-11-20T20:00:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T20:15:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "bd2b1afb7625882d2ef87592bc295e1aa1a98cf2a762c00d9c17f61f2f394f42",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-02c5f76895946342",
+          "excerpt": "Prinzessinnenstraße 16  10969 Berlin, Bezirk Friedrichshain-Kreuzberg (02), Ortsteil Kreuzberg, adressid 187448, Koordinaten [392181.815, 5818151.337]",
+          "external_id": null,
+          "field_path": "address.district_key",
+          "observed_at_utc": "2026-11-20T23:45:00Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T23:50:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "9a9f79796df953658781587f533602022a6e868c4ce3115c785aaec497f578eb",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "15c59e66e8ce4fd03759794bab7c7422a9846bd0401e415b978b650e0a492332",
+          "source_kind": "official_site",
+          "source_url": "https://gdi.berlin.de/services/wfs/adressen_berlin?service=WFS&version=1.1.0&request=GetFeature&typeName=adressen_berlin%3Aadressen_berlin&outputFormat=application%2Fjson&CQL_FILTER=hnr%3D%2716%27+AND+plz%3D%2710969%27&maxFeatures=500",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-ec4475a391b6a86a",
+          "excerpt": "Musikproduktion, Recording, Mixing & Mastering Berlin | TRIXX Studios STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLI",
+          "external_id": null,
+          "field_path": "descriptions.de-DE",
+          "observed_at_utc": "2026-11-22T05:54:22Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "efe191d999f72fefe06b8d6a9ba8f59a4bc2dd06ec40775e2d06bda05683deb8",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/leistungen/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-c59c641cd6c168cf",
+          "excerpt": "Studios | TRIXX Studios Berlin STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTS LOUNGE & KITCHEN SERVICES CLI",
+          "external_id": null,
+          "field_path": "descriptions.en-GB",
+          "observed_at_utc": "2026-11-22T05:54:24Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "c46855052bd90f4bc18e98708e178d69cb2949fa9cd1d0ecdc0f890cd6a500c3",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/en/studios/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-63d528b8196a2282",
+          "excerpt": "Musikproduktion, Recording, Mixing & Mastering Berlin | TRIXX Studios STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLI",
+          "external_id": null,
+          "field_path": "descriptions.ru-RU",
+          "observed_at_utc": "2026-11-22T05:54:22Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "efe191d999f72fefe06b8d6a9ba8f59a4bc2dd06ec40775e2d06bda05683deb8",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/leistungen/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-192d5e4f0b0b042c",
+          "excerpt": "robots.txt status 200, disallow_all_for_star=false, crawl_delay_seconds=None",
+          "external_id": null,
+          "field_path": "source.robots",
+          "observed_at_utc": "2026-11-22T05:54:21Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-20T00:00:00Z",
+            "decision": "approved",
+            "policy_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "f47a6ed8dcb68c93f55c5e4d1995e2d77b7f3198df2a7e4a50aa940b48b635ff",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/robots.txt",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-dc747c79e2db6e47",
+          "excerpt": "RUMENTS LOUNGE & KITCHEN SERVICES CLIENTS BOOK NOW DEUTSCH ENGLISH STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTS LOUNGE & KITCHEN SERVICES CLIENTS BOOK NOW DEUTSCH ENGLISH SERVICES From music production to recording, mixing, and mastering, we collaborate with artists – bringing in the right team for their style and genre. MUSIC PRODUCTION Through our vast network of t",
+          "external_id": null,
+          "field_path": "descriptions.en-GB",
+          "observed_at_utc": "2026-11-22T07:37:25Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-22T08:05:21Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "f97878c936463227e75295da4270ae7a74aaef60ed4f693badcef989606828bf",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/en/services/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-dd0fcc13f6586cf8",
+          "excerpt": "ten Genres und Kontexten – im A–Z-Verzeichnis findest du die Künstlerinnen und Künstler, mit denen wir bisher arbeiten durften. CLIENTS ANSEHEN Fragen? Anfragen? Melde dich einfach! call: +49-30-614 2059 mail: trixx@trixx-studios.de JETZT BUCHEN Willkommen im TRIXX Tonstudio Berlin Seit 1985 gehört unser Tonstudio zu den besten in Berlin. Wir bieten Musikproduktion, Recording, Mixing und M",
+          "external_id": null,
+          "field_path": "contacts.email",
+          "observed_at_utc": "2026-11-22T07:39:26Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-22T08:05:21Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "26e324176d5842b89151679296745ac264de4c58d8ace1ec353fae4d0160926d",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/",
+          "usage_policy": "facts_only"
+        },
+        {
+          "attribution": null,
+          "evidence_id": "ev-0946f919b5f6fa04",
+          "excerpt": "ten Genres und Kontexten – im A–Z-Verzeichnis findest du die Künstlerinnen und Künstler, mit denen wir bisher arbeiten durften. CLIENTS ANSEHEN Fragen? Anfragen? Melde dich einfach! call: +49-30-614 2059 mail: trixx@trixx-studios.de JETZT BUCHEN Willkommen im TRIXX Tonstudio Berlin Seit 1985 gehört unser Tonstudio zu den besten in Berlin. Wir bieten Musikproduktion, Recording, Mixing und M",
+          "external_id": null,
+          "field_path": "contacts.phone",
+          "observed_at_utc": "2026-11-22T07:39:26Z",
+          "policy_decision": {
+            "decided_at_utc": "2026-11-22T08:05:21Z",
+            "decision": "approved",
+            "policy_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+            "reviewer": "rtao-god",
+            "scope": "official_site facts_only"
+          },
+          "response_digest_sha256": "26e324176d5842b89151679296745ac264de4c58d8ace1ec353fae4d0160926d",
+          "source_kind": "official_site",
+          "source_url": "https://www.trixx-studios.de/de/",
+          "usage_policy": "facts_only"
+        }
+      ],
+      "identity_keys": [
+        {
+          "authority": "authoritative",
+          "kind": "official_domain",
+          "value": "trixx-studios.de"
+        }
+      ],
+      "last_refresh": {
+        "at_utc": "2026-11-19T18:01:11Z",
+        "status": "observed"
+      },
+      "market": {
+        "basis": "campaign_geography_revision:berlin_official_boundary_v1",
+        "classification": "primary_market",
+        "source_kind": "manual_operator"
+      },
+      "official_domains": {
+        "alternates": [],
+        "primary": "trixx-studios.de"
+      },
+      "photo_candidates": [
+        {
+          "candidate_id": "photo-omit-027a1f22",
+          "evidence_digest_sha256": null,
+          "license_url": null,
+          "license_version": null,
+          "observed_at_utc": "2026-11-20T00:00:00Z",
+          "omission_reason": "No signed image-reuse decision exists for this studio; the approved official-site policy lists source_photo as prohibited, so no photo is published.",
+          "rights_holder": null,
+          "rights_state": "omitted_rights_unclear",
+          "source_url": null
+        }
+      ],
+      "possible_duplicate_of": [],
+      "registry_id": "027a1f22-6b8e-5dc7-bbaf-f73c30fddabf",
+      "restrictions": {
+        "conflicting": [
+          {
+            "code": "official_contacts_missing",
+            "detail": "no typed contact target was observed in this import batch",
+            "severity": "info"
+          },
+          {
+            "code": "media_rights_unclear",
+            "detail": "no media candidate was imported; site terms forbid reuse without written consent",
+            "severity": "info"
+          }
+        ],
+        "missing": [],
+        "rejected": []
+      },
+      "reviews": [
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T00:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "ef9f9a21-8233-54b7-8b4a-1ffa04219b6f",
+          "sequence": 1,
+          "source_evidence_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+          "text_digest_sha256": "c6cd55da2aba31918ab29aba5ad117b9d20a1c9e409ac887829def50eed1f28c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T00:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the postal-code derived district_key",
+          "review_id": "17fa621e-eaf2-56ec-b9e8-22659163eadf",
+          "sequence": 2,
+          "source_evidence_digest_sha256": "c6cd55da2aba31918ab29aba5ad117b9d20a1c9e409ac887829def50eed1f28c",
+          "text_digest_sha256": "c6cd55da2aba31918ab29aba5ad117b9d20a1c9e409ac887829def50eed1f28c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T00:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "operator confirmed the campaign-level primary market classification",
+          "review_id": "d91e8a80-2a68-5050-904d-918625e6e8ab",
+          "sequence": 3,
+          "source_evidence_digest_sha256": "c6cd55da2aba31918ab29aba5ad117b9d20a1c9e409ac887829def50eed1f28c",
+          "text_digest_sha256": "c6cd55da2aba31918ab29aba5ad117b9d20a1c9e409ac887829def50eed1f28c"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T20:15:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "920f6114-157d-59fa-b541-8e2aeccd9842",
+          "sequence": 4,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "1aa00a358bf4d23395a98fb2242ecbed3238856973f3bed11c4d3fe428ad9b48"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:00:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "downgraded an earlier operator_reviewed district confirmation: it recorded the postal-code derivation as a verified fact without independent district evidence",
+          "review_id": "a3d4fafe-1835-5627-ab07-f8146d99a825",
+          "sequence": 5,
+          "source_evidence_digest_sha256": "809cb7596991aa0c4b2f651b6f6484064dd498c8181d53448b61704ac8ea8d63",
+          "text_digest_sha256": "3d9d95b52cd9beed7257cdf617e1a1ab7d8c644e440bc418cee58cee8c386ab1"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T23:50:00Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "district_key verified against the official address register: https://gdi.berlin.de/services/wfs/adressen_berlin?service=WFS&version=1.1.0&request=GetFeature&typeName=adressen_berlin%3Aadressen_berlin&outputFormat=application%2Fjson&CQL_FILTER=hnr%3D%2716%27+AND+plz%3D%2710969%27&maxFeatures=500 method=official_address_source dataset=634ab8ba-7694-333b-b95d-474d2aed0f7b version=Adressen Berlin WFS, revision 2026-06-30 address_record=187448 bezirk=Friedrichshain-Kreuzberg",
+          "review_id": "f1f85c70-6e57-5efe-8f99-a3ab407416da",
+          "sequence": 6,
+          "source_evidence_digest_sha256": "15c59e66e8ce4fd03759794bab7c7422a9846bd0401e415b978b650e0a492332",
+          "text_digest_sha256": "02dc0463ed929e775a1ba6280f1143465b1531569043007d09e887d526da33b6"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T00:00:00Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "f12373f4-2ad4-5269-bd7a-e3b0a0724801",
+          "sequence": 7,
+          "source_evidence_digest_sha256": "78ab20c8c5b13ec81b47a80171dc7912c6af739512092fda60ae47c215dd9d27",
+          "text_digest_sha256": "89b7236aea662aac342c8437b14948d178432b53d3176f9cb7f60d5e2a857e8f"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-20T00:00:00Z",
+          "decision": "approved",
+          "kind": "media_rights",
+          "locale": null,
+          "note": "No signed image-reuse decision exists for this studio; the approved official-site policy lists source_photo as prohibited, so no photo is published.",
+          "review_id": "c8681e3a-b4ce-5fab-a20c-fc5e07b7e1d4",
+          "sequence": 8,
+          "source_evidence_digest_sha256": "89b7236aea662aac342c8437b14948d178432b53d3176f9cb7f60d5e2a857e8f",
+          "text_digest_sha256": "89b7236aea662aac342c8437b14948d178432b53d3176f9cb7f60d5e2a857e8f"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-22T08:05:21Z",
+          "decision": "approved",
+          "kind": "translation",
+          "locale": "de-DE",
+          "note": "approved by the authorised reviewer after reading the exact text",
+          "review_id": "e22c66d4-897c-5327-9a05-a66c2aa4dee1",
+          "sequence": 9,
+          "source_evidence_digest_sha256": "efe191d999f72fefe06b8d6a9ba8f59a4bc2dd06ec40775e2d06bda05683deb8",
+          "text_digest_sha256": "bae662a1f178eb041b351d406cd2b840b174491fb9454224977e528219158712"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-22T08:05:21Z",
+          "decision": "approved",
+          "kind": "translation",
+          "locale": "en-GB",
+          "note": "approved by the authorised reviewer after reading the exact text",
+          "review_id": "2b2e55ab-3219-59c4-a814-404b5edf898f",
+          "sequence": 10,
+          "source_evidence_digest_sha256": "f97878c936463227e75295da4270ae7a74aaef60ed4f693badcef989606828bf",
+          "text_digest_sha256": "bafbf45e64229345275787dbdd88e30462182c21c853a38ac8736b5659cf45a5"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-22T08:05:21Z",
+          "decision": "approved",
+          "kind": "translation",
+          "locale": "ru-RU",
+          "note": "approved by the authorised reviewer after reading the exact text",
+          "review_id": "564c10fc-f527-5a1a-ab6a-ae6ee4e1d65e",
+          "sequence": 11,
+          "source_evidence_digest_sha256": "efe191d999f72fefe06b8d6a9ba8f59a4bc2dd06ec40775e2d06bda05683deb8",
+          "text_digest_sha256": "42879aa7bccdc2a52c425baf6521f5cec14dc22c8a3d11bae361016c1ec7542d"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-22T08:05:21Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "validated: the value is published on the official site",
+          "review_id": "05c2742c-9e46-501b-b76f-183ccce9e720",
+          "sequence": 12,
+          "source_evidence_digest_sha256": "26e324176d5842b89151679296745ac264de4c58d8ace1ec353fae4d0160926d",
+          "text_digest_sha256": "ed6e02b28eb56317bf172cb45d271eec02ea3ffb818abdebd18b99588e19c3d6"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-22T08:05:21Z",
+          "decision": "approved",
+          "kind": "fact",
+          "locale": null,
+          "note": "validated: the value is published on the official site",
+          "review_id": "ab2c1fdc-daec-5390-9c64-679fb3498b6c",
+          "sequence": 13,
+          "source_evidence_digest_sha256": "26e324176d5842b89151679296745ac264de4c58d8ace1ec353fae4d0160926d",
+          "text_digest_sha256": "9b1fdbc4cd44d46d4da953f6a146be3bbc017dfe8897aab182de527c5db5eade"
+        },
+        {
+          "actor_id": "rtao-god",
+          "decided_at_utc": "2026-11-22T08:05:21Z",
+          "decision": "approved",
+          "kind": "source_policy",
+          "locale": null,
+          "note": "operator approved official-site facts-only usage for this campaign",
+          "review_id": "136ff52b-77ce-510f-9e66-838ff27c63e8",
+          "sequence": 14,
+          "source_evidence_digest_sha256": "221e668ef32ad22cc4293d83bb409feb55b6c19312d485a7490e9a6ae7c93d9e",
+          "text_digest_sha256": "89b7236aea662aac342c8437b14948d178432b53d3176f9cb7f60d5e2a857e8f"
+        }
+      ],
+      "service_claims": [
+        {
+          "catalog_category_key": "recording-studio",
+          "evidence_refs": [
+            "ev-e429a48e87e6bae1"
+          ],
+          "source_text": "\"LI\",\"LT\",\"LU\",\"LV\",\"MT\",\"NL\",\"NO\",\"PL\",\"PT\",\"RO\",\"SE\",\"SI\",\"SK\"],\"wait_for_update\":500}; Recording Studio in Berlin | TRIXX Studios {\"@context\":\"https:\\/\\/schema.org\",\"@graph\":[{\"@type\":\"WebPage\",\"@id\":\"https:\\/\\/www.trixx-studios.de\\/en\\/"
+        },
+        {
+          "catalog_category_key": "mastering-studio",
+          "evidence_refs": [
+            "ev-ace039c3170d2d4b"
+          ],
+          "source_text": "Tonstudio Berlin - Recording, Mixing, Mastering | TRIXX Studios STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLIENTS BUCHEN DEUTSCH ENGLISH STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLIENTS BUCHEN DEUTSCH ENGLISH Willkommen im TRIXX Tonstudio Berlin Seit 1985 gehört unser Tonstudio zu den besten in Berlin."
+        },
+        {
+          "catalog_category_key": "mixing-studio",
+          "evidence_refs": [
+            "ev-ace039c3170d2d4b"
+          ],
+          "source_text": "Tonstudio Berlin - Recording, Mixing, Mastering | TRIXX Studios STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLIENTS BUCHEN DEUTSCH ENGLISH STUDIOS STUDIO A STUDIO B STUDIO C MICS & INSTRUMENTE LOUNGE & KÜCHE LEISTUNGEN CLIENTS BUCHEN DEUTSCH ENGLISH Willkommen im TRIXX Tonstudio Berlin Seit 1985 gehört unser Tonstudio zu den besten in Berlin."
+        }
+      ],
+      "source_original_name": "TRIXX Studios",
+      "subject_match": {
+        "decision": "create_new_pending_review",
+        "listing_id": null,
+        "reason": "identity decision carried over from the probe batch",
+        "subject_id": null
+      }
+    }
+  ],
   "schema_revision": "studio-verified-projection-v1",
-  "source_registry_sha256": "adbed708ae057ce51c247348f4696bcfcbf60845fe4a195d31ae3b4d39b45d2e"
+  "source_registry_sha256": "560d7c018c9e5167f1251b394ecc5a2e5005aeee4f76630f207c0e9db50f1b21"
 }
