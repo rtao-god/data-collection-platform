@@ -18,6 +18,10 @@ __pycache__/
 tmp/
 *.log
 
+# Research review handoffs: generated bundles handed to a human reviewer, never project source
+/*_handoff_*.zip
+/*_research_review_*.json
+
 # IDE / OS
 .vscode/
 .idea/
