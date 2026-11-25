@@ -9,11 +9,15 @@ proved.
 What the manifest carries:
   * the exact source identity (source system + registry id) and the identity decision,
   * the facts Catalog may publish (name, address, categories, district),
+  * the rich material Catalog stores: approved descriptions and validated contacts,
   * one deterministic assertion per distinct evidence artifact, with its real provenance,
   * an explicit eligibility verdict per record instead of an implied success.
 
-What it never carries: description drafts, media, contacts, coordinates read out of an
-excerpt, or any field the registry has not approved for publication.
+Catalog imports facts and rich material in one revision, so a card never needs a second
+writer that rebuilds the same content from scratch.
+
+What it never carries: description drafts, media, coordinates read out of an excerpt, or any
+field the registry has not approved for publication.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 import sys
 import unicodedata
 import uuid
@@ -304,9 +309,9 @@ def _address_point(
 ) -> tuple[dict[str, Any] | None, str | None, dict[str, Any] | None]:
     """Resolve the address point of this record, or report why it stays unresolved.
 
-The point is derived from the official address register response itself, so it carries its
-    own provenance assertion: the exact request url, the raw response digest, the address
-    record id and the response timestamp. It never borrows an assertion of an older excerpt.
+    The point is derived from the official address register response itself, so it carries its
+        own provenance assertion: the exact request url, the raw response digest, the address
+        record id and the response timestamp. It never borrows an assertion of an older excerpt.
     """
     address = record.get("address") or {}
     street = _text_or_none(address.get("street"))
@@ -451,10 +456,223 @@ def _first_assertion_for(
     return None
 
 
+# Catalog stores every contact target as an absolute URI, so a bare address must become the
+# scheme that states the same fact. A registry kind with no recorded URI form stays behind.
+CONTACT_URI_SCHEME = {"email": "mailto", "phone": "tel"}
+CONTACT_KINDS = ("website", "email", "phone")
+
+
+def contact_uri(kind: str, target: str) -> str | None:
+    """The absolute URI Catalog can store for this contact, or None when it cannot be stated."""
+    scheme = CONTACT_URI_SCHEME.get(kind)
+    if scheme is None:
+        return target if target.startswith(("http://", "https://")) else None
+    value = target.strip()
+    if scheme == "tel":
+        digits = re.sub(r"[^0-9+]", "", value)
+        return f"tel:{digits}" if digits else None
+    return f"mailto:{value}" if "@" in value and " " not in value else None
+
+
+def _evidence_index(record: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    return {str(item.get("evidence_id")): item for item in record.get("field_evidence") or []}
+
+
+def _assertion_for_evidence(
+    record: Mapping[str, Any],
+    evidence: Mapping[str, Any],
+    assertions: Mapping[str, Mapping[str, Any]],
+) -> str | None:
+    key = _assertion_key(evidence)
+    for assertion_id, item in assertions.items():
+        if (
+            item["sourceReference"],
+            item["evidenceDigest"],
+            item["observedAtUtc"],
+        ) == key:
+            return assertion_id
+    return None
+
+
+def approved_descriptions(
+    record: Mapping[str, Any],
+    assertions: Mapping[str, Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Descriptions whose exact bytes a human approved, or the exact reasons none may travel."""
+    material: list[dict[str, Any]] = []
+    problems: list[str] = []
+    descriptions = record.get("descriptions") or {}
+    reviews = record.get("reviews") or []
+    evidence_by_id = _evidence_index(record)
+
+    for locale in registry.CONTENT_LOCALES:
+        description = descriptions.get(locale)
+        if not description:
+            problems.append(f"description_absent:{locale}")
+            continue
+        state = description.get("state")
+        if state != "approved":
+            problems.append(f"description_{state}:{locale}")
+            continue
+        decision = registry.latest_review_decision(
+            reviews,
+            kind="translation",
+            review_id=description.get("review_ref"),
+            locale=locale,
+            text_digest=description.get("text_digest_sha256"),
+            source_digest=description.get("source_evidence_digest_sha256"),
+        )
+        if decision != "approved":
+            problems.append(f"description_review_{decision or 'absent'}:{locale}")
+            continue
+        text = description.get("text")
+        if not isinstance(text, str) or not text.strip():
+            problems.append(f"description_empty:{locale}")
+            continue
+        if hashlib.sha256(text.encode("utf-8")).hexdigest() != description.get(
+            "text_digest_sha256"
+        ):
+            problems.append(f"description_text_digest_mismatch:{locale}")
+            continue
+        source_digest = description.get("source_evidence_digest_sha256")
+        source_evidence = next(
+            (
+                evidence
+                for evidence in evidence_by_id.values()
+                if evidence.get("response_digest_sha256") == source_digest
+            ),
+            None,
+        )
+        if source_evidence is None:
+            problems.append(f"description_evidence_absent:{locale}")
+            continue
+        if not registry.evidence_allows_publication(record, source_evidence):
+            problems.append(f"description_evidence_not_publishable:{locale}")
+            continue
+        assertion_id = _assertion_for_evidence(record, source_evidence, assertions)
+        if assertion_id is None:
+            problems.append(f"description_assertion_absent:{locale}")
+            continue
+        material.append({"locale": locale, "text": text, "assertionId": assertion_id})
+
+    if problems and material:
+        # Catalog publishes every supported locale of one description set or none of them, so a
+        # partial locale set would build a revision that can never pass the review gate.
+        problems.append("description_locales_incomplete")
+        material = []
+    return material, sorted(set(problems))
+
+
+def validated_contacts(
+    record: Mapping[str, Any],
+    assertions: Mapping[str, Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Contacts validated against their evidence, or the exact reasons they cannot travel."""
+    material: list[dict[str, Any]] = []
+    problems: list[str] = []
+    evidence_by_id = _evidence_index(record)
+
+    for contact in record.get("contacts") or []:
+        state = contact.get("validation_state")
+        kind = str(contact.get("kind") or "")
+        target = contact.get("target")
+        if state != "validated":
+            problems.append(f"contact_{state}:{kind}")
+            continue
+        if kind not in CONTACT_KINDS:
+            # Catalog has no contact kind this registry value means; mapping it to "website"
+            # would publish a fact nobody stated.
+            problems.append(f"contact_kind_unsupported:{kind}")
+            continue
+        if not isinstance(target, str) or not target.strip():
+            problems.append(f"contact_target_empty:{kind}")
+            continue
+        uri = contact_uri(kind, target)
+        if uri is None:
+            problems.append(f"contact_target_not_a_uri:{kind}")
+            continue
+        assertion_ids: list[str] = []
+        for ref in contact.get("evidence_refs") or []:
+            evidence = evidence_by_id.get(str(ref))
+            if evidence is None:
+                problems.append(f"contact_evidence_absent:{kind}")
+                continue
+            if not registry.evidence_allows_publication(record, evidence):
+                problems.append(f"contact_evidence_not_publishable:{kind}")
+                continue
+            assertion_id = _assertion_for_evidence(record, evidence, assertions)
+            if assertion_id is None:
+                problems.append(f"contact_assertion_absent:{kind}")
+                continue
+            if assertion_id not in assertion_ids:
+                assertion_ids.append(assertion_id)
+        if not assertion_ids:
+            continue
+        material.append(
+            {
+                "kind": kind,
+                "target": uri,
+                "label": contact.get("label"),
+                "assertionId": assertion_ids[0],
+            }
+        )
+    return material, sorted(set(problems))
+
+
+def _rich_material(
+    record: Mapping[str, Any], assertions: Mapping[str, Mapping[str, Any]]
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """The rich material the registry approved, or nothing when none of it may travel.
+
+    Absence is stated as absence: an unvalidated contact or an unapproved description never
+    becomes an instruction to delete what Catalog already stores.
+    """
+    descriptions, description_problems = approved_descriptions(record, assertions)
+    contacts, contact_problems = validated_contacts(record, assertions)
+    material: dict[str, Any] = {}
+    if descriptions:
+        material["descriptions"] = descriptions
+    if contacts:
+        material["contacts"] = contacts
+    return (material or None), sorted(set(description_problems + contact_problems))
+
+
+DISTRICT_KEY_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+def _district_problems(record: Mapping[str, Any]) -> list[str]:
+    """Check the published district key against the register spelling that confirmed it.
+
+    The district key is a canonical Bezirk key, not a free label: a legacy ``berlin-mitte``
+    spelling or a key that contradicts the Bezirk named by its own address evidence would
+    become a separate facet value in the public catalog.
+    """
+    address = record.get("address") or {}
+    key = str(address.get("district_key") or "")
+    if not key:
+        return ["district_key_missing"]
+    problems: list[str] = []
+    if not DISTRICT_KEY_PATTERN.match(key) or key.startswith("berlin-"):
+        problems.append(f"district_key_not_canonical:{key}")
+    # A record may have confirmed the district of an earlier address; only the latest
+    # confirmation describes the address it publishes now.
+    latest = None
+    for review in sorted(
+        (entry for entry in record.get("reviews") or [] if entry.get("kind") == "fact"),
+        key=lambda entry: int(entry.get("sequence") or 0),
+    ):
+        note = str(review.get("note") or "")
+        if "bezirk=" in note:
+            latest = note.split("bezirk=", 1)[1].strip()
+    if latest and registry._normalize_bezirk(latest) != key:
+        problems.append(f"district_key_conflicts_with_address_evidence:{key}")
+    return problems
+
+
 def build_record(
     record: Mapping[str, Any],
     mapping: CatalogMapping,
-    address_point_lookup: Callable[[str, str], Any] | None = None,
+    address_point_lookup: Callable[[str, str, str, str | None], Any] | None = None,
 ) -> dict[str, Any]:
     """Project one registry record into its manifest entry."""
     registry_id = str(record.get("registry_id") or "")
@@ -473,6 +691,8 @@ def build_record(
         "identity": identity,
         "business": None,
         "assertions": [],
+        "richFields": None,
+        "richReasons": [],
     }
 
     if status is not STATUS_BLOCKED:
@@ -483,6 +703,14 @@ def build_record(
         entry["assertions"] = sorted(
             assertions, key=lambda item: (item["assertionId"], item["sourceReference"])
         )
+        rich, rich_problems = _rich_material(
+            record, {item["assertionId"]: item for item in assertions}
+        )
+        entry["richFields"] = rich
+        entry["richReasons"] = rich_problems
+        if rich:
+            entry["business"]["descriptions"] = rich.get("descriptions") or []
+            entry["business"]["contacts"] = rich.get("contacts") or []
         # A record whose official address point stays unresolved cannot become a publishable
         # listing, so its verdict must say so here instead of surfacing later as an unpublishable
         # draft. An offline plan (lookup disabled) keeps the registry verdict and its reason.
@@ -494,8 +722,14 @@ def build_record(
         ):
             entry["status"] = STATUS_REVIEW
             entry["statusReasons"] = [f"address_coordinate_unresolved:{coordinate_reason}"]
+        district_problems = _district_problems(record)
+        if entry["status"] is STATUS_ELIGIBLE and district_problems:
+            entry["status"] = STATUS_REVIEW
+            entry["statusReasons"] = district_problems
 
     entry["digests"] = _digests(entry, mapping)
+    # The record's own manifest identity, so one changed card moves exactly one binding axis.
+    entry["manifestDigest"] = digest_of(entry)
     return entry
 
 
@@ -520,6 +754,20 @@ def _content_facts(business: Mapping[str, Any] | None) -> dict[str, Any] | None:
             )
         },
         "categories": [item["categoryKey"] for item in business["categories"]],
+        "descriptions": sorted(
+            (
+                {"locale": item["locale"], "text": item["text"]}
+                for item in (business.get("descriptions") or [])
+            ),
+            key=lambda item: item["locale"],
+        ),
+        "contacts": sorted(
+            (
+                {"kind": item["kind"], "target": item["target"], "label": item.get("label")}
+                for item in (business.get("contacts") or [])
+            ),
+            key=lambda item: (item["kind"], item["target"]),
+        ),
         "coordinate": (
             {
                 key: business["coordinates"][key]
@@ -575,7 +823,7 @@ def build_manifest(
     mapping: CatalogMapping,
     *,
     recorded_at_utc: str | None,
-    address_point_lookup: Callable[[str, str], Any] | None = None,
+    address_point_lookup: Callable[[str, str, str, str | None], Any] | None = None,
 ) -> dict[str, Any]:
     """Build the whole manifest. Records are ordered by registry id for reproducible bytes.
 
@@ -588,12 +836,22 @@ def build_manifest(
     records = list(document.get("records") or [])
     seen: set[str] = set()
     projected = []
+    isolated: list[dict[str, str]] = []
     for record in sorted(records, key=lambda item: str(item.get("registry_id") or "")):
-        entry = build_record(record, mapping, address_point_lookup)
-        if entry["registryId"] in seen:
-            raise ManifestError(f"registry repeats id {entry['registryId']}")
-        seen.add(entry["registryId"])
-        projected.append(entry)
+        registry_id = str(record.get("registry_id") or "")
+        if not registry_id:
+            raise ManifestError("a registry record has no registry_id")
+        if registry_id in seen:
+            raise ManifestError(f"registry repeats id {registry_id}")
+        seen.add(registry_id)
+        try:
+            projected.append(build_record(record, mapping, address_point_lookup))
+        except ManifestError as error:
+            # One unprojectable record must not stop every other card: it becomes an explicit
+            # blocked verdict that Catalog refuses, and the reason is reported by name.
+            entry = _isolated_record(registry_id, str(error), mapping)
+            isolated.append({"registryId": registry_id, "error": str(error)})
+            projected.append(entry)
 
     digests = []
     for entry in projected:
@@ -622,8 +880,34 @@ def build_manifest(
             "records": sorted(digests, key=lambda item: item["registryId"]),
         },
     }
+    manifest["isolatedRecords"] = isolated
     manifest["manifestDigest"] = manifest_digest(manifest)
     return manifest
+
+
+def _isolated_record(registry_id: str, error: str, mapping: CatalogMapping) -> dict[str, Any]:
+    """A record this build could not project, stated as a blocked verdict instead of a crash."""
+    entry: dict[str, Any] = {
+        "schemaRevision": SCHEMA_REVISION,
+        "sourceSystem": SOURCE_SYSTEM,
+        "registryId": registry_id,
+        "status": STATUS_BLOCKED,
+        "statusReasons": [f"manifest_record_invalid:{error}"],
+        "identity": {
+            "decision": "create_new",
+            "linkExisting": None,
+            "officialDomain": None,
+            "sourceIdentity": f"{SOURCE_SYSTEM}:{registry_id}",
+        },
+        "business": None,
+        "assertions": [],
+        "richFields": None,
+        "richReasons": [],
+    }
+    entry["digests"] = _digests(entry, mapping)
+    # The record's own manifest identity, so one changed card moves exactly one binding axis.
+    entry["manifestDigest"] = digest_of(entry)
+    return entry
 
 
 def manifest_digest(manifest: Mapping[str, Any]) -> str:
@@ -631,7 +915,7 @@ def manifest_digest(manifest: Mapping[str, Any]) -> str:
     material = {
         key: value
         for key, value in manifest.items()
-        if key not in ("manifestDigest", "recordedAtUtc")
+        if key not in ("manifestDigest", "recordedAtUtc", "isolatedRecords")
     }
     return digest_of(material)
 

@@ -47,6 +47,38 @@ def load_manifest(path: pathlib.Path) -> dict[str, Any]:
     return manifest
 
 
+def _wire_rich_fields(material: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The approved descriptions and validated contacts, or nothing at all.
+
+    An absent section is not an empty one: Catalog keeps what the listing already stores when
+    the producer states nothing.
+    """
+    if not material:
+        return None
+    wire: dict[str, Any] = {
+        # Both sections are stated explicitly: Catalog refuses a rich section it cannot bind, and an
+        # empty list states "nothing approved here" instead of an absent section.
+        "descriptions": [
+            {
+                "locale": item["locale"],
+                "text": item["text"],
+                "assertionId": item["assertionId"],
+            }
+            for item in material.get("descriptions") or []
+        ],
+        "contacts": [
+            {
+                "kind": item["kind"],
+                "target": item["target"],
+                "label": item.get("label"),
+                "assertionId": item["assertionId"],
+            }
+            for item in material.get("contacts") or []
+        ],
+    }
+    return wire
+
+
 def build_request(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
     """Map one manifest record onto the Catalog apply request without inventing facts."""
     catalog = manifest["catalog"]
@@ -115,10 +147,13 @@ def build_request(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str,
             "statusReasons": list(record["statusReasons"]),
             "identity": {
                 "decision": DECISION[decision],
-                "linkExistingListingId": (record["identity"].get("linkExisting") or {}).get("listingId"),
+                "linkExistingListingId": (record["identity"].get("linkExisting") or {}).get(
+                    "listingId"
+                ),
                 "officialDomain": record["identity"].get("officialDomain"),
             },
             "business": wire_business,
+            "richFields": _wire_rich_fields(record.get("richFields")),
             "assertions": [
                 {
                     "assertionId": item["assertionId"],
@@ -134,7 +169,7 @@ def build_request(manifest: dict[str, Any], record: dict[str, Any]) -> dict[str,
             "contentDigest": record["digests"]["content"],
             "evidenceDigest": record["digests"]["evidence"],
             "eligibilityDigest": record["digests"]["eligibility"],
-            "manifestDigest": manifest["manifestDigest"],
+            "manifestDigest": record["manifestDigest"],
             "mappingRevision": catalog["mappingRevision"],
             "configurationRevisionId": catalog["configurationRevisionId"],
         }
@@ -251,7 +286,7 @@ def record_fingerprint(manifest: dict[str, Any], record: dict[str, Any]) -> dict
         "content": record["digests"]["content"],
         "evidence": record["digests"]["evidence"],
         "eligibility": record["digests"]["eligibility"],
-        "manifestDigest": manifest["manifestDigest"],
+        "manifestDigest": record["manifestDigest"],
         "mappingRevision": catalog["mappingRevision"],
         "configurationRevisionId": catalog["configurationRevisionId"],
     }

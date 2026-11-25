@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from tools import studio_registry as sr
 
 CAMPAIGN = Path("campaigns") / "berlin_recording_services" / "discovery"
@@ -168,7 +169,6 @@ def test_qualified_studio_is_ready_but_blocked_by_missing_source_decision() -> N
     assert qualified, reasons
     blockers = sr.publication_blockers(record)
     assert "source_policy_decision_missing:example-studio.de" in blockers
-    assert sr.rich_blockers(record)
 
 
 def test_duplicate_registry_id_is_rejected() -> None:
@@ -312,44 +312,37 @@ def test_rich_predicate_requires_three_approved_locales(tmp_path: Path) -> None:
     record["address"] = {**record["address"], "district_basis": "operator_reviewed"}
     record["restrictions"] = {"rejected": [], "missing": [], "conflicting": []}
 
-    blockers = sr.rich_blockers(record)
-    assert blockers == []
+    assert sr.publication_blockers(record) == []
     assert sr.validate_registry(_registry(record)) == []
 
 
-def test_generated_projection_is_byte_identical_and_detects_manual_edit(tmp_path: Path) -> None:
-    registry_path = tmp_path / "studios.json"
-    verified_path = tmp_path / "studios-verified.json"
-    registry_path.write_text(sr.canonical_json(_registry()), encoding="utf-8")
+def test_a_record_the_registry_calls_unconfirmed_is_not_publishable() -> None:
+    """A missing studio use or a duplicate stays out of the catalog whatever Catalog approved."""
+    record = _record()
+    record["address"] = {**record["address"], "district_basis": "operator_reviewed"}
+    record["restrictions"] = {
+        "rejected": [],
+        "conflicting": [],
+        "missing": [
+            {
+                "code": "studio_use_not_confirmed",
+                "detail": "the site describes an education programme, not a bookable studio",
+                "severity": "review",
+            },
+            {
+                "code": "duplicate_of_published_record",
+                "detail": "same studio as an already published record",
+                "severity": "review",
+            },
+        ],
+    }
 
-    assert (
-        sr.main(
-            ["--registry", str(registry_path), "--verified", str(verified_path), "build-verified"]
-        )
-        == 0
-    )
-    first = verified_path.read_bytes()
-    assert (
-        sr.main(
-            ["--registry", str(registry_path), "--verified", str(verified_path), "build-verified"]
-        )
-        == 0
-    )
-    assert verified_path.read_bytes() == first
-    assert (
-        sr.main(
-            ["--registry", str(registry_path), "--verified", str(verified_path), "check-verified"]
-        )
-        == 0
-    )
+    qualified, reasons = sr.qualification(record)
 
-    verified_path.write_text(first.decode("utf-8") + " ", encoding="utf-8")
-    assert (
-        sr.main(
-            ["--registry", str(registry_path), "--verified", str(verified_path), "check-verified"]
-        )
-        == 1
-    )
+    assert not qualified
+    assert "restriction:studio_use_not_confirmed" in reasons
+    assert "restriction:duplicate_of_published_record" in reasons
+    assert "restriction:duplicate_of_published_record" in sr.publication_blockers(record)
 
 
 def test_split_street_address_normalizes_glued_number_and_postal_country_prefix() -> None:
@@ -698,7 +691,9 @@ def _registry_with_postal_code_district(tmp_path: Path) -> Path:
     return registry
 
 
-def _district_evidence_file(tmp_path: Path, registry_id: str, bezirk: str = "Friedrichshain-Kreuzberg") -> Path:
+def _district_evidence_file(
+    tmp_path: Path, registry_id: str, bezirk: str = "Friedrichshain-Kreuzberg"
+) -> Path:
     path = tmp_path / "district-evidence.json"
     path.write_text(
         json.dumps(
@@ -742,7 +737,7 @@ def test_confirm_district_requires_evidence_and_refuses_a_bare_flag(tmp_path: Pa
         entry["code"] == "district_derivation_unconfirmed"
         for entry in record["restrictions"].get("conflicting", [])
     )
-    assert not sr.publication_blockers(record) == []
+    assert sr.publication_blockers(record)
 
 
 def test_district_evidence_verifies_the_bezirk_and_records_its_provenance(tmp_path: Path) -> None:
@@ -769,7 +764,8 @@ def test_district_evidence_verifies_the_bezirk_and_records_its_provenance(tmp_pa
     assert "boundary=campaign-geography-provenance-v1@" in review["note"]
     assert review["source_evidence_digest_sha256"] == "c" * 64
     assert any(
-        entry["field_path"] == "address.district_key" and entry["source_url"].endswith("/ba-friedrichshain-kreuzberg/")
+        entry["field_path"] == "address.district_key"
+        and entry["source_url"].endswith("/ba-friedrichshain-kreuzberg/")
         for entry in stored["field_evidence"]
     )
     assert not any(
@@ -804,7 +800,9 @@ def test_district_evidence_for_another_bezirk_is_refused(tmp_path: Path) -> None
     )
 
 
-def test_official_address_record_certifies_a_bezirk_without_a_boundary_digest(tmp_path: Path) -> None:
+def test_official_address_record_certifies_a_bezirk_without_a_boundary_digest(
+    tmp_path: Path,
+) -> None:
     """An official address record names the Bezirk itself, so no boundary geometry is claimed."""
     registry = _registry_with_postal_code_district(tmp_path)
     record = json.loads(registry.read_text(encoding="utf-8"))["records"][0]
@@ -944,10 +942,14 @@ def test_enrich_refuses_to_replace_a_contact_the_record_already_carries(tmp_path
     patch_path.write_text(json.dumps(_contact_patch(record)), encoding="utf-8")
 
     assert (
-        sr.main(["--registry", str(registry_path), "enrich", "--patch", str(patch_path), "--dry-run"])
+        sr.main(
+            ["--registry", str(registry_path), "enrich", "--patch", str(patch_path), "--dry-run"]
+        )
         == 1
     )
-    assert json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]["contacts"] == existing
+    assert (
+        json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]["contacts"] == existing
+    )
 
 
 def _capture_manifest(record: dict, *, url: str = "https://example-studio.de/studios/") -> dict:
@@ -989,16 +991,30 @@ def test_record_evidence_appends_one_artifact_per_declared_field_and_refuses_unk
     capture_path = tmp_path / "capture.json"
     capture_path.write_text(json.dumps(_capture_manifest(_record())), encoding="utf-8")
 
-    assert sr.main(["--registry", str(registry_path), "record-evidence", "--capture", str(capture_path)]) == 0
+    assert (
+        sr.main(
+            ["--registry", str(registry_path), "record-evidence", "--capture", str(capture_path)]
+        )
+        == 0
+    )
 
     stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
-    added = [item for item in stored["field_evidence"] if item["response_digest_sha256"] == "d" * 64]
+    added = [
+        item for item in stored["field_evidence"] if item["response_digest_sha256"] == "d" * 64
+    ]
     assert sorted(item["field_path"] for item in added) == ["descriptions.de-DE", "source.page"]
     assert all(item["policy_decision"] is None for item in added)
-    assert not [item for item in stored["field_evidence"] if item["response_digest_sha256"] == "e" * 64]
+    assert not [
+        item for item in stored["field_evidence"] if item["response_digest_sha256"] == "e" * 64
+    ]
 
     before = registry_path.read_bytes()
-    assert sr.main(["--registry", str(registry_path), "record-evidence", "--capture", str(capture_path)]) == 0
+    assert (
+        sr.main(
+            ["--registry", str(registry_path), "record-evidence", "--capture", str(capture_path)]
+        )
+        == 0
+    )
     assert registry_path.read_bytes() == before
 
 
@@ -1012,7 +1028,7 @@ def test_policy_digest_reuse_needs_a_digest_this_registry_already_approved(tmp_p
             "decided_at_utc": "2026-11-20T00:00:00Z",
             "scope": "official_site facts_only",
             "policy_digest_sha256": "f" * 64,
-        }
+        },
     )
     pending = _evidence(
         field_path="descriptions.de-DE",
@@ -1057,7 +1073,9 @@ def test_policy_digest_reuse_needs_a_digest_this_registry_already_approved(tmp_p
         == 0
     )
     stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
-    decided = [item for item in stored["field_evidence"] if item["response_digest_sha256"] == "d" * 64]
+    decided = [
+        item for item in stored["field_evidence"] if item["response_digest_sha256"] == "d" * 64
+    ]
     assert decided[0]["policy_decision"]["policy_digest_sha256"] == "f" * 64
 
 
@@ -1086,7 +1104,6 @@ def test_media_omission_is_recorded_once_and_never_overwrites_a_photo_candidate(
     assert len(stored["photo_candidates"]) == 1
     assert stored["photo_candidates"][0]["rights_state"] == "omitted_rights_unclear"
     assert stored["photo_candidates"][0]["omission_reason"] == reason
-    assert "media_state_not_recorded" not in sr.rich_blockers(stored)
 
     stored["photo_candidates"] = [
         {
@@ -1121,7 +1138,9 @@ def _drafted_record() -> dict:
                 "review_state": "pending_human",
                 "review_ref": None,
                 "reason": "draft",
-                "source_evidence_digest_sha256": base["field_evidence"][1]["response_digest_sha256"],
+                "source_evidence_digest_sha256": base["field_evidence"][1][
+                    "response_digest_sha256"
+                ],
             }
         },
         contacts=[
@@ -1176,7 +1195,6 @@ def test_review_approves_the_exact_text_and_then_clears_the_draft_blocker(tmp_pa
 
     stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
     assert stored["descriptions"]["de-DE"]["state"] == "approved"
-    assert "description_draft:de-DE" not in sr.rich_blockers(stored)
 
 
 def test_review_refuses_a_research_identity_and_a_stale_text_digest(tmp_path: Path) -> None:
@@ -1317,7 +1335,6 @@ def test_review_validates_the_reviewed_contact_only(tmp_path: Path) -> None:
     stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
     assert stored["contacts"][0]["validation_state"] == "validated"
     assert [review["kind"] for review in stored["reviews"]] == ["fact"]
-    assert "validated_contact_missing" not in sr.rich_blockers(stored)
 
 
 def test_a_contact_decision_cannot_cite_a_digest_of_some_other_artifact(tmp_path: Path) -> None:
@@ -1412,3 +1429,236 @@ def test_a_contact_decision_uses_the_digest_of_the_artifact_it_cites(tmp_path: P
     stored = json.loads(registry_path.read_text(encoding="utf-8"))["records"][0]
     assert stored["contacts"][0]["validation_state"] == "validated"
     assert stored["reviews"][-1]["source_evidence_digest_sha256"] == evidenced
+
+
+def _rename_patch(record: dict, **overrides) -> dict:
+    entry = {
+        "registry_id": record["registry_id"],
+        "field_path": "canonical_name",
+        "value": "Example Sound Lab",
+        "evidence_refs": [record["field_evidence"][0]["evidence_id"]],
+        "reviewer": "operator",
+        "decided_at_utc": "2026-11-24T10:00:00Z",
+        "previous_name_used_by_organization": True,
+    }
+    entry.update(overrides)
+    return {"schema_revision": sr.PATCH_SCHEMA_REVISION, "patches": [entry]}
+
+
+def _restriction_patch(record: dict, **overrides) -> dict:
+    entry = {
+        "registry_id": record["registry_id"],
+        "field_path": "restrictions.missing",
+        "value": [
+            item
+            for item in record["restrictions"]["missing"]
+            if item["code"] != "identity_or_location_unconfirmed"
+        ],
+        "evidence_refs": [record["field_evidence"][0]["evidence_id"]],
+        "reviewer": "operator",
+        "decided_at_utc": "2026-11-25T12:00:00Z",
+        "note": "the studio site names this address as the place clients visit",
+        "replace_existing": True,
+    }
+    entry.update(overrides)
+    return {"schema_revision": sr.PATCH_SCHEMA_REVISION, "patches": [entry]}
+
+
+def test_restriction_patch_records_the_fact_decision() -> None:
+    record = _record()
+    record["restrictions"]["missing"] = [
+        {"code": "identity_or_location_unconfirmed", "detail": "not proven", "severity": "review"}
+    ]
+
+    outcome = sr.apply_patch(_registry(record), _restriction_patch(record))
+
+    assert not outcome.problems
+    updated = _registry(record)["records"][0]
+    assert updated["restrictions"]["missing"] == []
+    fact_reviews = [entry for entry in updated["reviews"] if entry["kind"] == "fact"]
+    assert len(fact_reviews) == 1
+    assert "identity_or_location_unconfirmed -> none" in fact_reviews[0]["note"]
+    assert fact_reviews[0]["decided_at_utc"] == "2026-11-25T12:00:00Z"
+
+
+def test_restriction_patch_needs_a_reason_and_a_decision_time() -> None:
+    record = _record()
+    for override, code in (
+        ({"note": ""}, "patch_restriction_reason"),
+        ({"decided_at_utc": ""}, "patch_restriction_time"),
+    ):
+        outcome = sr.apply_patch(_registry(record), _restriction_patch(record, **override))
+        assert outcome.applied == 0
+        assert {problem.code for problem in outcome.problems} == {code}
+
+
+def test_rename_needs_the_organizations_own_evidence() -> None:
+    directory_only = _record()
+    directory_only["field_evidence"][0]["source_kind"] = "directory"
+    patch = _rename_patch(
+        directory_only, evidence_refs=[directory_only["field_evidence"][0]["evidence_id"]]
+    )
+
+    outcome = sr.apply_patch(_registry(directory_only), patch)
+
+    assert outcome.applied == 0
+    assert {problem.code for problem in outcome.problems} == {"patch_rename_evidence"}
+
+
+def test_rename_keeps_identity_and_records_the_previous_name() -> None:
+    record = _record()
+    outcome = sr.apply_patch(_registry(record), _rename_patch(record))
+
+    assert not outcome.problems
+    document = _registry(record)
+    renamed = document["records"][0]
+    assert renamed["canonical_name"] == "Example Sound Lab"
+    assert renamed["registry_id"] == record["registry_id"]
+    assert renamed["source_original_name"] == "Example Studio"
+    assert renamed["aliases"] == ["Example Studio"]
+    assert renamed["identity_keys"] == record["identity_keys"]
+    identity_reviews = [entry for entry in renamed["reviews"] if entry["kind"] == "identity"]
+    assert len(identity_reviews) == 1
+    assert identity_reviews[0]["actor_id"] == "operator"
+    assert identity_reviews[0]["decision"] == "approved"
+
+
+def test_rename_does_not_alias_a_name_the_organization_never_used() -> None:
+    record = _record()
+    outcome = sr.apply_patch(
+        _registry(record),
+        _rename_patch(record, previous_name_used_by_organization=False),
+    )
+
+    assert not outcome.problems
+    assert _registry(record)["records"][0]["aliases"] == []
+
+
+def test_rename_without_a_decision_time_is_refused() -> None:
+    record = _record()
+    patch = _rename_patch(record)
+    del patch["patches"][0]["decided_at_utc"]
+
+    outcome = sr.apply_patch(_registry(record), patch)
+
+    assert outcome.applied == 0
+    assert {problem.code for problem in outcome.problems} == {"patch_rename_time"}
+
+
+def test_aliases_patch_cannot_drop_a_recorded_name() -> None:
+    record = _record(aliases=["Example Studio Berlin"])
+
+    outcome = sr.apply_patch(
+        _registry(record),
+        {
+            "schema_revision": sr.PATCH_SCHEMA_REVISION,
+            "patches": [
+                {
+                    "registry_id": record["registry_id"],
+                    "field_path": "aliases",
+                    "value": [],
+                    "evidence_refs": [record["field_evidence"][0]["evidence_id"]],
+                    "reviewer": "operator",
+                }
+            ],
+        },
+    )
+
+    assert outcome.applied == 0
+    assert {problem.code for problem in outcome.problems} == {"patch_alias_removal"}
+
+
+def _conflict_record() -> dict:
+    record = _record()
+    updated = _evidence(
+        field_path="address.street",
+        digest="c" * 64,
+        excerpt="Example Studio, Example Str. 1, 10963 Berlin (updated)",
+    )
+    record["field_evidence"].append(updated)
+    record["restrictions"]["conflicting"] = [
+        {
+            "code": "evidence_digest_changed",
+            "severity": "review",
+            "detail": "new digest for https://example-studio.de/contact/ on address.street",
+            "source_url": "https://example-studio.de/contact/",
+            "field_path": "address.street",
+            "evidence_id": updated["evidence_id"],
+            "previous_digest_sha256": "a" * 64,
+            "confirmed_digest_sha256": "c" * 64,
+        }
+    ]
+    return record
+
+
+def _reverify(record: dict, **overrides) -> dict:
+    entry = {
+        "registry_id": record["registry_id"],
+        "evidence_id": record["field_evidence"][-1]["evidence_id"],
+        "field_path": "address.street",
+        "source_url": "https://example-studio.de/contact/",
+        "previous_digest_sha256": "a" * 64,
+        "confirmed_digest_sha256": "c" * 64,
+    }
+    entry.update(overrides)
+    return {"schema_revision": sr.REVERIFY_SCHEMA_REVISION, "decisions": [entry]}
+
+
+def test_reverify_clears_only_the_confirmed_digest_conflict() -> None:
+    record = _conflict_record()
+    document = _registry(record)
+
+    counts = sr.reverify_evidence(
+        document, _reverify(record), reviewer="operator", decided_at_utc="2026-11-24T10:00:00Z"
+    )
+
+    assert counts == {"reverified": 1, "refused": 0}
+    stored = document["records"][0]
+    assert stored["restrictions"]["conflicting"] == []
+    fact = [entry for entry in stored["reviews"] if entry["kind"] == "fact"]
+    assert len(fact) == 1
+    assert fact[0]["source_evidence_digest_sha256"] == "c" * 64
+    assert "previous_digest=" + "a" * 64 in fact[0]["note"]
+    assert "confirmed_digest=" + "c" * 64 in fact[0]["note"]
+    # Both artifacts stay recorded.
+    assert {entry["response_digest_sha256"] for entry in stored["field_evidence"]} >= {
+        "a" * 64,
+        "c" * 64,
+    }
+
+
+def test_reverify_refuses_an_invented_digest() -> None:
+    record = _conflict_record()
+    document = _registry(record)
+
+    with pytest.raises(ValueError, match="confirmed digest"):
+        sr.reverify_evidence(
+            document,
+            _reverify(record, confirmed_digest_sha256="d" * 64),
+            reviewer="operator",
+            decided_at_utc="2026-11-24T10:00:00Z",
+        )
+
+
+def test_reverify_keeps_unrelated_digest_conflicts() -> None:
+    record = _conflict_record()
+    record["restrictions"]["conflicting"].append(
+        {
+            "code": "evidence_digest_changed",
+            "severity": "review",
+            "detail": "new digest for https://example-studio.de/ on service_claims",
+            "source_url": "https://example-studio.de/",
+            "field_path": "service_claims",
+            "evidence_id": "ev-" + "3" * 16,
+            "previous_digest_sha256": "b" * 64,
+            "confirmed_digest_sha256": "e" * 64,
+        }
+    )
+    document = _registry(record)
+
+    sr.reverify_evidence(
+        document, _reverify(record), reviewer="operator", decided_at_utc="2026-11-24T10:00:00Z"
+    )
+
+    remaining = document["records"][0]["restrictions"]["conflicting"]
+    assert [entry["field_path"] for entry in remaining] == ["service_claims"]

@@ -33,7 +33,6 @@ _MAX_PROVENANCE_BYTES = 262_144
 _STUDIO_REGISTRY_FILES = frozenset(
     {
         "discovery/studios.json",
-        "discovery/studios-verified.json",
     }
 )
 

@@ -20,7 +20,6 @@ def test_real_campaign_bundle_contains_only_allowlisted_files() -> None:
         "campaign.yaml",
         "catalog_mapping.yaml",
         "discovery/manual_seeds.csv",
-        "discovery/studios-verified.json",
         "discovery/studios.json",
         "entity_kinds.yaml",
         "geography.yaml",
@@ -29,6 +28,7 @@ def test_real_campaign_bundle_contains_only_allowlisted_files() -> None:
         "quality_profile.yaml",
         "source_bindings.yaml",
         "source_policies/manual_seed_policy.yaml",
+        "source_policies/official_site_berlin_studios_policy.yaml",
         "source_policies/osm_berlin_studios_policy.yaml",
         "source_policies/wikidata_berlin_studios_policy.yaml",
         "taxonomy.yaml",
@@ -98,7 +98,6 @@ def test_studio_registry_allowlist_is_exact_and_bounded(tmp_path: Path) -> None:
     discovery = campaign / "discovery"
     discovery.mkdir(parents=True)
     (discovery / "studios.json").write_text('{"records": []}\n', encoding="utf-8")
-    (discovery / "studios-verified.json").write_text('{"records": []}\n', encoding="utf-8")
     (discovery / "studios.tmp.json").write_text('{"records": []}\n', encoding="utf-8")
     source = FilesystemCampaignBundleSource(tmp_path / "campaigns")
 

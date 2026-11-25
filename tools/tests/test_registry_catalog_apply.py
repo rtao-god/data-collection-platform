@@ -81,6 +81,7 @@ def record(registry_id: str = "027a1f22-6b8e-5dc7-bbaf-f73c30fddabf", **override
             "evidence": digest("ev"),
             "eligibility": digest("el"),
         },
+        "manifestDigest": MANIFEST_DIGEST,
     }
     value.update(overrides)
     return value
@@ -129,7 +130,10 @@ def test_link_existing_record_carries_the_named_listing():
         record(
             identity={
                 "decision": "link_existing",
-                "linkExisting": {"listingId": "01a1efea-372c-7100-a7c0-e59d540707a5", "placeId": None},
+                "linkExisting": {
+                    "listingId": "01a1efea-372c-7100-a7c0-e59d540707a5",
+                    "placeId": None,
+                },
                 "officialDomain": "hansastudios.de",
             }
         ),
@@ -223,7 +227,14 @@ def test_resume_resends_every_record_and_lets_catalog_report_unchanged():
 def test_changed_content_after_a_checkpoint_still_reaches_catalog():
     registry_id = "00000000-0000-5000-8000-000000000001"
     old = record(registry_id)
-    changed = record(registry_id, digests={"content": digest("new-content"), "evidence": digest("ev"), "eligibility": digest("el")})
+    changed = record(
+        registry_id,
+        digests={
+            "content": digest("new-content"),
+            "evidence": digest("ev"),
+            "eligibility": digest("el"),
+        },
+    )
     manifest_value = manifest(changed)
     checkpoint = {
         "schemaVersion": apply.CHECKPOINT_SCHEMA,
@@ -258,9 +269,13 @@ def test_changed_mapping_configuration_or_manifest_reaches_catalog():
     registry_id = "00000000-0000-5000-8000-000000000001"
     item = record(registry_id)
     old_manifest = manifest(item)
-    new_catalog = dict(CATALOG, configurationRevisionId="00000000-0000-4000-8000-000000000009",
-                       mappingRevision=digest("new-mapping"))
-    new_manifest = dict(manifest(item, catalog=new_catalog), manifestDigest=digest("new-manifest"))
+    new_catalog = dict(
+        CATALOG,
+        configurationRevisionId="00000000-0000-4000-8000-000000000009",
+        mappingRevision=digest("new-mapping"),
+    )
+    new_item = dict(item, manifestDigest=digest("new-manifest"))
+    new_manifest = manifest(new_item, catalog=new_catalog)
     checkpoint = {
         "schemaVersion": apply.CHECKPOINT_SCHEMA,
         "records": {
@@ -275,7 +290,7 @@ def test_changed_mapping_configuration_or_manifest_reaches_catalog():
 
     tally = apply.run(
         new_manifest,
-        [item],
+        [new_item],
         lambda key, token, body: (
             sent.append(body["record"])
             or {"lastAction": "updated", "placeId": "p", "contentDigest": digest("content")}
@@ -329,7 +344,11 @@ def test_repeated_identical_apply_writes_nothing_new_at_the_owner():
     tally = apply.run(
         manifest_value,
         [item],
-        lambda key, token, body: {"lastAction": "unchanged", "placeId": "p", "contentDigest": digest("content")},
+        lambda key, token, body: {
+            "lastAction": "unchanged",
+            "placeId": "p",
+            "contentDigest": digest("content"),
+        },
         None,
         None,
         require_unchanged=True,
@@ -348,7 +367,11 @@ def test_manual_catalog_edit_is_reported_as_review_not_as_a_write():
     tally = apply.run(
         manifest(item),
         [item],
-        lambda key, token, body: {"lastAction": "reviewRequired", "placeId": "p", "contentDigest": digest("content")},
+        lambda key, token, body: {
+            "lastAction": "reviewRequired",
+            "placeId": "p",
+            "contentDigest": digest("content"),
+        },
         None,
         path,
         require_unchanged=False,
@@ -476,7 +499,10 @@ def _rate_limited(detail: str, retry_after: str | None = None) -> urllib.error.H
 
 def test_rate_limited_record_is_retried_with_the_stated_pause(monkeypatch):
     body = apply.build_request(manifest(record()), record())
-    answers = [_rate_limited("budget exhausted", retry_after="7"), _FakeResponse({"lastAction": "unchanged"})]
+    answers = [
+        _rate_limited("budget exhausted", retry_after="7"),
+        _FakeResponse({"lastAction": "unchanged"}),
+    ]
     calls = []
 
     def urlopen(_request, timeout=None):
@@ -514,3 +540,56 @@ def test_rate_limit_retries_are_bounded_and_report_the_status(monkeypatch):
     assert "budget exhausted" in str(refusal.value)
     assert len(pauses) == 2
     assert pauses == [2.0, 4.0]
+
+
+def test_rich_material_reaches_the_wire_only_when_the_producer_states_it():
+    request = apply.build_request(
+        manifest(),
+        record(
+            richFields={
+                "descriptions": [
+                    {
+                        "locale": "de-DE",
+                        "text": "Ein Aufnahmestudio.",
+                        "assertionId": "53b15260-6327-57bb-a4f6-daf9bbdd2133",
+                    }
+                ],
+                "contacts": [
+                    {
+                        "kind": "phone",
+                        "target": "tel:+49301234567",
+                        "label": None,
+                        "assertionId": "53b15260-6327-57bb-a4f6-daf9bbdd2133",
+                    }
+                ],
+            }
+        ),
+    )
+
+    fields = request["record"]["richFields"]
+    assert fields["descriptions"][0]["locale"] == "de-DE"
+    assert fields["descriptions"][0]["text"] == "Ein Aufnahmestudio."
+    assert fields["contacts"][0]["target"] == "tel:+49301234567"
+    # Nothing the producer did not state is sent: an empty section never says "delete this".
+    assert apply.build_request(manifest(), record())["record"]["richFields"] is None
+
+
+def test_a_rich_section_states_both_halves_because_catalog_binds_the_whole_section():
+    request = apply.build_request(
+        manifest(),
+        record(
+            richFields={
+                "descriptions": [
+                    {
+                        "locale": "de-DE",
+                        "text": "Ein Aufnahmestudio.",
+                        "assertionId": "53b15260-6327-57bb-a4f6-daf9bbdd2133",
+                    }
+                ]
+            }
+        ),
+    )
+
+    fields = request["record"]["richFields"]
+    assert fields["contacts"] == []
+    assert fields["descriptions"][0]["locale"] == "de-DE"

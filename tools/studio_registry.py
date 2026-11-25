@@ -1,14 +1,14 @@
 """Versioned studio research registry for the Berlin recording services campaign.
 
-Two committed files, one record identity:
+One committed file, one record identity:
 
 * ``campaigns/berlin_recording_services/discovery/studios.json``
   master worklist: every candidate, incomplete facts, evidence references.
-* ``campaigns/berlin_recording_services/discovery/studios-verified.json``
-  generated read-only projection of records that satisfy the rich policy.
 
-The master is the only writable registry. The companion is produced by
-``build-verified`` and is never edited by hand.
+The master is the only registry, and it is the only input of the Catalog import
+manifest. Rich material leaves this file per field: an approved description or a
+validated contact travels on its own, so one unapproved field never withholds the
+rest of the record and never becomes an instruction to delete stored data.
 
 This registry is a versioned worklist/snapshot of DCPF results, not a review
 authority. Apparent review state inside the file never enables publication on its
@@ -27,23 +27,20 @@ import json
 import re
 import sys
 import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 SCHEMA_REVISION = "studio-registry-v1"
-VERIFIED_SCHEMA_REVISION = "studio-verified-projection-v1"
 PATCH_SCHEMA_REVISION = "studio-registry-patch-v1"
 CAMPAIGN_KEY = "berlin_recording_services"
-RICH_POLICY_KEY = "rich-verified-v1"
 CONTENT_LOCALES = ("de-DE", "en-GB", "ru-RU")
 CAMPAIGN_LOCALES = ("de-DE", "en-GB")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = REPO_ROOT / "campaigns" / CAMPAIGN_KEY / "discovery" / "studios.json"
-VERIFIED_PATH = REPO_ROOT / "campaigns" / CAMPAIGN_KEY / "discovery" / "studios-verified.json"
 
 # Immutable namespace: a registry id is derived once from the authoritative identity
 # key and then never recomputed. Changing this value would rewrite every identity.
@@ -228,9 +225,7 @@ def derive_registry_id(kind: str, value: str) -> str:
     return str(uuid.uuid5(REGISTRY_ID_NAMESPACE, registry_identity_key(kind, value)))
 
 
-def derive_evidence_id(
-    source_url: str, digest: str, field_path: str, owner_id: str = ""
-) -> str:
+def derive_evidence_id(source_url: str, digest: str, field_path: str, owner_id: str = "") -> str:
     """Evidence ids are unique per owner: two records may cite the same page."""
     material = f"{owner_id}\n{source_url}\n{digest}\n{field_path}".encode()
     return "ev-" + hashlib.sha256(material).hexdigest()[:16]
@@ -358,8 +353,44 @@ def validate_evidence(
             "usage_policy",
             "policy_decision",
             "attribution",
+            "extraction",
         ),
     )
+    extraction = item.get("extraction")
+    if extraction is not None:
+        parsed = _check_object(
+            problems,
+            extraction,
+            f"{path}.extraction",
+            required=("medium", "blockIndex", "pointers"),
+            allowed=("medium", "blockIndex", "pointers"),
+        )
+        if parsed.get("medium") != "application/ld+json":
+            _problem(
+                problems,
+                "extraction_medium",
+                f"{path}.extraction.medium",
+                "expected application/ld+json",
+            )
+        block_index = parsed.get("blockIndex")
+        if not isinstance(block_index, int) or isinstance(block_index, bool) or block_index < 0:
+            _problem(
+                problems,
+                "extraction_block",
+                f"{path}.extraction.blockIndex",
+                "expected a non-negative block index",
+            )
+        pointers = parsed.get("pointers")
+        if not isinstance(pointers, Mapping) or any(
+            not isinstance(key, str) or not isinstance(value, str) or not value.startswith("/")
+            for key, value in pointers.items()
+        ):
+            _problem(
+                problems,
+                "extraction_pointers",
+                f"{path}.extraction.pointers",
+                "expected JSON pointers keyed by the stated literal",
+            )
     evidence_id = item.get("evidence_id")
     if isinstance(evidence_id, str):
         if not EVIDENCE_ID_RE.match(evidence_id):
@@ -1288,13 +1319,25 @@ def validate_registry(document: Any) -> list[Problem]:
 # --------------------------------------------------------------------------------------
 
 
-def _blocking_codes(record: Mapping[str, Any]) -> list[str]:
+# A `missing` restriction names evidence that was never observed. These two codes say the record
+# itself must not stand as a public studio, so publication reads them by code instead of by
+# severity: a `review` severity describes the operator's next step, not what may be shown.
+UNPUBLISHABLE_MISSING_CODES = frozenset(
+    {"studio_use_not_confirmed", "duplicate_of_published_record"}
+)
+
+
+def _unpublishable_codes(record: Mapping[str, Any]) -> list[str]:
     restrictions = record.get("restrictions") or {}
     codes = []
     for bucket in ("rejected", "conflicting"):
         for entry in restrictions.get(bucket) or []:
             if entry.get("severity") == "blocking":
                 codes.append(str(entry.get("code")))
+    for entry in restrictions.get("missing") or []:
+        code = str(entry.get("code"))
+        if code in UNPUBLISHABLE_MISSING_CODES:
+            codes.append(code)
     return codes
 
 
@@ -1327,7 +1370,7 @@ def qualification(record: Mapping[str, Any]) -> tuple[bool, list[str]]:
     if not claims:
         reasons.append("service_claim_missing")
 
-    reasons.extend(f"restriction:{code}" for code in _blocking_codes(record))
+    reasons.extend(f"restriction:{code}" for code in _unpublishable_codes(record))
     return (not reasons, reasons)
 
 
@@ -1391,83 +1434,6 @@ def publication_blockers(record: Mapping[str, Any]) -> list[str]:
             blockers.append("media_rights_unreviewed")
 
     return sorted(set(blockers))
-
-
-def rich_blockers(record: Mapping[str, Any]) -> list[str]:
-    blockers = publication_blockers(record)
-    descriptions = record.get("descriptions") or {}
-    reviews = record.get("reviews") or []
-
-    for locale in CONTENT_LOCALES:
-        description = descriptions.get(locale)
-        if not description:
-            blockers.append(f"description_missing:{locale}")
-            continue
-        if description.get("state") != "approved":
-            blockers.append(f"description_{description.get('state')}:{locale}")
-            continue
-        decision = latest_review_decision(
-            reviews,
-            kind="translation",
-            review_id=description.get("review_ref"),
-            locale=locale,
-            text_digest=description.get("text_digest_sha256"),
-            source_digest=description.get("source_evidence_digest_sha256"),
-        )
-        if decision != "approved":
-            blockers.append(f"description_review_{decision or 'absent'}:{locale}")
-
-    contacts = record.get("contacts") or []
-    if not any(contact.get("validation_state") == "validated" for contact in contacts):
-        blockers.append("validated_contact_missing")
-
-    photos = record.get("photo_candidates") or []
-    if not photos:
-        blockers.append("media_state_not_recorded")
-    for photo in photos:
-        if photo.get("rights_state") == "candidate_unreviewed":
-            blockers.append("media_rights_unreviewed")
-
-    if (record.get("last_refresh") or {}).get("status") != "observed":
-        blockers.append("freshness_not_current")
-
-    return sorted(set(blockers))
-
-
-def rich_subset(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    return [dict(record) for record in records if not rich_blockers(record)]
-
-
-def build_verified_projection(document: Mapping[str, Any], master_bytes: bytes) -> dict[str, Any]:
-    records = rich_subset(document.get("records") or [])
-    records.sort(key=lambda record: record["registry_id"])
-    return {
-        "schema_revision": VERIFIED_SCHEMA_REVISION,
-        "policy": RICH_POLICY_KEY,
-        "campaign_key": CAMPAIGN_KEY,
-        "source_registry_sha256": hashlib.sha256(master_bytes).hexdigest(),
-        "records": records,
-    }
-
-
-def write_verified(registry_path: Path, verified_path: Path, *, check: bool) -> int:
-    master_bytes = registry_path.read_bytes()
-    document = json.loads(master_bytes.decode("utf-8"))
-    projection = build_verified_projection(document, master_bytes)
-    payload = canonical_json(projection)
-    current = verified_path.read_text(encoding="utf-8") if verified_path.exists() else None
-    if check:
-        if current != payload:
-            print(f"generated projection is stale: {verified_path}")
-            return 1
-        print(f"generated projection is current: {len(projection['records'])} rich record(s)")
-        return 0
-    write_text_atomic(verified_path, payload)
-    print(
-        f"wrote {verified_path} with {len(projection['records'])} rich record(s); "
-        f"registry digest {projection['source_registry_sha256']}"
-    )
-    return 0
 
 
 def write_text_atomic(path: Path, payload: str) -> None:
@@ -1849,6 +1815,14 @@ def merge_lead_into_record(
                     "detail": (
                         f"new digest for {entry.get('source_url')} on {entry.get('field_path')}"
                     ),
+                    # The conflict names the exact artifact it is about, so a later
+                    # re-verification can confirm this observation instead of clearing
+                    # every digest conflict of the record at once.
+                    "source_url": entry.get("source_url"),
+                    "field_path": entry.get("field_path"),
+                    "evidence_id": entry.get("evidence_id"),
+                    "previous_digest_sha256": same_field[0].get("response_digest_sha256"),
+                    "confirmed_digest_sha256": entry.get("response_digest_sha256"),
                 }
             )
         merged.setdefault("field_evidence", []).append(entry)
@@ -1979,7 +1953,14 @@ PATCHABLE_PREFIXES = (
     "descriptions.",
     "attributes",
     "restrictions.missing",
+    "canonical_name",
+    "aliases",
 )
+
+# A rename changes what the record is called, not which organization it is: it needs the
+# organization's own wording as evidence and an explicit operator decision, and the old name
+# becomes an alias only when the organization really used it.
+RENAME_FIELD_PATHS = ("canonical_name", "aliases")
 
 
 def _set_by_path(document: dict[str, Any], field_path: str, value: Any) -> None:
@@ -2058,8 +2039,40 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
             problems.append(Problem("patch_reviewer", f"{path}.reviewer", "reviewer is required"))
             continue
 
-        known_evidence = {item.get("evidence_id") for item in record.get("field_evidence") or []}
-        if field_path.startswith(("address.", "contacts", "service_claims", "attributes")):
+        if field_path == "restrictions.missing":
+            if not isinstance(entry.get("value"), list):
+                problems.append(
+                    Problem(
+                        "patch_value",
+                        f"{path}.value",
+                        "restrictions.missing is the full list the record keeps",
+                    )
+                )
+                continue
+            if parse_utc(entry.get("decided_at_utc")) is None:
+                problems.append(
+                    Problem(
+                        "patch_restriction_time",
+                        f"{path}.decided_at_utc",
+                        "a restriction decision records when it was made",
+                    )
+                )
+                continue
+            if not non_empty(entry.get("note")):
+                problems.append(
+                    Problem(
+                        "patch_restriction_reason",
+                        f"{path}.note",
+                        "a restriction decision states the confirmed reason",
+                    )
+                )
+                continue
+        known_evidence = {
+            item.get("evidence_id"): item for item in record.get("field_evidence") or []
+        }
+        if field_path.startswith(
+            ("address.", "contacts", "service_claims", "attributes", "canonical_name", "aliases")
+        ):
             if not evidence_refs:
                 problems.append(
                     Problem(
@@ -2076,6 +2089,29 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
                             f"unknown evidence {ref}",
                         )
                     )
+            if field_path in RENAME_FIELD_PATHS and not any(
+                (known_evidence.get(ref) or {}).get("source_kind") == "official_site"
+                for ref in evidence_refs
+            ):
+                problems.append(
+                    Problem(
+                        "patch_rename_evidence",
+                        f"{path}.evidence_refs",
+                        "a name is confirmed by the organization's own site, not a directory",
+                    )
+                )
+                continue
+            if field_path == "canonical_name" and not isinstance(
+                entry.get("previous_name_used_by_organization"), bool
+            ):
+                problems.append(
+                    Problem(
+                        "patch_rename_alias",
+                        f"{path}.previous_name_used_by_organization",
+                        "state whether the organization used the previous name",
+                    )
+                )
+                continue
         if field_path.startswith("descriptions."):
             value = entry.get("value")
             if not isinstance(value, dict) or value.get("state") == "approved":
@@ -2090,10 +2126,21 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
 
         incoming = entry.get("value")
         current = _value_at_path(record, field_path)
+        if field_path in RENAME_FIELD_PATHS:
+            rename_problem = _rename_problem(entry, field_path, record, incoming, current)
+            if rename_problem is not None:
+                problems.append(rename_problem)
+                continue
         if canonical_json(current) == canonical_json(incoming):
             outcome.unchanged += 1
             continue
-        if not _absent(current) and not entry.get("replace_existing"):
+        # A rename is the operator's own decision about this exact field, so it does not need a
+        # second "replace_existing" flag; every other path still needs explicit ownership.
+        if (
+            field_path != "canonical_name"
+            and not _absent(current)
+            and not entry.get("replace_existing")
+        ):
             problems.append(
                 Problem(
                     "patch_conflict",
@@ -2106,11 +2153,112 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
             )
             continue
         _set_by_path(record, field_path, incoming)
+        if field_path == "canonical_name":
+            _record_rename(record, entry, previous=current, reviewer=str(reviewer))
+        if field_path == "restrictions.missing":
+            _record_restriction_decision(record, entry, previous=current, reviewer=str(reviewer))
         record.setdefault("collector", {}).setdefault("revisions", []).append(
             f"patch:{field_path}:{reviewer}"
         )
         outcome.applied += 1
     return outcome
+
+
+def _rename_problem(
+    entry: Mapping[str, Any],
+    field_path: str,
+    record: Mapping[str, Any],
+    incoming: Any,
+    current: Any,
+) -> Problem | None:
+    """Reject rename shapes that would edit identity instead of recording a new name."""
+    if field_path == "canonical_name":
+        if not non_empty(incoming) or not isinstance(incoming, str):
+            return Problem("patch_value", "value", "a canonical name is a non-empty string")
+        if not parse_utc(entry.get("decided_at_utc")):
+            return Problem(
+                "patch_rename_time",
+                "decided_at_utc",
+                "a rename records when the operator decided it (YYYY-MM-DDTHH:MM:SSZ)",
+            )
+        return None
+    if not isinstance(incoming, list) or any(
+        not isinstance(alias, str) or not alias.strip() for alias in incoming
+    ):
+        return Problem("patch_value", "value", "aliases are a list of non-empty strings")
+    removed = [alias for alias in current or [] if alias not in incoming]
+    if removed:
+        return Problem(
+            "patch_alias_removal",
+            "value",
+            f"aliases are append-only; removing {removed} drops recorded name history",
+        )
+    return None
+
+
+def _record_rename(
+    record: dict[str, Any], entry: Mapping[str, Any], *, previous: Any, reviewer: str
+) -> None:
+    """Keep the old name as an alias when the organization used it, and log the decision."""
+    new_name = record.get("canonical_name")
+    if entry.get("previous_name_used_by_organization") is True and non_empty(previous):
+        aliases = record.setdefault("aliases", [])
+        if previous not in aliases:
+            aliases.append(previous)
+    digests: list[str] = []
+    for ref in entry.get("evidence_refs") or []:
+        for item in record.get("field_evidence") or []:
+            if item.get("evidence_id") == ref:
+                digests.append(str(item.get("sha256") or ""))
+    _append_review(
+        record,
+        kind="identity",
+        decision="approved",
+        actor_id=reviewer,
+        decided_at_utc=str(entry["decided_at_utc"]),
+        text_digest=hashlib.sha256(
+            canonical_json({"canonical_name": new_name, "previous_name": previous}).encode("utf-8")
+        ).hexdigest(),
+        source_digest=hashlib.sha256(canonical_json(sorted(digests)).encode("utf-8")).hexdigest(),
+        note=(
+            f"canonical name changed from {previous!r} to {new_name!r}; "
+            f"evidence={','.join(entry.get('evidence_refs') or [])}; "
+            "previous name used by the organization="
+            f"{entry.get('previous_name_used_by_organization')}; "
+            f"source_original_name={record.get('source_original_name')!r} kept"
+        ),
+    )
+
+
+def _record_restriction_decision(
+    record: dict[str, Any], entry: Mapping[str, Any], *, previous: Any, reviewer: str
+) -> None:
+    """Keep the reviewer's reason and evidence for every change of the review restrictions."""
+    before = [item for item in previous or [] if isinstance(item, Mapping)]
+    after = list(record.get("restrictions", {}).get("missing") or [])
+    before_codes = sorted(str(item.get("code")) for item in before)
+    after_codes = sorted(str(item.get("code")) for item in after)
+    digests: list[str] = []
+    for ref in entry.get("evidence_refs") or []:
+        for item in record.get("field_evidence") or []:
+            if item.get("evidence_id") == ref:
+                digests.append(str(item.get("sha256") or ""))
+    _append_review(
+        record,
+        kind="fact",
+        decision="approved",
+        actor_id=reviewer,
+        decided_at_utc=str(entry.get("decided_at_utc") or ""),
+        text_digest=hashlib.sha256(
+            canonical_json({"restrictions_missing_before": before, "after": after}).encode("utf-8")
+        ).hexdigest(),
+        source_digest=hashlib.sha256(canonical_json(sorted(digests)).encode("utf-8")).hexdigest(),
+        note=(
+            f"restrictions.missing changed by patch: {','.join(before_codes) or 'none'} -> "
+            f"{','.join(after_codes) or 'none'}; "
+            f"evidence={','.join(entry.get('evidence_refs') or [])}; reason={entry.get('note')}"
+        ),
+    )
 
 
 def enrich(registry_path: Path, patch_path: Path, *, dry_run: bool) -> int:
@@ -2129,9 +2277,7 @@ def enrich(registry_path: Path, patch_path: Path, *, dry_run: bool) -> int:
         )
         return 0
     if outcome.applied == 0:
-        print(
-            f"nothing to write: {outcome.unchanged} field(s) already carry the patched value"
-        )
+        print(f"nothing to write: {outcome.unchanged} field(s) already carry the patched value")
         return 0
     write_text_atomic(registry_path, canonical_json(document))
     print(
@@ -2199,6 +2345,7 @@ def record_evidence(registry_path: Path, capture_path: Path, *, dry_run: bool) -
                     "attribution": None,
                     "evidence_id": evidence_id,
                     "excerpt": excerpt,
+                    **({"extraction": entry["extraction"]} if entry.get("extraction") else {}),
                     "external_id": None,
                     "field_path": field_path,
                     "observed_at_utc": observed_at,
@@ -2291,18 +2438,127 @@ def report_lines(document: Mapping[str, Any]) -> list[str]:
     records = document.get("records") or []
     qualified = 0
     publishable = 0
-    rich = 0
     for record in records:
         qualified += 0 if qualification(record)[0] else 1
         publishable += 1 if not publication_blockers(record) else 0
-        rich += 1 if not rich_blockers(record) else 0
     return [
         f"records={len(records)}",
-        f"qualified={len(records) - qualified} publishable={publishable} rich={rich}",
+        f"qualified={len(records) - qualified} publishable={publishable}",
     ]
 
 
 DECIDED_IDENTITY_ACTIONS = ("create_new_pending_review", "link_existing")
+
+# Re-verification of a changed artifact: an operator confirms that the new digest is a new
+# observation of the same fact. Both digests stay recorded and the old artifact stays in place.
+REVERIFY_SCHEMA_REVISION = "registry-reverify-v1"
+
+
+def _matching_digest_restriction(
+    record: Mapping[str, Any], entry: Mapping[str, Any], evidence: Mapping[str, Any]
+) -> Mapping[str, Any] | None:
+    """The recorded digest conflict this re-verification is about, if it exists."""
+    conflicts: list[Mapping[str, Any]] = (record.get("restrictions") or {}).get("conflicting") or []
+    for restriction in conflicts:
+        if restriction.get("code") != "evidence_digest_changed":
+            continue
+        if restriction.get("evidence_id"):
+            if restriction.get("evidence_id") == evidence.get("evidence_id") and restriction.get(
+                "previous_digest_sha256"
+            ) == entry.get("previous_digest_sha256"):
+                return restriction
+            continue
+        # Older conflicts carry only their description; it still names url and field.
+        if restriction.get("detail") == (
+            f"new digest for {evidence.get('source_url')} on {evidence.get('field_path')}"
+        ):
+            return restriction
+    return None
+
+
+def reverify_evidence(
+    document: dict[str, Any],
+    payload: Mapping[str, Any],
+    *,
+    reviewer: str,
+    decided_at_utc: str,
+) -> dict[str, int]:
+    """Confirm one changed artifact and clear only the conflict it caused.
+
+    The confirmed observation must already be recorded on the record, its digest must be the
+    confirmed one, and the previous digest must describe another recorded artifact of the same
+    url and field: a re-verification recomputes nothing and invents no evidence.
+    """
+    if payload.get("schema_revision") != REVERIFY_SCHEMA_REVISION:
+        raise ValueError(f"expected schema_revision {REVERIFY_SCHEMA_REVISION}")
+    by_id = {record.get("registry_id"): record for record in document.get("records") or []}
+    counts = {"reverified": 0, "refused": 0}
+    for index, entry in enumerate(payload.get("decisions") or []):
+        path = f"decisions[{index}]"
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"{path}: expected an object")
+        record = by_id.get(entry.get("registry_id"))
+        if record is None:
+            raise ValueError(f"{path}: unknown registry id {entry.get('registry_id')!r}")
+        evidence = next(
+            (
+                item
+                for item in record.get("field_evidence") or []
+                if item.get("evidence_id") == entry.get("evidence_id")
+            ),
+            None,
+        )
+        if evidence is None:
+            raise ValueError(f"{path}: no recorded evidence {entry.get('evidence_id')!r}")
+        if evidence.get("field_path") != entry.get("field_path") or evidence.get(
+            "source_url"
+        ) != entry.get("source_url"):
+            raise ValueError(f"{path}: evidence is about a different url or field")
+        if evidence.get("response_digest_sha256") != entry.get("confirmed_digest_sha256"):
+            raise ValueError(f"{path}: confirmed digest does not match the recorded artifact")
+        previous = [
+            item
+            for item in record.get("field_evidence") or []
+            if item.get("source_url") == evidence.get("source_url")
+            and item.get("field_path") == evidence.get("field_path")
+            and item.get("response_digest_sha256") == entry.get("previous_digest_sha256")
+        ]
+        if not previous:
+            raise ValueError(f"{path}: previous digest is not a recorded artifact of this fact")
+        restriction = _matching_digest_restriction(record, entry, evidence)
+        if restriction is None:
+            counts["refused"] += 1
+            continue
+        restrictions = record.setdefault("restrictions", {})
+        restrictions["conflicting"] = [
+            item for item in restrictions.get("conflicting") or [] if item is not restriction
+        ]
+        _append_review(
+            record,
+            kind="fact",
+            decision="approved",
+            actor_id=reviewer,
+            decided_at_utc=decided_at_utc,
+            text_digest=hashlib.sha256(
+                canonical_json(
+                    {
+                        "previous_digest_sha256": entry.get("previous_digest_sha256"),
+                        "confirmed_digest_sha256": entry.get("confirmed_digest_sha256"),
+                    }
+                ).encode("utf-8")
+            ).hexdigest(),
+            source_digest=str(entry.get("confirmed_digest_sha256")),
+            note=(
+                f"re-verified changed evidence on {evidence.get('field_path')}: "
+                f"previous_digest={entry.get('previous_digest_sha256')} "
+                f"confirmed_digest={entry.get('confirmed_digest_sha256')} "
+                f"url={evidence.get('source_url')} evidence={evidence.get('evidence_id')} "
+                f"observed_at={evidence.get('observed_at_utc')}; "
+                "both artifacts are kept"
+            ),
+        )
+        counts["reverified"] += 1
+    return counts
 
 
 def _next_review_sequence(record: Mapping[str, Any]) -> int:
@@ -2792,6 +3048,7 @@ def decide(
     district_evidence_path: Path | None = None,
     policy_digest_override: str | None = None,
     media_omission_reason: str | None = None,
+    reverify_path: Path | None = None,
 ) -> int:
     if parse_utc(decided_at_utc) is None:
         print("decided_at_utc must use YYYY-MM-DDTHH:MM:SSZ", file=sys.stderr)
@@ -2805,9 +3062,7 @@ def decide(
     document = read_json(registry_path)
     if policy_digest_override is not None:
         if policy_path is not None:
-            print(
-                "refused: pass either --policy or --policy-digest, not both", file=sys.stderr
-            )
+            print("refused: pass either --policy or --policy-digest, not both", file=sys.stderr)
             return 2
         if not HEX64_RE.match(policy_digest_override):
             print("policy digest must be a sha256 hex value", file=sys.stderr)
@@ -2853,6 +3108,18 @@ def decide(
         district_policy_digest=district_policy_digest,
         media_omission_reason=media_omission_reason,
     )
+    reverified = {"reverified": 0, "refused": 0}
+    if reverify_path is not None:
+        try:
+            reverified = reverify_evidence(
+                document,
+                read_json(reverify_path),
+                reviewer=reviewer,
+                decided_at_utc=decided_at_utc,
+            )
+        except ValueError as error:
+            print(f"refused: {error}", file=sys.stderr)
+            return 2
     problems = validate_registry(document)
     if problems:
         for problem in problems:
@@ -2864,6 +3131,8 @@ def decide(
             **counts
         )
     )
+    if reverify_path is not None:
+        print("reverified={reverified} reverify_refused={refused}".format(**reverified))
     if dry_run:
         print("dry run: registry was not written")
         return 0
@@ -2880,15 +3149,11 @@ def _load_registry(path: Path) -> tuple[dict[str, Any], list[Problem]]:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Berlin studio research registry")
     parser.add_argument("--registry", type=Path, default=REGISTRY_PATH)
-    parser.add_argument("--verified", type=Path, default=VERIFIED_PATH)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("validate", help="validate the master registry")
-    subparsers.add_parser("build-verified", help="regenerate the rich projection")
-    subparsers.add_parser("check-verified", help="verify the committed projection is fresh")
     subparsers.add_parser("report", help="report computed counts and blockers")
     subparsers.add_parser("reconcile", help="report duplicate domain/address candidates")
-    subparsers.add_parser("dry-run", help="validate and diff the projection without writing")
 
     import_parser = subparsers.add_parser("import-leads", help="import dossier-shaped leads")
     import_parser.add_argument("--input", type=Path, action="append", required=True)
@@ -2922,6 +3187,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         dest="omit_media",
         default=None,
         help="record that no photo is published, with the reason",
+    )
+    decide_parser.add_argument(
+        "--reverify",
+        dest="reverify",
+        type=Path,
+        default=None,
+        help="confirm changed artifacts and clear only their digest conflicts",
     )
 
     review_parser = subparsers.add_parser(
@@ -2962,6 +3234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             dry_run=args.dry_run,
             policy_digest_override=args.policy_digest,
             media_omission_reason=args.omit_media,
+            reverify_path=args.reverify,
         )
 
     if args.command == "enrich":
@@ -3013,20 +3286,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "reconcile":
         for line in reconcile_report(document):
             print(line)
-        return 0
-    if args.command == "build-verified":
-        return write_verified(args.registry, args.verified, check=False)
-    if args.command == "check-verified":
-        return write_verified(args.registry, args.verified, check=True)
-    if args.command == "dry-run":
-        master_bytes = args.registry.read_bytes()
-        projection = canonical_json(build_verified_projection(document, master_bytes))
-        current_text = args.verified.read_text(encoding="utf-8") if args.verified.exists() else None
-        print("no validation problems")
-        print("projection is current" if projection == current_text else "projection change")
-        if projection != current_text and current_text is not None:
-            for line in diff_documents(json.loads(current_text), json.loads(projection)):
-                print(line)
         return 0
     return 1
 

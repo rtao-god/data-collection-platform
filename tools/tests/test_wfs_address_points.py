@@ -323,3 +323,77 @@ def test_changed_cached_source_bytes_are_detected(
 
     with pytest.raises(wfs.WfsError, match="digest"):
         lookup("Prinzessinnenstrasse", "16", "10969")
+
+
+def test_house_number_range_is_written_as_an_approximate_location(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payloads = {
+        15: _feature(number=15, record_id="200015", easting=TRIXX_EASTING),
+        16: _feature(number=16, record_id="200016", easting=TRIXX_EASTING + 40.0),
+    }
+
+    def fake_fetch(url: str, timeout: float) -> bytes:
+        number = 15 if "hnr%3D15" in url else 16
+        return json.dumps(_payload(payloads[number])).encode("utf-8")
+
+    monkeypatch.setattr(wfs, "_fetch", fake_fetch)
+    resolution = wfs.AddressPointLookup(tmp_path)("Prinzessinnenstrasse", "15-16", "10969")
+
+    assert resolution.resolved
+    point = resolution.point
+    assert point is not None
+    assert point.derivation == wfs.DERIVATION_RANGE_MIDPOINT
+    assert point.locality_semantics == wfs.LOCALITY_APPROXIMATE_RANGE
+    assert point.address_record_ids == ("200015", "200016")
+    # The middle of two endpoints is not a metre-level address point.
+    assert float(point.accuracy_meters) == pytest.approx(20.0, abs=0.2)
+    block = point.as_manifest_block("assertion")
+    assert block["derivation"] == wfs.DERIVATION_RANGE_MIDPOINT
+    assert block["localitySemantics"] == wfs.LOCALITY_APPROXIMATE_RANGE
+    assert block["addressRecordIds"] == ["200015", "200016"]
+    assert block["accuracyMeters"] > 1.0
+
+
+def test_house_number_range_needs_both_endpoints_resolved(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_fetch(url: str, timeout: float) -> bytes:
+        if "hnr%3D15" in url:
+            return json.dumps(_payload(_feature(number=15, record_id="200015"))).encode("utf-8")
+        # The register knows another number of this street only: the range has no second end.
+        return json.dumps(_payload(_feature(number=99, record_id="200099"))).encode("utf-8")
+
+    monkeypatch.setattr(wfs, "_fetch", fake_fetch)
+    resolution = wfs.AddressPointLookup(tmp_path)("Prinzessinnenstrasse", "15-16", "10969")
+
+    assert resolution.point is None
+    assert resolution.reason is not None
+    assert resolution.reason.startswith(wfs.REASON_RANGE_INCOMPLETE)
+
+
+def test_precise_row_wins_over_a_coarser_row_of_the_same_address() -> None:
+    payload = _payload(
+        _feature(record_id="100001", easting=TRIXX_EASTING + 5.0),
+        _feature(record_id="100002", easting=OTHER_EASTING, northing=OTHER_NORTHING),
+    )
+    payload["features"][1]["properties"]["qualitaet"] = "Qualitaet B"
+
+    resolution = _resolve(payload)
+
+    assert resolution.resolved
+    point = resolution.point
+    assert point is not None
+    assert point.address_record_id == "100001"
+    assert point.derivation == wfs.DERIVATION_ADDRESS_POINT
+    assert point.locality_semantics == wfs.LOCALITY_EXACT
+
+
+def test_parse_house_number_range_accepts_both_separators_only_for_numbers() -> None:
+    assert wfs.parse_house_number_range("15-16") == (15, 16)
+    assert wfs.parse_house_number_range("16/15") == (15, 16)
+    assert wfs.parse_house_number_range("34–36") == (34, 36)
+    assert wfs.parse_house_number_range("34–36 a") is None
+    assert wfs.parse_house_number_range("15 a") is None
+    assert wfs.parse_house_number_range("1a-3b") is None
+    assert wfs.parse_house_number_range("16") is None

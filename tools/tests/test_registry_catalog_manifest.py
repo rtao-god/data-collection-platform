@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import socket
 import uuid
@@ -348,7 +349,8 @@ def test_link_existing_names_the_listing_and_leaves_the_place_to_catalog(tmp_pat
     assert entry["identity"]["linkExisting"] == {"listingId": listing_id, "placeId": None}
 
 
-def test_link_existing_without_a_listing_is_refused(tmp_path: Path) -> None:
+def test_link_existing_without_a_listing_becomes_a_blocked_record(tmp_path: Path) -> None:
+    """One unprojectable record must not stop the manifest; it is stated as a blocked verdict."""
     mapping = _mapping(tmp_path)
     record = _record()
     record["subject_match"] = {
@@ -357,9 +359,30 @@ def test_link_existing_without_a_listing_is_refused(tmp_path: Path) -> None:
         "subject_id": None,
         "listing_id": None,
     }
+    healthy = _record(domain="other-studio.de", name="Other Studio")
 
-    with pytest.raises(producer.ManifestError, match="link_existing identity requires listing_id"):
-        _build(_document(record), mapping)
+    manifest = _build(_document(record, healthy), mapping)
+    entry = next(
+        item for item in manifest["records"] if item["registryId"] == record["registry_id"]
+    )
+    other = next(
+        item for item in manifest["records"] if item["registryId"] == healthy["registry_id"]
+    )
+
+    assert entry["status"] == producer.STATUS_BLOCKED
+    assert entry["statusReasons"] == [
+        "manifest_record_invalid:link_existing identity requires listing_id"
+    ]
+    assert entry["business"] is None
+    assert manifest["isolatedRecords"] == [
+        {
+            "registryId": entry["registryId"],
+            "error": "link_existing identity requires listing_id",
+        }
+    ]
+    # The healthy record still carries its facts: isolation is per record, not per manifest.
+    assert other["status"] == producer.STATUS_ELIGIBLE
+    assert other["business"]["name"] == "Other Studio"
 
 
 def test_unmapped_campaign_category_refuses_to_guess(tmp_path: Path) -> None:
@@ -491,7 +514,9 @@ def test_address_point_carries_its_own_response_provenance(tmp_path: Path) -> No
     assert coordinate["latitude"] == pytest.approx(52.5028179)
     assert coordinate["sourceCrs"] == "EPSG:25833"
     assert coordinate["sourceX"] == pytest.approx(ADDRESS_EASTING)
-    assertion = [item for item in entry["assertions"] if item["assertionId"] == coordinate["assertionId"]]
+    assertion = [
+        item for item in entry["assertions"] if item["assertionId"] == coordinate["assertionId"]
+    ]
     assert len(assertion) == 1
     assert assertion[0]["sourceKind"] == producer.SOURCE_KIND_LICENSED_DATASET
     assert assertion[0]["sourceExternalId"] == "187448"
@@ -536,12 +561,17 @@ def test_two_streets_with_the_same_house_number_resolve_to_different_points(tmp_
     assert coordinate["addressRecordId"] == "246505"
 
 
-def test_ambiguous_or_out_of_boundary_point_stays_unresolved_with_the_reason(tmp_path: Path) -> None:
+def test_ambiguous_or_out_of_boundary_point_stays_unresolved_with_the_reason(
+    tmp_path: Path,
+) -> None:
     mapping = _mapping(tmp_path)
     duplicate = _address_payload()
     duplicate["features"] = [
         duplicate["features"][0],
-        dict(duplicate["features"][0], properties=dict(duplicate["features"][0]["properties"], adressid="187449")),
+        dict(
+            duplicate["features"][0],
+            properties=dict(duplicate["features"][0]["properties"], adressid="187449"),
+        ),
     ]
     outside = _address_payload()
     outside["features"][0]["geometry"]["coordinates"] = [383000.0, 5806000.0]
@@ -553,7 +583,9 @@ def test_ambiguous_or_out_of_boundary_point_stays_unresolved_with_the_reason(tmp
         (outside, "address_point_outside_berlin_boundary"),
     ):
         entry = producer.build_manifest(
-            _document(record), registry_bytes, mapping,
+            _document(record),
+            registry_bytes,
+            mapping,
             recorded_at_utc="2026-11-21T00:00:00Z",
             address_point_lookup=_Resolver(payload),
         )["records"][0]
@@ -604,8 +636,11 @@ def test_recording_time_defaults_after_the_address_point_it_observed(tmp_path: P
     registry_bytes = json.dumps(_document(record), sort_keys=True).encode("utf-8")
 
     default = producer.build_manifest(
-        _document(record), registry_bytes, mapping,
-        recorded_at_utc=None, address_point_lookup=_Resolver(_address_payload()),
+        _document(record),
+        registry_bytes,
+        mapping,
+        recorded_at_utc=None,
+        address_point_lookup=_Resolver(_address_payload()),
     )
     observed = max(
         assertion["observedAtUtc"]
@@ -613,8 +648,11 @@ def test_recording_time_defaults_after_the_address_point_it_observed(tmp_path: P
         for assertion in entry["assertions"]
     )
     explicit = producer.build_manifest(
-        _document(record), registry_bytes, mapping,
-        recorded_at_utc=observed, address_point_lookup=_Resolver(_address_payload()),
+        _document(record),
+        registry_bytes,
+        mapping,
+        recorded_at_utc=observed,
+        address_point_lookup=_Resolver(_address_payload()),
     )
 
     assert observed == "2026-11-21T05:55:25Z"
@@ -642,15 +680,218 @@ def test_changed_address_response_changes_evidence_not_content(tmp_path: Path) -
     record = _record()
     registry_bytes = json.dumps(_document(record), sort_keys=True).encode("utf-8")
     first = producer.build_manifest(
-        _document(record), registry_bytes, mapping,
-        recorded_at_utc="2026-11-21T06:00:00Z", address_point_lookup=_Resolver(_address_payload()),
+        _document(record),
+        registry_bytes,
+        mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z",
+        address_point_lookup=_Resolver(_address_payload()),
     )["records"][0]
     changed = _address_payload()
     changed["timeStamp"] = "2026-11-21T06:00:00.000Z"
     second = producer.build_manifest(
-        _document(record), registry_bytes, mapping,
-        recorded_at_utc="2026-11-21T06:00:00Z", address_point_lookup=_Resolver(changed),
+        _document(record),
+        registry_bytes,
+        mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z",
+        address_point_lookup=_Resolver(changed),
     )["records"][0]
 
     assert first["digests"]["content"] == second["digests"]["content"]
     assert first["digests"]["evidence"] != second["digests"]["evidence"]
+
+
+def test_coordinate_states_its_derivation_and_approximate_semantics(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+    resolver = _Resolver(_address_payload())
+    resolution = resolver("Example Str.", "1", "10963")
+
+    point = resolution.point
+    assert point is not None
+    approximate = point.__class__(
+        **{
+            **point.__dict__,
+            "accuracy_meters": "20.0",
+            "derivation": "range_endpoints_midpoint",
+            "locality_semantics": "approximate_range",
+            "address_record_ids": ("187448", "187449"),
+        }
+    )
+
+    class _Approximate:
+        def __call__(self, street, street_number, postal_code, expected=None):
+            from tools import wfs_address_points as wfs
+
+            return wfs.AddressResolution.resolved_at(approximate)
+
+    entry = producer.build_manifest(
+        _document(record),
+        json.dumps(_document(record), sort_keys=True).encode("utf-8"),
+        mapping,
+        recorded_at_utc="2026-11-21T06:00:00Z",
+        address_point_lookup=_Approximate(),
+    )["records"][0]
+
+    coordinate = entry["business"]["coordinates"]
+    assert coordinate["derivation"] == "range_endpoints_midpoint"
+    assert coordinate["localitySemantics"] == "approximate_range"
+    assert coordinate["accuracyMeters"] == 20.0
+    assert coordinate["addressRecordIds"] == ["187448", "187449"]
+
+
+def test_legacy_district_key_is_not_imported_as_a_new_facet(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+    record["address"] = dict(record["address"], district_key="berlin-mitte")
+
+    entry = _build(_document(record), mapping)["records"][0]
+
+    assert entry["status"] == producer.STATUS_REVIEW
+    assert entry["statusReasons"] == ["district_key_not_canonical:berlin-mitte"]
+
+
+def test_district_key_must_agree_with_the_bezirk_its_evidence_names(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+    record["reviews"] = [
+        {
+            "review_id": "review-1",
+            "kind": "fact",
+            "actor_id": "operator",
+            "sequence": 1,
+            "decided_at_utc": "2026-11-19T19:00:00Z",
+            "decision": "approved",
+            "text_digest_sha256": "a" * 64,
+            "source_evidence_digest_sha256": "b" * 64,
+            "locale": None,
+            "note": (
+                "district_key verified against the official address register: "
+                "https://gdi.berlin.de/ method=official_address_source bezirk=Pankow"
+            ),
+        }
+    ]
+
+    entry = _build(_document(record), mapping)["records"][0]
+
+    assert entry["status"] == producer.STATUS_REVIEW
+    assert entry["statusReasons"] == [
+        "district_key_conflicts_with_address_evidence:friedrichshain-kreuzberg"
+    ]
+
+
+DESCRIPTION_LOCALES = ("de-DE", "en-GB", "ru-RU")
+
+
+def _with_rich_material(
+    record: dict,
+    *,
+    approved: bool = True,
+    contact_state: str = "validated",
+    texts: dict[str, str] | None = None,
+) -> dict:
+    """An approved description set and one validated contact over the record's own evidence."""
+    evidence_digest = record["field_evidence"][0]["response_digest_sha256"]
+    evidence_id = record["field_evidence"][0]["evidence_id"]
+    texts = texts or {
+        "de-DE": "Ein Aufnahmestudio.",
+        "en-GB": "A recording studio.",
+        "ru-RU": "Студия звукозаписи.",
+    }
+    record["descriptions"] = {
+        locale: {
+            "state": "approved" if approved else "draft",
+            "text": texts[locale],
+            "text_digest_sha256": hashlib.sha256(texts[locale].encode("utf-8")).hexdigest(),
+            "source_evidence_digest_sha256": evidence_digest,
+            "review_ref": "review-1" if approved else None,
+        }
+        for locale in DESCRIPTION_LOCALES
+    }
+    record["reviews"] = (
+        [
+            {
+                "review_id": "review-1",
+                "kind": "translation",
+                "locale": locale,
+                "decision": "approved",
+                "text_digest_sha256": hashlib.sha256(texts[locale].encode("utf-8")).hexdigest(),
+                "source_evidence_digest_sha256": evidence_digest,
+                "sequence": 1,
+            }
+            for locale in DESCRIPTION_LOCALES
+        ]
+        if approved
+        else []
+    )
+    record["contacts"] = [
+        {
+            "kind": "phone",
+            "target": "+49 30 1234567",
+            "label": None,
+            "validation_state": contact_state,
+            "evidence_refs": [evidence_id],
+        }
+    ]
+    return record
+
+
+def test_approved_descriptions_and_validated_contacts_travel_with_the_facts(
+    tmp_path: Path,
+) -> None:
+    mapping = _mapping(tmp_path)
+    entry = _build(_document(_with_rich_material(_record())), mapping)["records"][0]
+
+    descriptions = entry["richFields"]["descriptions"]
+    assert [item["locale"] for item in descriptions] == list(DESCRIPTION_LOCALES)
+    assert descriptions[0]["text"] == "Ein Aufnahmestudio."
+    # A bare phone number becomes the absolute URI Catalog can store, not an invented fact.
+    assert [item["target"] for item in entry["richFields"]["contacts"]] == ["tel:+49301234567"]
+    assertion_ids = {item["assertionId"] for item in entry["assertions"]}
+    assert {item["assertionId"] for item in descriptions} <= assertion_ids
+    assert entry["richReasons"] == []
+
+
+def test_unapproved_description_is_absent_instead_of_deleting_stored_text(
+    tmp_path: Path,
+) -> None:
+    mapping = _mapping(tmp_path)
+    record = _with_rich_material(_record(), approved=False)
+    entry = _build(_document(record), mapping)["records"][0]
+
+    # Absence is stated as absence: the record says nothing about descriptions, so Catalog keeps
+    # whatever it already stores. The reasons name the exact pending decision.
+    assert "descriptions" not in (entry["richFields"] or {})
+    assert "description_draft:de-DE" in entry["richReasons"]
+    # The validated contact still travels on its own.
+    assert [item["kind"] for item in entry["richFields"]["contacts"]] == ["phone"]
+
+
+def test_unvalidated_contact_is_reported_instead_of_published(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    record = _with_rich_material(_record(), contact_state="draft")
+    entry = _build(_document(record), mapping)["records"][0]
+
+    assert "contacts" not in (entry["richFields"] or {})
+    assert "contact_draft:phone" in entry["richReasons"]
+
+
+def test_changed_description_changes_content_but_not_evidence(tmp_path: Path) -> None:
+    mapping = _mapping(tmp_path)
+    original = _build(_document(_with_rich_material(_record())), mapping)["records"][0]
+    changed = _build(
+        _document(
+            _with_rich_material(
+                _record(),
+                texts={
+                    "de-DE": "Ein Aufnahmestudio in Berlin.",
+                    "en-GB": "A recording studio in Berlin.",
+                    "ru-RU": "Студия звукозаписи в Берлине.",
+                },
+            )
+        ),
+        mapping,
+    )["records"][0]
+
+    assert changed["digests"]["content"] != original["digests"]["content"]
+    assert changed["digests"]["evidence"] == original["digests"]["evidence"]
+    assert changed["digests"]["eligibility"] == original["digests"]["eligibility"]

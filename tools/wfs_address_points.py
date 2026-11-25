@@ -73,6 +73,19 @@ BOUNDARY_PROVENANCE_PATH = _CAMPAIGN_GEOGRAPHY / "berlin-boundary.provenance.jso
 # Unresolved verdicts. Each one names why the point cannot be claimed, so a reviewer acts on
 # the cause instead of re-running the lookup.
 REASON_ADDRESS_INCOMPLETE = "address_point_not_derivable_from_address"
+REASON_RANGE_INCOMPLETE = "address_point_range_endpoint_unresolved"
+REASON_RANGE_TOO_WIDE = "address_point_range_span_too_wide"
+
+# A house-number range names several buildings, so the derived point is the middle of its
+# endpoints and is published as an approximate location, never as a metre-level address point.
+# En dash is what official sites and the register print for a range ("34–36"); treat it as a
+# separator so the range stays a range instead of being collapsed into a single house number.
+RANGE_SEPARATORS = ("-", "–", "/")
+RANGE_MAX_SPAN_METERS = 300.0
+DERIVATION_ADDRESS_POINT = "single_address_point"
+DERIVATION_RANGE_MIDPOINT = "range_endpoints_midpoint"
+LOCALITY_EXACT = "exact"
+LOCALITY_APPROXIMATE_RANGE = "approximate_range"
 REASON_NOT_FOUND = "address_point_not_found_in_address_dataset"
 REASON_QUALITY_UNSUPPORTED = "address_point_quality_not_metre_level"
 REASON_AMBIGUOUS = "address_point_ambiguous_match"
@@ -109,12 +122,18 @@ class AddressPoint:
     source_reference: str
     source_digest: str
     source_observed_at: str
+    derivation: str = DERIVATION_ADDRESS_POINT
+    address_record_ids: tuple[str, ...] = ()
+    locality_semantics: str = LOCALITY_EXACT
 
     def as_manifest_block(self, assertion_id: str) -> dict[str, Any]:
         return {
             "latitude": float(self.latitude),
             "longitude": float(self.longitude),
             "accuracyMeters": float(self.accuracy_meters),
+            "derivation": self.derivation,
+            "localitySemantics": self.locality_semantics,
+            "addressRecordIds": list(self.address_record_ids or (self.address_record_id,)),
             "source": SOURCE_NAME,
             "datasetIdentifier": self.dataset_identifier,
             "datasetVersion": self.dataset_version,
@@ -229,6 +248,27 @@ def split_house_number(street_number: str) -> tuple[int, str] | None:
     if not digits:
         return None
     return int(digits), suffix
+
+
+def parse_house_number_range(street_number: str) -> tuple[int, int] | None:
+    """Numbers of a house-number range written as ``a-b`` or ``a/b``.
+
+    A range names more than one building, so it never identifies one address point on its own;
+    a caller may derive an explicitly approximate location from its endpoints. Suffixed ranges
+    (``1a-3b``) stay unnamed here: the register's own suffix semantics would be guessed.
+    """
+    text = (street_number or "").strip().replace(" ", "")
+    if not text:
+        return None
+    for separator in RANGE_SEPARATORS:
+        if separator not in text:
+            continue
+        left, _, right = text.partition(separator)
+        if left.isdigit() and right.isdigit():
+            low, high = int(left), int(right)
+            if low != high:
+                return (min(low, high), max(low, high))
+    return None
 
 
 def normalize_street_name(value: str) -> str:
@@ -359,7 +399,9 @@ def _read_cache(path: pathlib.Path, search: AddressSearch, reference: str) -> by
     try:
         payload = base64.b64decode(str(envelope["responseBytesBase64"]), validate=True)
     except (KeyError, ValueError) as error:
-        raise WfsError(f"cached address response {path} carries no decodable response bytes") from error
+        raise WfsError(
+            f"cached address response {path} carries no decodable response bytes"
+        ) from error
     if hashlib.sha256(payload).hexdigest() != envelope.get("responseSha256"):
         raise WfsError(
             f"cached address response {path} does not match its recorded digest; the raw source "
@@ -596,9 +638,19 @@ def resolve_address_point(
 
     if not matches:
         return AddressResolution.unresolved(REASON_NOT_FOUND)
-    if search.expected_address_record_id is not None and not any(
-        _text(properties.get("adressid")) == search.expected_address_record_id
-        for properties, _, _ in matches
+    # The register may hold several rows for one address: a metre-level entrance point
+    # (``Qualitaet A``) and a coarser building point (``Qualitaet B``) of the same building. The
+    # precise row is the address point; a coarser row for the same number is not a competing
+    # address, so only the precise rows decide identity. Without a precise row nothing is claimed.
+    precise = [match for match in matches if _text(match[0].get("qualitaet")) == ACCEPTED_QUALITY]
+    if not precise:
+        observed = sorted({_text(match[0].get("qualitaet")) or "unknown" for match in matches})
+        return AddressResolution.unresolved(f"{REASON_QUALITY_UNSUPPORTED}:{'/'.join(observed)}")
+    matches = precise
+    record_ids = {_text(properties.get("adressid")) for properties, _, _ in matches}
+    if (
+        search.expected_address_record_id is not None
+        and search.expected_address_record_id not in record_ids
     ):
         return AddressResolution.unresolved(REASON_CONFLICTING_RECORD)
     if len(record_ids) != 1 or len(matches) != 1:
@@ -607,9 +659,6 @@ def resolve_address_point(
         return AddressResolution.unresolved(REASON_AMBIGUOUS)
 
     properties, x, y = matches[0]
-    quality = _text(properties.get("qualitaet"))
-    if quality != ACCEPTED_QUALITY:
-        return AddressResolution.unresolved(f"{REASON_QUALITY_UNSUPPORTED}:{quality or 'unknown'}")
     try:
         latitude, longitude = utm33n_to_wgs84(x, y)
     except WfsError:
@@ -636,6 +685,9 @@ def resolve_address_point(
                 else json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
             ).hexdigest(),
             source_observed_at=observed_at,
+            derivation=DERIVATION_ADDRESS_POINT,
+            address_record_ids=(_text(properties.get("adressid")),),
+            locality_semantics=LOCALITY_EXACT,
         )
     )
 
@@ -662,6 +714,9 @@ class AddressPointLookup:
         postal_code: str | None,
         expected_address_record_id: str | None = None,
     ) -> AddressResolution:
+        range_numbers = parse_house_number_range(street_number or "")
+        if range_numbers is not None:
+            return self._range_point(street, postal_code, range_numbers, expected_address_record_id)
         search = create_search(street, street_number, postal_code, expected_address_record_id)
         if search is None:
             return AddressResolution.unresolved(REASON_ADDRESS_INCOMPLETE)
@@ -677,6 +732,73 @@ class AddressPointLookup:
             payload_bytes = cached
         payload = json.loads(payload_bytes.decode("utf-8"))
         return resolve_address_point(payload, search, reference, raw_bytes=payload_bytes)
+
+    def _range_point(
+        self,
+        street: str | None,
+        postal_code: str | None,
+        numbers: tuple[int, int],
+        expected_address_record_id: str | None,
+    ) -> AddressResolution:
+        """Derive an explicitly approximate location from both ends of a house-number range.
+
+        Each end must resolve as its own metre-level address point. The published point is the
+        middle of the two, its accuracy is half of their distance, and it says so: a range never
+        yields a metre-level coordinate for the building.
+        """
+        if not street or not postal_code:
+            return AddressResolution.unresolved(REASON_ADDRESS_INCOMPLETE)
+        endpoints: list[AddressPoint] = []
+        for number in numbers:
+            resolution = self(street, str(number), postal_code, None)
+            if not resolution.resolved:
+                return AddressResolution.unresolved(
+                    f"{REASON_RANGE_INCOMPLETE}:{number}:{resolution.reason}"
+                )
+            endpoints.append(resolution.point)  # type: ignore[arg-type]
+        identifiers = tuple(point.address_record_id for point in endpoints)
+        if expected_address_record_id is not None and expected_address_record_id not in identifiers:
+            return AddressResolution.unresolved(REASON_CONFLICTING_RECORD)
+        if len({point.dataset_identifier for point in endpoints}) != 1:
+            return AddressResolution.unresolved(REASON_CONFLICTING_RECORD)
+        first, last = endpoints
+        x = (float(first.source_x) + float(last.source_x)) / 2
+        y = (float(first.source_y) + float(last.source_y)) / 2
+        span = math.dist(
+            (float(first.source_x), float(first.source_y)),
+            (float(last.source_x), float(last.source_y)),
+        )
+        if span > RANGE_MAX_SPAN_METERS:
+            return AddressResolution.unresolved(f"{REASON_RANGE_TOO_WIDE}:{span:.0f}")
+        try:
+            latitude, longitude = utm33n_to_wgs84(x, y)
+        except WfsError:
+            return AddressResolution.unresolved(REASON_GEOMETRY_INVALID)
+        if not _in_berlin(latitude, longitude):
+            return AddressResolution.unresolved(REASON_OUTSIDE_BOUNDARY)
+        accuracy = max(span / 2, float(ADDRESS_POINT_ACCURACY_METERS))
+        return AddressResolution.resolved_at(
+            AddressPoint(
+                latitude=f"{latitude:.7f}",
+                longitude=f"{longitude:.7f}",
+                accuracy_meters=f"{accuracy:.1f}",
+                address_record_id=first.address_record_id,
+                address_record_date=first.address_record_date,
+                dataset_identifier=first.dataset_identifier,
+                dataset_version=first.dataset_version,
+                source_crs=first.source_crs,
+                source_x=f"{x:.3f}",
+                source_y=f"{y:.3f}",
+                source_reference=first.source_reference,
+                source_digest=hashlib.sha256(
+                    f"{first.source_digest}\n{last.source_digest}".encode()
+                ).hexdigest(),
+                source_observed_at=max(first.source_observed_at, last.source_observed_at),
+                derivation=DERIVATION_RANGE_MIDPOINT,
+                address_record_ids=identifiers,
+                locality_semantics=LOCALITY_APPROXIMATE_RANGE,
+            )
+        )
 
 
 def lookup_without_cache(
