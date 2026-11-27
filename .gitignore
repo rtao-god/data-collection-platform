@@ -22,6 +22,10 @@ tmp/
 /*_handoff_*.zip
 /*_research_review_*.json
 
+# Durable operator-only enrichment queues; transfer explicitly for research handoff
+/campaigns/berlin_recording_services/discovery/studios-incoming.json
+/campaigns/berlin_recording_services/discovery/studios-conflicts.json
+
 # IDE / OS
 .vscode/
 .idea/
