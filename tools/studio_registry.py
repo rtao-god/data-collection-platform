@@ -26,6 +26,7 @@ import hashlib
 import json
 import re
 import sys
+import unicodedata
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -236,8 +237,57 @@ def sha256_hex(value: str | bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _nfc_json_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
+    if isinstance(value, Mapping):
+        return {_nfc_json_value(key): _nfc_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_nfc_json_value(item) for item in value]
+    return value
+
+
+def canonical_bytes(document: Any) -> bytes:
+    """Stable compact JSON bytes shared by registry, queue and import manifests."""
+    return json.dumps(
+        _nfc_json_value(document), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+
+
+def canonical_digest(document: Any) -> str:
+    return sha256_hex(canonical_bytes(document))
+
+
 def canonical_json(document: Any) -> str:
     return json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+
+def registry_record_digest(record: Mapping[str, Any]) -> str:
+    return canonical_digest(record)
+
+
+def repeatable_item_key(value: Any) -> str:
+    """Stable semantic identity for append-only collection values."""
+    if (
+        isinstance(value, Mapping)
+        and isinstance(value.get("kind"), str)
+        and isinstance(value.get("target"), str)
+    ):
+        return canonical_json({"kind": value["kind"], "target": value["target"]})
+    if isinstance(value, Mapping):
+        for key in ("candidate_id", "stable_id", "identity_key", "id"):
+            if isinstance(value.get(key), str) and value[key]:
+                return canonical_json({key: value[key]})
+    return canonical_json(value)
+
+
+def enrichment_conflict_id(registry_id: str, field_path: str, scope: str) -> str:
+    material = "\n".join((f"registry:{registry_id}", field_path, scope))
+    return "conflict-" + sha256_hex(material)[:20]
+
+
+def enrichment_value_digest(field_path: str, scope: str, value: Any) -> str:
+    return canonical_digest({"field_path": field_path, "scope": scope, "value": value})
 
 
 def read_json(path: Path) -> Any:
@@ -354,6 +404,8 @@ def validate_evidence(
             "policy_decision",
             "attribution",
             "extraction",
+            "source_effective_at_utc",
+            "source_updated_at_utc",
         ),
     )
     extraction = item.get("extraction")
@@ -412,6 +464,15 @@ def validate_evidence(
             f"{path}.observed_at_utc",
             "expected YYYY-MM-DDTHH:MM:SSZ",
         )
+    for date_field in ("source_effective_at_utc", "source_updated_at_utc"):
+        date_value = item.get(date_field)
+        if date_value is not None and parse_utc(date_value) is None:
+            _problem(
+                problems,
+                "evidence_source_date",
+                f"{path}.{date_field}",
+                "expected YYYY-MM-DDTHH:MM:SSZ or null",
+            )
     digest = item.get("response_digest_sha256")
     if not isinstance(digest, str) or not HEX64_RE.match(digest):
         _problem(
@@ -833,6 +894,23 @@ def validate_record(
         _problem(problems, "reviews", f"{path}.reviews", "expected list")
         reviews = []
     validate_reviews(problems, reviews, f"{path}.reviews")
+    for review_index, review in enumerate(reviews):
+        if not isinstance(review, Mapping) or "evidence_refs" not in review:
+            continue
+        refs = review.get("evidence_refs")
+        refs_path = f"{path}.reviews[{review_index}].evidence_refs"
+        if (
+            not isinstance(refs, list)
+            or not refs
+            or any(not isinstance(ref, str) for ref in refs)
+            or len(set(refs)) != len(refs)
+        ):
+            _problem(
+                problems, "review_evidence_refs", refs_path, "expected unique evidence references"
+            )
+            continue
+        for ref_index, ref in enumerate(refs):
+            _check_evidence_ref(problems, ref, f"{refs_path}[{ref_index}]", evidence_ids)
 
     descriptions = item.get("descriptions")
     if not isinstance(descriptions, dict):
@@ -902,7 +980,9 @@ def validate_record(
     if refresh.get("at_utc") is not None and parse_utc(refresh.get("at_utc")) is None:
         _problem(problems, "refresh_at", f"{path}.last_refresh.at_utc", "expected UTC timestamp")
 
-    validate_restrictions(problems, item.get("restrictions"), f"{path}.restrictions")
+    validate_restrictions(
+        problems, item.get("restrictions"), f"{path}.restrictions", evidence_ids=evidence_ids
+    )
 
 
 def validate_address(problems: list[Problem], address: Any, path: str) -> None:
@@ -1049,6 +1129,7 @@ def validate_reviews(problems: list[Problem], reviews: Any, path: str) -> None:
                 "source_evidence_digest_sha256",
                 "locale",
                 "note",
+                "evidence_refs",
             ),
         )
         review_id = item.get("review_id")
@@ -1216,7 +1297,13 @@ def validate_photos(problems: list[Problem], photos: Any, path: str) -> None:
             )
 
 
-def validate_restrictions(problems: list[Problem], restrictions: Any, path: str) -> None:
+def validate_restrictions(
+    problems: list[Problem],
+    restrictions: Any,
+    path: str,
+    *,
+    evidence_ids: set[str],
+) -> None:
     item = _check_object(
         problems,
         restrictions,
@@ -1236,7 +1323,16 @@ def validate_restrictions(problems: list[Problem], restrictions: Any, path: str)
                 entry,
                 entry_path,
                 required=("code", "severity", "detail"),
-                allowed=("code", "severity", "detail"),
+                allowed=(
+                    "code",
+                    "severity",
+                    "detail",
+                    "source_url",
+                    "field_path",
+                    "evidence_id",
+                    "previous_digest_sha256",
+                    "confirmed_digest_sha256",
+                ),
             )
             if not non_empty(entry_obj.get("code")):
                 _problem(problems, "restriction_code", f"{entry_path}.code", "code is empty")
@@ -1248,6 +1344,43 @@ def validate_restrictions(problems: list[Problem], restrictions: Any, path: str)
             )
             if not non_empty(entry_obj.get("detail")):
                 _problem(problems, "restriction_detail", f"{entry_path}.detail", "detail is empty")
+            if entry_obj.get("field_path") is not None and not non_empty(
+                entry_obj.get("field_path")
+            ):
+                _problem(
+                    problems,
+                    "restriction_field_path",
+                    f"{entry_path}.field_path",
+                    "expected a non-empty field path",
+                )
+            if entry_obj.get("source_url") is not None and not is_http_url(
+                entry_obj.get("source_url")
+            ):
+                _problem(
+                    problems,
+                    "restriction_source_url",
+                    f"{entry_path}.source_url",
+                    "expected an absolute HTTP URL",
+                )
+            evidence_id = entry_obj.get("evidence_id")
+            if evidence_id is not None and evidence_id not in evidence_ids:
+                _problem(
+                    problems,
+                    "restriction_evidence_ref",
+                    f"{entry_path}.evidence_id",
+                    "evidence reference is not defined",
+                )
+            for digest_field in ("previous_digest_sha256", "confirmed_digest_sha256"):
+                digest = entry_obj.get(digest_field)
+                if digest is not None and (
+                    not isinstance(digest, str) or not HEX64_RE.fullmatch(digest)
+                ):
+                    _problem(
+                        problems,
+                        "restriction_digest",
+                        f"{entry_path}.{digest_field}",
+                        "expected 64 lowercase hex characters",
+                    )
 
 
 def _is_uuid(value: str) -> bool:
@@ -1323,7 +1456,11 @@ def validate_registry(document: Any) -> list[Problem]:
 # itself must not stand as a public studio, so publication reads them by code instead of by
 # severity: a `review` severity describes the operator's next step, not what may be shown.
 UNPUBLISHABLE_MISSING_CODES = frozenset(
-    {"studio_use_not_confirmed", "duplicate_of_published_record"}
+    {
+        "identity_or_location_unconfirmed",
+        "studio_use_not_confirmed",
+        "duplicate_of_published_record",
+    }
 )
 
 
@@ -1390,6 +1527,8 @@ def evidence_allows_publication(record: Mapping[str, Any], evidence: Mapping[str
     The rule lives here, next to the review decisions it reads, so that a consumer cannot
     invent a second, more permissive interpretation of the same evidence.
     """
+    if evidence.get("usage_policy") in {"blocked", "research_only"}:
+        return False
     domain = normalize_domain((record.get("official_domains") or {}).get("primary") or "")
     return _approved_policy(evidence, domain)
 
@@ -1406,20 +1545,24 @@ def publication_blockers(record: Mapping[str, Any]) -> list[str]:
     for claim in record.get("service_claims") or []:
         if not claim.get("catalog_category_key"):
             continue
-        for ref in claim.get("evidence_refs") or []:
-            evidence = evidence_by_id.get(ref) or {}
-            policy = evidence.get("usage_policy")
-            if policy in ("blocked", "research_only"):
-                blockers.append(f"source_usage_blocked:{ref}")
-            elif not _approved_policy(evidence, domain):
-                blockers.append(f"source_policy_decision_missing:{domain}")
+        refs = claim.get("evidence_refs") or []
+        if not any(
+            ref in evidence_by_id and evidence_allows_publication(record, evidence_by_id[ref])
+            for ref in refs
+        ):
+            blockers.append(f"source_policy_decision_missing:{domain}")
+
+    address_evidence = [
+        evidence
+        for evidence in record.get("field_evidence") or []
+        if str(evidence.get("field_path") or "").startswith("address.")
+    ]
+    if not any(evidence_allows_publication(record, evidence) for evidence in address_evidence):
+        blockers.append("source_policy_decision_missing:address")
 
     address = record.get("address") or {}
     if address.get("district_basis") == "postal_code":
         blockers.append("district_derivation_not_confirmed")
-
-    for restriction in (record.get("restrictions") or {}).get("review") or []:
-        blockers.append(f"review_required:{restriction.get('code')}")
 
     if not record.get("last_refresh", {}).get("at_utc"):
         blockers.append("freshness_not_recorded")
@@ -1428,10 +1571,6 @@ def publication_blockers(record: Mapping[str, Any]) -> list[str]:
     approved = [locale for locale, text in descriptions.items() if text.get("state") == "approved"]
     if approved and len(approved) != len(CONTENT_LOCALES):
         blockers.append("partial_approved_descriptions")
-
-    for photo in record.get("photo_candidates") or []:
-        if photo.get("rights_state") == "candidate_unreviewed":
-            blockers.append("media_rights_unreviewed")
 
     return sorted(set(blockers))
 
@@ -1988,6 +2127,178 @@ def _absent(value: Any) -> bool:
     return value is None or value == {} or value == [] or value == ""
 
 
+def _conflict_resolution_details(
+    entry: Mapping[str, Any],
+    record: Mapping[str, Any],
+    *,
+    field_path: str,
+    value: Any,
+    current_value: Any,
+    expected_record_digest: str,
+) -> dict[str, Any] | Problem | None:
+    resolution = entry.get("conflict_resolution")
+    if resolution is None:
+        return None
+    if not isinstance(resolution, Mapping):
+        return Problem("patch_resolution", "conflict_resolution", "expected object")
+    conflict_id = resolution.get("conflict_id")
+    scope = resolution.get("scope")
+    if resolution.get("field_path") != field_path:
+        return Problem(
+            "patch_resolution_field", "conflict_resolution.field_path", "does not match patch field"
+        )
+    baseline = resolution.get("baseline_record_digest_sha256")
+    refs = resolution.get("evidence_refs")
+    if not isinstance(scope, str) or not scope:
+        return Problem("patch_resolution_scope", "conflict_resolution.scope", "scope is required")
+    expected_conflict_id = enrichment_conflict_id(str(record.get("registry_id")), field_path, scope)
+    if conflict_id != expected_conflict_id:
+        return Problem(
+            "patch_resolution_id",
+            "conflict_resolution.conflict_id",
+            "does not match subject/field/scope",
+        )
+    if canonical_bytes(resolution.get("accepted_value")) != canonical_bytes(value):
+        return Problem(
+            "patch_resolution_value",
+            "conflict_resolution.accepted_value",
+            "must exactly match the patch value",
+        )
+    if not isinstance(refs, list) or not refs or refs != entry.get("evidence_refs"):
+        return Problem(
+            "patch_resolution_evidence",
+            "conflict_resolution.evidence_refs",
+            "must exactly match the patch evidence_refs",
+        )
+    evidence_by_id = {
+        evidence.get("evidence_id"): evidence
+        for evidence in record.get("field_evidence", [])
+        if isinstance(evidence, Mapping)
+    }
+    evidence = [evidence_by_id.get(ref) for ref in refs]
+    if any(
+        not isinstance(item, Mapping) or item.get("field_path") != field_path for item in evidence
+    ):
+        return Problem(
+            "patch_resolution_evidence",
+            "conflict_resolution.evidence_refs",
+            "must reference canonical evidence for the exact field",
+        )
+    digests = sorted(str(item.get("response_digest_sha256")) for item in evidence)
+    source_digest = sha256_hex(canonical_json(digests))
+    text_digest = enrichment_value_digest(field_path, scope, value)
+    marker = f"studio-enrichment-resolution:{conflict_id}:{baseline}"
+    value_present = (
+        isinstance(current_value, list)
+        and isinstance(value, Mapping)
+        and any(repeatable_item_key(item) == repeatable_item_key(value) for item in current_value)
+        if field_path == "contacts"
+        else canonical_bytes(current_value) == canonical_bytes(value)
+    )
+    already_recorded = value_present and any(
+        isinstance(review, Mapping)
+        and review.get("decision") == "approved"
+        and review.get("kind") in {"fact", "identity"}
+        and review.get("text_digest_sha256") == text_digest
+        and review.get("source_evidence_digest_sha256") == source_digest
+        and review.get("evidence_refs") == refs
+        and marker in str(review.get("note", ""))
+        for review in record.get("reviews", [])
+    )
+    if not already_recorded and baseline != expected_record_digest:
+        return Problem(
+            "patch_resolution_stale",
+            "conflict_resolution.baseline_record_digest_sha256",
+            "canonical record changed since the conflict was reviewed",
+        )
+    if parse_utc(entry.get("decided_at_utc")) is None:
+        return Problem(
+            "patch_resolution_time",
+            "decided_at_utc",
+            "a conflict resolution requires an exact UTC decision time",
+        )
+    return {
+        "conflict_id": conflict_id,
+        "scope": scope,
+        "baseline": baseline,
+        "evidence_refs": refs,
+        "text_digest": text_digest,
+        "source_digest": source_digest,
+        "already_recorded": already_recorded,
+    }
+
+
+def _prepare_contact_addition(
+    record: Mapping[str, Any],
+    value: Any,
+    evidence_refs: Sequence[Any],
+    *,
+    baseline_digest: str | None,
+    expected_record_digest: str,
+) -> list[dict[str, Any]] | Problem:
+    if not isinstance(value, Mapping):
+        return Problem("patch_collection_item", "value", "contact addition must be an object")
+    if value.get("validation_state") != "unvalidated":
+        return Problem(
+            "patch_collection_review",
+            "value.validation_state",
+            "new contacts remain unvalidated until the human review path approves them",
+        )
+    current = record.get("contacts")
+    if not isinstance(current, list):
+        return Problem("patch_collection_shape", "contacts", "canonical contacts must be a list")
+    known_evidence = {
+        item.get("evidence_id"): item
+        for item in record.get("field_evidence") or []
+        if isinstance(item, Mapping)
+    }
+    refs = list(dict.fromkeys([*(value.get("evidence_refs") or []), *evidence_refs]))
+    if not refs or any(
+        not isinstance(ref, str)
+        or ref not in known_evidence
+        or known_evidence[ref].get("field_path") != "contacts"
+        for ref in refs
+    ):
+        return Problem(
+            "patch_collection_evidence",
+            "evidence_refs",
+            "contact additions require canonical evidence for contacts",
+        )
+    candidate = dict(value)
+    candidate["evidence_refs"] = refs
+    key = repeatable_item_key(candidate)
+    matching = [index for index, item in enumerate(current) if repeatable_item_key(item) == key]
+    if len(matching) > 1:
+        return Problem(
+            "patch_collection_duplicate",
+            "contacts",
+            "canonical collection contains duplicate semantic contacts",
+        )
+    if matching and set(refs) <= set(current[matching[0]].get("evidence_refs") or []):
+        return [dict(item) for item in current]
+    if not isinstance(baseline_digest, str) or not HEX64_RE.fullmatch(baseline_digest):
+        return Problem(
+            "patch_collection_baseline_required",
+            "baseline_record_digest_sha256",
+            "append-only collection patches require a canonical baseline",
+        )
+    if baseline_digest != expected_record_digest:
+        return Problem(
+            "patch_collection_stale",
+            "baseline_record_digest_sha256",
+            "canonical record changed since the collection addition was reviewed",
+        )
+    updated = [dict(item) for item in current]
+    if matching:
+        index = matching[0]
+        updated[index]["evidence_refs"] = list(
+            dict.fromkeys([*(updated[index].get("evidence_refs") or []), *refs])
+        )
+    else:
+        updated.append(candidate)
+    return updated
+
+
 class PatchOutcome:
     """What one patch did to the registry: written, already equal, or refused."""
 
@@ -2016,6 +2327,9 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
         return outcome
 
     by_id = {record.get("registry_id"): record for record in document.get("records") or []}
+    initial_digests = {
+        registry_id: registry_record_digest(record) for registry_id, record in by_id.items()
+    }
     for index, entry in enumerate(patch.get("patches") or []):
         path = f"patches[{index}]"
         if not isinstance(entry, dict):
@@ -2025,6 +2339,11 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
         field_path = entry.get("field_path")
         reviewer = entry.get("reviewer")
         evidence_refs = entry.get("evidence_refs") or []
+        if "replace_existing" in entry and not isinstance(entry["replace_existing"], bool):
+            problems.append(
+                Problem("patch_replace_flag", f"{path}.replace_existing", "expected boolean")
+            )
+            continue
 
         record = by_id.get(registry_id)
         if record is None:
@@ -2038,7 +2357,21 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
         if not non_empty(reviewer):
             problems.append(Problem("patch_reviewer", f"{path}.reviewer", "reviewer is required"))
             continue
-
+        operation = entry.get("operation", "set_value")
+        if operation not in {"set_value", "add_collection_item"}:
+            problems.append(
+                Problem("patch_operation", f"{path}.operation", "unsupported operation")
+            )
+            continue
+        if operation == "add_collection_item" and field_path != "contacts":
+            problems.append(
+                Problem(
+                    "patch_operation_field",
+                    f"{path}.field_path",
+                    "add_collection_item currently supports the contacts collection",
+                )
+            )
+            continue
         if field_path == "restrictions.missing":
             if not isinstance(entry.get("value"), list):
                 problems.append(
@@ -2080,15 +2413,17 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
                     )
                 )
                 continue
-            for ref in evidence_refs:
-                if ref not in known_evidence:
-                    problems.append(
-                        Problem(
-                            "patch_evidence_unknown",
-                            f"{path}.evidence_refs",
-                            f"unknown evidence {ref}",
-                        )
+            unknown_refs = [ref for ref in evidence_refs if ref not in known_evidence]
+            if unknown_refs:
+                problems.extend(
+                    Problem(
+                        "patch_evidence_unknown",
+                        f"{path}.evidence_refs",
+                        f"unknown evidence {ref}",
                     )
+                    for ref in unknown_refs
+                )
+                continue
             if field_path in RENAME_FIELD_PATHS and not any(
                 (known_evidence.get(ref) or {}).get("source_kind") == "official_site"
                 for ref in evidence_refs
@@ -2125,20 +2460,84 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
                 continue
 
         incoming = entry.get("value")
+        resolution_value = incoming
         current = _value_at_path(record, field_path)
+        if operation == "add_collection_item":
+            prepared = _prepare_contact_addition(
+                record,
+                incoming,
+                evidence_refs,
+                baseline_digest=entry.get("baseline_record_digest_sha256"),
+                expected_record_digest=initial_digests[registry_id],
+            )
+            if isinstance(prepared, Problem):
+                problems.append(Problem(prepared.code, f"{path}.{prepared.path}", prepared.message))
+                continue
+            incoming = prepared
         if field_path in RENAME_FIELD_PATHS:
             rename_problem = _rename_problem(entry, field_path, record, incoming, current)
             if rename_problem is not None:
                 problems.append(rename_problem)
                 continue
-        if canonical_json(current) == canonical_json(incoming):
+        resolution_details = _conflict_resolution_details(
+            entry,
+            record,
+            field_path=field_path,
+            value=resolution_value,
+            current_value=current,
+            expected_record_digest=initial_digests[registry_id],
+        )
+        if isinstance(resolution_details, Problem):
+            problems.append(resolution_details)
+            continue
+        if resolution_details and resolution_details["already_recorded"]:
             outcome.unchanged += 1
             continue
-        # A rename is the operator's own decision about this exact field, so it does not need a
-        # second "replace_existing" flag; every other path still needs explicit ownership.
+        unchanged_value = canonical_json(current) == canonical_json(incoming)
+        if unchanged_value and resolution_details is None:
+            outcome.unchanged += 1
+            continue
+        replacement = (
+            operation != "add_collection_item" and not _absent(current) and not unchanged_value
+        )
+        if replacement and resolution_details is None:
+            if field_path == "aliases":
+                pass
+            elif field_path in {"canonical_name", "restrictions.missing"}:
+                baseline = entry.get("baseline_record_digest_sha256")
+                if not isinstance(baseline, str):
+                    problems.append(
+                        Problem(
+                            "patch_replace_baseline_required",
+                            f"{path}.baseline_record_digest_sha256",
+                            "replacing an existing value requires its reviewed baseline",
+                        )
+                    )
+                    continue
+                if baseline != initial_digests[registry_id]:
+                    problems.append(
+                        Problem(
+                            "patch_replace_stale",
+                            f"{path}.baseline_record_digest_sha256",
+                            "canonical record changed since the patch was reviewed",
+                        )
+                    )
+                    continue
+            else:
+                problems.append(
+                    Problem(
+                        "patch_resolution_required",
+                        f"{path}.conflict_resolution",
+                        "replacing an accepted fact requires a baseline-bound conflict resolution",
+                    )
+                )
+                continue
+        # A rename still records identity history; restrictions have their dedicated fact review.
         if (
-            field_path != "canonical_name"
+            operation != "add_collection_item"
+            and field_path not in {"canonical_name", "aliases"}
             and not _absent(current)
+            and not unchanged_value
             and not entry.get("replace_existing")
         ):
             problems.append(
@@ -2152,11 +2551,33 @@ def apply_patch(document: dict[str, Any], patch: Mapping[str, Any]) -> PatchOutc
                 )
             )
             continue
-        _set_by_path(record, field_path, incoming)
-        if field_path == "canonical_name":
+        if not unchanged_value:
+            _set_by_path(record, field_path, incoming)
+        if field_path == "canonical_name" and not unchanged_value:
             _record_rename(record, entry, previous=current, reviewer=str(reviewer))
-        if field_path == "restrictions.missing":
+        if field_path == "restrictions.missing" and not unchanged_value:
             _record_restriction_decision(record, entry, previous=current, reviewer=str(reviewer))
+        if resolution_details is not None:
+            resolution_note = (
+                f"studio-enrichment-resolution:{resolution_details['conflict_id']}"
+                f":{resolution_details['baseline']}; "
+                f"field={field_path}; evidence={','.join(resolution_details['evidence_refs'])}"
+            )
+            _append_review(
+                record,
+                kind=(
+                    "identity"
+                    if field_path in {"canonical_name", "aliases", "official_domains.primary"}
+                    else "fact"
+                ),
+                decision="approved",
+                actor_id=str(reviewer),
+                decided_at_utc=str(entry["decided_at_utc"]),
+                text_digest=resolution_details["text_digest"],
+                source_digest=resolution_details["source_digest"],
+                note=resolution_note,
+                evidence_refs=resolution_details["evidence_refs"],
+            )
         record.setdefault("collector", {}).setdefault("revisions", []).append(
             f"patch:{field_path}:{reviewer}"
         )
@@ -2581,6 +3002,7 @@ def _append_review(
     source_digest: str,
     note: str,
     locale: str | None = None,
+    evidence_refs: Sequence[str] | None = None,
 ) -> str:
     reviews = record.setdefault("reviews", [])
     sequence = _next_review_sequence(record)
@@ -2602,6 +3024,7 @@ def _append_review(
             "source_evidence_digest_sha256": source_digest,
             "locale": locale,
             "note": note,
+            **({"evidence_refs": list(evidence_refs)} if evidence_refs is not None else {}),
         }
     )
     return review_id
