@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
@@ -299,16 +300,17 @@ def test_rich_predicate_requires_three_approved_locales(tmp_path: Path) -> None:
             "omission_reason": "site terms forbid reuse without written consent",
         }
     ]
-    record["field_evidence"][1] = {
-        **record["field_evidence"][1],
-        "policy_decision": {
-            "decision": "approved",
-            "reviewer": "source-policy-owner",
-            "decided_at_utc": "2026-11-19T19:00:00Z",
-            "scope": "official_site:example-studio.de facts",
-            "policy_digest_sha256": "c" * 64,
-        },
-    }
+    for evidence_index in (0, 1):
+        record["field_evidence"][evidence_index] = {
+            **record["field_evidence"][evidence_index],
+            "policy_decision": {
+                "decision": "approved",
+                "reviewer": "source-policy-owner",
+                "decided_at_utc": "2026-11-19T19:00:00Z",
+                "scope": "official_site:example-studio.de facts",
+                "policy_digest_sha256": "c" * 64,
+            },
+        }
     record["address"] = {**record["address"], "district_basis": "operator_reviewed"}
     record["restrictions"] = {"rejected": [], "missing": [], "conflicting": []}
 
@@ -1440,6 +1442,7 @@ def _rename_patch(record: dict, **overrides) -> dict:
         "reviewer": "operator",
         "decided_at_utc": "2026-11-24T10:00:00Z",
         "previous_name_used_by_organization": True,
+        "baseline_record_digest_sha256": sr.registry_record_digest(record),
     }
     entry.update(overrides)
     return {"schema_revision": sr.PATCH_SCHEMA_REVISION, "patches": [entry]}
@@ -1459,6 +1462,7 @@ def _restriction_patch(record: dict, **overrides) -> dict:
         "decided_at_utc": "2026-11-25T12:00:00Z",
         "note": "the studio site names this address as the place clients visit",
         "replace_existing": True,
+        "baseline_record_digest_sha256": sr.registry_record_digest(record),
     }
     entry.update(overrides)
     return {"schema_revision": sr.PATCH_SCHEMA_REVISION, "patches": [entry]}
@@ -1662,3 +1666,142 @@ def test_reverify_keeps_unrelated_digest_conflicts() -> None:
 
     remaining = document["records"][0]["restrictions"]["conflicting"]
     assert [entry["field_path"] for entry in remaining] == ["service_claims"]
+
+
+def test_replace_existing_fact_requires_baseline_bound_resolution() -> None:
+    record = _record()
+    before = copy.deepcopy(record)
+    patch = {
+        "schema_revision": sr.PATCH_SCHEMA_REVISION,
+        "patches": [
+            {
+                "registry_id": record["registry_id"],
+                "field_path": "address.street",
+                "value": "New Str.",
+                "evidence_refs": [record["field_evidence"][0]["evidence_id"]],
+                "reviewer": "operator",
+                "replace_existing": True,
+            }
+        ],
+    }
+
+    outcome = sr.apply_patch(_registry(record), patch)
+
+    assert outcome.applied == 0
+    assert {problem.code for problem in outcome.problems} == {"patch_resolution_required"}
+    assert record == before
+
+
+def test_identity_resolution_patch_replay_is_idempotent() -> None:
+    record = _record()
+    evidence = _evidence(
+        field_path="canonical_name",
+        url="https://example-studio.de/about/",
+        digest="d" * 64,
+        excerpt="The studio is now called Example Sound Lab.",
+    )
+    record["field_evidence"].append(evidence)
+    baseline = sr.registry_record_digest(record)
+    scope = "canonical_name"
+    value = "Example Sound Lab"
+    conflict_id = sr.enrichment_conflict_id(record["registry_id"], scope, scope)
+    patch = {
+        "schema_revision": sr.PATCH_SCHEMA_REVISION,
+        "patches": [
+            {
+                "registry_id": record["registry_id"],
+                "field_path": scope,
+                "value": value,
+                "evidence_refs": [evidence["evidence_id"]],
+                "reviewer": "operator",
+                "decided_at_utc": "2026-11-27T10:00:00Z",
+                "previous_name_used_by_organization": True,
+                "conflict_resolution": {
+                    "conflict_id": conflict_id,
+                    "field_path": scope,
+                    "scope": scope,
+                    "baseline_record_digest_sha256": baseline,
+                    "accepted_value": value,
+                    "evidence_refs": [evidence["evidence_id"]],
+                },
+            }
+        ],
+    }
+    document = _registry(record)
+
+    first = sr.apply_patch(document, patch)
+    after_first = copy.deepcopy(document)
+    second = sr.apply_patch(document, patch)
+
+    assert first.problems == []
+    assert first.applied == 1
+    assert second.problems == []
+    assert second.unchanged == 1
+    assert document == after_first
+    assert any(
+        review["kind"] == "identity"
+        and f"studio-enrichment-resolution:{conflict_id}:{baseline}" in review["note"]
+        for review in document["records"][0]["reviews"]
+    )
+    assert sr.validate_registry(document) == []
+
+
+def test_add_collection_item_appends_and_replays_without_replacing_contacts() -> None:
+    record = _record()
+    existing_evidence = _evidence(
+        field_path="contacts",
+        url="https://example-studio.de/contact/",
+        digest="e" * 64,
+    )
+    candidate_evidence = _evidence(
+        field_path="contacts",
+        url="https://example-studio.de/booking/",
+        digest="f" * 64,
+    )
+    record["field_evidence"].extend([existing_evidence, candidate_evidence])
+    record["contacts"] = [
+        {
+            "kind": "website",
+            "target": existing_evidence["source_url"],
+            "label": "Website",
+            "validation_state": "unvalidated",
+            "evidence_refs": [existing_evidence["evidence_id"]],
+        }
+    ]
+    baseline = sr.registry_record_digest(record)
+    patch = {
+        "schema_revision": sr.PATCH_SCHEMA_REVISION,
+        "patches": [
+            {
+                "registry_id": record["registry_id"],
+                "field_path": "contacts",
+                "operation": "add_collection_item",
+                "value": {
+                    "kind": "website",
+                    "target": candidate_evidence["source_url"],
+                    "label": "Booking",
+                    "validation_state": "unvalidated",
+                    "evidence_refs": [candidate_evidence["evidence_id"]],
+                },
+                "evidence_refs": [candidate_evidence["evidence_id"]],
+                "reviewer": "operator",
+                "baseline_record_digest_sha256": baseline,
+            }
+        ],
+    }
+    document = _registry(record)
+
+    first = sr.apply_patch(document, patch)
+    after_first = copy.deepcopy(document)
+    second = sr.apply_patch(document, patch)
+
+    assert first.problems == []
+    assert first.applied == 1
+    assert second.problems == []
+    assert second.unchanged == 1
+    assert document == after_first
+    assert [contact["target"] for contact in document["records"][0]["contacts"]] == [
+        "https://example-studio.de/contact/",
+        "https://example-studio.de/booking/",
+    ]
+    assert sr.validate_registry(document) == []
