@@ -33,6 +33,7 @@ import uuid
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 try:  # imported as a package by tests and by `python -m tools.registry_catalog_manifest`
     from tools import studio_registry as registry
@@ -71,6 +72,36 @@ ADDRESS_DATASET_LAYER = "adressen_berlin"
 
 SOURCE_KIND_PUBLIC_WEBSITE = "publicWebsite"
 SOURCE_KIND_LICENSED_DATASET = "licensedDataset"
+SOURCE_HOST_CLASSIFICATIONS = {
+    "wikidata.org": (SOURCE_KIND_LICENSED_DATASET, "wikidata"),
+    "openstreetmap.org": (SOURCE_KIND_LICENSED_DATASET, "openstreetmap"),
+    "overpass-api.de": (SOURCE_KIND_LICENSED_DATASET, "openstreetmap"),
+    "musicbrainz.org": (SOURCE_KIND_LICENSED_DATASET, "musicbrainz"),
+    "commons.wikimedia.org": (SOURCE_KIND_LICENSED_DATASET, "wikimedia_commons"),
+    "dasoertliche.de": (SOURCE_KIND_LICENSED_DATASET, "dasoertliche_directory"),
+    "overturemaps-us-west-2.s3.us-west-2.amazonaws.com": (
+        SOURCE_KIND_LICENSED_DATASET,
+        "overture_places",
+    ),
+}
+SOURCE_CLASSIFICATIONS = {
+    "official_site": (SOURCE_KIND_PUBLIC_WEBSITE, "official_studio_website"),
+    "licensed_directory": (SOURCE_KIND_LICENSED_DATASET, "licensed_directory"),
+    "openstreetmap": (SOURCE_KIND_LICENSED_DATASET, "openstreetmap"),
+    "wikidata": (SOURCE_KIND_LICENSED_DATASET, "wikidata"),
+    "overture_places": (SOURCE_KIND_LICENSED_DATASET, "overture_places"),
+    "foursquare_os_places": (SOURCE_KIND_LICENSED_DATASET, "foursquare_os_places"),
+    "musicbrainz": (SOURCE_KIND_LICENSED_DATASET, "musicbrainz"),
+    "wikimedia_commons": (SOURCE_KIND_LICENSED_DATASET, "wikimedia_commons"),
+    "official_berlin_address_register": (
+        SOURCE_KIND_LICENSED_DATASET,
+        "official_berlin_address_dataset",
+    ),
+    "dasoertliche_directory": (SOURCE_KIND_LICENSED_DATASET, "dasoertliche_directory"),
+    "public_registry": (SOURCE_KIND_LICENSED_DATASET, "public_registry"),
+    "manual_operator": (SOURCE_KIND_PUBLIC_WEBSITE, "manual_operator_reference"),
+    "owner_submission": (SOURCE_KIND_PUBLIC_WEBSITE, "owner_submission_reference"),
+}
 USAGE_POLICY_PUBLIC_ALLOWED = "publicAllowed"
 
 DEFAULT_CAMPAIGN = pathlib.Path("campaigns") / "berlin_recording_services"
@@ -180,13 +211,52 @@ def load_mapping(path: pathlib.Path) -> CatalogMapping:
     )
 
 
-def classify_source(evidence: Mapping[str, Any]) -> tuple[str, str]:
-    """Classify an evidence artifact by what it verifiably is, keeping the declared kind visible."""
+def _host_matches_domain(host: str, domain: Any) -> bool:
+    if not isinstance(domain, str) or not domain:
+        return False
+    normalized = registry.normalize_domain(domain)
+    return bool(normalized) and (host == normalized or host.endswith("." + normalized))
+
+
+def classify_source(
+    evidence: Mapping[str, Any],
+    official_domains: Mapping[str, Any] | None = None,
+) -> tuple[str, str]:
+    """Map source evidence to its actual provider; verify official sites against the record."""
     url = str(evidence.get("source_url") or "")
+    parsed_url = urlsplit(url)
     host = registry.normalize_domain(url)
-    if host in ADDRESS_DATASET_HOSTS and ADDRESS_DATASET_LAYER in url:
+    path = parsed_url.path.lower()
+
+    if parsed_url.scheme == "s3" and parsed_url.netloc == "overturemaps-us-west-2":
+        return SOURCE_KIND_LICENSED_DATASET, "overture_places"
+    if host == "docs.foursquare.com" and path.rstrip("/") in {
+        "/data-products/docs/access-fsq-os-places",
+        "/data-products/docs/fsq-places-open-source",
+    }:
+        return SOURCE_KIND_PUBLIC_WEBSITE, "foursquare_os_places_access_documentation"
+    if host == "huggingface.co" and path.startswith("/datasets/foursquare/fsq-os-places"):
+        return SOURCE_KIND_LICENSED_DATASET, "foursquare_os_places"
+    if host in ADDRESS_DATASET_HOSTS and ADDRESS_DATASET_LAYER in path:
         return SOURCE_KIND_LICENSED_DATASET, "official_berlin_address_dataset"
-    return SOURCE_KIND_PUBLIC_WEBSITE, "official_studio_website"
+    for provider_host, classification in SOURCE_HOST_CLASSIFICATIONS.items():
+        if host == provider_host or host.endswith("." + provider_host):
+            return classification
+    source_kind = evidence.get("source_kind")
+    classification = SOURCE_CLASSIFICATIONS.get(source_kind)
+    if classification is None:
+        raise ManifestError(
+            f"cannot classify source kind {source_kind!r} for evidence {url or '<missing URL>'}"
+        )
+    if source_kind == "official_site":
+        domains = official_domains or {}
+        declared_domains = [domains.get("primary"), *(domains.get("alternates") or [])]
+        if not host or not any(_host_matches_domain(host, domain) for domain in declared_domains):
+            raise ManifestError(
+                "official-site evidence host "
+                f"{host or '<missing>'} is not declared in registry official_domains"
+            )
+    return classification
 
 
 def derive_assertion_id(
@@ -280,7 +350,7 @@ def _assertions(record: Mapping[str, Any]) -> list[dict[str, Any]]:
             raise ManifestError(
                 f"evidence for '{field_path}' lacks a source url or response digest"
             )
-        source_kind, basis = classify_source(evidence)
+        source_kind, basis = classify_source(evidence, record.get("official_domains"))
         entry = grouped.get(key)
         if entry is None:
             entry = {

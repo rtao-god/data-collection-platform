@@ -219,6 +219,104 @@ def test_address_dataset_is_classified_as_licensed_not_as_the_studio_site(tmp_pa
     assert [item["sourceKind"] for item in website] == [producer.SOURCE_KIND_PUBLIC_WEBSITE]
 
 
+@pytest.mark.parametrize(
+    ("source_url", "source_kind", "expected"),
+    [
+        (
+            "https://www.wikidata.org/wiki/Q1",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "wikidata"),
+        ),
+        (
+            "https://www.openstreetmap.org/way/123",
+            "openstreetmap",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "openstreetmap"),
+        ),
+        (
+            "https://overpass-api.de/api/interpreter",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "openstreetmap"),
+        ),
+        (
+            "https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/2026-11-18.0/theme=places/type=place",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "overture_places"),
+        ),
+        (
+            "s3://overturemaps-us-west-2/release/2026-11-18.0/theme=places/type=place/*.parquet",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "overture_places"),
+        ),
+        (
+            "https://docs.foursquare.com/data-products/docs/access-fsq-os-places",
+            "official_site",
+            (producer.SOURCE_KIND_PUBLIC_WEBSITE, "foursquare_os_places_access_documentation"),
+        ),
+        (
+            "https://huggingface.co/datasets/foursquare/fsq-os-places/resolve/main/places.parquet",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "foursquare_os_places"),
+        ),
+        (
+            "https://musicbrainz.org/ws/2/place/?query=type%3AStudio%20AND%20area%3ABerlin",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "musicbrainz"),
+        ),
+        (
+            "https://commons.wikimedia.org/w/api.php?action=query&format=json",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "wikimedia_commons"),
+        ),
+        (
+            "https://www.dasoertliche.de/Themen/Musikstudios/Berlin-Westend.html",
+            "official_site",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "dasoertliche_directory"),
+        ),
+        (
+            "https://directory.example/studio",
+            "licensed_directory",
+            (producer.SOURCE_KIND_LICENSED_DATASET, "licensed_directory"),
+        ),
+    ],
+)
+def test_source_classification_preserves_provider_identity(
+    source_url: str, source_kind: str, expected: tuple[str, str]
+) -> None:
+    assert (
+        producer.classify_source({"source_url": source_url, "source_kind": source_kind}) == expected
+    )
+
+
+def test_official_site_requires_a_recorded_primary_or_alternate_domain() -> None:
+    evidence = {
+        "source_url": "https://www.example-studio.de/contact/",
+        "source_kind": "official_site",
+    }
+    official_domains = {"primary": "example-studio.de", "alternates": ["example-audio.de"]}
+
+    assert producer.classify_source(evidence, official_domains) == (
+        producer.SOURCE_KIND_PUBLIC_WEBSITE,
+        "official_studio_website",
+    )
+    assert producer.classify_source(
+        {"source_url": "https://example-audio.de/about", "source_kind": "official_site"},
+        official_domains,
+    ) == (producer.SOURCE_KIND_PUBLIC_WEBSITE, "official_studio_website")
+
+    with pytest.raises(producer.ManifestError, match="not declared in registry official_domains"):
+        producer.classify_source(
+            {"source_url": "https://www.discogs.com/studio/123", "source_kind": "official_site"},
+            official_domains,
+        )
+
+
+def test_unknown_source_kind_is_not_mislabeled_as_an_official_website() -> None:
+    with pytest.raises(producer.ManifestError, match="cannot classify source kind"):
+        producer.classify_source(
+            {"source_url": "https://unknown-source.example/record/1", "source_kind": "new_provider"}
+        )
+
+
 def test_postal_code_district_is_blocked_and_carries_no_facts(tmp_path: Path) -> None:
     mapping = _mapping(tmp_path)
     record = _record()
