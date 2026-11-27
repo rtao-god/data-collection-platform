@@ -1,7 +1,7 @@
 {
   "project_root": "D:\\Aggregator\\data-collection-platform",
   "rules_revision": "0f436068d07123da9e89ba66369ac12b1e17c5f7a31fe9be232f88a01c736779",
-  "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c",
+  "renderer_revision": "syntax-incremental-30c2e73ddb9bca6bde3840ee3971ee6e7cfbe9af672b8cb28c0e06e9691cc3fd",
   "excluded_sources": [
     {
       "path": ".dockerignore",
@@ -444,9 +444,9 @@
             "packages/review_infrastructure/src/review_infrastructure/postgres.py",
             "tools/review_contract_generation/generate.py"
           ],
-          "input_digest": "5d9ede22f1d07f5292d5102b61eb5a6a92e27f87309fdcba72831f6f6c279f4a",
-          "artifact_sha256": "d76aa509917c03a37ddd005ba9857affbae41c86aae75233c1c2c6a4fb92e138",
-          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+          "input_digest": "33b0b554f514b6b12814c0a12f15da0eb242bd8fa74ab9503440689f42a18de6",
+          "artifact_sha256": "aba29fd4cea6ddece9676a27257038b85eb0e43423117fc8a9fda79ea2189b10",
+          "renderer_revision": "syntax-part-6ce93222c20f3971d2252b093368083952c9d361fce59bcde3b9681a0b948c49"
         }
       ]
     },
@@ -544,9 +544,9 @@
             "packages/normalization_core/src/normalization_core/__init__.py",
             "packages/normalization_core/src/normalization_core/normalizer.py"
           ],
-          "input_digest": "b8e398619a5c800b3eb3de07a4e76711c27f9b094976119c6e34c1f60d2d9709",
-          "artifact_sha256": "bfd096782f90b6fb81deafb48e34cfa04796ca54ff785b3313130c8974b40e25",
-          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+          "input_digest": "9edf76c7c8ec3edadd57c9a1ecabb6da49703305258edcc00951d4454fd7ce27",
+          "artifact_sha256": "d62f86369b7b918b9ef0de365c73c0fe5e6293f31d76e291aabaf10525226eeb",
+          "renderer_revision": "syntax-part-6ce93222c20f3971d2252b093368083952c9d361fce59bcde3b9681a0b948c49"
         }
       ]
     },
@@ -689,9 +689,9 @@
             "connectors/osm_overpass/src/osm_overpass/query.py",
             "connectors/osm_overpass/src/osm_overpass/response.py"
           ],
-          "input_digest": "5c26af63d5ca1db98978f684fe97bebfa22ba44b6f7e0e12b9244e605241b256",
-          "artifact_sha256": "487de02abbfb6622faf1e081ceed59a9993e894d0829e221a47579e80b6ef4c4",
-          "renderer_revision": "syntax-incremental-7e32754935ee2fbd4b13008cc819da9c3a71d8eb0e5a76d48bb4df843181b57c"
+          "input_digest": "e3c1351afcb38db37512257b0d45ba80ef364771968a47e322deb6eff045ff6f",
+          "artifact_sha256": "70bdbbd3d5a0490250b43831863e59c11e98cd03cde0eeaf85622ac9778d5bd4",
+          "renderer_revision": "syntax-part-6ce93222c20f3971d2252b093368083952c9d361fce59bcde3b9681a0b948c49"
         }
       ]
     },
