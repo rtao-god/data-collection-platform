@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from tools import registry_catalog_manifest as producer
+from tools import registry_enrichment_queue as queue
 from tools import studio_registry as sr
 
 MAPPING_TEXT = """
@@ -317,6 +318,424 @@ def test_unknown_source_kind_is_not_mislabeled_as_an_official_website() -> None:
         )
 
 
+def test_queue_contact_candidates_flow_through_real_cli_order_into_manifest(
+    tmp_path: Path,
+) -> None:
+    mapping = _mapping(tmp_path)
+    record = _record()
+    registry_document = _document(record)
+    registry_path = tmp_path / "studios.json"
+    incoming_path = tmp_path / "studios-incoming.json"
+    conflicts_path = tmp_path / "studios-conflicts.json"
+    capture_path = tmp_path / "capture.json"
+    policy_path = tmp_path / "official-site-policy.yaml"
+    patch_path = tmp_path / "patch.json"
+    contacts_path = tmp_path / "contacts.json"
+    source_url = "https://example-studio.de/contact/"
+    response_digest = "d" * 64
+    observed_at = "2026-11-27T10:00:00Z"
+    values = [
+        {
+            "kind": "phone",
+            "target": "+49 30 1234567",
+            "label": "Studio",
+            "validation_state": "unvalidated",
+            "evidence_refs": [],
+        },
+        {
+            "kind": "phone",
+            "target": "+49 30 7654321",
+            "label": "Bookings",
+            "validation_state": "unvalidated",
+            "evidence_refs": [],
+        },
+        {
+            "kind": "phone",
+            "target": "+49 30 9876543",
+            "label": "Mobile room",
+            "validation_state": "unvalidated",
+            "evidence_refs": [],
+        },
+    ]
+    observations = [
+        {
+            "observation_id": f"official-site:example-studio:phone-{index}",
+            "source_run_id": "official-site-pass-1",
+            "registry_id": record["registry_id"],
+            "subject_match": {"state": "matched_review_required", "source_label": "Example Studio"},
+            "field_path": "contacts",
+            "operation": "add_collection_item",
+            "normalized_value": value,
+            "source": {
+                "source_key": "official_site",
+                "source_record_id": None,
+                "dataset_release": None,
+                "source_url": source_url,
+                "acquired_at_utc": observed_at,
+                "response_digest_sha256": response_digest,
+                "verification_status": "verified",
+            },
+            "baseline_record_digest_sha256": producer.digest_of(record),
+            "status": "pending_verification",
+        }
+        for index, value in enumerate(values, 1)
+    ]
+    incoming = {
+        "schema_revision": queue.INCOMING_SCHEMA,
+        "campaign_key": sr.CAMPAIGN_KEY,
+        "source_runs": [
+            {
+                "run_id": "official-site-pass-1",
+                "requested_at_utc": observed_at,
+                "coverage": {
+                    "requested": 1,
+                    "obtained": 1,
+                    "matched": 1,
+                    "new": 0,
+                    "ambiguous": 0,
+                    "unavailable": 0,
+                    "denied": 0,
+                },
+            }
+        ],
+        "observations": observations,
+    }
+    registry_path.write_text(sr.canonical_json(registry_document), encoding="utf-8")
+    incoming_path.write_text(sr.canonical_json(incoming), encoding="utf-8")
+    policy_path.write_text("policy_key: official_site_berlin_studios_policy\n", encoding="utf-8")
+    assert (
+        queue.main(
+            [
+                "refresh",
+                "--registry",
+                str(registry_path),
+                "--incoming",
+                str(incoming_path),
+                "--conflicts",
+                str(conflicts_path),
+            ]
+        )
+        == 0
+    )
+
+    capture_path.write_text(
+        json.dumps(
+            {
+                "sourceKey": "official_site",
+                "entries": [
+                    {
+                        "state": "captured",
+                        "registryId": record["registry_id"],
+                        "url": source_url,
+                        "responseDigestSha256": response_digest,
+                        "observedAtUtc": observed_at,
+                        "fieldPaths": ["contacts"],
+                        "excerpt": "Studio +49 30 1234567; Bookings +49 30 7654321",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "record-evidence",
+                "--capture",
+                str(capture_path),
+            ]
+        )
+        == 0
+    )
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "decide",
+                "--policy-file",
+                str(policy_path),
+                "--reviewer",
+                "operator",
+                "--decided-at-utc",
+                "2026-11-27T11:00:00Z",
+                "--registry-id",
+                record["registry_id"],
+            ]
+        )
+        == 0
+    )
+
+    assert (
+        queue.main(
+            [
+                "refresh",
+                "--registry",
+                str(registry_path),
+                "--incoming",
+                str(incoming_path),
+                "--conflicts",
+                str(conflicts_path),
+            ]
+        )
+        == 0
+    )
+    stale_projection = json.loads(conflicts_path.read_text(encoding="utf-8"))
+    assert [item["reason"] for item in stale_projection["conflicts"]] == [
+        "baseline_record_digest_changed"
+    ]
+    assert (
+        queue.main(
+            [
+                "rebase-metadata-batch",
+                "--registry",
+                str(registry_path),
+                "--incoming",
+                str(incoming_path),
+                "--policy-file",
+                str(policy_path),
+                "--reviewer",
+                "operator",
+                "--decided-at-utc",
+                "2026-11-27T11:00:00Z",
+                "--registry-id",
+                record["registry_id"],
+            ]
+        )
+        == 0
+    )
+    assert (
+        queue.main(
+            [
+                "refresh",
+                "--registry",
+                str(registry_path),
+                "--incoming",
+                str(incoming_path),
+                "--conflicts",
+                str(conflicts_path),
+            ]
+        )
+        == 0
+    )
+    projection = json.loads(conflicts_path.read_text(encoding="utf-8"))
+    assert projection["conflicts"] == []
+    assert len(projection["field_gaps"][0]["candidate_values"]) == 3
+    refreshed_incoming = json.loads(incoming_path.read_text(encoding="utf-8"))
+    baseline = refreshed_incoming["observations"][0]["baseline_record_digest_sha256"]
+    evidence_id = sr.evidence_id_for(record["registry_id"], source_url, response_digest, "contacts")
+    conflict_id = sr.enrichment_conflict_id(record["registry_id"], "contacts", "contacts")
+    decision_time = "2026-11-27T11:20:00Z"
+    patch = {
+        "schema_revision": sr.PATCH_SCHEMA_REVISION,
+        "patches": [
+            {
+                "registry_id": record["registry_id"],
+                "field_path": "contacts",
+                "operation": "add_collection_item",
+                "value": value,
+                "evidence_refs": [evidence_id],
+                "reviewer": "operator",
+                "decided_at_utc": decision_time,
+                "baseline_record_digest_sha256": baseline,
+                "conflict_resolution": {
+                    "conflict_id": conflict_id,
+                    "field_path": "contacts",
+                    "scope": "contacts",
+                    "baseline_record_digest_sha256": baseline,
+                    "accepted_value": value,
+                    "evidence_refs": [evidence_id],
+                },
+            }
+            for value in values[:2]
+        ],
+    }
+    patch_path.write_text(json.dumps(patch), encoding="utf-8")
+    assert sr.main(["--registry", str(registry_path), "enrich", "--patch", str(patch_path)]) == 0
+    contact_reviews = [
+        {
+            "registry_id": record["registry_id"],
+            "kind": value["kind"],
+            "target": value["target"],
+            "validation_state": "validated",
+            "source_evidence_digest_sha256": response_digest,
+        }
+        for value in values[:2]
+    ]
+    contacts_path.write_text(json.dumps(contact_reviews), encoding="utf-8")
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "operator",
+                "--decided-at-utc",
+                "2026-11-27T11:30:00Z",
+                "--contacts",
+                str(contacts_path),
+            ]
+        )
+        == 0
+    )
+
+    incoming_after_decision = json.loads(incoming_path.read_text(encoding="utf-8"))
+    for observation in incoming_after_decision["observations"][:2]:
+        observation["status"] = "consumed"
+        observation["resolution"] = {
+            "conflict_id": conflict_id,
+            "field_path": "contacts",
+            "scope": "contacts",
+            "baseline_record_digest_sha256": baseline,
+            "accepted_value": observation["normalized_value"],
+            "evidence_refs": [evidence_id],
+        }
+    incoming_path.write_text(sr.canonical_json(incoming_after_decision), encoding="utf-8")
+    queue_args = [
+        "refresh",
+        "--registry",
+        str(registry_path),
+        "--incoming",
+        str(incoming_path),
+        "--conflicts",
+        str(conflicts_path),
+    ]
+    assert queue.main(queue_args) == 0
+    first_projection = json.loads(conflicts_path.read_text(encoding="utf-8"))
+    assert len(first_projection["conflicts"]) == 1
+    assert first_projection["conflicts"][0]["reason"] == "baseline_record_digest_changed"
+    assert first_projection["conflicts"][0]["competing_values"][0]["observation_id"] == (
+        "official-site:example-studio:phone-3"
+    )
+    assert first_projection["field_gaps"] == []
+    persisted_queue = json.loads(incoming_path.read_text(encoding="utf-8"))
+    assert [item["status"] for item in persisted_queue["observations"]] == [
+        "consumed",
+        "consumed",
+        "pending_verification",
+    ]
+    assert queue.main(queue_args) == 0
+    assert json.loads(conflicts_path.read_text(encoding="utf-8")) == first_projection
+    assert (
+        queue.main(
+            [
+                "validate",
+                "--registry",
+                str(registry_path),
+                "--incoming",
+                str(incoming_path),
+                "--conflicts",
+                str(conflicts_path),
+            ]
+        )
+        == 0
+    )
+
+    final_record = json.loads(registry_path.read_text(encoding="utf-8"))
+    entry = producer.build_record(final_record["records"][0], mapping)
+
+    assert entry["status"] == producer.STATUS_ELIGIBLE
+    assert {item["target"] for item in entry["richFields"]["contacts"]} == {
+        "tel:+49301234567",
+        "tel:+49307654321",
+    }
+    assert any(assertion["evidenceDigest"] == response_digest for assertion in entry["assertions"])
+
+    phone_three = values[2]
+    phone_three_baseline = sr.registry_record_digest(final_record["records"][0])
+    phone_three_patch = {
+        "schema_revision": sr.PATCH_SCHEMA_REVISION,
+        "patches": [
+            {
+                "registry_id": record["registry_id"],
+                "field_path": "contacts",
+                "operation": "add_collection_item",
+                "value": phone_three,
+                "evidence_refs": [evidence_id],
+                "reviewer": "operator",
+                "decided_at_utc": "2026-11-27T12:00:00Z",
+                "baseline_record_digest_sha256": phone_three_baseline,
+                "conflict_resolution": {
+                    "conflict_id": conflict_id,
+                    "field_path": "contacts",
+                    "scope": "contacts",
+                    "baseline_record_digest_sha256": phone_three_baseline,
+                    "accepted_value": phone_three,
+                    "evidence_refs": [evidence_id],
+                },
+            }
+        ],
+    }
+    patch_path.write_text(json.dumps(phone_three_patch), encoding="utf-8")
+    assert sr.main(["--registry", str(registry_path), "enrich", "--patch", str(patch_path)]) == 0
+    contacts_path.write_text(
+        json.dumps(
+            [
+                {
+                    "registry_id": record["registry_id"],
+                    "kind": phone_three["kind"],
+                    "target": phone_three["target"],
+                    "validation_state": "validated",
+                    "source_evidence_digest_sha256": response_digest,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert (
+        sr.main(
+            [
+                "--registry",
+                str(registry_path),
+                "review",
+                "--reviewer",
+                "operator",
+                "--decided-at-utc",
+                "2026-11-27T12:10:00Z",
+                "--contacts",
+                str(contacts_path),
+            ]
+        )
+        == 0
+    )
+
+    closed_queue = json.loads(incoming_path.read_text(encoding="utf-8"))
+    for observation in closed_queue["observations"]:
+        if observation["observation_id"] != "official-site:example-studio:phone-3":
+            continue
+        observation["status"] = "consumed"
+        observation["resolution"] = {
+            "conflict_id": conflict_id,
+            "field_path": "contacts",
+            "scope": "contacts",
+            "baseline_record_digest_sha256": phone_three_baseline,
+            "accepted_value": phone_three,
+            "evidence_refs": [evidence_id],
+        }
+    incoming_path.write_text(sr.canonical_json(closed_queue), encoding="utf-8")
+    assert queue.main(queue_args) == 0
+    closed_projection = json.loads(conflicts_path.read_text(encoding="utf-8"))
+    assert closed_projection["conflicts"] == []
+    assert closed_projection["field_gaps"] == []
+    assert (
+        queue.main(
+            [
+                "validate",
+                "--registry",
+                str(registry_path),
+                "--incoming",
+                str(incoming_path),
+                "--conflicts",
+                str(conflicts_path),
+            ]
+        )
+        == 0
+    )
+
+
 def test_postal_code_district_is_blocked_and_carries_no_facts(tmp_path: Path) -> None:
     mapping = _mapping(tmp_path)
     record = _record()
@@ -342,6 +761,7 @@ def test_changed_evidence_digest_requires_review_and_never_auto_clears(tmp_path:
                 "code": "evidence_digest_changed",
                 "severity": "review",
                 "detail": "new digest for https://example-studio.de/ on address.street",
+                "field_path": "address.street",
             }
         ],
     }
@@ -354,20 +774,45 @@ def test_changed_evidence_digest_requires_review_and_never_auto_clears(tmp_path:
     assert entry["business"] is not None
 
 
-def test_evidence_without_approved_policy_is_review_not_eligible(tmp_path: Path) -> None:
+def test_unapproved_optional_evidence_does_not_review_or_leak_the_card(tmp_path: Path) -> None:
     mapping = _mapping(tmp_path)
     record = _record()
-    unapproved = _evidence(url="https://example-studio.de/impressum", digest="e" * 64)
-    unapproved["policy_decision"] = None
+    unapproved = _evidence(
+        field_path="attributes.room_area_m2",
+        url="https://directory.example/studio",
+        digest="e" * 64,
+        source_kind="licensed_directory",
+        policy_decision=None,
+    )
+    unapproved["usage_policy"] = "research_only"
     record["field_evidence"] = [*record["field_evidence"], unapproved]
+    record["restrictions"]["conflicting"].append(
+        {
+            "code": "evidence_digest_changed",
+            "severity": "review",
+            "detail": "a room-area observation changed",
+            "field_path": "attributes.room_area_m2",
+        }
+    )
+    record["photo_candidates"] = [
+        {
+            "candidate_id": "photo-candidate-1",
+            "source_url": "https://directory.example/studio/photo",
+            "rights_holder": None,
+            "license_url": None,
+            "license_version": None,
+            "rights_state": "candidate_unreviewed",
+            "observed_at_utc": "2026-11-20T00:00:00Z",
+            "evidence_digest_sha256": None,
+            "omission_reason": None,
+        }
+    ]
 
     entry = _build(_document(record), mapping)["records"][0]
 
-    assert entry["status"] == producer.STATUS_REVIEW
-    assert (
-        "source_policy_decision_missing:https://example-studio.de/impressum"
-        in entry["statusReasons"]
-    )
+    assert entry["status"] == producer.STATUS_ELIGIBLE
+    assert entry["business"] is not None
+    assert all(assertion["evidenceDigest"] != "e" * 64 for assertion in entry["assertions"])
 
 
 def test_content_digest_ignores_provenance_but_evidence_digest_tracks_it(tmp_path: Path) -> None:

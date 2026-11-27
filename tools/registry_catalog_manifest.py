@@ -24,11 +24,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import pathlib
 import re
 import sys
-import unicodedata
 import uuid
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -132,26 +130,13 @@ class CatalogMapping:
         return self.name_locales.get(campaign_locale)
 
 
-def _nfc(value: Any) -> Any:
-    """Normalize text to NFC so the same characters cannot yield two digests."""
-    if isinstance(value, str):
-        return unicodedata.normalize("NFC", value)
-    if isinstance(value, Mapping):
-        return {_nfc(key): _nfc(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_nfc(item) for item in value]
-    return value
-
-
 def canonical_bytes(document: Any) -> bytes:
-    """Deterministic bytes: sorted keys, no insignificant whitespace, UTF-8, NFC."""
-    return _nfc(
-        json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    ).encode("utf-8")
+    """Use the registry owner's deterministic JSON canonicalization."""
+    return registry.canonical_bytes(document)
 
 
 def digest_of(document: Any) -> str:
-    return hashlib.sha256(canonical_bytes(document)).hexdigest()
+    return registry.canonical_digest(document)
 
 
 def load_mapping(path: pathlib.Path) -> CatalogMapping:
@@ -287,21 +272,31 @@ def _observed_at(value: Any) -> str:
 
 
 def _status_reasons(record: Mapping[str, Any]) -> tuple[str, list[str]]:
-    """Eligibility verdict plus exact reasons, from registry blockers and policy reviews."""
+    """Only unresolved identity, location, activity or safety gates affect card eligibility."""
     blockers = registry.publication_blockers(record)
     review_reasons: list[str] = []
+    required_field_prefixes = (
+        "canonical_name",
+        "identity_keys",
+        "official_domains.primary",
+        "address.",
+        "market.classification",
+        "service_claims",
+    )
 
     restrictions = record.get("restrictions") or {}
     for bucket in ("conflicting", "rejected", "missing"):
         for entry in restrictions.get(bucket) or []:
-            if entry.get("severity") == "review":
+            if entry.get("severity") != "review":
+                continue
+            field_path = str(entry.get("field_path") or "")
+            required_field = any(
+                field_path == prefix or field_path.startswith(prefix)
+                for prefix in required_field_prefixes
+            )
+            required_code = entry.get("code") == "identity_or_location_unconfirmed"
+            if required_field or required_code:
                 review_reasons.append(f"review_required:{entry.get('code')}")
-
-    for evidence in record.get("field_evidence") or []:
-        if evidence.get("field_path") not in PUBLISHED_FIELD_PATHS:
-            continue
-        if not registry.evidence_allows_publication(record, evidence):
-            review_reasons.append(f"source_policy_decision_missing:{evidence.get('source_url')}")
 
     if blockers:
         return STATUS_BLOCKED, sorted(set(blockers))
@@ -345,6 +340,8 @@ def _assertions(record: Mapping[str, Any]) -> list[dict[str, Any]]:
         field_path = str(evidence.get("field_path") or "")
         if field_path.startswith("source."):
             continue  # collection bookkeeping (robots) is not a published fact
+        if not registry.evidence_allows_publication(record, evidence):
+            continue  # denied or limited-use artifacts remain in DCPF, never as public assertions
         key = _assertion_key(evidence)
         if not key[0] or not key[1]:
             raise ManifestError(
